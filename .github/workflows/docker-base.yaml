@@ -9,6 +9,13 @@ on:
       - scripts/Dockerfile
 
   pull_request:
+    # Self-reference on `pull_request` is intentional: a PR that edits this
+    # workflow runs the build to verify the YAML is well-formed and the
+    # base image still builds. Pushes are gated separately by
+    # `push: ${{ github.event_name != 'pull_request' }}` on the
+    # depot/build-push-action below, so a PR builds the image but never
+    # publishes it. See DOCS-129 for the broader workflow-self-reference
+    # audit.
     paths:
       - scripts/Dockerfile.base
       - .github/workflows/docker-base.yaml
@@ -38,7 +45,7 @@ jobs:
     if: github.repository_owner == 'coder'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -48,7 +55,7 @@ jobs:
           persist-credentials: false
 
       - name: Docker login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

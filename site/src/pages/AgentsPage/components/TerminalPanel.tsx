@@ -94,7 +94,6 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 					ref={terminalRef}
 					agentId={workspaceAgent.id}
 					operatingSystem={workspaceAgent.operating_system}
-					autoFocus={false}
 					isVisible={isVisible}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}

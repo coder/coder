@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { FixedSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import {
 	Tooltip,
@@ -29,6 +30,7 @@ type AgentLogsProps = Omit<
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
+	showSourceIcons?: boolean;
 };
 
 export const AgentLogs: React.FC<AgentLogsProps> = ({
@@ -36,6 +38,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	sources,
 	overflowed,
 	className,
+	showSourceIcons = true,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
@@ -51,7 +54,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"pt-4 [&>div]:relative bg-surface-secondary",
+					"py-4 [&>div]:relative bg-surface-secondary",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -68,7 +71,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					// colored circle to identify unique scripts.
 					if (logSource.icon) {
 						icon = (
-							<img
+							<ExternalImage
 								src={logSource.icon}
 								alt=""
 								className="size-3.5 mr-2 shrink-0"
@@ -126,18 +129,20 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 							line={log}
 							style={style}
 							sourceIcon={
-								<Tooltip>
-									<TooltipTrigger asChild>{icon}</TooltipTrigger>
-									<TooltipContent side="bottom">
-										{logSource.display_name}
-										{assignedIcon && (
-											<i>
-												<br />
-												No icon specified!
-											</i>
-										)}
-									</TooltipContent>
-								</Tooltip>
+								showSourceIcons ? (
+									<Tooltip>
+										<TooltipTrigger asChild>{icon}</TooltipTrigger>
+										<TooltipContent side="bottom">
+											{logSource.display_name}
+											{assignedIcon && (
+												<i>
+													<br />
+													No icon specified!
+												</i>
+											)}
+										</TooltipContent>
+									</Tooltip>
+								) : null
 							}
 						/>
 					);

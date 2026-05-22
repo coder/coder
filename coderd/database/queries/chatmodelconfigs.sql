@@ -34,17 +34,42 @@ SELECT
     cmc.*
 FROM
     chat_model_configs cmc
-JOIN
-    chat_providers cp ON cp.provider = cmc.provider
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
+LEFT JOIN
+    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
+    AND (
+        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
+        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
     cmc.updated_at DESC,
     cmc.id DESC;
+
+-- name: GetEnabledChatModelConfigByID :one
+SELECT
+    cmc.*
+FROM
+    chat_model_configs cmc
+-- Providers can be disabled independently of their model configs.
+-- Check both to ensure the selected config is actually usable.
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
+LEFT JOIN
+    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
+WHERE
+    cmc.id = @id::uuid
+    AND cmc.deleted = FALSE
+    AND cmc.enabled = TRUE
+    AND (
+        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
+        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
+    );
 
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
@@ -57,7 +82,8 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    ai_provider_id
 ) VALUES (
     @provider::text,
     @model::text,
@@ -68,7 +94,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    sqlc.narg('ai_provider_id')::uuid
 )
 RETURNING
     *;
@@ -86,6 +113,7 @@ SET
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
+    ai_provider_id = sqlc.narg('ai_provider_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -112,3 +140,14 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
+
+-- name: DeleteChatModelConfigsByProvider :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    provider = @provider::text
+    AND deleted = FALSE;

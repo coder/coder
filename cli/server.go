@@ -56,6 +56,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -598,13 +599,26 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defaultRegion = nil
 			}
 
-			derpMap, err := tailnet.NewDERPMap(
-				ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
-				vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
-				vals.DERP.Config.BlockDirect.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("create derp map: %w", err)
+			derpConfigURL := vals.DERP.Config.URL.String()
+			derpConfigPath := vals.DERP.Config.Path.String()
+			var derpMap *tailcfg.DERPMap
+			if defaultRegion == nil && derpConfigURL == "" && derpConfigPath == "" {
+				logger.Warn(ctx,
+					"no DERP servers are currently configured; workspace networking"+
+						" will not work until you either restart coderd with the"+
+						" built-in DERP server enabled, restart coderd with an"+
+						" external DERP map configured, or start a workspace proxy"+
+						" with its DERP server enabled")
+				derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+			} else {
+				derpMap, err = tailnet.NewDERPMap(
+					ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
+					derpConfigURL, derpConfigPath,
+					vals.DERP.Config.BlockDirect.Value(),
+				)
+				if err != nil {
+					return xerrors.Errorf("create derp map: %w", err)
+				}
 			}
 
 			appHostname := vals.WildcardAccessURL.String()
@@ -842,6 +856,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
+			aiProviders, err := ReadAIProvidersFromEnv(logger, os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read AI providers from env: %w", err)
+			}
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
+
+			if err := validateLegacyAIBridgeConfig(vals.AI.BridgeConfig); err != nil {
+				return xerrors.Errorf("validate legacy AI bridge config: %w", err)
+			}
+
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
 			if err != nil {
@@ -990,6 +1014,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
+			// Runs unconditionally so operators can seed providers via
+			// env without enabling the bridge or proxy features.
+			if err := coderd.SeedAIProvidersFromEnv(
+				ctx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				options.Auditor,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
 				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
@@ -1005,6 +1041,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
 					return xerrors.Errorf("register experiments metric: %w", err)
+				}
+
+				revision, _ := buildinfo.Revision()
+				if err = prometheusmetrics.BuildInfo(options.PrometheusRegistry, buildinfo.Version(), revision); err != nil {
+					return xerrors.Errorf("register build info metric: %w", err)
 				}
 			}
 
@@ -1062,7 +1103,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, quartz.NewReal(), options.PrometheusRegistry)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry, &coderAPI.Auditor, dbpurge.WithNotificationsEnqueuer(options.NotificationsEnqueuer))
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -2899,6 +2940,267 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 		providers[providerNum] = provider
 	}
 	return providers, nil
+}
+
+// ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+// environment variables into a slice of AIProviderConfig.
+// Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// prefix are also accepted for compatibility. Prefixes are mutually exclusive.
+//
+// This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
+func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
+	providers, err := readAIProvidersForPrefix(logger, environ, "CODER_AIBRIDGE_PROVIDER_")
+	if err != nil {
+		return nil, err
+	}
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
+	if err != nil {
+		return nil, err
+	}
+	if len(providers) > 0 && len(gatewayProviders) > 0 {
+		return nil, xerrors.New("cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*")
+	}
+	providers = append(providers, gatewayProviders...)
+
+	// Post-parse validation.
+	names := make(map[string]int, len(providers))
+	for i := range providers {
+		p := &providers[i]
+		if p.Type == "" {
+			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
+		}
+
+		switch p.Type {
+		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		default:
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
+				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		}
+
+		var bedrockKey, bedrockSecret string
+		if len(p.BedrockAccessKeys) > 0 {
+			bedrockKey = p.BedrockAccessKeys[0]
+		}
+		if len(p.BedrockAccessKeySecrets) > 0 {
+			bedrockSecret = p.BedrockAccessKeySecrets[0]
+		}
+		settings := codersdk.NewAIProviderBedrockSettings(
+			p.BedrockRegion, bedrockKey, bedrockSecret,
+			p.BedrockModel, p.BedrockSmallFastModel,
+		)
+		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
+
+		if p.Type != aibridge.ProviderAnthropic && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
+				i, p.Type, aibridge.ProviderAnthropic)
+		}
+
+		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
+				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		// An Anthropic provider authenticates either via a bearer
+		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
+		// the conflict here so misconfigured deployments fail before
+		// any DB work happens at server startup.
+		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
+			return nil, err
+		}
+
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+			return nil, err
+		}
+
+		if p.Name == "" {
+			p.Name = p.Type
+		}
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
+		}
+		names[p.Name] = i
+	}
+
+	return providers, nil
+}
+
+// readAIProvidersForPrefix parses provider env vars under a single
+// indexed prefix (e.g. CODER_AI_GATEWAY_PROVIDER_) into a slice of
+// AIProviderConfig. Per-field syntax errors and unknown keys are
+// reported using the original env var name so the prefix stays visible
+// to the operator.
+func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix string) ([]codersdk.AIProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, prefix)
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	var providers []codersdk.AIProviderConfig
+	for _, v := range parsed {
+		fullName := prefix + v.Name
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", fullName)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", fullName)
+		}
+
+		var provider codersdk.AIProviderConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				fullName,
+			)
+		case len(providers) == providerNum: // First observation of this index, create a new provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1: // Provider already exists at this index, update it.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "TYPE":
+			provider.Type = v.Value
+		case "NAME":
+			provider.Name = v.Value
+		case "KEY", "KEYS":
+			if len(provider.Keys) > 0 {
+				return nil, xerrors.Errorf("provider %d: KEY and KEYS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "KEYS" {
+				provider.Keys = strings.Split(v.Value, ",")
+			} else {
+				provider.Keys = []string{v.Value}
+			}
+		case "BASE_URL":
+			provider.BaseURL = v.Value
+		case "DUMP_DIR":
+			provider.DumpDir = v.Value
+		case "BEDROCK_BASE_URL":
+			provider.BedrockBaseURL = v.Value
+		case "BEDROCK_REGION":
+			provider.BedrockRegion = v.Value
+		case "BEDROCK_ACCESS_KEY", "BEDROCK_ACCESS_KEYS":
+			if len(provider.BedrockAccessKeys) > 0 {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY and BEDROCK_ACCESS_KEYS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "BEDROCK_ACCESS_KEYS" {
+				provider.BedrockAccessKeys = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeys = []string{v.Value}
+			}
+		case "BEDROCK_ACCESS_KEY_SECRET", "BEDROCK_ACCESS_KEY_SECRETS":
+			if len(provider.BedrockAccessKeySecrets) > 0 {
+				return nil, xerrors.Errorf("provider %d: BEDROCK_ACCESS_KEY_SECRET and BEDROCK_ACCESS_KEY_SECRETS are mutually exclusive, use one or the other", providerNum)
+			}
+			if key == "BEDROCK_ACCESS_KEY_SECRETS" {
+				provider.BedrockAccessKeySecrets = strings.Split(v.Value, ",")
+			} else {
+				provider.BedrockAccessKeySecrets = []string{v.Value}
+			}
+		case "BEDROCK_MODEL":
+			provider.BedrockModel = v.Value
+		case "BEDROCK_SMALL_FAST_MODEL":
+			provider.BedrockSmallFastModel = v.Value
+		default:
+			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
+				slog.F("env", fullName),
+			)
+		}
+		providers[providerNum] = provider
+	}
+
+	return providers, nil
+}
+
+// validateLegacyAIBridgeConfig enforces invariants on the legacy
+// single-provider env vars (CODER_AIBRIDGE_ANTHROPIC_KEY,
+// CODER_AIBRIDGE_BEDROCK_*) that the indexed validator above can't
+// catch because legacy fields live outside cfg.Providers.
+func validateLegacyAIBridgeConfig(cfg codersdk.AIBridgeConfig) error {
+	// An Anthropic provider authenticates either via a bearer token
+	// or via Bedrock, not both. Fields without serpent-level
+	// defaults (region, base URL, credentials) reliably indicate
+	// operator intent; Model and SmallFastModel are excluded because
+	// they have defaults.
+	settings := codersdk.NewAIProviderBedrockSettings(
+		cfg.LegacyBedrock.Region.String(),
+		cfg.LegacyBedrock.AccessKey.String(),
+		cfg.LegacyBedrock.AccessKeySecret.String(),
+		cfg.LegacyBedrock.Model.String(),
+		cfg.LegacyBedrock.SmallFastModel.String(),
+	)
+	hasBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), settings)
+	if cfg.LegacyAnthropic.Key.String() != "" && hasBedrock {
+		return xerrors.New("CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive")
+	}
+	return nil
+}
+
+// maxKeysPerProvider is the maximum number of keys allowed per
+// provider. This bounds the failover pool size and keeps the
+// configuration manageable.
+const maxKeysPerProvider = 5
+
+// validateProviderCredentialList checks that a list of credentials
+// belonging to a provider is well-formed: no empty values, no
+// duplicates, and within the maximum count. Trims whitespace in
+// place.
+func validateProviderCredentialList(providerIndex int, providerType string, keys []string) error {
+	if len(keys) > maxKeysPerProvider {
+		return xerrors.Errorf("provider %d (%s): too many keys (%d), maximum is %d",
+			providerIndex, providerType, len(keys), maxKeysPerProvider)
+	}
+
+	seen := make(map[string]struct{}, len(keys))
+	for i, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			return xerrors.Errorf("provider %d (%s): key at index %d is empty",
+				providerIndex, providerType, i)
+		}
+		keys[i] = trimmed
+		if _, exists := seen[trimmed]; exists {
+			return xerrors.Errorf("provider %d (%s): duplicate key at index %d",
+				providerIndex, providerType, i)
+		}
+		seen[trimmed] = struct{}{}
+	}
+
+	return nil
+}
+
+// validateBedrockCredentials checks that Bedrock access keys and
+// secrets are paired correctly (same count) and that each list is
+// well-formed.
+func validateBedrockCredentials(providerIndex int, providerType string, accessKeys, secrets []string) error {
+	if len(accessKeys) != len(secrets) {
+		return xerrors.Errorf("provider %d (%s): BEDROCK_ACCESS_KEYS count (%d) must match BEDROCK_ACCESS_KEY_SECRETS count (%d)",
+			providerIndex, providerType, len(accessKeys), len(secrets))
+	}
+
+	if err := validateProviderCredentialList(providerIndex, providerType, accessKeys); err != nil {
+		return err
+	}
+
+	return validateProviderCredentialList(providerIndex, providerType, secrets)
 }
 
 var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)

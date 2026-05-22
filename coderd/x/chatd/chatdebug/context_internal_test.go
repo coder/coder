@@ -32,9 +32,8 @@ func TestContextWithRun_CleansUpStepCounterAfterGC(t *testing.T) {
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
 	func() {
-		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-		handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-		require.NotNil(t, handle)
+		_ = ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+		require.Equal(t, int32(1), nextStepNumber(runID))
 		_, ok := stepCounters.Load(runID)
 		require.True(t, ok)
 	}()
@@ -56,17 +55,15 @@ func TestContextWithRun_MultipleInstancesSameRunID(t *testing.T) {
 
 	// rc2 is the surviving instance that should keep the step counter alive.
 	rc2 := &RunContext{RunID: runID, ChatID: chatID}
-	ctx2 := ContextWithRun(context.Background(), rc2)
+	_ = ContextWithRun(context.Background(), rc2)
 
 	// Create a second RunContext with the same RunID and let it become
 	// unreachable. Its GC cleanup must NOT delete the step counter
 	// because rc2 is still alive.
 	func() {
 		rc1 := &RunContext{RunID: runID, ChatID: chatID}
-		ctx1 := ContextWithRun(context.Background(), rc1)
-		h, _ := beginStep(ctx1, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-		require.NotNil(t, h)
-		require.Equal(t, int32(1), h.stepCtx.StepNumber)
+		_ = ContextWithRun(context.Background(), rc1)
+		require.Equal(t, int32(1), nextStepNumber(runID))
 	}()
 
 	// Force GC to collect rc1.
@@ -80,9 +77,11 @@ func TestContextWithRun_MultipleInstancesSameRunID(t *testing.T) {
 	require.True(t, ok, "step counter was prematurely cleaned up while another RunContext is still alive")
 
 	// Subsequent steps on the surviving context must continue numbering.
-	h2, _ := beginStep(ctx2, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-	require.NotNil(t, h2)
-	require.Equal(t, int32(2), h2.stepCtx.StepNumber)
+	require.Equal(t, int32(2), nextStepNumber(runID))
+
+	// Keep rc2 alive past the GC cycles above so the runtime cleanup
+	// finalizer does not fire prematurely.
+	runtime.KeepAlive(rc2)
 }
 
 func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
@@ -96,11 +95,9 @@ func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
 	// context cancellation, allowing GC to trigger the cleanup.
 	func() {
 		ctx, cancel := context.WithCancel(context.Background())
-		ctx = ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
+		ContextWithRun(ctx, &RunContext{RunID: runID, ChatID: chatID})
 
-		handle, _ := beginStep(ctx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-		require.NotNil(t, handle)
-		require.Equal(t, int32(1), handle.stepCtx.StepNumber)
+		require.Equal(t, int32(1), nextStepNumber(runID))
 
 		_, ok := stepCounters.Load(runID)
 		require.True(t, ok)
@@ -117,8 +114,5 @@ func TestContextWithRun_CleansUpStepCounterOnGCAfterCancel(t *testing.T) {
 		return !ok
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	freshCtx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-	freshHandle, _ := beginStep(freshCtx, &Service{}, RecorderOptions{ChatID: chatID}, OperationGenerate, nil)
-	require.NotNil(t, freshHandle)
-	require.Equal(t, int32(1), freshHandle.stepCtx.StepNumber)
+	require.Equal(t, int32(1), nextStepNumber(runID))
 }

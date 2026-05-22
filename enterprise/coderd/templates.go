@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -28,7 +30,7 @@ import (
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {array} codersdk.ACLAvailable
-// @Router /templates/{template}/acl/available [get]
+// @Router /api/v2/templates/{template}/acl/available [get]
 func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx      = r.Context()
@@ -50,39 +52,63 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Apply the same q/limit semantics to groups as the users half of this response.
+	// The query semantics are defined for the users, which is awkward. But we can
+	// just reuse the search part of the query which is a fuzzy match.
+	userFilter, verr := searchquery.Users(r.URL.Query().Get("q"))
+	if len(verr) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: verr,
+		})
+		return
+	}
+	groupPagination, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	// Perm check is the template update check.
 	// nolint:gocritic
 	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 		OrganizationID: template.OrganizationID,
+		Search:         userFilter.Search,
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(groupPagination.Limit),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an
+	// N+1 lookup pattern that was making this endpoint extremely slow on
+	// deployments with many groups. The per-group member lists are
+	// intentionally not populated here: callers of this endpoint only
+	// surface total_member_count (see Group.TotalMemberCount, which is
+	// already documented as the canonical value).
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.Group.ID
+	}
+
+	// nolint:gocritic // Same justification as the GetGroups call above.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		// nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
@@ -101,7 +127,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.TemplateACL
-// @Router /templates/{template}/acl [get]
+// @Router /api/v2/templates/{template}/acl [get]
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx      = r.Context()
@@ -187,7 +213,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Param template path string true "Template ID" format(uuid)
 // @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{template}/acl [patch]
+// @Router /api/v2/templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -347,7 +373,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.InvalidatePresetsResponse
-// @Router /templates/{template}/prebuilds/invalidate [post]
+// @Router /api/v2/templates/{template}/prebuilds/invalidate [post]
 func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)

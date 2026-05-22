@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -15,7 +16,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
@@ -82,6 +82,24 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
+}
+
+// AuditableGroupAiBudget is the audit-log representation of GroupAiBudget.
+// It enriches the raw record with the group's name and a human-readable
+// spend limit so audit entries can display meaningful values instead of
+// UUIDs and micros.
+type AuditableGroupAiBudget struct {
+	GroupAiBudget
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
+	return AuditableGroupAiBudget{
+		GroupAiBudget: b,
+		GroupName:     groupName,
+		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
 }
 
 // Auditable returns an object that can be used in audit logs.
@@ -176,10 +194,29 @@ func (t Task) RBACObject() rbac.Object {
 }
 
 func (c Chat) RBACObject() rbac.Object {
-	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+	obj := rbac.ResourceChat.
+		WithID(c.ID).
+		WithOwner(c.OwnerID.String()).
+		InOrg(c.OrganizationID)
+
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+
+	return obj.
+		WithACLUserList(c.UserACL.RBACACL()).
+		WithGroupACL(c.GroupACL.RBACACL())
+}
+
+func (c Chat) IsSubChat() bool {
+	return c.RootChatID.Valid || c.ParentChatID.Valid
 }
 
 func (r GetChatsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
 	return r.Chat.RBACObject()
 }
 
@@ -624,7 +661,7 @@ type WorkspaceAgentConnectionStatus struct {
 	DisconnectedAt   *time.Time           `json:"disconnected_at"`
 }
 
-func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
+func (a WorkspaceAgent) Status(now time.Time, inactiveTimeout time.Duration) WorkspaceAgentConnectionStatus {
 	connectionTimeout := time.Duration(a.ConnectionTimeoutSeconds) * time.Second
 
 	status := WorkspaceAgentConnectionStatus{
@@ -643,7 +680,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 	switch {
 	case !a.FirstConnectedAt.Valid:
 		switch {
-		case connectionTimeout > 0 && dbtime.Now().Sub(a.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && now.Sub(a.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			status.Status = WorkspaceAgentStatusTimeout
@@ -658,7 +695,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		status.Status = WorkspaceAgentStatusDisconnected
-	case dbtime.Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
+	case now.Sub(a.LastConnectedAt.Time) > inactiveTimeout:
 		// The connection died without updating the last connected.
 		status.Status = WorkspaceAgentStatusDisconnected
 		// Client code needs an accurate disconnected at if the agent has been inactive.
@@ -859,6 +896,10 @@ func (m WorkspaceAgentVolumeResourceMonitor) Debounce(
 	return m.DebouncedUntil, false
 }
 
+func (s UserSkill) RBACObject() rbac.Object {
+	return rbac.ResourceUserSkill.WithID(s.ID).WithOwner(s.UserID.String())
+}
+
 func (s UserSecret) RBACObject() rbac.Object {
 	return rbac.ResourceUserSecret.WithID(s.ID).WithOwner(s.UserID.String())
 }
@@ -929,6 +970,11 @@ func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
 
+// A workspace agent belongs to the owner of the associated workspace.
+func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
 // UpsertConnectionLogParams contains the parameters for upserting a
 // connection log entry. This struct is hand-maintained (not generated
 // by sqlc) because the single-row UpsertConnectionLog query was
@@ -952,4 +998,8 @@ type UpsertConnectionLogParams struct {
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
 }

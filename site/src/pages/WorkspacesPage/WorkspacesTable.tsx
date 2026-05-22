@@ -1,7 +1,7 @@
 import {
 	BanIcon,
 	CloudIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	ExternalLinkIcon,
 	FileIcon,
 	PlayIcon,
@@ -207,7 +207,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									/>
 									<AvatarData
 										title={
-											<div className="flex items-center gap-0.5">
+											<div className="flex items-center gap-1">
 												<span className="whitespace-nowrap">
 													{workspace.name}
 												</span>
@@ -341,7 +341,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 			{...clickableProps}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
-				checked ? "bg-muted hover:bg-muted" : undefined,
+				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
 				clickableProps.className,
 			])}
 		>
@@ -370,7 +370,7 @@ const TableLoader: FC = () => {
 					<div className="flex gap-1 justify-end">
 						<Skeleton className="h-10 w-10" />
 						<Button size="icon-lg" variant="subtle" disabled>
-							<EllipsisVertical aria-hidden="true" />
+							<EllipsisVerticalIcon aria-hidden="true" />
 						</Button>
 					</div>
 				</TableCell>

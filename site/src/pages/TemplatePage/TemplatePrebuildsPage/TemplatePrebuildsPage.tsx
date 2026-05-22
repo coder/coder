@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCwIcon } from "lucide-react";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
@@ -68,7 +68,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 						disabled={invalidateMutation.isPending}
 						className="gap-2"
 					>
-						<RefreshCw className="size-4" />
+						<RefreshCwIcon className="size-4" />
 						Invalidate now
 					</Button>
 				</div>

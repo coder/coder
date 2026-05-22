@@ -29,9 +29,11 @@ import {
 } from "../utils/OneWayWebSocket";
 import { type FieldError, isApiError } from "./errors";
 import type {
+	AdvisorConfig,
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UpdateAdvisorConfigRequest,
 	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
@@ -372,15 +374,6 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
-	readonly patch?: string;
-	readonly diff_patch?: string;
-	readonly unified_diff?: string;
-	readonly diffs_url?: string;
-	readonly diff_url?: string;
-	readonly diffs_link?: string;
-}
-
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -415,9 +408,16 @@ export type DeploymentConfig = Readonly<{
 }>;
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
+const aiProviderConfigsPath = "/api/v2/ai/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 const userChatProviderConfigsPath =
 	"/api/experimental/chats/user-provider-configs";
+const userSkillsPath = (user: string) =>
+	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
+const userSkillPath = (user: string, name: string) =>
+	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
+const userAIProviderKeysPath = (user = "me") =>
+	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
@@ -1106,25 +1106,17 @@ class ApiMethods {
 		templateName: string,
 		versionName: string,
 	) => {
-		try {
-			const response = await this.axios.get<TypesGen.TemplateVersion>(
-				`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
-			);
+		const response = await this.axios.get<TypesGen.TemplateVersion>(
+			`/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
+		);
 
-			return response.data;
-		} catch (error) {
-			// When there is no previous version, like the first version of a
-			// template, the API returns 404 so in this case we can safely return
-			// undefined
-			const is404 =
-				isAxiosError(error) && error.response && error.response.status === 404;
-
-			if (is404) {
-				return undefined;
-			}
-
-			throw error;
+		// The API returns 204 No Content when there is no previous version
+		// (e.g. the first version of a template).
+		if (response.status === 204) {
+			return undefined;
 		}
+
+		return response.data;
 	};
 
 	/**
@@ -1773,6 +1765,56 @@ class ApiMethods {
 		);
 
 		return response.data;
+	};
+
+	getUserSecrets = async (userId: string): Promise<TypesGen.UserSecret[]> => {
+		const response = await this.axios.get<TypesGen.UserSecret[]>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets`,
+		);
+
+		return response.data;
+	};
+
+	getUserSecret = async (
+		userId: string,
+		name: string,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.get<TypesGen.UserSecret>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
+		);
+
+		return response.data;
+	};
+
+	createUserSecret = async (
+		userId: string,
+		request: TypesGen.CreateUserSecretRequest,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.post<TypesGen.UserSecret>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets`,
+			request,
+		);
+
+		return response.data;
+	};
+
+	updateUserSecret = async (
+		userId: string,
+		name: string,
+		request: TypesGen.UpdateUserSecretRequest,
+	): Promise<TypesGen.UserSecret> => {
+		const response = await this.axios.patch<TypesGen.UserSecret>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
+			request,
+		);
+
+		return response.data;
+	};
+
+	deleteUserSecret = async (userId: string, name: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
+		);
 	};
 
 	getWorkspaceBuilds = async (
@@ -3050,6 +3092,22 @@ export type CreateTaskFeedbackRequest = {
 	comment?: string;
 };
 
+export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
+
+export type CreateChatMessageRequestWithClearablePlanMode = Omit<
+	TypesGen.CreateChatMessageRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
+type UpdateChatRequestWithClearablePlanMode = Omit<
+	TypesGen.UpdateChatRequest,
+	"plan_mode"
+> & {
+	readonly plan_mode?: ChatPlanModeOrClear;
+};
+
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
 //
@@ -3114,13 +3172,30 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`/api/experimental/chats/${chatId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatACL = async (
+		chatId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
+	};
+
 	getChatMessages = async (
 		chatId: string,
-		opts?: { before_id?: number; limit?: number },
+		opts?: { before_id?: number; after_id?: number; limit?: number },
 	): Promise<TypesGen.ChatMessagesResponse> => {
 		const params = new URLSearchParams();
 		if (opts?.before_id) {
 			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.after_id) {
+			params.set("after_id", opts.after_id.toString());
 		}
 		if (opts?.limit) {
 			params.set("limit", opts.limit.toString());
@@ -3128,6 +3203,22 @@ class ExperimentalApiMethods {
 		const query = params.toString();
 		const url = `/api/experimental/chats/${chatId}/messages${query ? `?${query}` : ""}`;
 		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
+		return response.data;
+	};
+
+	/**
+	 * Lists the user-authored prompts in a chat, newest first.
+	 * Powers the composer's up/down arrow prompt-history cycle.
+	 */
+	getChatPrompts = async (
+		chatId: string,
+		opts?: { limit?: number },
+	): Promise<TypesGen.ChatPromptsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/experimental/chats/${chatId}/prompts`,
+			opts,
+		);
+		const response = await this.axios.get<TypesGen.ChatPromptsResponse>(url);
 		return response.data;
 	};
 
@@ -3143,7 +3234,7 @@ class ExperimentalApiMethods {
 
 	updateChat = async (
 		chatId: string,
-		req: TypesGen.UpdateChatRequest,
+		req: UpdateChatRequestWithClearablePlanMode,
 	): Promise<void> => {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
@@ -3155,9 +3246,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
+		const response = await this.axios.post<{ title: string }>(
+			`/api/experimental/chats/${chatId}/title/propose`,
+		);
+		return response.data;
+	};
+
 	createChatMessage = async (
 		chatId: string,
-		req: TypesGen.CreateChatMessageRequest,
+		req: CreateChatMessageRequestWithClearablePlanMode,
 	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
 			`/api/experimental/chats/${chatId}/messages`,
@@ -3196,20 +3294,10 @@ class ExperimentalApiMethods {
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.post<TypesGen.ChatMessage>(
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
-		return response.data;
-	};
-
-	getChatGitChanges = async (
-		chatId: string,
-	): Promise<ChatGitChangeResponse[]> => {
-		const response = await this.axios.get<ChatGitChangeResponse[]>(
-			`/api/experimental/chats/${chatId}/git-changes`,
-		);
-		return response.data;
 	};
 
 	getChatDiffContents = async (
@@ -3228,6 +3316,66 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	listAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
+		const response = await this.axios.get<TypesGen.AIProvider[]>(
+			aiProviderConfigsPath,
+		);
+		return response.data;
+	};
+
+	createAIProvider = async (
+		req: TypesGen.CreateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.post<TypesGen.AIProvider>(
+			aiProviderConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIProvider = async (
+		providerId: string,
+		req: TypesGen.UpdateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.patch<TypesGen.AIProvider>(
+			`${aiProviderConfigsPath}/${providerId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIProvider = async (providerId: string): Promise<void> => {
+		await this.axios.delete(`${aiProviderConfigsPath}/${providerId}`);
+	};
+
+	getUserAIProviderKeyConfigs = async (
+		user = "me",
+	): Promise<TypesGen.UserAIProviderKeyConfig[]> => {
+		const response = await this.axios.get<TypesGen.UserAIProviderKeyConfig[]>(
+			userAIProviderKeysPath(user),
+		);
+		return response.data;
+	};
+
+	upsertUserAIProviderKey = async (
+		providerId: string,
+		req: TypesGen.CreateUserAIProviderKeyRequest,
+		user = "me",
+	): Promise<TypesGen.UserAIProviderKeyConfig> => {
+		const response = await this.axios.put<TypesGen.UserAIProviderKeyConfig>(
+			`${userAIProviderKeysPath(user)}/${providerId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteUserAIProviderKey = async (
+		providerId: string,
+		user = "me",
+	): Promise<void> => {
+		await this.axios.delete(`${userAIProviderKeysPath(user)}/${providerId}`);
+	};
+
 	getChatSystemPrompt =
 		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
 			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
@@ -3242,6 +3390,131 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
+	getChatPlanModeInstructions =
+		async (): Promise<TypesGen.ChatPlanModeInstructionsResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPlanModeInstructionsResponse>(
+					"/api/experimental/chats/config/plan-mode-instructions",
+				);
+			return response.data;
+		};
+
+	updateChatPlanModeInstructions = async (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/plan-mode-instructions",
+			req,
+		);
+	};
+
+	getChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+		);
+		return response.data;
+	};
+
+	updateChatModelOverride = async (
+		context: TypesGen.ChatModelOverrideContext,
+		req: TypesGen.UpdateChatModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+			req,
+		);
+	};
+
+	getChatPersonalModelOverridesAdminSettings =
+		async (): Promise<TypesGen.ChatPersonalModelOverridesAdminSettings> => {
+			const response =
+				await this.axios.get<TypesGen.ChatPersonalModelOverridesAdminSettings>(
+					"/api/experimental/chats/config/personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateChatPersonalModelOverridesAdminSettings = async (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/personal-model-overrides",
+			req,
+		);
+	};
+
+	getChatDebugLogging =
+		async (): Promise<TypesGen.ChatDebugLoggingAdminSettings> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDebugLoggingAdminSettings>(
+					"/api/experimental/chats/config/debug-logging",
+				);
+			return response.data;
+		};
+
+	updateChatDebugLogging = async (
+		req: TypesGen.UpdateChatDebugLoggingAllowUsersRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/debug-logging", req);
+	};
+
+	getUserChatDebugLogging =
+		async (): Promise<TypesGen.UserChatDebugLoggingSettings> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatDebugLoggingSettings>(
+					"/api/experimental/chats/config/user-debug-logging",
+				);
+			return response.data;
+		};
+
+	updateUserChatDebugLogging = async (
+		req: TypesGen.UpdateUserChatDebugLoggingRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/user-debug-logging",
+			req,
+		);
+	};
+
+	getUserChatPersonalModelOverrides =
+		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+					"/api/experimental/chats/config/user-personal-model-overrides",
+				);
+			return response.data;
+		};
+
+	updateUserChatPersonalModelOverride = async (
+		context: TypesGen.ChatPersonalModelOverrideContext,
+		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+			req,
+		);
+	};
+
+	getChatDebugRuns = async (
+		chatId: string,
+	): Promise<TypesGen.ChatDebugRunSummary[]> => {
+		const response = await this.axios.get<TypesGen.ChatDebugRunSummary[]>(
+			`/api/experimental/chats/${chatId}/debug/runs`,
+		);
+		return response.data;
+	};
+
+	getChatDebugRun = async (
+		chatId: string,
+		runId: string,
+	): Promise<TypesGen.ChatDebugRun> => {
+		const response = await this.axios.get<TypesGen.ChatDebugRun>(
+			`/api/experimental/chats/${chatId}/debug/runs/${runId}`,
+		);
+		return response.data;
+	};
 	getChatDesktopEnabled =
 		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =
@@ -3255,6 +3528,37 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatDesktopEnabledRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
+		const response = await this.axios.get<AdvisorConfig>(
+			"/api/experimental/chats/config/advisor",
+		);
+		return response.data;
+	};
+
+	updateChatAdvisorConfig = async (
+		req: UpdateAdvisorConfigRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/advisor", req);
+	};
+
+	getChatComputerUseProvider =
+		async (): Promise<TypesGen.ChatComputerUseProviderResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatComputerUseProviderResponse>(
+					"/api/experimental/chats/config/computer-use-provider",
+				);
+			return response.data;
+		};
+
+	updateChatComputerUseProvider = async (
+		req: TypesGen.UpdateChatComputerUseProviderRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/computer-use-provider",
+			req,
+		);
 	};
 
 	getChatWorkspaceTTL =
@@ -3293,6 +3597,42 @@ class ExperimentalApiMethods {
 		await this.axios.put("/api/experimental/chats/config/retention-days", req);
 	};
 
+	getChatDebugRetentionDays =
+		async (): Promise<TypesGen.ChatDebugRetentionDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDebugRetentionDaysResponse>(
+					"/api/experimental/chats/config/debug-retention-days",
+				);
+			return response.data;
+		};
+
+	updateChatDebugRetentionDays = async (
+		req: TypesGen.UpdateChatDebugRetentionDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/debug-retention-days",
+			req,
+		);
+	};
+
+	getChatAutoArchiveDays =
+		async (): Promise<TypesGen.ChatAutoArchiveDaysResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatAutoArchiveDaysResponse>(
+					"/api/experimental/chats/config/auto-archive-days",
+				);
+			return response.data;
+		};
+
+	updateChatAutoArchiveDays = async (
+		req: TypesGen.UpdateChatAutoArchiveDaysRequest,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/auto-archive-days",
+			req,
+		);
+	};
+
 	updateChatTemplateAllowlist = async (
 		req: TypesGen.ChatTemplateAllowlist,
 	): Promise<void> => {
@@ -3317,6 +3657,52 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	createUserSkill = async (
+		user: string,
+		req: TypesGen.CreateUserSkillRequest,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.post<TypesGen.UserSkill>(
+			userSkillsPath(user),
+			req,
+		);
+		return response.data;
+	};
+
+	getUserSkills = async (
+		user: string,
+	): Promise<TypesGen.UserSkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.UserSkillMetadata[]>(
+			userSkillsPath(user),
+		);
+		return response.data;
+	};
+
+	getUserSkillByName = async (
+		user: string,
+		name: string,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.get<TypesGen.UserSkill>(
+			userSkillPath(user, name),
+		);
+		return response.data;
+	};
+
+	updateUserSkill = async (
+		user: string,
+		name: string,
+		req: TypesGen.UpdateUserSkillRequest,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.patch<TypesGen.UserSkill>(
+			userSkillPath(user, name),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteUserSkill = async (user: string, name: string): Promise<void> => {
+		await this.axios.delete(userSkillPath(user, name));
 	};
 
 	getUserChatCompactionThresholds =

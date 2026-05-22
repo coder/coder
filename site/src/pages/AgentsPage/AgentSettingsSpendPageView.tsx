@@ -34,7 +34,6 @@ import {
 	formatCostMicros,
 	microsToDollars,
 } from "#/utils/currency";
-import { AdminBadge } from "./components/AdminBadge";
 import {
 	DefaultLimitController,
 	type DefaultLimitFormValues,
@@ -307,7 +306,6 @@ export const AgentSettingsSpendPageView: FC<
 							<SectionHeader
 								label="Spend management"
 								description="Configure spend limits and monitor usage across your deployment."
-								badge={<AdminBadge />}
 							/>
 
 							{isLoadingConfig ? (
@@ -415,6 +413,7 @@ export const AgentSettingsSpendPageView: FC<
 										<GroupLimitsSection
 											hideHeader
 											groupOverrides={groupOverrides}
+											groupOrganizationNames={groupCtrl.groupOrganizationNames}
 											showGroupForm={groupCtrl.showGroupForm}
 											onShowGroupFormChange={
 												groupCtrl.handleShowGroupFormChange

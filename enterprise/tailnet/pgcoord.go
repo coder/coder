@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -41,6 +40,27 @@ const (
 	cleanupPeriod          = time.Hour
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
+
+func publishPeerUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, peerID uuid.UUID) {
+	if err := ps.Publish(eventPeerUpdate, []byte(peerID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish peer update", slog.F("peer_id", peerID), slog.Error(err))
+	}
+}
+
+func publishTunnelUpdate(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, srcID, dstID uuid.UUID) {
+	if err := ps.Publish(eventTunnelUpdate, []byte(srcID.String()+","+dstID.String())); err != nil {
+		logger.Warn(ctx, "failed to publish tunnel update",
+			slog.F("src_id", srcID), slog.F("dst_id", dstID), slog.Error(err))
+	}
+}
+
+func publishCoordinatorHeartbeat(ctx context.Context, ps pubsub.Pubsub, logger slog.Logger, id uuid.UUID) {
+	if err := ps.Publish(EventHeartbeats, []byte(id.String())); err != nil {
+		logger.Warn(ctx, "failed to publish coordinator heartbeat", slog.F("coordinator_id", id), slog.Error(err))
+	} else {
+		logger.Debug(ctx, "sent heartbeat", slog.F("coordinator_id", id))
+	}
+}
 
 // pgCoord is a postgres-backed coordinator
 //
@@ -152,11 +172,11 @@ func newPGCoordInternal(
 		logger:           logger,
 		pubsub:           ps,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, ps, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, ps, sCh, fHB),
 		tunnelerCh:       sCh,
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
@@ -273,6 +293,7 @@ type tunneler struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	updates       <-chan tunnel
 
 	mu     sync.Mutex
@@ -286,6 +307,7 @@ func newTunneler(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
 ) *tunneler {
@@ -294,6 +316,7 @@ func newTunneler(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		updates:       updates,
 		latest:        make(map[uuid.UUID]map[uuid.UUID]tunnel),
 		workQ:         newWorkQ[tKey](ctx),
@@ -396,7 +419,8 @@ func (t *tunneler) writeOne(tun tunnel) error {
 	var err error
 	switch {
 	case tun.dst == uuid.Nil:
-		err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
+		var deleted []database.DeleteAllTailnetTunnelsRow
+		deleted, err = t.store.DeleteAllTailnetTunnels(t.ctx, database.DeleteAllTailnetTunnelsParams{
 			SrcID:         tun.src,
 			CoordinatorID: t.coordinatorID,
 		})
@@ -404,6 +428,11 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("src_id", tun.src),
 			slog.Error(err),
 		)
+		if err == nil {
+			for _, row := range deleted {
+				publishTunnelUpdate(t.ctx, t.pubsub, t.logger, row.SrcID, row.DstID)
+			}
+		}
 	case tun.active:
 		_, err = t.store.UpsertTailnetTunnel(t.ctx, database.UpsertTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -415,6 +444,9 @@ func (t *tunneler) writeOne(tun tunnel) error {
 			slog.F("dst_id", tun.dst),
 			slog.Error(err),
 		)
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
+		}
 	case !tun.active:
 		_, err = t.store.DeleteTailnetTunnel(t.ctx, database.DeleteTailnetTunnelParams{
 			CoordinatorID: t.coordinatorID,
@@ -428,7 +460,10 @@ func (t *tunneler) writeOne(tun tunnel) error {
 		)
 		// writeOne should be idempotent
 		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
+			return nil // No row deleted, skip publish.
+		}
+		if err == nil {
+			publishTunnelUpdate(t.ctx, t.pubsub, t.logger, tun.src, tun.dst)
 		}
 	default:
 		panic("unreachable")
@@ -459,6 +494,7 @@ type binder struct {
 	logger        slog.Logger
 	coordinatorID uuid.UUID
 	store         database.Store
+	pubsub        pubsub.Pubsub
 	bindings      <-chan binding
 
 	mu     sync.Mutex
@@ -473,6 +509,7 @@ func newBinder(ctx context.Context,
 	logger slog.Logger,
 	id uuid.UUID,
 	store database.Store,
+	ps pubsub.Pubsub,
 	bindings <-chan binding,
 	startWorkers <-chan struct{},
 ) *binder {
@@ -481,6 +518,7 @@ func newBinder(ctx context.Context,
 		logger:        logger,
 		coordinatorID: id,
 		store:         store,
+		pubsub:        ps,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
@@ -508,12 +546,15 @@ func newBinder(ctx context.Context,
 
 		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
-		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+		peerIDs, err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
 			Status:        database.TailnetStatusLost,
 		})
 		if err != nil {
 			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+		}
+		for _, peerID := range peerIDs {
+			publishPeerUpdate(ctx, b.pubsub, b.logger, peerID)
 		}
 	}()
 	return b
@@ -526,8 +567,9 @@ func (b *binder) handleBindings() {
 			b.logger.Debug(b.ctx, "binder exiting")
 			return
 		case bnd := <-b.bindings:
-			b.storeBinding(bnd)
-			b.workQ.enqueue(bnd.bKey)
+			if b.storeBinding(bnd) {
+				b.workQ.enqueue(bnd.bKey)
+			}
 		}
 	}
 }
@@ -593,31 +635,54 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.F("node", bnd.node),
 			slog.Error(err))
 	}
+	if err == nil {
+		publishPeerUpdate(b.ctx, b.pubsub, b.logger, uuid.UUID(bnd.bKey))
+	}
 	return err
 }
 
 // storeBinding stores the latest binding, where we interpret kind == DISCONNECTED as removing the binding. This keeps the map
 // from growing without bound.
-func (b *binder) storeBinding(bnd binding) {
+func (b *binder) storeBinding(bnd binding) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	switch bnd.kind {
 	case proto.CoordinateResponse_PeerUpdate_NODE:
+		old, ok := b.latest[bnd.bKey]
+		if ok && old.kind == proto.CoordinateResponse_PeerUpdate_NODE &&
+			nodesEqual(old.node, bnd.node) {
+			return false
+		}
 		b.latest[bnd.bKey] = bnd
 	case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
 		delete(b.latest, bnd.bKey)
 	case proto.CoordinateResponse_PeerUpdate_LOST:
-		// we need to coalesce with the previously stored node, since it must
-		// be non-nil in the database
+		// We need to coalesce with the previously stored node, since it
+		// must be non-nil in the database.
 		old, ok := b.latest[bnd.bKey]
 		if !ok {
-			// lost before we ever got a node update.  No action
-			return
+			// Lost before we ever got a node update. No action.
+			return false
 		}
 		bnd.node = old.node
 		b.latest[bnd.bKey] = bnd
 	}
+	return true
+}
+
+// nodesEqual compares two proto.Node messages, ignoring the AsOf
+// timestamp which changes on every node build even when nothing else
+// has changed.
+func nodesEqual(a, b *proto.Node) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	//nolint:forcetypeassert
+	aClone, bClone := gProto.Clone(a).(*proto.Node), gProto.Clone(b).(*proto.Node)
+	aClone.AsOf = nil
+	bClone.AsOf = nil
+	return gProto.Equal(aClone, bClone)
 }
 
 // retrieveBinding gets the latest binding for a key.
@@ -695,9 +760,12 @@ func (m *mapper) run() {
 			m.logger.Debug(m.ctx, "skipping nil node update")
 			continue
 		}
-		if err := m.c.Enqueue(update); err != nil {
-			// lots of reasons this could happen, most usually, the peer has disconnected.
-			m.logger.Debug(m.ctx, "failed to enqueue node update", slog.Error(err))
+		for _, chunk := range update.Chunked() {
+			if err := m.c.Enqueue(chunk); err != nil {
+				// lots of reasons this could happen, most usually, the peer has disconnected.
+				m.logger.Debug(m.ctx, "failed to enqueue chunk", slog.Error(err))
+				break
+			}
 		}
 	}
 }
@@ -916,8 +984,6 @@ func (q *querier) newConn(c *connIO) {
 	dup, ok := q.mappers[mk]
 	if ok {
 		q.logger.Debug(q.ctx, "duplicate mapper found; closing old connection", slog.F("peer_id", dup.c.UniqueID()))
-		// overwrite and close the old one
-		atomic.StoreInt64(&c.overwrites, dup.c.Overwrites()+1)
 		err := dup.c.CoordinatorClose()
 		if err != nil {
 			q.logger.Error(q.ctx, "failed to close duplicate mapper", slog.F("peer_id", dup.c.UniqueID()), slog.Error(err))
@@ -1299,9 +1365,11 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	keys := make([]mKey, 0, len(q.mappers))
 	for mk := range q.mappers {
-		q.mappingQ.enqueue(mk)
+		keys = append(keys, mk)
 	}
+	q.mappingQ.enqueue(keys...)
 }
 
 func (q *querier) handleUpdates() {
@@ -1710,11 +1778,17 @@ func (h *heartbeats) checkExpiry() {
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator",
+			slog.F("other_coordinator_id", id),
+			slog.F("last_heartbeat", lastHB),
+		)
 		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check",
+				slog.F("other_coordinator_id", id),
+				slog.F("last_heartbeat", lastHB),
+			)
 		}
 	}
 	if expired {
@@ -1754,7 +1828,7 @@ func (h *heartbeats) sendBeat() {
 		}
 		return
 	}
-	h.logger.Debug(h.ctx, "sent heartbeat")
+	publishCoordinatorHeartbeat(h.ctx, h.pubsub, h.logger, h.self)
 	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})

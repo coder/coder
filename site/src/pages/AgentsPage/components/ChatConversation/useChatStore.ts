@@ -1,11 +1,22 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	chatMessagesKey,
+	chatPromptsKey,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import { normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -16,20 +27,10 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => ({
-	message: error?.message.trim() || "Chat processing failed.",
-	kind: error?.kind?.trim() || "generic",
-	provider: error?.provider?.trim() || undefined,
-	retryable: error?.retryable,
-	statusCode: error?.status_code,
-});
-
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
-	kind: retry.kind?.trim() || "generic",
+	kind: retry.kind ?? "generic",
 	provider: retry.provider?.trim() || undefined,
 	delayMs: retry.delay_ms,
 	retryingAt: retry.retrying_at.trim() || undefined,
@@ -131,7 +132,7 @@ export const useChatStore = (
 	// last REST fetch, and structural sharing can suppress the
 	// refetch-driven store update when no new durable messages
 	// have been committed to the DB yet.
-	const upsertCacheMessages = useEffectEvent(
+	const upsertCacheMessages = useCallback(
 		(messages: readonly TypesGen.ChatMessage[]) => {
 			if (!chatID || messages.length === 0) {
 				return;
@@ -171,7 +172,16 @@ export const useChatStore = (
 					],
 				};
 			});
+			// Refresh the dedicated prompt-history cache when a user message arrives.
+			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
+			if (hasNewUserPrompt) {
+				void queryClient.invalidateQueries({
+					queryKey: chatPromptsKey(chatID),
+					exact: true,
+				});
+			}
 		},
+		[chatID, queryClient],
 	);
 
 	useEffect(() => {
@@ -239,6 +249,10 @@ export const useChatStore = (
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
+		// Suppression entries are scoped to the current chat; clear
+		// them on chat change so a stale promote suppression doesn't
+		// hide queued messages in another chat.
+		store.clearSuppressedQueuedMessageIDs();
 		if (!chatID) {
 			return;
 		}
@@ -260,7 +274,7 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		store.setQueuedMessages(chatQueuedMessages);
+		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
@@ -379,9 +393,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// stream state is about to be cleared (pending, waiting,
-		// retry) — flushing would re-populate the state that the
-		// event is about to clear.
+		// the stream is no longer active (pending, waiting, retry)
+		// so stale buffered parts are not applied after the
+		// status transition.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -475,7 +489,9 @@ export const useChatStore = (
 								continue;
 							}
 							wsQueueUpdateReceivedRef.current = true;
-							store.setQueuedMessages(streamEvent.queued_messages);
+							store.applyAuthoritativeQueuedMessages(
+								streamEvent.queued_messages,
+							);
 							updateChatQueuedMessages(streamEvent.queued_messages);
 							continue;
 						case "status": {
@@ -497,7 +513,6 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearStreamState();
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {
@@ -517,7 +532,10 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatDetailError(streamEvent.error);
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();
@@ -626,7 +644,7 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
 	return {
 		store,
 		clearStreamError: () => {

@@ -9,14 +9,17 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { Shimmer } from "../Shimmer";
+import { TranscriptRow } from "../TranscriptRow";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
+import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
@@ -24,38 +27,32 @@ import {
 } from "./utils";
 
 const SUBAGENT_VERBS: Record<
-	string,
+	SubagentAction,
 	{ completed: string; running: string; error: string; timeout: string }
 > = {
-	spawn_agent: {
+	spawn: {
 		completed: "Spawned ",
 		running: "Spawning ",
 		error: "Failed to spawn ",
 		timeout: "Timed out spawning ",
 	},
-	wait_agent: {
+	wait: {
 		completed: "Waited for ",
 		running: "Waiting for ",
 		error: "Failed waiting for ",
 		timeout: "Timed out waiting for ",
 	},
-	message_agent: {
+	message: {
 		completed: "Messaged ",
 		running: "Messaging ",
 		error: "Failed to message ",
 		timeout: "Timed out messaging ",
 	},
-	close_agent: {
+	close: {
 		completed: "Terminated ",
 		running: "Terminating ",
 		error: "Failed to terminate ",
 		timeout: "Timed out terminating ",
-	},
-	spawn_computer_use_agent: {
-		completed: "Spawned ",
-		running: "Spawning ",
-		error: "Failed to spawn ",
-		timeout: "Timed out spawning ",
 	},
 };
 
@@ -66,42 +63,39 @@ const SUBAGENT_VERBS: Record<
 function getSubagentLabel(
 	showDesktopPreview: boolean | undefined,
 	toolStatus: ToolStatus,
-	variant: "default" | "computer-use",
-	toolName: string,
+	descriptor: SubagentDescriptor,
 	title: string,
 	isTimeout: boolean,
 ): React.ReactNode {
 	if (showDesktopPreview && toolStatus === "running") {
 		return (
-			<Shimmer as="span" className="text-sm">
+			<Shimmer as="span" className="text-[13px]">
 				Using the computer...
 			</Shimmer>
 		);
 	}
 	if (
-		variant === "computer-use" &&
-		toolName === "wait_agent" &&
+		descriptor.variant === "computer_use" &&
+		descriptor.action === "wait" &&
 		toolStatus === "completed"
 	) {
 		return (
 			<>
-				Used the computer{" "}
-				<span className="text-content-secondary opacity-60">{title}</span>
+				Used the computer <span className="opacity-60">{title}</span>
 			</>
 		);
 	}
+	const phase = isTimeout
+		? "timeout"
+		: toolStatus === "completed"
+			? "completed"
+			: toolStatus === "error"
+				? "error"
+				: "running";
 	return (
 		<>
-			{SUBAGENT_VERBS[toolName]?.[
-				isTimeout
-					? "timeout"
-					: toolStatus === "completed"
-						? "completed"
-						: toolStatus === "error"
-							? "error"
-							: "running"
-			] ?? ""}
-			<span className="text-content-secondary opacity-60">{title}</span>
+			{SUBAGENT_VERBS[descriptor.action][phase]}
+			<span className="opacity-60">{title}</span>
 		</>
 	);
 }
@@ -118,35 +112,33 @@ const SubagentStatusIcon: React.FC<{
 	toolStatus: ToolStatus;
 	isError: boolean;
 	isTimeout: boolean;
-	variant?: "default" | "computer-use";
+	iconKind?: SubagentDescriptor["iconKind"];
 	showDesktopPreview?: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
 	isError,
 	isTimeout,
-	variant = "default",
+	iconKind = "bot",
 	showDesktopPreview = false,
 }) => {
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	const DefaultIcon = variant === "computer-use" ? MonitorIcon : BotIcon;
+	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
-		return <ClockIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+		return <ClockIcon className="h-4 w-4 shrink-0 text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
-		return <CircleXIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+		return <CircleXIcon className="h-4 w-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
 		if (showDesktopPreview) {
-			return (
-				<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			);
+			return <MonitorIcon className="h-4 w-4 shrink-0 text-current" />;
 		}
 		return (
 			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <DefaultIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
+	return <DefaultIcon className="h-4 w-4 shrink-0 text-current" />;
 };
 
 /**
@@ -156,7 +148,7 @@ const SubagentStatusIcon: React.FC<{
  * "View Agent" link navigates to the sub-agent chat.
  */
 export const SubagentTool: React.FC<{
-	toolName: string;
+	descriptor: SubagentDescriptor;
 	title: string;
 	chatId: string;
 	subagentStatus: string;
@@ -169,13 +161,12 @@ export const SubagentTool: React.FC<{
 	isTimeout?: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview?: boolean;
-	variant?: "default" | "computer-use";
 	/** File ID for a completed recording (shown after tool completes). */
 	recordingFileId?: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
 	thumbnailFileId?: string;
 }> = ({
-	toolName,
+	descriptor,
 	title,
 	chatId,
 	subagentStatus,
@@ -187,10 +178,10 @@ export const SubagentTool: React.FC<{
 	isError,
 	isTimeout = false,
 	showDesktopPreview,
-	variant = "default",
 	recordingFileId,
 	thumbnailFileId,
 }) => {
+	const location = useLocation();
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const hasPrompt = Boolean(prompt?.trim());
@@ -198,64 +189,67 @@ export const SubagentTool: React.FC<{
 	const hasReport = Boolean(report?.trim());
 	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
 	const durationLabel = shortDurationMs(durationMs);
+	const agentChatPath = safeBuildAgentChatPath({ chatId });
 
 	return (
 		<div className="w-full">
-			<button
-				type="button"
-				aria-expanded={hasExpandableContent ? expanded : undefined}
-				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
+			<TranscriptRow
+				asChild
 				className={cn(
-					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-					"flex w-full items-center gap-2",
-					hasExpandableContent && "cursor-pointer",
+					"m-0 w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
+					hasExpandableContent && "cursor-pointer hover:text-content-primary",
 				)}
 			>
-				<SubagentStatusIcon
-					subagentStatus={subagentStatus}
-					toolStatus={toolStatus}
-					isError={isError}
-					isTimeout={isTimeout}
-					variant={variant}
-					showDesktopPreview={showDesktopPreview}
-				/>{" "}
-				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{getSubagentLabel(
-						showDesktopPreview,
-						toolStatus,
-						variant,
-						toolName,
-						title,
-						isTimeout,
-					)}
-					{chatId && (
-						<Link
-							to={`/agents/${chatId}`}
-							onClick={(e) => e.stopPropagation()}
-							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-							aria-label="View agent"
-						>
-							<ExternalLinkIcon className="h-3 w-3" />
-						</Link>
-					)}
-				</span>
-				{durationLabel && (
-					<span className="shrink-0 text-xs text-content-secondary">
-						{`Worked for ${durationLabel}`}
-					</span>
-				)}
-				{hasExpandableContent && (
-					<ChevronDownIcon
-						className={cn(
-							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
+				<button
+					type="button"
+					aria-expanded={hasExpandableContent ? expanded : undefined}
+					onClick={() => hasExpandableContent && setExpanded((v) => !v)}
+				>
+					<SubagentStatusIcon
+						subagentStatus={subagentStatus}
+						toolStatus={toolStatus}
+						isError={isError}
+						isTimeout={isTimeout}
+						iconKind={descriptor.iconKind}
+						showDesktopPreview={showDesktopPreview}
+					/>{" "}
+					<span className="min-w-0 truncate text-[13px]">
+						{getSubagentLabel(
+							showDesktopPreview,
+							toolStatus,
+							descriptor,
+							title,
+							isTimeout,
 						)}
-					/>
-				)}
-			</button>
+						{agentChatPath && (
+							<Link
+								to={{ pathname: agentChatPath, search: location.search }}
+								onClick={(e) => e.stopPropagation()}
+								className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+								aria-label="View agent"
+							>
+								<ExternalLinkIcon className="h-3 w-3" />
+							</Link>
+						)}
+					</span>
+					{hasExpandableContent && (
+						<ChevronDownIcon
+							className={cn(
+								"h-3 w-3 shrink-0 text-current transition-transform",
+								expanded ? "rotate-0" : "-rotate-90",
+							)}
+						/>
+					)}
+					{durationLabel && (
+						<span className="ml-auto shrink-0 text-xs">
+							{`Worked for ${durationLabel}`}
+						</span>
+					)}
+				</button>
+			</TranscriptRow>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
-				<div className="mt-1.5 w-fit overflow-hidden rounded-lg border border-solid border-border-default">
+				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}

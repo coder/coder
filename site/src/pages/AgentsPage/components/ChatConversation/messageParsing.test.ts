@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
+	buildSubagentMaps,
+	getEditableUserMessagePayload,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -25,7 +28,7 @@ describe("parseToolResultIsError", () => {
 		).toBe(true);
 	});
 
-	it("returns false for completed subagent even with error field", () => {
+	it("returns false for completed subagent tools, including legacy spawn_subagent, even with error field", () => {
 		expect(
 			parseToolResultIsError(
 				"spawn_agent",
@@ -54,6 +57,122 @@ describe("parseToolResultIsError", () => {
 				{ status: "completed" },
 			),
 		).toBe(false);
+		expect(
+			parseToolResultIsError(
+				"spawn_subagent",
+				{ error: "metadata" },
+				{ status: "completed" },
+			),
+		).toBe(false);
+		expect(
+			parseToolResultIsError(
+				"close_agent",
+				{ error: "metadata" },
+				{ status: "completed" },
+			),
+		).toBe(false);
+	});
+});
+
+describe("getEditableUserMessagePayload", () => {
+	it("keeps only editable stored attachments", () => {
+		const cases = [
+			{
+				message: {
+					id: 1,
+					chat_id: "chat-1",
+					created_at: "2026-04-21T00:00:00.000Z",
+					role: "user",
+					content: [
+						{ type: "text", text: "Please edit this draft." },
+						{ type: "file", media_type: "image/png", file_id: "image-file" },
+						{
+							type: "file",
+							media_type: "application/json",
+							file_id: "json-file",
+							name: "report.json",
+						},
+						{
+							type: "file",
+							media_type: "application/pdf",
+							file_id: "pdf-file",
+							name: "manual.pdf",
+						},
+						{
+							type: "file",
+							media_type: "application/zip",
+							file_id: "zip-file",
+							name: "archive.zip",
+						},
+					],
+				} satisfies ChatMessage,
+				want: {
+					text: "Please edit this draft.",
+					fileBlocks: [
+						{ type: "file", media_type: "image/png", file_id: "image-file" },
+						{
+							type: "file",
+							media_type: "application/json",
+							file_id: "json-file",
+							name: "report.json",
+						},
+						{
+							type: "file",
+							media_type: "application/pdf",
+							file_id: "pdf-file",
+							name: "manual.pdf",
+						},
+					],
+				},
+			},
+			{
+				message: {
+					id: 2,
+					chat_id: "chat-1",
+					created_at: "2026-04-21T00:00:00.000Z",
+					role: "user",
+					content: [
+						{ type: "text", text: "Share the archive instead." },
+						{
+							type: "file",
+							media_type: "application/zip",
+							file_id: "zip-file",
+							name: "archive.zip",
+						},
+					],
+				} satisfies ChatMessage,
+				want: {
+					text: "Share the archive instead.",
+					fileBlocks: undefined,
+				},
+			},
+		];
+
+		for (const { message, want } of cases) {
+			expect(getEditableUserMessagePayload(message)).toEqual(want);
+		}
+	});
+
+	it("preserves whitespace-only text parts when concatenating", () => {
+		// The server-side prompt-history cycle joins text parts
+		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
+		// The edit path must agree so cycling and clicking Edit on the
+		// same message produce the same draft text.
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [
+				{ type: "text", text: "hello" },
+				{ type: "text", text: "   " },
+				{ type: "text", text: "world" },
+			],
+		};
+		expect(getEditableUserMessagePayload(message)).toEqual({
+			text: "hello   world",
+			fileBlocks: undefined,
+		});
 	});
 });
 
@@ -134,6 +253,30 @@ describe("parseMessageContent", () => {
 			args: { command: "ls" },
 		});
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
+	});
+
+	it("propagates parsed_commands from a tool-call part", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "call-1",
+				args: { command: "cd /repo && git pull" },
+				parsed_commands: [
+					["cd", "/repo"],
+					["git", "pull"],
+				],
+			},
+		]);
+		expect(result.toolCalls[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+		const merged = mergeTools(result.toolCalls, result.toolResults);
+		expect(merged[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
 	});
 
 	it("parses a tool-result block", () => {
@@ -509,5 +652,369 @@ describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 			.flatMap((e) => e.parsed.tools)
 			.find((t) => t.name === "process_output");
 		expect(procOut?.killedBySignal).toBe("terminate");
+	});
+});
+
+describe("subagent transcript parsing", () => {
+	const msg = (
+		id: number,
+		parts: ChatMessagePart[],
+		role: "assistant" | "user" = "assistant",
+	): ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: new Date().toISOString(),
+		role,
+		content: parts,
+	});
+
+	const toolCall = (
+		id: string,
+		name: string,
+		args: Record<string, unknown> = {},
+	): ChatMessagePart => ({
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: name,
+		args: args as Record<string, string>,
+	});
+
+	const toolResult = (
+		id: string,
+		name: string,
+		result: Record<string, unknown>,
+	): ChatMessagePart => ({
+		type: "tool-result",
+		tool_call_id: id,
+		tool_name: name,
+		result: result as Record<string, string>,
+	});
+
+	const parseSubagents = (messages: readonly ChatMessage[]) => {
+		const parsedMessages = parseMessagesWithMergedTools(messages);
+		const { titles, variants } = buildSubagentMaps(parsedMessages);
+		return {
+			parsedMessages,
+			titles,
+			variants,
+		};
+	};
+
+	it("keeps legacy spawn tool parsing intact", () => {
+		const { parsedMessages, titles, variants } = parseSubagents([
+			msg(1, [
+				toolCall("legacy-general", "spawn_agent", {
+					title: "Legacy general",
+				}),
+				toolResult("legacy-general", "spawn_agent", {
+					chat_id: "legacy-general-child",
+					title: "Legacy general",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("legacy-explore", "spawn_explore_agent", {}),
+				toolResult("legacy-explore", "spawn_explore_agent", {
+					chat_id: "legacy-explore-child",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("legacy-desktop", "spawn_computer_use_agent", {
+					title: "Legacy desktop",
+				}),
+				toolResult("legacy-desktop", "spawn_computer_use_agent", {
+					chat_id: "legacy-desktop-child",
+					title: "Legacy desktop",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(parsedMessages[0]?.parsed.tools[0]?.name).toBe("spawn_agent");
+		expect(parsedMessages[1]?.parsed.tools[0]?.name).toBe(
+			"spawn_explore_agent",
+		);
+		expect(parsedMessages[2]?.parsed.tools[0]?.name).toBe(
+			"spawn_computer_use_agent",
+		);
+		expect(titles.get("legacy-general-child")).toBe("Legacy general");
+		expect(variants.get("legacy-general-child")).toBe("general");
+		expect(variants.get("legacy-explore-child")).toBe("explore");
+		expect(variants.get("legacy-desktop-child")).toBe("computer_use");
+	});
+
+	it("keeps legacy spawn_subagent payload parsing intact", () => {
+		const { titles, variants } = parseSubagents([
+			msg(1, [
+				toolCall("legacy-unified", "spawn_subagent", {
+					subagent_type: "explore",
+					title: "Legacy unified",
+				}),
+				toolResult("legacy-unified", "spawn_subagent", {
+					chat_id: "legacy-unified-child",
+					subagent_type: "explore",
+					title: "Legacy unified",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(titles.get("legacy-unified-child")).toBe("Legacy unified");
+		expect(variants.get("legacy-unified-child")).toBe("explore");
+	});
+
+	it("parses spawn_agent variants from args and results", () => {
+		const { titles, variants } = parseSubagents([
+			msg(1, [
+				toolCall("spawn-general", "spawn_agent", {
+					type: "general",
+					title: "General helper",
+				}),
+				toolResult("spawn-general", "spawn_agent", {
+					chat_id: "spawn-general-child",
+					type: "general",
+					title: "General helper",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("spawn-explore", "spawn_agent", {
+					type: "explore",
+				}),
+				toolResult("spawn-explore", "spawn_agent", {
+					chat_id: "spawn-explore-child",
+					type: "explore",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("spawn-desktop", "spawn_agent", {
+					type: "computer_use",
+					title: "Desktop helper",
+				}),
+				toolResult("spawn-desktop", "spawn_agent", {
+					chat_id: "spawn-desktop-child",
+					type: "computer_use",
+					title: "Desktop helper",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(titles.get("spawn-general-child")).toBe("General helper");
+		expect(variants.get("spawn-general-child")).toBe("general");
+		expect(variants.get("spawn-explore-child")).toBe("explore");
+		expect(variants.get("spawn-desktop-child")).toBe("computer_use");
+	});
+
+	it("buildSubagentMaps merges mixed legacy and spawn_agent transcripts coherently", () => {
+		const parsedMessages = parseMessagesWithMergedTools([
+			msg(1, [toolCall("legacy", "spawn_agent", { title: "Legacy helper" })]),
+			msg(2, [
+				toolResult("legacy", "spawn_agent", {
+					chat_id: "legacy-child",
+					title: "Legacy helper",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("unified", "spawn_agent", {
+					type: "explore",
+					title: "Unified helper",
+				}),
+			]),
+			msg(4, [
+				toolResult("unified", "spawn_agent", {
+					chat_id: "unified-child",
+					type: "explore",
+					title: "Unified helper",
+					status: "completed",
+				}),
+			]),
+		]);
+		const { titles, variants } = buildSubagentMaps(parsedMessages);
+
+		expect(parsedMessages[0]?.parsed.tools[0]?.result).toMatchObject({
+			chat_id: "legacy-child",
+			title: "Legacy helper",
+		});
+		expect(parsedMessages[2]?.parsed.tools[0]?.result).toMatchObject({
+			chat_id: "unified-child",
+			title: "Unified helper",
+			type: "explore",
+		});
+		expect(titles.get("legacy-child")).toBe("Legacy helper");
+		expect(titles.get("unified-child")).toBe("Unified helper");
+		expect(variants.get("legacy-child")).toBe("general");
+		expect(variants.get("unified-child")).toBe("explore");
+	});
+
+	it("includes close_agent in the shared subagent parsing path", () => {
+		const { variants } = parseSubagents([
+			msg(1, [
+				toolCall("close-tool", "close_agent", { chat_id: "closing-child" }),
+				toolResult("close-tool", "close_agent", {
+					chat_id: "closing-child",
+					type: "explore",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(variants.get("closing-child")).toBe("explore");
+	});
+
+	it("tracks computer-use variants for legacy and spawn_agent tools", () => {
+		const { variants } = parseSubagents([
+			msg(1, [
+				toolCall("legacy-desktop", "spawn_computer_use_agent", {}),
+				toolResult("legacy-desktop", "spawn_computer_use_agent", {
+					chat_id: "legacy-desktop-child",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("unified-desktop", "spawn_agent", {
+					type: "computer_use",
+				}),
+				toolResult("unified-desktop", "spawn_agent", {
+					chat_id: "unified-desktop-child",
+					type: "computer_use",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(variants.get("legacy-desktop-child")).toBe("computer_use");
+		expect(variants.get("unified-desktop-child")).toBe("computer_use");
+	});
+
+	it("prefers lifecycle result type metadata when present", () => {
+		const { variants } = parseSubagents([
+			msg(1, [
+				toolCall("wait-tool", "wait_agent", { chat_id: "wait-child" }),
+				toolResult("wait-tool", "wait_agent", {
+					chat_id: "wait-child",
+					type: "explore",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("message-tool", "message_agent", {
+					chat_id: "message-child",
+					message: "continue",
+				}),
+				toolResult("message-tool", "message_agent", {
+					chat_id: "message-child",
+					type: "computer_use",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("close-tool", "close_agent", { chat_id: "close-child" }),
+				toolResult("close-tool", "close_agent", {
+					chat_id: "close-child",
+					type: "general",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(variants.get("wait-child")).toBe("explore");
+		expect(variants.get("message-child")).toBe("computer_use");
+		expect(variants.get("close-child")).toBe("general");
+	});
+
+	it("preserves lifecycle variants inferred from earlier spawn history", () => {
+		const { titles, variants } = parseSubagents([
+			msg(1, [
+				toolCall("spawn-tool", "spawn_agent", {
+					type: "explore",
+					title: "Inspect repository",
+				}),
+				toolResult("spawn-tool", "spawn_agent", {
+					chat_id: "history-child",
+					type: "explore",
+					title: "Inspect repository",
+					status: "completed",
+				}),
+			]),
+			msg(2, [
+				toolCall("wait-tool", "wait_agent", { chat_id: "history-child" }),
+				toolResult("wait-tool", "wait_agent", {
+					chat_id: "history-child",
+					status: "completed",
+				}),
+			]),
+			msg(3, [
+				toolCall("message-tool", "message_agent", {
+					chat_id: "history-child",
+					message: "keep going",
+				}),
+				toolResult("message-tool", "message_agent", {
+					chat_id: "history-child",
+					status: "completed",
+				}),
+			]),
+			msg(4, [
+				toolCall("close-tool", "close_agent", { chat_id: "history-child" }),
+				toolResult("close-tool", "close_agent", {
+					chat_id: "history-child",
+					status: "completed",
+				}),
+			]),
+		]);
+
+		expect(titles.get("history-child")).toBe("Inspect repository");
+		expect(variants.get("history-child")).toBe("explore");
+	});
+});
+
+describe("getSubagentDescriptor", () => {
+	it("uses the inferred variant for lifecycle tools without explicit metadata", () => {
+		const lifecycleTools = [
+			{ name: "wait_agent", action: "wait" },
+			{ name: "message_agent", action: "message" },
+			{ name: "close_agent", action: "close" },
+		] as const;
+
+		for (const tool of lifecycleTools) {
+			const descriptor = getSubagentDescriptor({
+				name: tool.name,
+				args: { chat_id: "desktop-child" },
+				result: { chat_id: "desktop-child", status: "running" },
+				inferredVariant: "computer_use",
+			});
+
+			expect(descriptor).toMatchObject({
+				action: tool.action,
+				variant: "computer_use",
+				iconKind: "monitor",
+				supportsDesktopAffordance: true,
+			});
+		}
+	});
+
+	it("falls back to the general lifecycle variant without an inference", () => {
+		const lifecycleToolNames = [
+			"wait_agent",
+			"message_agent",
+			"close_agent",
+		] as const;
+
+		for (const name of lifecycleToolNames) {
+			const descriptor = getSubagentDescriptor({
+				name,
+				args: { chat_id: "general-child" },
+				result: { chat_id: "general-child", status: "running" },
+			});
+
+			expect(descriptor).toMatchObject({
+				variant: "general",
+				iconKind: "bot",
+				supportsDesktopAffordance: false,
+			});
+		}
 	});
 });

@@ -6,6 +6,11 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAiModelPricesCacheReadPriceCheck            CheckConstraint = "ai_model_prices_cache_read_price_check"             // ai_model_prices
+	CheckAiModelPricesCacheWritePriceCheck           CheckConstraint = "ai_model_prices_cache_write_price_check"            // ai_model_prices
+	CheckAiModelPricesInputPriceCheck                CheckConstraint = "ai_model_prices_input_price_check"                  // ai_model_prices
+	CheckAiModelPricesOutputPriceCheck               CheckConstraint = "ai_model_prices_output_price_check"                 // ai_model_prices
+	CheckAiProvidersNameCheck                        CheckConstraint = "ai_providers_name_check"                            // ai_providers
 	CheckAPIKeysAllowListNotEmpty                    CheckConstraint = "api_keys_allow_list_not_empty"                      // api_keys
 	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs
@@ -14,13 +19,19 @@ const (
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck CheckConstraint = "chat_usage_limit_config_default_limit_micros_check" // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck             CheckConstraint = "chat_usage_limit_config_period_check"               // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
-	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
-	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
+	CheckChatAclOnlyOnRootChats                      CheckConstraint = "chat_acl_only_on_root_chats"                        // chats
+	CheckChatGroupAclNotNullJsonb                    CheckConstraint = "chat_group_acl_not_null_jsonb"                      // chats
+	CheckChatUserAclNotNullJsonb                     CheckConstraint = "chat_user_acl_not_null_jsonb"                       // chats
+	CheckChatsPinOrderArchivedCheck                  CheckConstraint = "chats_pin_order_archived_check"                     // chats
+	CheckChatsPinOrderParentCheck                    CheckConstraint = "chats_pin_order_parent_check"                       // chats
 	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users
 	CheckUsersChatSpendLimitMicrosCheck              CheckConstraint = "users_chat_spend_limit_micros_check"                // users
 	CheckUsersEmailNotEmpty                          CheckConstraint = "users_email_not_empty"                              // users
 	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
 	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users
+	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
+	CheckGroupAiBudgetsSpendLimitMicrosCheck         CheckConstraint = "group_ai_budgets_spend_limit_micros_check"          // group_ai_budgets
+	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckMcpServerConfigsAuthTypeCheck               CheckConstraint = "mcp_server_configs_auth_type_check"                 // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck           CheckConstraint = "mcp_server_configs_availability_check"              // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck              CheckConstraint = "mcp_server_configs_transport_check"                 // mcp_server_configs
@@ -33,5 +44,10 @@ const (
 	CheckTelemetryLockEventTypeConstraint            CheckConstraint = "telemetry_lock_event_type_constraint"               // telemetry_locks
 	CheckValidationMonotonicOrder                    CheckConstraint = "validation_monotonic_order"                         // template_version_parameters
 	CheckUsageEventTypeCheck                         CheckConstraint = "usage_event_type_check"                             // usage_events
+	CheckUserAiProviderKeysAPIKeyCheck               CheckConstraint = "user_ai_provider_keys_api_key_check"                // user_ai_provider_keys
 	CheckUserChatProviderKeysAPIKeyCheck             CheckConstraint = "user_chat_provider_keys_api_key_check"              // user_chat_provider_keys
+	CheckUserSkillsContentSize                       CheckConstraint = "user_skills_content_size"                           // user_skills
+	CheckUserSkillsDescriptionSize                   CheckConstraint = "user_skills_description_size"                       // user_skills
+	CheckUserSkillsNameFormat                        CheckConstraint = "user_skills_name_format"                            // user_skills
+	CheckUserSkillsNameSize                          CheckConstraint = "user_skills_name_size"                              // user_skills
 )

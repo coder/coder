@@ -17,7 +17,7 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 			<ClassicParameterFlowDeprecationWarning
 				templateSettingsLink={`/templates/${defaultProps.organizationName}/${defaultProps.templateName}/settings`}
 				{...defaultProps}
-				isEnabled={true}
+				isEnabled
 			/>,
 		);
 

@@ -11,13 +11,17 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -34,25 +38,21 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-no-workspace",
 		})
-		require.NoError(t, err)
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:     db,
-			ChatID: chat.ID,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called")
 				return codersdk.WorkspaceBuild{}, nil
@@ -71,7 +71,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -85,24 +85,20 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-already-running",
 		})
-		require.NoError(t, err)
 
 		agentConnFn := func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for already-running workspace")
@@ -129,7 +125,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -167,15 +163,13 @@ func TestStartWorkspace(t *testing.T) {
 		}
 		require.NotEqual(t, uuid.Nil, preferredAgentID)
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-preferred-agent",
 		})
-		require.NoError(t, err)
 
 		var connectedAgentID uuid.UUID
 		agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -183,10 +177,8 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for already-running workspace")
@@ -212,7 +204,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -228,20 +220,16 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-no-agent",
 		})
-		require.NoError(t, err)
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				t.Fatal("AgentConnFn should not be called when no agents exist")
 				return nil, func() {}, nil
@@ -270,7 +258,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -292,20 +280,16 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-running-selection-error",
 		})
-		require.NoError(t, err)
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				t.Fatal("AgentConnFn should not be called when agent selection fails")
 				return nil, func() {}, nil
@@ -335,7 +319,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -350,15 +334,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-stopped-workspace",
 		})
-		require.NoError(t, err)
 
 		var startCalled bool
 		var startBuildID uuid.UUID
@@ -366,6 +348,7 @@ func TestStartWorkspace(t *testing.T) {
 			startCalled = true
 			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
 			require.Equal(t, ws.ID, wsID)
+			require.Empty(t, req.RichParameterValues, "no parameters should be forwarded for bare start")
 			// Simulate start by inserting a new completed "start" build.
 			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
 				Transition:  database.WorkspaceTransitionStart,
@@ -379,10 +362,8 @@ func TestStartWorkspace(t *testing.T) {
 			return nil, func() {}, nil
 		}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          db,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			StartFn:     startFn,
 			AgentConnFn: agentConnFn,
 			WorkspaceMu: &sync.Mutex{},
@@ -401,13 +382,249 @@ func TestStartWorkspace(t *testing.T) {
 		require.Nil(t, result["no_build"], "no_build should not be set when a build was triggered")
 	})
 
+	t.Run("StoppedWorkspaceReportsAutoUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-stopped-workspace-auto-update",
+		})
+
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
+			require.Equal(t, ws.ID, wsID)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{
+				ID:                buildResp.Build.ID,
+				TemplateVersionID: uuid.New(),
+			}, nil
+		}
+
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID: user.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["updated_to_active_version"])
+		require.Equal(t, "template requires active versions", result["update_reason"])
+		require.Contains(t, result["message"], "updated to the active template version")
+	})
+
+	t.Run("PassesParameters", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-passes-parameters",
+		})
+
+		expectedParams := []codersdk.WorkspaceBuildParameter{
+			{Name: "region", Value: "us-east-1"},
+			{Name: "size", Value: "large"},
+		}
+		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+			require.Equal(t, codersdk.WorkspaceTransitionStart, req.Transition)
+			require.Equal(t, ws.ID, wsID)
+			require.ElementsMatch(t, expectedParams, req.RichParameterValues)
+			buildResp := dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
+			return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
+		}
+
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID: user.ID,
+			StartFn: startFn,
+			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, func() {}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: `{"parameters":{"region":"us-east-1","size":"large"}}`})
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["started"])
+	})
+
+	t.Run("ManualUpdateRequired", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-manual-update-required",
+		})
+
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID: user.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(400, codersdk.Response{
+					Message: "The workspace needs the template's active version before it can start. Use read_template with this workspace's template_id to inspect the active version's required parameters, then retry start_workspace with a parameters object that supplies any missing or changed values.",
+					Detail:  "region must be set before the workspace can start",
+					Validations: []codersdk.ValidationError{{
+						Field:  "region",
+						Detail: "region must be set before the workspace can start",
+					}},
+				})
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+		require.NotContains(t, resp.Content, "start workspace:")
+
+		var result struct {
+			Error       string                     `json:"error"`
+			Detail      string                     `json:"detail"`
+			TemplateID  string                     `json:"template_id"`
+			Validations []codersdk.ValidationError `json:"validations"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Contains(t, result.Error, "read_template")
+		require.Contains(t, result.Error, "retry start_workspace")
+		require.Equal(t, ws.TemplateID.String(), result.TemplateID)
+		require.Equal(t, "region must be set before the workspace can start", result.Detail)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "region",
+			Detail: "region must be set before the workspace can start",
+		}}, result.Validations)
+	})
+
+	t.Run("ResponderErrorWithoutValidationsOmitsTemplateID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-start-workspace-responder-error-without-validations",
+		})
+
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID: user.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				return codersdk.WorkspaceBuild{}, httperror.NewResponseError(502, codersdk.Response{
+					Message: "workspace start failed",
+					Detail:  "temporary provisioner outage",
+				})
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, "workspace start failed", result["error"])
+		require.Equal(t, "temporary provisioner outage", result["detail"])
+		_, hasTemplateID := result["template_id"]
+		require.False(t, hasTemplateID)
+	})
+
 	t.Run("InProgressBuild", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -422,15 +639,13 @@ func TestStartWorkspace(t *testing.T) {
 		}).Starting().Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-in-progress-build",
 		})
-		require.NoError(t, err)
 
 		// Wrap the DB so we know exactly when the tool reads
 		// the job status. The interceptor signals AFTER the
@@ -445,10 +660,8 @@ func TestStartWorkspace(t *testing.T) {
 		}
 
 		var onChatUpdatedCalled atomic.Bool
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:          wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:     user.ID,
-			ChatID:      chat.ID,
 			AgentConnFn: agentConnFn,
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for an in-progress build")
@@ -496,45 +709,48 @@ func TestStartWorkspace(t *testing.T) {
 		require.True(t, onChatUpdatedCalled.Load(), "OnChatUpdated should be called to notify frontend of build ID")
 	})
 
-	t.Run("FailedBuild", func(t *testing.T) {
+	t.Run("FailedBuildQuota", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
+		modelCfg := seedModelConfig(t, db)
+		orgResp := dbfake.Organization(t, db).
+			EveryoneAllowance(40).
+			Members(user).
+			Do()
+		org := orgResp.Org
 		// Create a workspace with a build that is still running.
 		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 		}).Seed(database.WorkspaceBuild{
 			Transition: database.WorkspaceTransitionStart,
+			DailyCost:  40,
 		}).Starting().Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-failed-build",
 		})
-		require.NoError(t, err)
 
+		authzDB := dbauthz.New(
+			db,
+			rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+			slogtest.Make(t, nil),
+			testAccessControlStorePointer(),
+		)
 		jobRead := make(chan struct{}, 1)
-		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
+		wrappedDB := &jobInterceptStore{Store: authzDB, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
 			},
@@ -552,7 +768,10 @@ func TestStartWorkspace(t *testing.T) {
 		}
 		done := make(chan toolResult, 1)
 		go func() {
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+			resp, err := tool.Run(
+				dbauthz.AsChatd(ctx),
+				fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"},
+			)
 			done <- toolResult{resp, err}
 		}()
 
@@ -565,7 +784,11 @@ func TestStartWorkspace(t *testing.T) {
 			ID:          wsResp.Build.JobID,
 			UpdatedAt:   now,
 			CompletedAt: sql.NullTime{Time: now, Valid: true},
-			Error:       sql.NullString{String: "terraform apply failed", Valid: true},
+			Error:       sql.NullString{String: "insufficient quota", Valid: true},
+			ErrorCode: sql.NullString{
+				String: string(codersdk.InsufficientQuota),
+				Valid:  true,
+			},
 		}))
 
 		res := testutil.TryReceive(ctx, t, done)
@@ -574,9 +797,16 @@ func TestStartWorkspace(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal([]byte(res.resp.Content), &result))
 		require.Contains(t, result["error"], "waiting for in-progress build")
+		require.Equal(t, string(codersdk.InsufficientQuota), result["error_code"])
+		require.Equal(t, "Workspace quota reached", result["title"])
+		require.Contains(t, result["message"], "workspace quota is full")
 		require.Equal(t, wsResp.Build.ID.String(), result["build_id"])
+		quota, ok := result["quota"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, float64(40), quota["credits_consumed"])
+		require.Equal(t, float64(40), quota["budget"])
 		require.False(t, res.resp.IsError,
-			"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
+			"quota responses must not set IsError; chatprompt strips structured fields from error responses")
 	})
 
 	t.Run("StartTriggeredBuildFailure", func(t *testing.T) {
@@ -585,13 +815,13 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		// Create a stopped workspace (succeeded stop transition).
+		// Create a stopped workspace with a succeeded stop transition.
 		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
@@ -600,17 +830,14 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-start-triggered-build-failure",
+			Title:             "test-start-triggered-generic-build-failure",
 		})
-		require.NoError(t, err)
 
-		// StartFn creates a real in-progress build via dbfake.
 		var startBuildJobID uuid.UUID
 		var startBuildID uuid.UUID
 		startFn := func(_ context.Context, _ uuid.UUID, wsID uuid.UUID, req codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
@@ -628,10 +855,8 @@ func TestStartWorkspace(t *testing.T) {
 		jobRead := make(chan struct{}, 2)
 		wrappedDB := &jobInterceptStore{Store: db, jobRead: jobRead}
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:      wrappedDB,
+		tool := chattool.StartWorkspace(wrappedDB, chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID: user.ID,
-			ChatID:  chat.ID,
 			StartFn: startFn,
 			AgentConnFn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				return nil, func() {}, nil
@@ -650,13 +875,9 @@ func TestStartWorkspace(t *testing.T) {
 			done <- toolResult{resp, err}
 		}()
 
-		// First signal: initial GetProvisionerJobByID for the
-		// old stop build. Second signal: waitForBuild's first
-		// poll for the new start build.
 		testutil.TryReceive(ctx, t, jobRead)
 		testutil.TryReceive(ctx, t, jobRead)
 
-		// Fail the provisioner job.
 		now := time.Now().UTC()
 		require.NoError(t, db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          startBuildJobID,
@@ -672,6 +893,8 @@ func TestStartWorkspace(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(res.resp.Content), &result))
 		require.Contains(t, result["error"], "workspace start build failed")
 		require.Equal(t, startBuildID.String(), result["build_id"])
+		require.NotContains(t, result, "error_code")
+		require.NotContains(t, result, "quota")
 		require.False(t, res.resp.IsError,
 			"buildToolResponse must not set IsError; chatprompt strips structured fields from error responses")
 	})
@@ -682,7 +905,7 @@ func TestStartWorkspace(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(ctx, t, db, user.ID)
+		modelCfg := seedModelConfig(t, db)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -698,19 +921,15 @@ func TestStartWorkspace(t *testing.T) {
 		}).Do()
 		ws := wsResp.Workspace
 
-		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
 			Title:             "test-deleted-workspace",
 		})
-		require.NoError(t, err)
 
-		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
-			DB:     db,
-			ChatID: chat.ID,
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
 			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
 				t.Fatal("StartFn should not be called for deleted workspace")
 				return codersdk.WorkspaceBuild{}, nil
@@ -726,39 +945,15 @@ func TestStartWorkspace(t *testing.T) {
 
 // seedModelConfig inserts a provider and model config for testing.
 func seedModelConfig(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	userID uuid.UUID,
 ) database.ChatModelConfig {
 	t.Helper()
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		BaseUrl:              "",
-		ApiKeyKeyID:          sql.NullString{},
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	dbgen.ChatProvider(t, db, database.ChatProvider{})
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		IsDefault: true,
 	})
-	require.NoError(t, err)
-
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-	return model
 }
 
 // jobInterceptStore wraps a database.Store and signals a
@@ -777,4 +972,11 @@ func (s *jobInterceptStore) GetProvisionerJobByID(ctx context.Context, id uuid.U
 	default:
 	}
 	return result, err
+}
+
+func testAccessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var store dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	acs.Store(&store)
+	return acs
 }

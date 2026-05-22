@@ -109,7 +109,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     serverURL.String(),
-		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
+		DERPServerRegionID:         int(oop.DeploymentValues.DERP.Server.RegionID.Value()),
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,

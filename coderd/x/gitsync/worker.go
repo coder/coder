@@ -66,9 +66,9 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
-	GetChats(
-		ctx context.Context, arg database.GetChatsParams,
-	) ([]database.GetChatsRow, error)
+	GetChatsByWorkspaceIDs(
+		ctx context.Context, ids []uuid.UUID,
+	) ([]database.Chat, error)
 }
 
 // EventPublisher notifies the frontend of diff status changes.
@@ -277,7 +277,6 @@ func (w *Worker) tick(ctx context.Context) {
 // MarkStaleParams holds the arguments for Worker.MarkStale.
 type MarkStaleParams struct {
 	WorkspaceID uuid.UUID
-	OwnerID     uuid.UUID
 	Branch      string
 	Origin      string
 	// ChatID, when set, targets a single chat instead of
@@ -306,9 +305,11 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
-	chatRows, err := w.store.GetChats(ctx, database.GetChatsParams{
-		OwnerID: p.OwnerID,
-	})
+	// Broadcast path: scope by workspace. GetChatsByWorkspaceIDs
+	// filters archived=false, which is intentional: archived
+	// chats aren't in the active sidebar and don't need refreshed
+	// git refs.
+	chats, err := w.store.GetChatsByWorkspaceIDs(ctx, []uuid.UUID{p.WorkspaceID})
 	if err != nil {
 		w.logger.Warn(ctx, "list chats for git ref storage",
 			slog.F("workspace_id", p.WorkspaceID),
@@ -316,12 +317,7 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 		return
 	}
 
-	chats := make([]database.Chat, len(chatRows))
-	for i, row := range chatRows {
-		chats[i] = row.Chat
-	}
-
-	for _, chat := range filterChatsByWorkspaceID(chats, p.WorkspaceID) {
+	for _, chat := range chats {
 		w.markStaleSingle(ctx, chat.ID, p.Branch, p.Origin)
 	}
 }
@@ -402,20 +398,4 @@ func (w *Worker) RefreshChat(
 	}
 
 	return &upserted, nil
-}
-
-// filterChatsByWorkspaceID returns only chats associated with
-// the given workspace.
-func filterChatsByWorkspaceID(
-	chats []database.Chat,
-	workspaceID uuid.UUID,
-) []database.Chat {
-	filtered := make([]database.Chat, 0, len(chats))
-	for _, chat := range chats {
-		if !chat.WorkspaceID.Valid || chat.WorkspaceID.UUID != workspaceID {
-			continue
-		}
-		filtered = append(filtered, chat)
-	}
-	return filtered
 }

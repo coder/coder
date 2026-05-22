@@ -1,11 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
+const longExecuteCommand =
+	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -44,12 +55,257 @@ export const ExecuteRunning: Story = {
 	},
 };
 
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Running tests using ${executeIntentCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
+	},
+};
+
 export const ExecuteSuccess: Story = {
 	args: {
+		shellToolDisplayMode: "auto",
+		args: { command: longExecuteCommand },
 		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
 			output:
 				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Running in background" }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ExecuteError: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 8600,
+			exit_code: 1,
+			output: Array.from(
+				{ length: 47 },
+				(_, index) => `error line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/error line 1/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
+		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand command" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/error line 1/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteBackgrounded: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backgroundIndicator = canvas.getByRole("img", {
+			name: "Running in background",
+		});
+		expect(backgroundIndicator).toBeVisible();
+		await userEvent.hover(backgroundIndicator);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Running in background",
+		);
+	},
+};
+
+export const ExecuteAlwaysCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: executeCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "From github.com:coder/coder\nFetching origin/main",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/From github\.com:coder\/coder/),
+		).not.toBeInTheDocument();
+		await userEvent.click(commandButton);
+		await waitFor(() => {
+			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteLongCommandCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
+			output: Array.from(
+				{ length: 61 },
+				(_, index) => `output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputAlwaysCollapsed: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "build completed\n0 errors",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/build completed/)).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand process output" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/build completed/)).toBeVisible();
+		});
+	},
+};
+
+export const ProcessOutputAlwaysExpanded: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_expanded",
+		result: {
+			output: Array.from(
+				{ length: 30 },
+				(_, index) => `process output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/process output line 1/)).toBeVisible();
+		expect(canvas.getByText(/process output line 30/)).toBeVisible();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", {
+					name: "Collapse full process output",
+				}),
+			).toHaveAttribute("aria-expanded", "true");
+		});
 	},
 };
 
@@ -167,6 +423,56 @@ export const SubagentRunning: Story = {
 			"href",
 			"/agents/child-chat-id",
 		);
+	},
+};
+
+export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
+		);
+	},
+};
+
+export const ExploreSubagentRunning: Story = {
+	args: {
+		name: "spawn_explore_agent",
+		status: "running",
+		args: {
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "explore-chat-id",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/explore-chat-id",
+		);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -328,6 +634,242 @@ export const SubagentMessageRequestMetadata: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentGeneralRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Workspace diagnostics/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentGeneralCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "general",
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: "spawn-general-child",
+			type: "general",
+			title: "Workspace diagnostics",
+			status: "completed",
+			duration_ms: 3200,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 3s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawning Explore agent/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentExploreCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "explore",
+			prompt: "Read the repository and summarize the auth flow.",
+		},
+		result: {
+			chat_id: "spawn-explore-child",
+			type: "explore",
+			status: "completed",
+			duration_ms: 4100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 4s")).toBeInTheDocument();
+	},
+};
+
+export const SpawnSubagentComputerUseRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			status: "pending",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<DesktopPanelContext.Provider
+				value={{
+					desktopChatId: "spawn-desktop-child",
+					onOpenDesktop: fn(),
+				}}
+			>
+				<Story />
+			</DesktopPanelContext.Provider>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Open desktop tab" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const SpawnSubagentComputerUseCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			type: "computer_use",
+			title: "Visual regression check",
+			prompt:
+				"Open the browser and check for visual regressions on the dashboard page.",
+		},
+		result: {
+			chat_id: "spawn-desktop-child",
+			type: "computer_use",
+			title: "Visual regression check",
+			status: "completed",
+			duration_ms: "12400",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
+	},
+};
+
+export const WaitAgentExploreStreamingFromHistory: Story = {
+	args: {
+		name: "wait_agent",
+		status: "running",
+		args: { chat_id: "explore-child" },
+		result: { chat_id: "explore-child", status: "pending" },
+		subagentVariants: new Map([["explore-child", "explore"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Waiting for Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Waiting for sub-agent…")).toBeNull();
+	},
+};
+
+export const MessageAgentExploreStreamingFromResult: Story = {
+	args: {
+		name: "message_agent",
+		status: "running",
+		args: { chat_id: "message-child", message: "continue" },
+		result: {
+			chat_id: "message-child",
+			type: "explore",
+			status: "pending",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Messaging Explore agent/ }),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("Messaging sub-agent…")).toBeNull();
+	},
+};
+
+export const CloseAgentRunningWithoutChatId: Story = {
+	args: {
+		name: "close_agent",
+		status: "running",
+		args: {},
+		result: { status: "running" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvasElement.textContent?.trim()).toBe("");
+		});
+		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
+		expect(canvas.queryByRole("button")).toBeNull();
+		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
+	},
+};
+
+export const CloseAgentExploreCompleted: Story = {
+	args: {
+		name: "close_agent",
+		status: "completed",
+		args: { chat_id: "close-child" },
+		result: {
+			chat_id: "close-child",
+			type: "explore",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Terminated Explore agent/ }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -493,6 +1035,8 @@ const sampleMCPServers = [
 		availability: "default_on",
 		enabled: true,
 		model_intent: false,
+		allow_in_plan_mode: false,
+		forward_coder_headers: false,
 		auth_connected: true,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
@@ -723,6 +1267,7 @@ export const WriteFileSuccess: Story = {
 	args: {
 		name: "write_file",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			path: "src/utils/helpers.ts",
 			content:
@@ -732,6 +1277,30 @@ export const WriteFileSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Wrote helpers\.ts/)).toBeInTheDocument();
+		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Wrote helpers\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByTestId("write-file-diff")).toBeVisible();
+		});
+	},
+};
+
+export const WriteFileAlwaysExpanded: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByTestId("write-file-diff")).toBeVisible();
 	},
 };
 
@@ -767,6 +1336,7 @@ export const EditFilesSingleSuccess: Story = {
 	args: {
 		name: "edit_files",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			files: [
 				{
@@ -784,6 +1354,39 @@ export const EditFilesSingleSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited config\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesAlwaysCollapsed: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_collapsed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Edited config\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
 	},
 };
 
@@ -872,6 +1475,160 @@ export const EditFilesError: Story = {
 		},
 		result: { error: "File not found" },
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		// On error, no diff body: the synthetic fallback would
+		// misrepresent a rejected edit as applied.
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesServerDiffMultiFile: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+				{
+					path: "src/server.ts",
+					diff: '--- src/server.ts\n+++ src/server.ts\n@@ -1,3 +1,3 @@\n export const server = {\n-\tconst host = "localhost";\n+\tconst host = "0.0.0.0";\n };\n',
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		// Both server diffs must render. FileDiff's internals aren't
+		// queryable from jsdom; count the testid'd wrappers instead.
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
+};
+
+export const EditFilesServerDiffNoOp: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/unchanged.ts",
+					edits: [
+						{
+							search: "same",
+							replace: "same",
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [{ path: "src/unchanged.ts", diff: "" }],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited unchanged\.ts/)).toBeInTheDocument();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+	},
+};
+
+export const EditFilesFallbackToSynthetic: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/legacy.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+		result: { ok: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited legacy\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesServerDiffPartialFallback: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+		result: {
+			ok: true,
+			files: [
+				{
+					path: "src/config.ts",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(2);
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -929,7 +1686,7 @@ export const ComputerTextFallback: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Text-only results are collapsed by default (no image).
-		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
 		expect(toggle).toBeInTheDocument();
 		expect(canvas.queryByRole("img")).toBeNull();
 
@@ -981,6 +1738,50 @@ export const ComputerArrayResult: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};
+
+export const ComputerPromotedAttachmentArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+				attachment_file_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				attachment_name: "screenshot-2026-04-21T00-00-00Z.png",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Screenshot" });
+		expect(toggle).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Screenshot from computer tool" }),
+		).toBeNull();
+
+		await userEvent.click(toggle);
+		expect(
+			canvas.getByText("Attached screenshot-2026-04-21T00-00-00Z.png"),
+		).toBeInTheDocument();
+	},
+};
+
+export const AttachFileLabelFallsBackToPathBasename: Story = {
+	args: {
+		name: "attach_file",
+		status: "completed",
+		args: {
+			path: "docs/runbooks/incident.md",
+		},
+		result: {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Attached incident.md")).toBeInTheDocument();
 	},
 };
 
@@ -1166,8 +1967,8 @@ export const SpawnComputerUseAgentRunning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Spawning/)).toBeInTheDocument();
-		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+		expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
+		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 	},
 };
 
@@ -1229,7 +2030,7 @@ export const WaitAgentComputerUseRunning: Story = {
 			chat_id: "desktop-child-1",
 			status: "pending",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	decorators: [
 		(Story) => (
@@ -1250,7 +2051,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),
@@ -1270,7 +2071,7 @@ export const WaitAgentComputerUseCompletedNoRecording: Story = {
 			status: "waiting",
 			report: "Configured the dev environment.",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	decorators: [
 		(Story) => (
@@ -1305,7 +2106,7 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 			status: "pending",
 			error: "timed out waiting for agent",
 		},
-		computerUseSubagentIds: new Set(["desktop-child-1"]),
+		subagentVariants: new Map([["desktop-child-1", "computer_use"]]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1541,6 +2342,41 @@ export const StartWorkspaceBuildFailed: Story = {
 	},
 };
 
+export const StartWorkspaceQuotaReached: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace start build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not start this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -1602,6 +2438,41 @@ export const CreateWorkspaceCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceQuotaReached: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not create this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
 	},
 };
 

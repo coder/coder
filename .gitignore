@@ -26,7 +26,7 @@ test-output/
 
 # Front-end ignore patterns.
 .next/
-site/build-storybook.log
+site/*-storybook.log
 site/coverage/
 site/storybook-static/
 site/test-results/*

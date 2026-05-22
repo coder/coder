@@ -543,7 +543,16 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 // Chats parses a search query for chats.
 //
 // Supported query parameters:
-//   - archived: boolean (default: false, excludes archived chats unless explicitly set)
+//   - title: case-insensitive title substring match via ILIKE (bare terms
+//     are rejected; use title:<value> for title filtering)
+//   - archived: boolean (default: false, excludes archived chats unless
+//     explicitly set)
+//   - has_unread: nullable boolean (filter by unread message status)
+//   - pr_status: repeated or comma-separated list of draft, open,
+//     merged, closed
+//   - diff_url: string (matches chats whose linked diff URL equals the
+//     given value, case-insensitively; URLs typically contain ':' so
+//     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
@@ -554,8 +563,10 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 		return filter, nil
 	}
 
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
+	// Lowercase the keys so they match regardless of how the caller
+	// types them, but preserve value casing because some filters
+	// (e.g. diff_url) may include URL path segments where case is
+	// meaningful.
 	values, errors := searchTerms(query, func(term string, _ url.Values) error {
 		return xerrors.Errorf("unsupported search term: %q", term)
 	})
@@ -565,9 +576,48 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	filter.HasUnread = parser.NullableBoolean(values, filter.HasUnread, "has_unread")
+	filter.PullRequestStatuses = httpapi.ParseCustomList(parser, values, nil, "pr_status", func(v string) (string, error) {
+		normalizedPRStatus := strings.ToLower(strings.TrimSpace(v))
+		switch normalizedPRStatus {
+		case "draft", "open", "merged", "closed":
+			return normalizedPRStatus, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if diffURL := parser.String(values, "", "diff_url"); diffURL != "" {
+		if err := validateDiffURL(diffURL); err != nil {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "diff_url",
+				Detail: err.Error(),
+			})
+		} else {
+			filter.DiffURL = sql.NullString{String: diffURL, Valid: true}
+		}
+	}
+
+	filter.TitleQuery = parser.String(values, "", "title")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
+}
+
+// validateDiffURL checks that the value is a syntactically valid HTTP(S)
+// URL. The check is intentionally forge-agnostic because the diff URL on
+// a chat may point to a pull request, merge request, branch page, etc.
+func validateDiffURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return xerrors.Errorf("diff_url is not a valid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return xerrors.Errorf("diff_url must use http or https scheme, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return xerrors.New("diff_url must include a host")
+	}
+	return nil
 }
 
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {

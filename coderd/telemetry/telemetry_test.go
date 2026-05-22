@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -1559,60 +1560,39 @@ func TestChatsTelemetry(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	// Create chat providers (required FK for model configs).
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "anthropic",
-		DisplayName:          "Anthropic",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
 	})
-	require.NoError(t, err)
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
 	})
-	require.NoError(t, err)
 
 	// Create a model config.
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "claude-sonnet-4-20250514",
-		DisplayName:          "Claude Sonnet",
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         200000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-sonnet-4-20250514",
+		DisplayName:  "Claude Sonnet",
+		IsDefault:    true,
+		ContextLimit: 200000,
 	})
-	require.NoError(t, err)
 
 	// Create a second model config to test full dump.
-	modelCfg2, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o",
-		DisplayName:          "GPT-4o",
-		Enabled:              true,
-		IsDefault:            false,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:    "openai",
+		Model:       "gpt-4o",
+		DisplayName: "GPT-4o",
 	})
-	require.NoError(t, err)
 
 	// Create a soft-deleted model config — should NOT appear in telemetry.
-	deletedCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "anthropic",
-		Model:                "claude-deleted",
-		DisplayName:          "Deleted Model",
-		Enabled:              true,
-		IsDefault:            false,
-		ContextLimit:         100000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-deleted",
+		DisplayName:  "Deleted Model",
+		ContextLimit: 100000,
 	})
-	require.NoError(t, err)
-	err = db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
 	require.NoError(t, err)
 
 	// Create a root chat with a workspace.
@@ -1645,7 +1625,7 @@ func TestChatsTelemetry(t *testing.T) {
 		JobID:             job.ID,
 	})
 
-	rootChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	rootChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
@@ -1654,10 +1634,9 @@ func TestChatsTelemetry(t *testing.T) {
 		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		Mode:              database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
 	})
-	require.NoError(t, err)
 
 	// Create a child chat (has parent + root).
-	childChat, err := db.InsertChat(ctx, database.InsertChatParams{
+	childChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg2.ID,
@@ -1666,79 +1645,130 @@ func TestChatsTelemetry(t *testing.T) {
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 	})
+
+	// Associate a PR with the root chat so PullRequestState is populated.
+	rootChatNow := dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:           rootChat.ID,
+		PullRequestState: sql.NullString{String: "merged", Valid: true},
+		RefreshedAt:      rootChatNow,
+		StaleAt:          rootChatNow,
+	})
 	require.NoError(t, err)
 
 	// Insert messages for root chat: 2 user, 2 assistant, 1 tool.
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
-		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, user.ID, uuid.Nil, uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID, modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
-		Content:             []string{`[{"type":"text","text":"hello"}]`, `[{"type":"text","text":"hi"}]`, `[{"type":"text","text":"help"}]`, `[{"type":"text","text":"sure"}]`, `[{"type":"text","text":"result"}]`},
-		ContentVersion:      []int16{1, 1, 1, 1, 1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{100, 200, 150, 300, 0},
-		OutputTokens:        []int64{0, 50, 0, 100, 0},
-		TotalTokens:         []int64{100, 250, 150, 400, 0},
-		ReasoningTokens:     []int64{0, 10, 0, 20, 0},
-		CacheCreationTokens: []int64{50, 0, 30, 0, 0},
-		CacheReadTokens:     []int64{0, 25, 0, 40, 0},
-		ContextLimit:        []int64{200000, 200000, 200000, 200000, 200000},
-		Compressed:          []bool{false, false, false, false, false},
-		TotalCostMicros:     []int64{1000, 2000, 1500, 3000, 0},
-		RuntimeMs:           []int64{0, 500, 0, 800, 100},
-		ProviderResponseID:  []string{"", "resp-1", "", "resp-2", ""},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 100, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 100, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 50, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 1000, Valid: true},
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             rootChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hi"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 50, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 250, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 10, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 25, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:    sql.NullInt64{Int64: 2000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-1", Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:              rootChat.ID,
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"help"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 150, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 150, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 30, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 1500, Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             rootChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"sure"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 300, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 100, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 400, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 20, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 40, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:    sql.NullInt64{Int64: 3000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 800, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-2", Valid: true},
+	})
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        rootChat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:          database.ChatMessageRoleTool,
+		Content:       pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"result"}]`), Valid: true},
+		ContextLimit:  sql.NullInt64{Int64: 200000, Valid: true},
+		RuntimeMs:     sql.NullInt64{Int64: 100, Valid: true},
+	})
 
 	// Insert messages for child chat: 1 user, 1 assistant (compressed).
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              childChat.ID,
-		CreatedBy:           []uuid.UUID{user.ID, uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg2.ID, modelCfg2.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant},
-		Content:             []string{`[{"type":"text","text":"q"}]`, `[{"type":"text","text":"a"}]`},
-		ContentVersion:      []int16{1, 1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{500, 600},
-		OutputTokens:        []int64{0, 200},
-		TotalTokens:         []int64{500, 800},
-		ReasoningTokens:     []int64{0, 50},
-		CacheCreationTokens: []int64{100, 0},
-		CacheReadTokens:     []int64{0, 75},
-		ContextLimit:        []int64{128000, 128000},
-		Compressed:          []bool{false, true},
-		TotalCostMicros:     []int64{5000, 8000},
-		RuntimeMs:           []int64{0, 1200},
-		ProviderResponseID:  []string{"", "resp-3"},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg2.ID, Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"q"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 500, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 500, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 100, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 128000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 5000, Valid: true},
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:             childChat.ID,
+		ModelConfigID:      uuid.NullUUID{UUID: modelCfg2.ID, Valid: true},
+		Role:               database.ChatMessageRoleAssistant,
+		Content:            pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"a"}]`), Valid: true},
+		InputTokens:        sql.NullInt64{Int64: 600, Valid: true},
+		OutputTokens:       sql.NullInt64{Int64: 200, Valid: true},
+		TotalTokens:        sql.NullInt64{Int64: 800, Valid: true},
+		ReasoningTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		CacheReadTokens:    sql.NullInt64{Int64: 75, Valid: true},
+		ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
+		Compressed:         true,
+		TotalCostMicros:    sql.NullInt64{Int64: 8000, Valid: true},
+		RuntimeMs:          sql.NullInt64{Int64: 1200, Valid: true},
+		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
+	})
 
 	// Insert a soft-deleted message on root chat with large token values.
 	// This acts as "poison" — if the deleted filter is missing, totals
 	// will be inflated and assertions below will fail.
-	poisonMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+	poisonMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
-		CreatedBy:           []uuid.UUID{uuid.Nil},
-		ModelConfigID:       []uuid.UUID{modelCfg.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-		Content:             []string{`[{"type":"text","text":"poison"}]`},
-		ContentVersion:      []int16{1},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{999999},
-		OutputTokens:        []int64{999999},
-		TotalTokens:         []int64{999999},
-		ReasoningTokens:     []int64{999999},
-		CacheCreationTokens: []int64{999999},
-		CacheReadTokens:     []int64{999999},
-		ContextLimit:        []int64{200000},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{999999},
-		RuntimeMs:           []int64{999999},
-		ProviderResponseID:  []string{""},
+		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"poison"}]`), Valid: true},
+		InputTokens:         sql.NullInt64{Int64: 999999, Valid: true},
+		OutputTokens:        sql.NullInt64{Int64: 999999, Valid: true},
+		TotalTokens:         sql.NullInt64{Int64: 999999, Valid: true},
+		ReasoningTokens:     sql.NullInt64{Int64: 999999, Valid: true},
+		CacheCreationTokens: sql.NullInt64{Int64: 999999, Valid: true},
+		CacheReadTokens:     sql.NullInt64{Int64: 999999, Valid: true},
+		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
+		TotalCostMicros:     sql.NullInt64{Int64: 999999, Valid: true},
+		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
-	require.NoError(t, err)
-	err = db.SoftDeleteChatMessageByID(ctx, poisonMsgs[0].ID)
+	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
 	require.NoError(t, err)
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)
@@ -1770,8 +1800,12 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NotNil(t, foundRoot.Mode)
 	assert.Equal(t, "computer_use", *foundRoot.Mode)
 	assert.False(t, foundRoot.Archived)
+	assert.Equal(t, "ui", foundRoot.ClientType)
+	require.NotNil(t, foundRoot.PullRequestState)
+	assert.Equal(t, "merged", *foundRoot.PullRequestState)
 
 	// Child chat assertions.
+
 	assert.Equal(t, childChat.ID, foundChild.ID)
 	assert.Equal(t, user.ID, foundChild.OwnerID)
 	assert.True(t, foundChild.HasParent)
@@ -1782,8 +1816,11 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
 	assert.Nil(t, foundChild.Mode)
 	assert.False(t, foundChild.Archived)
+	assert.Equal(t, "ui", foundChild.ClientType)
+	assert.Nil(t, foundChild.PullRequestState)
 
 	// --- Assert ChatMessageSummaries ---
+
 	require.Len(t, snapshot.ChatMessageSummaries, 2)
 
 	summaryMap := make(map[uuid.UUID]telemetry.ChatMessageSummary)
@@ -1850,4 +1887,359 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(128000), cfg2.ContextLimit)
 	assert.True(t, cfg2.Enabled)
 	assert.False(t, cfg2.IsDefault)
+}
+
+func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+
+	// Verify zero counts when no chat_diff_statuses exist.
+	_, emptySnapshot := collectSnapshot(ctx, t, db, nil)
+	require.NotNil(t, emptySnapshot.ChatDiffStatusSummary)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(0), emptySnapshot.ChatDiffStatusSummary.Closed)
+
+	// Set up minimal FK chain: provider -> model config -> chat.
+	user := dbgen.User(t, db, database.User{})
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
+	})
+
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "anthropic",
+		Model:        "claude-sonnet-4-20250514",
+		DisplayName:  "Claude Sonnet",
+		IsDefault:    true,
+		ContextLimit: 200000,
+	})
+
+	// Helper to create a chat and upsert its diff status.
+	insertChatWithDiffStatus := func(prURL, state string) uuid.UUID {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "Chat " + state,
+			Status:            database.ChatStatusCompleted,
+		})
+		now := dbtime.Now()
+		_, chatErr := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+			ChatID:           chat.ID,
+			Url:              sql.NullString{String: prURL, Valid: prURL != ""},
+			PullRequestState: sql.NullString{String: state, Valid: true},
+			RefreshedAt:      now,
+			StaleAt:          now,
+		})
+		require.NoError(t, chatErr)
+		return chat.ID
+	}
+
+	// Insert: 1 merged, 1 open, 1 closed (each with unique URLs).
+	// For pull/1, first insert an older chat with stale "open" state,
+	// then a newer chat with refreshed "merged" state. The dedup
+	// query orders by cds.updated_at DESC, so "merged" should win.
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/1", "open")
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/1", "merged")
+	openChatID := insertChatWithDiffStatus("https://github.com/org/repo/pull/2", "open")
+	insertChatWithDiffStatus("https://github.com/org/repo/pull/3", "closed")
+
+	// Insert a chat with NULL pull_request_state (no PR yet).
+	// This should be excluded from all counts.
+	noPRChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "Chat no PR",
+		Status:            database.ChatStatusRunning,
+	})
+	now := dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:      noPRChat.ID,
+		RefreshedAt: now,
+		StaleAt:     now,
+	})
+	require.NoError(t, err)
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+
+	// 3 unique PRs (deduped by URL), not 4 chat_diff_statuses rows.
+	require.NotNil(t, snapshot.ChatDiffStatusSummary)
+	assert.Equal(t, int64(3), snapshot.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(1), snapshot.ChatDiffStatusSummary.Closed)
+
+	// Transition the "open" PR to "merged" via upsert on the same
+	// chat_id. The aggregate should reflect the new state.
+	now = dbtime.Now()
+	_, err = db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:           openChatID,
+		Url:              sql.NullString{String: "https://github.com/org/repo/pull/2", Valid: true},
+		PullRequestState: sql.NullString{String: "merged", Valid: true},
+		RefreshedAt:      now,
+		StaleAt:          now,
+	})
+	require.NoError(t, err)
+
+	_, snapshot2 := collectSnapshot(ctx, t, db, nil)
+
+	require.NotNil(t, snapshot2.ChatDiffStatusSummary)
+	assert.Equal(t, int64(3), snapshot2.ChatDiffStatusSummary.Total)
+	assert.Equal(t, int64(0), snapshot2.ChatDiffStatusSummary.Open)
+	assert.Equal(t, int64(2), snapshot2.ChatDiffStatusSummary.Merged)
+	assert.Equal(t, int64(1), snapshot2.ChatDiffStatusSummary.Closed)
+}
+
+func TestUserSecretsTelemetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Empty deployment should report a non-nil summary with zeros.
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{}, snap.UserSecretsSummary)
+	})
+
+	t.Run("ConfigurationBreakdown", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+
+		// userA: env-only and file-only. dbgen.UserSecret defaults
+		// EnvName and FilePath to non-empty, so use mutators to clear
+		// them where the test wants empty values.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userA.ID,
+			Name:   "a-env",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "A_ENV"
+			p.FilePath = ""
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userA.ID,
+			Name:   "a-file",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/a.file"
+		})
+		// userB: both and neither.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userB.ID,
+			Name:   "b-both",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "B_BOTH"
+			p.FilePath = "/home/coder/b.both"
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: userB.ID,
+			Name:   "b-neither",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = ""
+		})
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		// Each user has exactly two secrets, so every percentile and
+		// the max collapse to 2.
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  2,
+			TotalSecrets:      4,
+			EnvNameOnly:       1,
+			FilePathOnly:      1,
+			Both:              1,
+			Neither:           1,
+			SecretsPerUserMax: 2,
+			SecretsPerUserP25: 2,
+			SecretsPerUserP50: 2,
+			SecretsPerUserP75: 2,
+			SecretsPerUserP90: 2,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("PercentileDistribution", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Five users have secret counts 1, 2, 4, 8, 16 and five other
+		// users have zero secrets. Including the zero-secret users in
+		// the distribution gives a sorted vector of length 10:
+		//   [0, 0, 0, 0, 0, 1, 2, 4, 8, 16]
+		// percentile_disc(p) returns the value at the smallest
+		// 1-indexed position i where i/n >= p, so the buckets land at:
+		//   p25 -> position 3 -> 0
+		//   p50 -> position 5 -> 0
+		//   p75 -> position 8 -> 4
+		//   p90 -> position 9 -> 8
+		adopters := []int{1, 2, 4, 8, 16}
+		for _, n := range adopters {
+			u := dbgen.User(t, db, database.User{})
+			for i := 0; i < n; i++ {
+				_ = dbgen.UserSecret(t, db, database.UserSecret{
+					UserID: u.ID,
+					Name:   fmt.Sprintf("secret-%d", i),
+				}, func(p *database.CreateUserSecretParams) {
+					// Clear EnvName and FilePath so the unique
+					// (user_id, env_name) and (user_id, file_path)
+					// indexes don't collide across multiple secrets
+					// for the same user.
+					p.EnvName = ""
+					p.FilePath = ""
+				})
+			}
+		}
+		for i := 0; i < 5; i++ {
+			_ = dbgen.User(t, db, database.User{})
+		}
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  5,
+			TotalSecrets:      31,
+			EnvNameOnly:       0,
+			FilePathOnly:      0,
+			Both:              0,
+			Neither:           31,
+			SecretsPerUserMax: 16,
+			SecretsPerUserP25: 0,
+			SecretsPerUserP50: 0,
+			SecretsPerUserP75: 4,
+			SecretsPerUserP90: 8,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("FilterSkipsInactiveUsers", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Active user with two secrets contributes the only entries
+		// to UsersWithSecrets, TotalSecrets, and the percentile
+		// distribution.
+		active := dbgen.User(t, db, database.User{})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: active.ID,
+			Name:   "active-env",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "ACTIVE_ENV"
+			p.FilePath = ""
+		})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: active.ID,
+			Name:   "active-file",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/active.file"
+		})
+
+		// User secret owned by a dormant user should be excluded.
+		dormant := dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: dormant.ID,
+			Name:   "dormant-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = "DORMANT_ENV"
+			p.FilePath = ""
+		})
+
+		// User secret owned by a suspended user should be excluded.
+		suspended := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: suspended.ID,
+			Name:   "suspended-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/suspended.file"
+		})
+
+		// System user. Only its UUID is needed. Tying a secret to it
+		// proves the is_system filter excludes it.
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: database.PrebuildsSystemUserID,
+			Name:   "prebuilds-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = "/home/coder/prebuilds.file"
+		})
+
+		_, snap := collectSnapshot(ctx, t, db, nil)
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  1,
+			TotalSecrets:      2,
+			EnvNameOnly:       1,
+			FilePathOnly:      1,
+			Both:              0,
+			Neither:           0,
+			SecretsPerUserMax: 2,
+			SecretsPerUserP25: 2,
+			SecretsPerUserP50: 2,
+			SecretsPerUserP75: 2,
+			SecretsPerUserP90: 2,
+		}, snap.UserSecretsSummary)
+	})
+
+	t.Run("OnlyOneReplicaCollects", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Seed one user with one secret so the summary would normally
+		// be populated. The user_secrets_summary aggregate has no
+		// natural per-row UUID for the telemetry server to dedupe on,
+		// so a telemetry lock elects a single replica per period.
+		u := dbgen.User(t, db, database.User{})
+		_ = dbgen.UserSecret(t, db, database.UserSecret{
+			UserID: u.ID,
+			Name:   "only-secret",
+		}, func(p *database.CreateUserSecretParams) {
+			p.EnvName = ""
+			p.FilePath = ""
+		})
+
+		clock := quartz.NewMock(t)
+		clock.Set(dbtime.Now())
+
+		// First snapshot claims the lock and reports the summary.
+		_, snap1 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.Equal(t, &telemetry.UserSecretsSummary{
+			UsersWithSecrets:  1,
+			TotalSecrets:      1,
+			EnvNameOnly:       0,
+			FilePathOnly:      0,
+			Both:              0,
+			Neither:           1,
+			SecretsPerUserMax: 1,
+			SecretsPerUserP25: 1,
+			SecretsPerUserP50: 1,
+			SecretsPerUserP75: 1,
+			SecretsPerUserP90: 1,
+		}, snap1.UserSecretsSummary)
+
+		// A second snapshot in the same period simulates a second
+		// replica racing to claim the lock; it should observe the
+		// unique violation and skip reporting.
+		_, snap2 := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
+		require.Nil(t, snap2.UserSecretsSummary)
+	})
 }

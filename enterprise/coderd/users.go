@@ -43,7 +43,7 @@ func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 // @Tags Enterprise
 // @Param user path string true "User ID" format(uuid)
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
-// @Router /users/{user}/quiet-hours [get]
+// @Router /api/v2/users/{user}/quiet-hours [get]
 func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -79,7 +79,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 // @Param user path string true "User ID" format(uuid)
 // @Param request body codersdk.UpdateUserQuietHoursScheduleRequest true "Update schedule request"
 // @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
-// @Router /users/{user}/quiet-hours [put]
+// @Router /api/v2/users/{user}/quiet-hours [put]
 func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

@@ -5,7 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -27,12 +27,12 @@ export const ReadTemplateTool: React.FC<{
 			: "Read template";
 
 	return (
-		<div className="flex items-center gap-1.5">
-			<span className={cn("text-sm", "text-content-secondary")}>{label}</span>
+		<TranscriptRow className="gap-1.5 text-content-secondary">
+			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to read template"}
@@ -40,8 +40,8 @@ export const ReadTemplateTool: React.FC<{
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
-		</div>
+		</TranscriptRow>
 	);
 };

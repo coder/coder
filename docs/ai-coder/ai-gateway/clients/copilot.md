@@ -1,5 +1,10 @@
 # GitHub Copilot
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
 To use Copilot with AI Gateway, make sure AI Gateway Proxy is properly configured, see [AI Gateway Proxy Setup](../ai-gateway-proxy/setup.md) for instructions.
@@ -12,6 +17,8 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
+For provider configuration (admin), see [GitHub Copilot provider setup](../setup.md#github-copilot).
+
 ## Copilot CLI
 
 For installation instructions, see [GitHub Copilot CLI documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/install-copilot-cli).
@@ -21,7 +28,7 @@ For installation instructions, see [GitHub Copilot CLI documentation](https://do
 Set the `HTTPS_PROXY` environment variable:
 
 ```shell
-export HTTPS_PROXY="https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
+export HTTPS_PROXY="https://coder:${CODER_API_TOKEN}@<proxy-host>:8888"
 ```
 
 Replace `<proxy-host>` with your AI Gateway Proxy hostname.
@@ -62,20 +69,20 @@ Alternatively, you can configure the proxy directly in VS Code settings:
 
 1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
 1. Search for `HTTP: Proxy`
-1. Set the proxy URL using the format `https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+1. Set the proxy URL using the format `https://coder:<CODER_API_TOKEN>@<proxy-host>:8888`
 
 Or add directly to your `settings.json`:
 
 ```json
 {
-    "http.proxy": "https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888"
+    "http.proxy": "https://coder:<CODER_API_TOKEN>@<proxy-host>:8888"
 }
 ```
 
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
 The `http.proxy` setting is used for both HTTP and HTTPS requests.
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 Restart VS Code for changes to take effect.
 
@@ -105,11 +112,11 @@ Configure the proxy in VS Code's remote settings:
 1. Open Settings (`Ctrl+,` for Windows or `Cmd+,` for macOS)
 1. Select the **Remote** tab
 1. Search for `HTTP: Proxy`
-1. Set the proxy URL using the format `https://coder:<CODER_SESSION_TOKEN>@<proxy-host>:8888`
+1. Set the proxy URL using the format `https://coder:<CODER_API_TOKEN>@<proxy-host>:8888`
 
 Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
 
-Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_SESSION_TOKEN>` with your coder session token.
+Replace `<proxy-host>` with your AI Gateway Proxy hostname and `<CODER_API_TOKEN>` with your Coder API token.
 
 #### CA certificate trust
 
@@ -132,7 +139,7 @@ Configure the proxy directly in JetBrains IDE settings:
 1. Enter the proxy hostname and port (default: 8888)
 1. Select `Proxy authentication` and enter:
    1. Login: `coder` (this value is ignored)
-   1. Password: Your Coder session token
+   1. Password: Your Coder API token
    1. Check `Remember` to save the password
 1. Restart the IDE for changes to take effect
 

@@ -1,5 +1,12 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
+import {
+	getProvidedSubagentTitle,
+	getSubagentChatId,
+	getSubagentDescriptor,
+	isSubagentToolName,
+	type SubagentVariant,
+} from "../ChatElements/tools/subagentDescriptor";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
@@ -17,12 +24,6 @@ const appendText = (current: string, next: string): string => {
 	}
 	return `${current}${next}`;
 };
-
-const isSubagentToolName = (name: string): boolean =>
-	name === "spawn_agent" ||
-	name === "spawn_computer_use_agent" ||
-	name === "wait_agent" ||
-	name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,
@@ -108,6 +109,7 @@ export const mergeTools = (
 			status: result ? (result.isError ? "error" : "completed") : "completed",
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 
@@ -160,6 +162,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
@@ -236,11 +239,18 @@ export const parseMessageContent = (
 	return parsed;
 };
 
+const isEditableAttachmentMediaType = (mediaType: string): boolean =>
+	mediaType.startsWith("image/") ||
+	mediaType === "text/plain" ||
+	mediaType === "text/markdown" ||
+	mediaType === "text/csv" ||
+	mediaType === "application/json" ||
+	mediaType === "application/pdf";
+
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
 ): block is TypesGen.ChatFilePart =>
-	block.type === "file" &&
-	(block.media_type.startsWith("image/") || block.media_type === "text/plain");
+	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
@@ -248,10 +258,16 @@ export const getEditableUserMessagePayload = (
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
+	// Concatenate text parts verbatim to match the server-side string_agg in
+	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
+	const text = (message.content ?? [])
+		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+		.map((part) => part.text)
+		.join("");
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
-		text: parsed.markdown || "",
+		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
 	};
 };
@@ -324,50 +340,50 @@ export const parseMessagesWithMergedTools = (
 	return rawParsed;
 };
 
-export const buildSubagentTitles = (
+export const buildSubagentMaps = (
 	parsedMessages: readonly ParsedMessageEntry[],
-): Map<string, string> => {
-	const map = new Map<string, string>();
-	for (const { parsed } of parsedMessages) {
-		for (const tool of parsed.tools) {
-			if (
-				tool.name !== "spawn_agent" &&
-				tool.name !== "spawn_computer_use_agent"
-			) {
-				continue;
-			}
-			const rec = asRecord(tool.result);
-			if (!rec) {
-				continue;
-			}
-			const chatId = asString(rec.chat_id);
-			const title = asString(rec.title);
-			if (chatId && title) {
-				map.set(chatId, title);
-			}
-		}
-	}
-	return map;
-};
+): {
+	titles: Map<string, string>;
+	variants: Map<string, SubagentVariant>;
+} => {
+	const titles = new Map<string, string>();
+	const variants = new Map<string, SubagentVariant>();
 
-export const buildComputerUseSubagentIds = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): Set<string> => {
-	const ids = new Set<string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "spawn_computer_use_agent") {
+			if (!isSubagentToolName(tool.name)) {
 				continue;
 			}
-			const rec = asRecord(tool.result);
-			if (!rec) {
+
+			const chatId = getSubagentChatId({
+				args: tool.args,
+				result: tool.result,
+			});
+			if (!chatId) {
 				continue;
 			}
-			const chatId = asString(rec.chat_id);
-			if (chatId) {
-				ids.add(chatId);
+
+			const descriptor = getSubagentDescriptor({
+				name: tool.name,
+				args: tool.args,
+				result: tool.result,
+				inferredVariant: variants.get(chatId),
+			});
+			if (!descriptor) {
+				continue;
+			}
+
+			variants.set(chatId, descriptor.variant);
+
+			const providedTitle = getProvidedSubagentTitle({
+				args: tool.args,
+				result: tool.result,
+			});
+			if (providedTitle) {
+				titles.set(chatId, providedTitle);
 			}
 		}
 	}
-	return ids;
+
+	return { titles, variants };
 };

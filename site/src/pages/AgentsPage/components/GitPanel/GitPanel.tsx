@@ -32,6 +32,13 @@ import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
+const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
+const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
+const GIT_NOT_SETUP_BODY =
+	"Git status will appear here once a Git repository is detected in the workspace.";
+const GIT_STATUS_LOADING_TITLE = "Waiting for Git status";
+const GIT_STATUS_LOADING_BODY = "Checking the workspace for Git repositories.";
+
 interface DiffStats {
 	additions: number;
 	deletions: number;
@@ -51,10 +58,19 @@ interface GitPanelProps {
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
+	/** Whether the watcher is loading its initial repository state. */
+	isGitStatusLoading?: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	/**
+	 * Repo roots that have been dirty at some point during this session.
+	 * Used to keep a repo's tab visible after its diff goes empty, so the
+	 * tab strip does not visibly flip when the agent edits a file and
+	 * then reverts it.
+	 */
+	everDirty?: ReadonlySet<string>;
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -68,14 +84,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 	onRefresh,
 	onCommit,
 	isExpanded,
+	isGitStatusLoading = false,
 	remoteDiffStats,
 	chatInputRef,
+	everDirty,
 }) => {
-	const hasRemoteStats =
+	const hasRemoteDiff =
+		(remoteDiffStats?.changed_files ?? 0) > 0 ||
 		(remoteDiffStats?.additions ?? 0) > 0 ||
 		(remoteDiffStats?.deletions ?? 0) > 0;
 
-	const showRemoteTab = Boolean(prTab) || hasRemoteStats;
+	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
+	const hasGitContext = repositories.size > 0 || showRemoteTab;
+	const isWaitingForGitStatus = !hasGitContext && isGitStatusLoading;
 
 	const prTitle = remoteDiffStats?.pull_request_title;
 	const prState = remoteDiffStats?.pull_request_state;
@@ -102,9 +123,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return stats;
 	})();
 
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
-		a.localeCompare(b),
-	);
+	// Union of currently-dirty and ever-dirty repos (still known to
+	// the watcher) so a clean-revert does not hide the tab.
+	const localRepos = (() => {
+		const roots = new Set<string>(repoStats.keys());
+		if (everDirty) {
+			for (const root of everDirty) {
+				if (repositories.has(root)) {
+					roots.add(root);
+				}
+			}
+		}
+		return Array.from(roots).sort((a, b) => a.localeCompare(b));
+	})();
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.
@@ -122,15 +153,19 @@ export const GitPanel: FC<GitPanelProps> = ({
 				setView({ type: "local", repoRoot: localRepos[0] });
 			}
 		} else if (view.type === "local") {
-			if (!repoStats.has(view.repoRoot)) {
+			// localRepos includes ever-dirty repos with empty diffs, so
+			// the active tab stays valid until its root leaves the set.
+			if (!localRepos.includes(view.repoRoot)) {
 				if (showRemoteTab) {
 					setView({ type: "remote" });
 				} else if (localRepos.length > 0) {
 					setView({ type: "local", repoRoot: localRepos[0] });
+				} else {
+					setView({ type: "remote" });
 				}
 			}
 		}
-	}, [view, showRemoteTab, localRepos, repoStats]);
+	}, [view, showRemoteTab, localRepos]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -215,7 +250,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 									<CircleDotIcon
 										className={cn(
 											"!size-3.5 shrink-0",
-											isActive ? "text-amber-400" : "text-amber-400/60",
+											isActive
+												? "text-content-warning"
+												: "text-content-warning/60",
 										)}
 									/>
 									<span className="truncate">
@@ -234,8 +271,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 							type="button"
 							onClick={() => handleDiffStyleChange("unified")}
 							aria-label="Unified diff"
+							disabled={!hasGitContext}
+							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors",
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
 								diffStyle === "unified"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -247,8 +286,10 @@ export const GitPanel: FC<GitPanelProps> = ({
 							type="button"
 							onClick={() => handleDiffStyleChange("split")}
 							aria-label="Split diff"
+							disabled={!hasGitContext}
+							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -257,20 +298,29 @@ export const GitPanel: FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={handleRefresh}
-						aria-label="Refresh"
-						className="h-6 w-6 text-content-secondary hover:text-content-primary"
-					>
-						<RefreshCwIcon
-							className={cn(
-								"size-3.5",
-								spinning && "motion-safe:animate-spin-once",
-							)}
-						/>
-					</Button>
+					{/*
+					 * The shared Button applies `disabled:pointer-events-none`,
+					 * which would suppress the native `title` tooltip when the
+					 * control is disabled. Wrap it in a span so the tooltip is
+					 * still reachable on hover in the disabled state.
+					 */}
+					<span title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}>
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={handleRefresh}
+							aria-label="Refresh"
+							disabled={!hasGitContext}
+							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+						>
+							<RefreshCwIcon
+								className={cn(
+									"size-3.5",
+									spinning && "motion-safe:animate-spin-once",
+								)}
+							/>
+						</Button>
+					</span>
 				</div>
 			</div>
 			{/* Content */}
@@ -278,6 +328,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 				{view.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
+						hasGitContext={hasGitContext}
+						isGitStatusLoading={isWaitingForGitStatus}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
@@ -306,22 +358,44 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 const RemoteContent: FC<{
 	prTab?: { prNumber: number; chatId: string };
+	hasGitContext: boolean;
+	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
-}> = ({ prTab, isExpanded, chatInputRef, diffStyle, diffStatus }) => {
+}> = ({
+	prTab,
+	hasGitContext,
+	isGitStatusLoading,
+	isExpanded,
+	chatInputRef,
+	diffStyle,
+	diffStatus,
+}) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
 				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
-					<GitCompareArrowsIcon className="size-5 text-content-secondary" />
+					{hasGitContext ? (
+						<GitCompareArrowsIcon className="size-5 text-content-secondary" />
+					) : (
+						<GitBranchIcon className="size-5 text-content-secondary" />
+					)}
 				</div>
 				<p className="text-sm font-medium text-content-primary">
-					No pushed changes yet
+					{hasGitContext
+						? "No pushed changes yet"
+						: isGitStatusLoading
+							? GIT_STATUS_LOADING_TITLE
+							: GIT_NOT_SETUP_SENTENCE}
 				</p>
 				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					Once commits are pushed, the branch diff will appear here.
+					{hasGitContext
+						? "Once commits are pushed, the branch diff will appear here."
+						: isGitStatusLoading
+							? GIT_STATUS_LOADING_BODY
+							: GIT_NOT_SETUP_BODY}
 				</p>
 			</div>
 		);

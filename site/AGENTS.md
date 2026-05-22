@@ -26,6 +26,32 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
+## Storybook MCP
+
+The `.mcp.json` at the repo root includes a Storybook MCP server
+(`http://localhost:6006/mcp`). It provides tools for searching components,
+reading stories, and capturing screenshots directly from Storybook.
+
+Because it is an HTTP-type MCP server, Storybook must already be running
+before the MCP client can connect. Start it first:
+
+```sh
+pnpm storybook --no-open
+```
+
+## Failure artifacts
+
+Playwright writes per-test failure artifacts to `site/test-results/` when
+running `pnpm playwright:test` from `site/`. Failed tests keep screenshots,
+videos, and traces through the Playwright config. The HTML report is written
+to `site/playwright-report/`, and the coderd debug log is written to
+`site/e2e/test-results/debug.log`.
+
+In CI, the `test-e2e` job uploads failure artifacts to the workflow run's
+Artifacts section. Look for artifact names prefixed with
+`playwright-artifacts-`, followed by the matrix job name and commit SHA.
+Debug logs and pprof dumps use the same job name and commit SHA convention.
+
 ## Components
 
 - MUI components are deprecated - migrate away from these when encountered
@@ -38,6 +64,13 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   (Table, Badge, icons, error handlers) and sibling files for local
   helpers. Duplicating existing components wastes effort and creates
   maintenance burden.
+- **Modifying core components is a cross-cutting change.** Treat new
+  exports or visual changes in `site/src/components/` differently from
+  feature-folder edits. They affect every consumer across the site, so
+  coordinate with design before extending them. When you need a small
+  variant of a shared primitive (for example, a separator with
+  feature-specific styling), define it locally in your feature folder
+  first and graduate it later if a shared design lands.
 - Keep component files under ~500 lines. When a file grows beyond that,
   extract logical sections into sub-components or a folder with an
   index file.
@@ -62,6 +95,11 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Destructure imports when possible (eg. import { foo } from 'bar')
 - Prefer `for...of` over `forEach` for iteration
 - **Biome** handles both linting and formatting (not ESLint/Prettier)
+- Access browser globals like `location`, `navigator`, and `document`
+  directly. Do not prefix them with `window.` (e.g., write
+  `location.href`, not `window.location.href`). They are globally
+  available in every browser context.
+- Do not use `typeof window`, `typeof document`, or similar runtime checks for browser globals. Coder is a pure SPA so these globals are always available.
 - Always use react-query for data fetching. Do not attempt to manage any
   data life cycle manually. Do not ever call an `API` function directly
   within a component.
@@ -71,8 +109,26 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
   If sibling components initialize state with `useMemo`, don't switch to
   `useState(initialFn)` in the same file without reason.
 - Match errors by error code or HTTP status, never by comparing error
-  message strings. String matching is brittle — messages change, get
+  message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
+- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+  in code, comments, string literals, or documentation. Use commas,
+  semicolons, or periods instead. Restructure the sentence if needed.
+- For JSX boolean props that are `true`, use the shorthand form
+  (`<Foo prop />`) instead of `<Foo prop={true} />`. The two are
+  equivalent; the shorthand is the React convention and reduces noise.
+- **Avoid unnecessary indirection.** Inline single-use module-level
+  constants, single-use aliases, and one-line helpers that just return a
+  single field at the call site. Do not create wrapper hooks that only
+  delegate to a library hook plus a couple of derived booleans. Inline
+  the call at each site instead. Indirection should pay for itself with
+  shared usage or non-trivial logic; otherwise it adds a layer reviewers
+  have to navigate without explaining anything.
+- **Re-evaluate helpers after upstream refactors.** When you change how
+  a value is computed (for example, by moving fallback logic into the
+  builder), check whether existing helpers that consumed that value have
+  collapsed to a pass-through. If a helper now just returns a single
+  field, delete it and inline the field access at the call sites.
 
 ## TypeScript Type Safety
 

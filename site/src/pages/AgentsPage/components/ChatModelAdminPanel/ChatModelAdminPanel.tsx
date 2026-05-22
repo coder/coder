@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState } from "react";
+import type { FC } from "react";
 
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -6,13 +6,18 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
-import { normalizeProvider, readOptionalString } from "./helpers";
+import {
+	getDefaultProviderBaseURL,
+	normalizeProvider,
+	readOptionalString,
+} from "./helpers";
 import { ModelsSection } from "./ModelsSection";
 import { ProvidersSection } from "./ProvidersSection";
 
-// ── Exported types ─────────────────────────────────────────────
+export type CreateProviderResult = { id: string };
 
 export type ProviderState = {
+	key: string;
 	provider: string;
 	label: string;
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
@@ -21,13 +26,12 @@ export type ProviderState = {
 	hasManagedAPIKey: boolean;
 	hasCatalogAPIKey: boolean;
 	hasEffectiveAPIKey: boolean;
+	allowUserAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
 };
 
 export type ChatModelAdminSection = "providers" | "models";
-
-// ── Internal helpers ───────────────────────────────────────────
 
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
@@ -78,65 +82,106 @@ const getProviderModels = (
 const getProviderBaseURL = (
 	providerConfig: TypesGen.ChatProviderConfig | undefined,
 ): string => {
-	return readOptionalString(providerConfig?.base_url) ?? "";
+	return (
+		readOptionalString(providerConfig?.base_url) ??
+		getDefaultProviderBaseURL(providerConfig?.provider ?? "")
+	);
 };
 
-// ── Hook: compute provider states from query data ──────────────
+const providerConfigStateKey = (
+	providerConfig: TypesGen.ChatProviderConfig,
+): string => {
+	const providerID = readOptionalString(providerConfig.id);
+	if (providerID && providerID !== nilUUID) {
+		return providerID;
+	}
+	return normalizeProvider(providerConfig.provider);
+};
+
+type ProviderEntry = {
+	key: string;
+	provider: string;
+};
 
 const useProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 	providerConfigsData: TypesGen.ChatProviderConfig[] | null | undefined,
 	catalogData: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly ProviderState[] => {
-	const orderedProviders: string[] = [];
-	const seenProviders = new Set<string>();
-	const includeProvider = (providerValue: string) => {
-		const normalized = normalizeProvider(providerValue);
-		if (!normalized || seenProviders.has(normalized)) return;
-		seenProviders.add(normalized);
-		orderedProviders.push(normalized);
+	const orderedEntries: ProviderEntry[] = [];
+	const seenEntries = new Set<string>();
+	const includeEntry = (keyValue: string, providerValue: string) => {
+		const key = readOptionalString(keyValue);
+		const provider = normalizeProvider(providerValue);
+		if (!key || !provider || seenEntries.has(key)) return;
+		seenEntries.add(key);
+		orderedEntries.push({ key, provider });
 	};
 
 	const catalogProviders = getCatalogProviders(catalogData);
 	const catalogProvidersByProvider = new Map<string, CatalogProvider>();
 	for (const cp of catalogProviders) {
-		const normalized = normalizeProvider(cp.provider);
-		if (!normalized) continue;
-		includeProvider(normalized);
-		catalogProvidersByProvider.set(normalized, cp);
+		const provider = normalizeProvider(cp.provider);
+		if (!provider) continue;
+		catalogProvidersByProvider.set(provider, cp);
 	}
 
+	const providerConfigKeysByProvider = new Map<string, string[]>();
+	const providerTypesWithConfigs = new Set<string>();
 	for (const pc of providerConfigsData ?? []) {
-		includeProvider(pc.provider);
+		const provider = normalizeProvider(pc.provider);
+		if (!provider) continue;
+		const key = providerConfigStateKey(pc);
+		providerTypesWithConfigs.add(provider);
+		providerConfigKeysByProvider.set(provider, [
+			...(providerConfigKeysByProvider.get(provider) ?? []),
+			key,
+		]);
+		includeEntry(key, provider);
+	}
+	const modelStateKey = (modelConfig: TypesGen.ChatModelConfig): string => {
+		const aiProviderID = readOptionalString(modelConfig.ai_provider_id);
+		if (aiProviderID) {
+			return aiProviderID;
+		}
+		const provider = normalizeProvider(modelConfig.provider);
+		const providerConfigKeys = providerConfigKeysByProvider.get(provider) ?? [];
+		if (providerConfigKeys.length === 1) {
+			return providerConfigKeys[0];
+		}
+		return providerConfigKeys.length === 0 ? provider : "";
+	};
+
+	for (const cp of catalogProviders) {
+		const provider = normalizeProvider(cp.provider);
+		if (!provider || providerTypesWithConfigs.has(provider)) continue;
+		includeEntry(provider, provider);
 	}
 	for (const mc of modelConfigs) {
-		includeProvider(mc.provider);
+		includeEntry(modelStateKey(mc), mc.provider);
 	}
 
-	const providerConfigsByProvider = new Map<
-		string,
-		TypesGen.ChatProviderConfig
-	>();
+	const providerConfigsByKey = new Map<string, TypesGen.ChatProviderConfig>();
 	for (const pc of providerConfigsData ?? []) {
-		const normalized = normalizeProvider(pc.provider);
-		if (!normalized) continue;
-		providerConfigsByProvider.set(normalized, pc);
+		const key = providerConfigStateKey(pc);
+		if (!key) continue;
+		providerConfigsByKey.set(key, pc);
 	}
 
-	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
+	const modelConfigsByKey = new Map<string, TypesGen.ChatModelConfig[]>();
 	for (const mc of modelConfigs) {
-		const normalized = normalizeProvider(mc.provider);
-		if (!normalized) continue;
-		const existing = modelConfigsByProvider.get(normalized);
+		const key = modelStateKey(mc);
+		if (!key) continue;
+		const existing = modelConfigsByKey.get(key);
 		if (existing) {
 			existing.push(mc);
 		} else {
-			modelConfigsByProvider.set(normalized, [mc]);
+			modelConfigsByKey.set(key, [mc]);
 		}
 	}
 
-	return orderedProviders.map((provider) => {
-		const providerConfigEntry = providerConfigsByProvider.get(provider);
+	return orderedEntries.map(({ key, provider }) => {
+		const providerConfigEntry = providerConfigsByKey.get(key);
 		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
 		const providerConfig = isDatabaseProviderConfig(
 			providerConfigEntry,
@@ -145,9 +190,6 @@ const useProviderStates = (
 			? providerConfigEntry
 			: undefined;
 		const catalogProvider = catalogProvidersByProvider.get(provider);
-		const catalogProviderSource = readOptionalString(
-			(catalogProvider as CatalogProvider & { source?: string })?.source,
-		);
 		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
 		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
 		const hasCatalogAPIKey = catalogProvider
@@ -156,15 +198,17 @@ const useProviderStates = (
 		const label =
 			readOptionalString(providerConfigEntry?.display_name) ??
 			formatProviderLabel(provider);
-		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
+		const hasBedrockAmbientCredentials =
+			provider === "bedrock" &&
+			providerConfig?.central_api_key_enabled === true;
+		const modelConfigsForProvider = modelConfigsByKey.get(key) ?? [];
 		const isCatalogEnvPreset =
-			!providerConfig &&
-			envPresetProviders.has(provider) &&
-			(catalogProviderSource === "env" || hasCatalogAPIKey);
+			!providerConfig && envPresetProviders.has(provider) && hasCatalogAPIKey;
 		const isEnvPreset =
 			providerConfigSource === "env_preset" || isCatalogEnvPreset;
 
 		return {
+			key,
 			provider,
 			label,
 			providerConfig,
@@ -173,22 +217,20 @@ const useProviderStates = (
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
 			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey
+				? hasProviderEntryAPIKey || hasBedrockAmbientCredentials
 				: hasManagedAPIKey || hasCatalogAPIKey,
+			allowUserAPIKey: providerConfigEntry?.allow_user_api_key ?? true,
 			isEnvPreset,
 			baseURL: getProviderBaseURL(providerConfigEntry),
 		};
 	});
 };
 
-// ── Component ──────────────────────────────────────────────────
-
 interface ChatModelAdminPanelProps {
 	className?: string;
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
 	sectionDescription?: string;
-	sectionBadge?: ReactNode;
 	// Data from queries.
 	providerConfigsData: TypesGen.ChatProviderConfig[] | undefined;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
@@ -201,7 +243,7 @@ interface ChatModelAdminPanelProps {
 	// Provider mutation handlers.
 	onCreateProvider: (
 		req: TypesGen.CreateChatProviderConfigRequest,
-	) => Promise<unknown>;
+	) => Promise<CreateProviderResult>;
 	onUpdateProvider: (
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
@@ -229,7 +271,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 	sectionLabel,
 	sectionDescription,
-	sectionBadge,
 	providerConfigsData,
 	modelConfigsData,
 	modelCatalogData,
@@ -250,42 +291,21 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	isDeletingModel,
 	modelMutationError,
 }) => {
-	const [requestedProvider, setRequestedProvider] = useState<string | null>(
-		null,
-	);
-
-	// ── Sorted model configs ───────────────────────────────────
 	const modelConfigs = (modelConfigsData ?? []).slice().sort((a, b) => {
 		const cmp = a.provider.localeCompare(b.provider);
 		return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
 	});
-
-	// ── Provider states ────────────────────────────────────────
 	const providerStates = useProviderStates(
 		modelConfigs,
 		providerConfigsData,
 		modelCatalogData,
 	);
 
-	// Derive the effective selected provider from user intent + available
-	// providers. This avoids a useEffect + setState cycle that would cause
-	// an extra render with a stale value.
-	const selectedProvider =
-		requestedProvider &&
-		providerStates.some((ps) => ps.provider === requestedProvider)
-			? requestedProvider
-			: (providerStates[0]?.provider ?? null);
-
-	const selectedProviderState = selectedProvider
-		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
-		: null;
-
-	// ── Derived state ──────────────────────────────────────────
 	const providerConfigsUnavailable = providerConfigsData === null;
 	const modelConfigsUnavailable = modelConfigsData === null;
 
 	return (
-		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
+		<div className={cn("flex min-h-full flex-col", className)}>
 			{isLoading && (
 				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
 					<Spinner className="h-4 w-4" loading />
@@ -293,30 +313,23 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				</div>
 			)}
 
-			{/* Content */}
-			<div className="flex flex-1 flex-col">
+			<div className="flex flex-1 flex-col gap-8">
 				{section === "providers" ? (
 					<ProvidersSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
 						onCreateProvider={onCreateProvider}
 						onUpdateProvider={onUpdateProvider}
 						onDeleteProvider={onDeleteProvider}
-						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
 					<ModelsSection
 						sectionLabel={sectionLabel}
 						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
 						providerStates={providerStates}
-						selectedProvider={selectedProvider}
-						selectedProviderState={selectedProviderState}
-						onSelectedProviderChange={setRequestedProvider}
 						modelConfigs={modelConfigs}
 						modelConfigsUnavailable={modelConfigsUnavailable}
 						isCreating={isCreatingModel}
@@ -328,8 +341,6 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					/>
 				)}
 			</div>
-
-			{/* Errors — rendered at the bottom */}
 			{providerConfigsError && <ErrorAlert error={providerConfigsError} />}
 			{modelConfigsError && <ErrorAlert error={modelConfigsError} />}
 			{modelCatalogError && <ErrorAlert error={modelCatalogError} />}

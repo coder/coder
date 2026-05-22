@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
-import type React from "react";
+import type { CSSProperties } from "react";
 import * as Yup from "yup";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -25,6 +25,65 @@ const fileEntrySchema = Yup.object({
 }).required();
 
 type FileEntry = Yup.InferType<typeof fileEntrySchema>;
+
+export const formatModelIntentLabel = (
+	modelIntent: string | undefined,
+): string => {
+	const trimmed = modelIntent?.trim() ?? "";
+	if (!trimmed) {
+		return "";
+	}
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+const trailingDurationPattern =
+	/(^|\s+)for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i;
+
+export const sanitizeExecuteModelIntent = (
+	modelIntent: string | undefined,
+	command: string,
+): string => {
+	const label = formatModelIntentLabel(modelIntent);
+	const withoutCommand = stripRedundantUsingSuffix(label, command);
+	return stripTrailingDuration(withoutCommand);
+};
+
+const stripRedundantUsingSuffix = (label: string, command: string): string => {
+	const usingMatches = Array.from(label.matchAll(/(^|\s+)using\s+/gi));
+	for (let i = usingMatches.length - 1; i >= 0; i--) {
+		const match = usingMatches[i];
+		if (match.index === undefined) {
+			continue;
+		}
+
+		const suffix = stripTrailingDuration(
+			label.slice(match.index + match[0].length),
+		);
+		if (isCommandReference(suffix, command)) {
+			return label.slice(0, match.index).trim();
+		}
+	}
+	return label;
+};
+
+const stripTrailingDuration = (label: string): string =>
+	label.replace(trailingDurationPattern, "").trim();
+
+const isCommandReference = (value: string, command: string): boolean => {
+	const normalizedValue = normalizeCommandReference(value);
+	const normalizedCommand = normalizeCommandReference(command);
+	if (!normalizedValue || !normalizedCommand) {
+		return false;
+	}
+	return (
+		normalizedValue === normalizedCommand ||
+		normalizedCommand.startsWith(`${normalizedValue} `) ||
+		normalizedValue.startsWith(`${normalizedCommand} `)
+	);
+};
+
+const normalizeCommandReference = (value: string): string =>
+	value.trim().toLowerCase().replace(/\s+/g, " ");
 
 export const toProviderLabel = (
 	providerDisplayName: string,
@@ -55,11 +114,38 @@ export const shortDurationMs = (durationMs: number | undefined): string => {
 	if (seconds < 60) {
 		return `${seconds}s`;
 	}
-	const minutes = Math.round(seconds / 60);
+	const minutes = Math.round(durationMs / 60_000);
 	if (minutes < 60) {
 		return `${minutes}m`;
 	}
-	const hours = Math.round(minutes / 60);
+	const hours = Math.round(durationMs / 3_600_000);
+	return `${hours}h`;
+};
+
+const roundToTenths = (value: number): number => Number(value.toFixed(1));
+
+export const formatShellDurationMs = (
+	durationMs: number | undefined,
+): string => {
+	if (
+		durationMs === undefined ||
+		durationMs < 0 ||
+		!Number.isFinite(durationMs)
+	) {
+		return "";
+	}
+	if (durationMs < 1000) {
+		return `${Math.round(durationMs)}ms`;
+	}
+	const seconds = roundToTenths(durationMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = roundToTenths(durationMs / 60_000);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = roundToTenths(durationMs / 3_600_000);
 	return `${hours}h`;
 };
 
@@ -332,11 +418,27 @@ const DIFF_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+const CHANGE_LINE_CSS = [
+	":host {",
+	"  --diffs-addition-color-override: hsl(var(--git-added));",
+	"  --diffs-deletion-color-override: hsl(var(--git-deleted));",
+	"  --diffs-bg-addition-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-override: hsl(var(--surface-git-deleted));",
+	"  --diffs-bg-addition-number-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-number-override: hsl(var(--surface-git-deleted));",
+	"}",
+	"[data-line-type='change-addition']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-added)) !important;",
+	"}",
+	"[data-line-type='change-deletion']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-deleted)) !important;",
+	"}",
+].join(" ");
+
 export const diffViewerCSS = [
 	// Make context lines transparent so they blend with the page,
-	// but preserve the library's colored backgrounds on changed
-	// lines (change-addition / change-deletion) so the line-level
-	// tint and word-level emphasis highlights remain visible.
+	// while changed lines use the same theme-aware git surfaces as
+	// the file headers and stats.
 	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	// The library reserves a 6 px horizontal scrollbar track on
@@ -345,6 +447,7 @@ export const diffViewerCSS = [
 	"[data-code] { scrollbar-width: none !important; }",
 	"[data-code]::-webkit-scrollbar { height: 0 !important; }",
 	DIFF_HEADER_CSS,
+	CHANGE_LINE_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
 ].join(" ");
@@ -420,11 +523,7 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
-} as React.CSSProperties;
-
-export const BORDER_BG_STYLE = {
-	background: "hsl(var(--border-default))",
-};
+} as CSSProperties;
 
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
@@ -477,6 +576,20 @@ export const getFileContentForViewer = (
 };
 
 /**
+ * Parses a unified-diff string (with an optional SVN `Index:`
+ * banner) into the first FileDiffMetadata it contains. Returns
+ * null when the input is empty or the parser produces no files.
+ * Shared between the write_file diff builder, the synthetic
+ * edit_files diff builder, and the server-supplied diff parser.
+ */
+const parseSingleFileDiff = (raw: string): FileDiffMetadata | null => {
+	if (!raw) return null;
+	const parsed = parsePatchFiles(stripSvnIndexHeaders(raw));
+	if (!parsed.length || !parsed[0].files.length) return null;
+	return parsed[0].files[0];
+};
+
+/**
  * Builds a FileDiffMetadata representing a new-file diff (all lines
  * are additions) from the content written by a write_file tool call.
  * Returns null when the content is empty or unparsable.
@@ -486,10 +599,7 @@ export const buildWriteFileDiff = (
 	content: string,
 ): FileDiffMetadata | null => {
 	if (!content) return null;
-	const patch = Diff.createPatch(path, "", content, "", "");
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(patch));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseSingleFileDiff(Diff.createPatch(path, "", content, "", ""));
 };
 
 /**
@@ -568,10 +678,53 @@ export const buildEditDiff = (
 		patches.push(`--- ${diffPath}\n+++ ${diffPath}\n`);
 	}
 
-	const parsed = parsePatchFiles(stripSvnIndexHeaders(patches.join("")));
-	if (!parsed.length || !parsed[0].files.length) return null;
-	return parsed[0].files[0];
+	return parseSingleFileDiff(patches.join(""));
 };
+
+/**
+ * Per-file result from the agent's FileEditResponse. `path` matches
+ * the caller-supplied path (pre-symlink resolution). `diff` is a
+ * unified-diff string, possibly empty for no-op edits.
+ */
+interface ServerEditResult {
+	path: string;
+	diff: string;
+}
+
+/**
+ * Parses the structured `files` array from an edit_files tool
+ * response. The field is only populated when the agent observed the
+ * request's `include_diff` flag; older agents omit it entirely.
+ * Returns null when no per-file result array is present (callers
+ * should fall back to the synthetic client-side diff path). Returns
+ * an empty array when the field is explicitly present but empty.
+ */
+export const parseServerEditResults = (
+	result: unknown,
+): ServerEditResult[] | null => {
+	const rec = asRecord(result);
+	if (!rec) return null;
+	const raw = rec.files;
+	if (raw === undefined || raw === null) return null;
+	if (!Array.isArray(raw)) return null;
+	const results: ServerEditResult[] = [];
+	for (const entry of raw) {
+		const entryRec = asRecord(entry);
+		if (!entryRec) continue;
+		const path = asString(entryRec.path).trim();
+		if (!path) continue;
+		results.push({ path, diff: asString(entryRec.diff) });
+	}
+	return results;
+};
+
+/**
+ * Parses a server-supplied unified diff. Returns null for empty
+ * strings (no-op edits) or when the parser produces no file entries.
+ */
+export const parseServerEditDiffText = (
+	diff: string,
+): FileDiffMetadata | null => parseSingleFileDiff(diff);
 
 /**
  * Converts an MCP-prefixed tool name into a human-readable label.
@@ -602,3 +755,43 @@ export { asNumber, asRecord, asString } from "../runtimeTypeUtils";
  */
 export const signalTooltipLabel = (signal: "kill" | "terminate"): string =>
 	signal === "kill" ? "Killed (SIGKILL)" : "Terminated (SIGTERM)";
+
+// Programs whose first positional argument is conventionally a subcommand verb.
+const multiVerbTools = new Set([
+	"git",
+	"gh",
+	"kubectl",
+	"docker",
+	"podman",
+	"npm",
+	"pnpm",
+	"yarn",
+	"go",
+	"cargo",
+	"make",
+	"helm",
+	"terraform",
+	"systemctl",
+	"brew",
+]);
+
+/**
+ * Collapses parsed_commands into a comma-joined summary. Multi-verb
+ * tools render as "<prog> <verb>"; others render as just "<prog>".
+ * Consecutive duplicates are deduped.
+ */
+export const summarizeParsedCommands = (
+	parsed: readonly string[][],
+): string => {
+	const labels: string[] = [];
+	for (const entry of parsed) {
+		const prog = entry[0];
+		if (!prog) continue;
+		const label =
+			multiVerbTools.has(prog) && entry[1] ? `${prog} ${entry[1]}` : prog;
+		if (labels[labels.length - 1] !== label) {
+			labels.push(label);
+		}
+	}
+	return labels.join(", ");
+};

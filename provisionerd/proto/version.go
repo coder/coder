@@ -78,9 +78,23 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.16:
 //   - Added `merge_strategy` field to `provisioner.Env` message
+//
+// API v1.17:
+//   - Added `user_secrets` field to `AcquiredJob.WorkspaceBuild`, carrying user
+//     secret values from coderd to provisioner daemons.
+//   - Added `UserSecretValue` message and `user_secrets` field to `PlanRequest`,
+//     carrying user secret values from provisioner daemons to provisioners
+//     during plan.
+//
+// API v1.18:
+//   - Removed `user_secrets` from `AcquiredJob.WorkspaceBuild` (field 12) and
+//     `PlanRequest` (field 7), along with the `UserSecretValue` message. The
+//     `coder_secret` Terraform integration is being removed; user secrets are
+//     still delivered to running workspaces via the agent manifest path, which
+//     is independent of this proto.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 16
+	CurrentMinor = 18
 )
 
 // CurrentVersion is the current provisionerd API version.

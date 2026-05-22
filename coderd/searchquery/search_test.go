@@ -1240,10 +1240,111 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			// Documents that uppercase boolean values still parse. The Chats
+			// parser intentionally does not pre-lowercase the query because
+			// diff_url path segments are case-meaningful, so this guards
+			// against regressions if the blanket lowercase is ever re-added.
+			Name:  "ArchivedTrueUpperCase",
+			Query: "archived:TRUE",
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
 			Name:  "ArchivedFalse",
 			Query: "archived:false",
 			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:  "HasUnreadTrue",
+			Query: "has_unread:true",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "HasUnreadFalse",
+			Query: "has_unread:false",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:                  "HasUnreadInvalid",
+			Query:                 "has_unread:bogus",
+			ExpectedErrorContains: "has_unread",
+		},
+		{
+			Name:  "PRStatusDraft",
+			Query: "pr_status:draft",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:  "PRStatusOpen",
+			Query: "pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
+			Name:  "PRStatusMerged",
+			Query: "pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"merged"},
+			},
+		},
+		{
+			Name:  "PRStatusClosed",
+			Query: "pr_status:closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleRepeated",
+			Query: "pr_status:draft pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "merged"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleCSV",
+			Query: "pr_status:draft,closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "closed"},
+			},
+		},
+		{
+			Name:  "PRStatusValueCaseInsensitive",
+			Query: "pr_status:DRAFT",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:                  "PRStatusInvalid",
+			Query:                 "pr_status:review",
+			ExpectedErrorContains: "pr_status",
+		},
+		{
+			Name:  "PRStatusWithArchived",
+			Query: "archived:true pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				PullRequestStatuses: []string{"open"},
 			},
 		},
 		{
@@ -1265,6 +1366,103 @@ func TestSearchChats(t *testing.T) {
 			Name:                  "SuffixColon",
 			Query:                 "archived:",
 			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:  "DiffURL",
+			Query: `diff_url:"https://github.com/coder/coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffURL: sql.NullString{
+					String: "https://github.com/coder/coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLPreservesValueCase",
+			Query: `diff_url:"https://github.com/Coder/Coder/pull/123"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffURL: sql.NullString{
+					String: "https://github.com/Coder/Coder/pull/123",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLKeyCaseInsensitive",
+			Query: `Diff_URL:"https://github.com/coder/coder/pull/1"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				DiffURL: sql.NullString{
+					String: "https://github.com/coder/coder/pull/1",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:  "DiffURLWithArchived",
+			Query: `archived:true diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"`,
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: true, Valid: true},
+				DiffURL: sql.NullString{
+					String: "https://gitlab.com/foo/bar/-/merge_requests/9",
+					Valid:  true,
+				},
+			},
+		},
+		{
+			Name:                  "DiffURLInvalidScheme",
+			Query:                 `diff_url:"ftp://example.com/x"`,
+			ExpectedErrorContains: "http or https scheme",
+		},
+		{
+			Name:                  "DiffURLMissingHost",
+			Query:                 `diff_url:"https:///pull/1"`,
+			ExpectedErrorContains: "must include a host",
+		},
+		{
+			Name:                  "DiffURLMalformed",
+			Query:                 `diff_url:"http://%41:8080/"`,
+			ExpectedErrorContains: "not a valid URL",
+		},
+		{
+			Name:  "TitleSearch",
+			Query: `title:"hello world"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "hello world",
+			},
+		},
+		{
+			Name:  "TitleSearchWithArchived",
+			Query: `title:"my chat" archived:true`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: true, Valid: true},
+				TitleQuery: "my chat",
+			},
+		},
+		{
+			Name:  "TitleSearchSingleWord",
+			Query: "title:deploy",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "deploy",
+			},
+		},
+		{
+			Name:  "TitleSearchWithDiffURL",
+			Query: `title:deploy diff_url:"https://github.com/coder/coder/pull/456"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "deploy",
+				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
+			},
+		},
+		{
+			Name:                  "BareTermsRejected",
+			Query:                 "some random words",
+			ExpectedErrorContains: `unsupported search term: "some random words"`,
 		},
 	}
 

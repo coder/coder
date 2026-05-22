@@ -326,4 +326,140 @@ describe("api.ts", () => {
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
 		});
 	});
+
+	describe("user secrets endpoints", () => {
+		const userId = "me";
+		const secretName = "EXAMPLE_TOKEN";
+		const secretNameWithPathChars = "foo%2Fbar value";
+		const userSecret: TypesGen.UserSecret = {
+			id: "00000000-0000-0000-0000-000000000001",
+			name: secretName,
+			description: "Example token for tests",
+			env_name: secretName,
+			file_path: "",
+			created_at: "2026-05-04T00:00:00Z",
+			updated_at: "2026-05-04T00:00:00Z",
+		};
+
+		it("lists user secrets with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: [userSecret],
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecrets(userId);
+
+			expect(axiosMockGet).toHaveBeenCalledWith("/api/v2/users/me/secrets");
+			expect(result).toStrictEqual([userSecret]);
+		});
+
+		it("gets a user secret with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockGet).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("creates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.CreateUserSecretRequest = {
+				name: secretName,
+				value: "",
+				description: "Example token for tests",
+				env_name: secretName,
+			};
+			const axiosMockPost = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.post = axiosMockPost;
+
+			const result = await API.createUserSecret(userId, request);
+
+			expect(axiosMockPost).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets",
+				request,
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("updates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.UpdateUserSecretRequest = {
+				description: "Updated example token for tests",
+			};
+			const updatedSecret: TypesGen.UserSecret = {
+				...userSecret,
+				description: "Updated example token for tests",
+				updated_at: "2026-05-04T00:01:00Z",
+			};
+			const axiosMockPatch = vi.fn().mockResolvedValueOnce({
+				data: updatedSecret,
+			});
+			axiosInstance.patch = axiosMockPatch;
+
+			const result = await API.updateUserSecret(
+				userId,
+				secretNameWithPathChars,
+				request,
+			);
+
+			expect(axiosMockPatch).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+				request,
+			);
+			expect(result).toStrictEqual(updatedSecret);
+		});
+
+		it("deletes a user secret with the correct method and URL", async () => {
+			const axiosMockDelete = vi.fn().mockResolvedValueOnce(undefined);
+			axiosInstance.delete = axiosMockDelete;
+
+			await API.deleteUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockDelete).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+		});
+	});
+
+	describe("chat ACL endpoints", () => {
+		const chatId = "chat-1";
+		const chatACL: TypesGen.ChatACL = {
+			users: [],
+			groups: [],
+		};
+
+		it("gets a chat ACL", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: chatACL,
+			});
+
+			const result = await API.experimental.getChatACL(chatId);
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+			);
+			expect(result).toStrictEqual(chatACL);
+		});
+
+		it("updates a chat ACL", async () => {
+			const request: TypesGen.UpdateChatACL = {
+				user_roles: { "user-1": "read" },
+			};
+
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await API.experimental.updateChatACL(chatId, request);
+
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+				request,
+			);
+		});
+	});
 });

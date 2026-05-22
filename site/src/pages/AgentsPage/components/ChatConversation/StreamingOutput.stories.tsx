@@ -73,7 +73,7 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		const thinkingMatches = canvas.getAllByText(/thinking\.\.\./i);
+		const thinkingMatches = canvas.getAllByText(/thinking\.\.\.$/i);
 		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
 	},
 };
@@ -256,7 +256,7 @@ export const RetryStartupTimeout: Story = {
 
 /**
  * During streaming, if only tool-call blocks have arrived (no text
- * or reasoning), the "Thinking..." indicator should still be visible
+ * or reasoning), the "Thinking" indicator should still be visible
  * alongside the tool cards.
  */
 export const ThinkingDuringStreamingWithToolCalls: Story = {
@@ -268,13 +268,45 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 				tool_call_id: "tc-1",
 				args: { command: "ls -la" },
 			},
+			{
+				type: "tool-call",
+				tool_name: "read_file",
+				tool_call_id: "tc-2",
+				args: { path: "README.md" },
+			},
 		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// "Thinking..." should still be visible during streaming
-		// when only tool-call blocks have arrived.
-		const matches = canvas.getAllByText("Thinking...");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
+		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
+		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
+
+		const toolCallWrappers = Array.from(
+			canvasElement.querySelectorAll("[data-transcript-row]"),
+		);
+		expect(toolCallWrappers).toHaveLength(3);
+
+		const thinkingWrapper = toolCallWrappers.at(-1);
+		const previousToolWrapper = toolCallWrappers.at(-2);
+		expect(thinkingWrapper).toBeInstanceOf(HTMLElement);
+		expect(previousToolWrapper).toBeInstanceOf(HTMLElement);
+		expect(thinkingWrapper).toHaveTextContent("Thinking");
+
+		const gap = Math.round(
+			(thinkingWrapper as HTMLElement).getBoundingClientRect().top -
+				(previousToolWrapper as HTMLElement).getBoundingClientRect().bottom,
+		);
+		expect(gap).toBe(8);
+
+		// The placeholder inner row must match the committed collapsed
+		// Thinking row height so the transition from streaming to settled
+		// does not jump. ToolCollapsible enforces min-h-6 (24px).
+		const placeholderRow = (thinkingWrapper as HTMLElement).firstElementChild;
+		expect(placeholderRow).toBeInstanceOf(HTMLElement);
+		expect(
+			Math.round(
+				(placeholderRow as HTMLElement).getBoundingClientRect().height,
+			),
+		).toBe(24);
 	},
 };

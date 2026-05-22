@@ -1,15 +1,15 @@
 import {
+	ArrowLeftIcon,
 	ArrowUpIcon,
-	Check,
 	CheckIcon,
 	ChevronRightIcon,
-	ImageIcon,
 	MicIcon,
 	MonitorIcon,
+	PaperclipIcon,
 	PencilIcon,
 	PlusIcon,
 	ServerIcon,
-	Square,
+	SquareIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -22,7 +22,11 @@ import {
 } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	AgentChatSendShortcut,
+	ChatMessagePart,
+	ChatQueuedMessage,
+} from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -50,13 +54,24 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { isMobileViewport } from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "../utils/agentChatSendShortcut";
+import {
+	chatAttachmentAcceptAttribute,
+	isChatAttachmentFile,
+} from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
-import type { UploadState } from "./AttachmentPreview";
-import { AttachmentPreview } from "./AttachmentPreview";
+import {
+	AttachmentPreview,
+	isUploadInProgress,
+	type UploadState,
+} from "./AttachmentPreview";
 import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import {
 	ChatMessageInput,
@@ -67,9 +82,11 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import { WorkspacePill } from "./WorkspacePill";
 
 export {
 	ImageThumbnail,
+	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -77,6 +94,7 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
+	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
@@ -101,6 +119,8 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
+	planModeEnabled?: boolean;
+	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -111,9 +131,13 @@ interface AgentChatInputProps {
 		id: string;
 		name: string;
 		owner_name: string;
+		organization_id: string;
 	}>;
 	selectedWorkspaceId?: string | null;
 	onWorkspaceChange?: (id: string | null) => void;
+	// Organization ID of the current chat. When set, workspaces from
+	// other organizations are shown as disabled in the picker.
+	chatOrganizationId?: string;
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
@@ -130,7 +154,8 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
-	onEditLastUserMessage?: () => void;
+	// Newest-first list of non-empty user prompts for local history cycling.
+	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -142,16 +167,26 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	onTextPreview?: (content: string, fileName: string) => void;
+	onTextPreview?: (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspace?: TypesGen.Workspace;
+	workspaceAgent?: TypesGen.WorkspaceAgent;
+	chatId?: string;
+	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
+	folder?: string;
 }
 
 export interface AttachedWorkspaceInfo {
+	id: string;
 	name: string;
 	route: string;
 	statusIcon: React.ReactNode;
@@ -161,6 +196,26 @@ type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+
+// Small `X` button rendered inside pill-style badges (attached
+// workspace, MCP server, planning indicator) to dismiss or disable
+// the badge without opening the `+` menu. Callers pass the action
+// handler and a descriptive aria-label.
+const BadgeDismissButton: FC<{
+	onClick: () => void;
+	ariaLabel: string;
+	isDisabled?: boolean;
+}> = ({ onClick, ariaLabel, isDisabled = false }) => (
+	<button
+		type="button"
+		onClick={onClick}
+		disabled={isDisabled}
+		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-content-secondary"
+		aria-label={ariaLabel}
+	>
+		<XIcon className="!size-2.5" />
+	</button>
+);
 
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
@@ -187,7 +242,7 @@ const ToolBadge: FC<{
 						)}
 					>
 						{badge.statusIcon}
-						{badge.name}
+						<span className="truncate">{badge.name}</span>
 					</Link>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
@@ -199,16 +254,12 @@ const ToolBadge: FC<{
 		return (
 			<span className={badgeCls}>
 				<MonitorIcon className="size-3" />
-				{badge.name}
+				<span className="truncate">{badge.name}</span>
 				{onRemoveWorkspace && (
-					<button
-						type="button"
+					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
-						className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-						aria-label={`Remove workspace ${badge.name}`}
-					>
-						<XIcon className="!size-2.5" />
-					</button>
+						ariaLabel={`Remove workspace ${badge.name}`}
+					/>
 				)}
 			</span>
 		);
@@ -228,14 +279,10 @@ const ToolBadge: FC<{
 			)}
 			{badge.server.display_name}
 			{!isForceOn && onRemoveMcp && (
-				<button
-					type="button"
+				<BadgeDismissButton
 					onClick={() => onRemoveMcp(badge.server.id)}
-					className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-					aria-label={`Remove ${badge.server.display_name}`}
-				>
-					<XIcon className="!size-2.5" />
-				</button>
+					ariaLabel={`Remove ${badge.server.display_name}`}
+				/>
 			)}
 		</span>
 	);
@@ -243,6 +290,7 @@ const ToolBadge: FC<{
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onSend,
+	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	placeholder = "Type a message...",
 	isDisabled,
 	isLoading,
@@ -256,6 +304,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
+	planModeEnabled = false,
+	onPlanModeToggle,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -263,6 +313,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	onWorkspaceChange,
+	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
@@ -272,7 +323,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
-	onEditLastUserMessage,
+	userPromptHistory = [],
 	contextUsage,
 	attachments = [],
 	onAttach,
@@ -285,7 +336,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspace,
+	workspaceAgent,
+	chatId,
+	sshCommand,
 	attachedWorkspace,
+	folder,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
@@ -294,12 +350,51 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
 		null,
 	);
+	const [previewTextMediaType, setPreviewTextMediaType] = useState<
+		string | null
+	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
+		"main",
+	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
 	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
+	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
+	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
+	const currentCycleValueRef = useRef<string | null>(null);
+	const previousRemountKeyRef = useRef(remountKey);
+
+	const resetPromptCycle = () => {
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		currentCycleValueRef.current = null;
+	};
+
+	const applyCycleValue = (text: string) => {
+		const editor = internalRef.current;
+		if (!editor) return;
+		currentCycleValueRef.current = text;
+		editor.setValue(text);
+		editor.focus();
+	};
+
+	useEffect(() => {
+		if (previousRemountKeyRef.current === remountKey) return;
+		previousRemountKeyRef.current = remountKey;
+		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
+		// would force it into the dep array; the React Compiler stabilises
+		// callbacks but biome's react-hooks lint does not.
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		currentCycleValueRef.current = null;
+		// Keep in sync with resetPromptCycle above.
+	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
@@ -317,14 +412,28 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 	}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
-	// Forward the internal ref to the parent-supplied inputRef
-	// so both point to the same ChatMessageInputRef instance.
-	useImperativeHandle(inputRef, () => internalRef.current!, []);
+	// Forward a stable delegating handle to the parent-supplied inputRef.
+	// Delegates lazily to internalRef.current so methods see the current
+	// Lexical instance after a remount, not the orphaned ref captured at
+	// factory time.
+	useImperativeHandle(
+		inputRef,
+		() => ({
+			setValue: (text) => internalRef.current?.setValue(text),
+			insertText: (text) => internalRef.current?.insertText(text),
+			clear: () => internalRef.current?.clear(),
+			focus: () => internalRef.current?.focus(),
+			getValue: () => internalRef.current?.getValue() ?? "",
+			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			getContentParts: () => internalRef.current?.getContentParts() ?? [],
+		}),
+		[],
+	);
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
-			if (event.origin !== window.location.origin) return;
+			if (event.origin !== location.origin) return;
 			if (
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"
@@ -381,6 +490,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		(ws) => ws.id === selectedWorkspaceId,
 	);
 
+	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
+		? Boolean(onWorkspaceChange) &&
+			selectedWorkspace.id !== attachedWorkspace?.id
+		: false;
+
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
@@ -395,10 +509,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (attachedWorkspace) {
+	// When workspace data is available, WorkspacePill handles
+	// the display (including app dropdown). Otherwise fall back
+	// to the simple attached-workspace ToolBadge.
+	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
-	if (selectedWorkspace && onWorkspaceChange) {
+	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
 	for (const s of activeMcpServers) {
@@ -413,9 +530,46 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
 
+	const handlePlanModeToggle = () => {
+		onPlanModeToggle?.(!planModeEnabled);
+		setPlusMenuOpen(false);
+	};
+
+	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
+	useEffect(() => {
+		if (!composerElement) return;
+		const update = () => {
+			const rect = composerElement.getBoundingClientRect();
+			const bottom = Math.max(0, window.innerHeight - rect.bottom);
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-bottom",
+				`${bottom}px`,
+			);
+		};
+		update();
+		const ro = new ResizeObserver(update);
+		ro.observe(composerElement);
+		window.addEventListener("resize", update);
+		const viewport = window.visualViewport;
+		viewport?.addEventListener("resize", update);
+		viewport?.addEventListener("scroll", update);
+		return () => {
+			ro.disconnect();
+			window.removeEventListener("resize", update);
+			viewport?.removeEventListener("resize", update);
+			viewport?.removeEventListener("scroll", update);
+			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+		};
+	}, [composerElement]);
+
 	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (e.target.files && onAttach) {
+			resetPromptCycle();
 			onAttach(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
@@ -423,6 +577,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleFilePaste = (file: File) => {
+		resetPromptCycle();
 		onAttach?.([file]);
 	};
 
@@ -431,20 +586,26 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (content === undefined) return;
 		const editor = internalRef.current;
 		if (!editor) return;
+		resetPromptCycle();
 		editor.insertText(content);
 		onRemoveAttachment?.(file);
 	};
 
-	const handleTextPreview = (content: string, fileName: string) => {
+	const handleTextPreview = (
+		content: string,
+		fileName: string,
+		mediaType?: string,
+	) => {
 		if (onTextPreview) {
-			onTextPreview(content, fileName);
+			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
+			setPreviewTextMediaType(mediaType ?? null);
 		}
 	};
 
-	// Drag-and-drop support for image files.
+	// Drag-and-drop support for any chat-supported file type.
 	const [isDragging, setIsDragging] = useState(false);
 
 	const handleDragOver = (e: React.DragEvent) => {
@@ -464,12 +625,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const images = Array.from(e.dataTransfer.files).filter((f) =>
-			f.type.startsWith("image/"),
+		const attachable = Array.from(e.dataTransfer.files).filter(
+			isChatAttachmentFile,
 		);
-		if (images.length > 0) {
-			onAttach(images);
-		}
+		if (attachable.length === 0) return;
+		resetPromptCycle();
+		onAttach(attachable);
 	};
 
 	// Track whether the editor has content so we can gate the
@@ -487,6 +648,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		serializedEditorState: string,
 		hasRefs: boolean,
 	) => {
+		// Lexical fires onChange synchronously from editor.setValue().
+		// While cycling, compare incoming content to currentCycleValueRef,
+		// the last value we applied. Different content means user input,
+		// so reset; matching content is our own setValue echo, so keep cycling.
+		// This works because React batches state updates within event handlers
+		// and commits them after the handler returns, so the synchronous onChange
+		// callback sees the pre-batch cycleIndex value, not the queued update.
+		if (cycleIndex !== null && content !== currentCycleValueRef.current) {
+			resetPromptCycle();
+		}
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
 		setInvisibleCharCount(countInvisibleCharacters(content));
@@ -503,8 +674,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			internalRef.current?.focus();
 		}
 	}, [isLoading]);
-	const isUploading = attachments.some(
-		(f) => uploadStates?.get(f)?.status === "uploading",
+	const hasActiveUploads = attachments.some((file) =>
+		isUploadInProgress(uploadStates?.get(file)),
 	);
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
@@ -519,7 +690,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
-		!isUploading;
+		!hasActiveUploads;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -531,7 +702,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!hasFileReferences &&
 			!isDisabled &&
 			!isLoading &&
-			!isUploading &&
+			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
 			onPromoteQueuedMessage
 		) {
@@ -543,18 +714,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			(!text && !hasUploadedAttachments && !hasFileReferences) ||
 			isDisabled ||
 			isLoading ||
-			isUploading ||
+			hasActiveUploads ||
 			!hasModelOptions
 		) {
 			return;
 		}
 
 		onSend(text);
+		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
 	const handleStartRecording = () => {
+		resetPromptCycle();
 		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
 		speech.start();
 	};
@@ -590,18 +763,90 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			}
 		}
 	};
+	const restoreCycleDraft = () => {
+		const savedDraft = cycleSavedDraft ?? "";
+		setCycleIndex(null);
+		setCycleSavedDraft(null);
+		cycleHistorySnapshotRef.current = null;
+		applyCycleValue(savedDraft);
+	};
+
 	const handleEditorKeyDown = (e: React.KeyboardEvent) => {
-		if (
-			e.key !== "ArrowUp" ||
-			editingQueuedMessageID !== null ||
-			isEditingHistoryMessage ||
-			!onEditLastUserMessage ||
-			!isComposerEffectivelyEmpty
-		) {
+		if (e.key === "Escape" && cycleIndex !== null) {
+			e.preventDefault();
+			e.stopPropagation();
+			restoreCycleDraft();
 			return;
 		}
+
+		// isStreaming is intentionally excluded. Cycling is allowed while
+		// streaming so the user can prepare the next prompt. Escape is
+		// cycle-aware so it does not accidentally interrupt streaming.
+		const isPromptCyclingSuppressed =
+			editingQueuedMessageID !== null ||
+			isEditingHistoryMessage ||
+			isDisabled ||
+			isLoading;
+		if (isPromptCyclingSuppressed) {
+			return;
+		}
+
+		if (e.key !== "ArrowUp" && e.key !== "ArrowDown") {
+			return;
+		}
+
+		if (cycleIndex === null) {
+			if (e.key !== "ArrowUp" || !isComposerEffectivelyEmpty) {
+				return;
+			}
+			const cycleHistory = [...userPromptHistory];
+			const latestPrompt = cycleHistory[0];
+			if (latestPrompt === undefined) {
+				return;
+			}
+			e.preventDefault();
+			cycleHistorySnapshotRef.current = cycleHistory;
+			setCycleIndex(0);
+			setCycleSavedDraft(internalRef.current?.getValue() ?? "");
+			applyCycleValue(latestPrompt);
+			return;
+		}
+
 		e.preventDefault();
-		onEditLastUserMessage();
+		const cycleHistory = cycleHistorySnapshotRef.current ?? userPromptHistory;
+		if (e.key === "ArrowDown") {
+			if (cycleIndex === 0) {
+				restoreCycleDraft();
+				return;
+			}
+			const nextIndex = cycleIndex - 1;
+			const nextPrompt = cycleHistory[nextIndex];
+			if (nextPrompt === undefined) {
+				restoreCycleDraft();
+				return;
+			}
+			setCycleIndex(nextIndex);
+			applyCycleValue(nextPrompt);
+			return;
+		}
+
+		// ArrowUp: load an older prompt.
+		const lastIndex = cycleHistory.length - 1;
+		if (lastIndex < 0) {
+			restoreCycleDraft();
+			return;
+		}
+		const nextIndex = Math.min(cycleIndex + 1, lastIndex);
+		if (nextIndex === cycleIndex) {
+			return;
+		}
+		const nextPrompt = cycleHistory[nextIndex];
+		if (nextPrompt === undefined) {
+			restoreCycleDraft();
+			return;
+		}
+		setCycleIndex(nextIndex);
+		applyCycleValue(nextPrompt);
 	};
 
 	const sendButtonLabel =
@@ -610,6 +855,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			: isEditingHistoryMessage
 				? "Save Edit"
 				: "Send";
+	const sendShortcutLabel =
+		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+			? "Cmd/Ctrl+Enter"
+			: "Enter";
+	const sendButtonKeyShortcuts =
+		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+			? "Control+Enter Meta+Enter"
+			: "Enter";
 
 	const content = (
 		<div
@@ -640,8 +893,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			<div
+				ref={setComposerElement}
+				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -702,8 +957,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					onPaste={resetPromptCycle}
 					aria-label="Chat message"
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
@@ -711,13 +967,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
 					onEnter={handleSubmit}
+					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
-				 * is the user's free-form message — we don't silently
+				 * is the user's free-form message; we don't silently
 				 * mutate it. Instead we surface a warning so the user
 				 * can make an informed decision. This guards against
 				 * social engineering attacks where a user is tricked
@@ -734,13 +991,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Alert>
 					</div>
 				)}
-				{/* Hidden file input for image attachment */}
+				{/* Hidden file input for attaching any server-accepted file type. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
 						multiple
-						accept="image/*"
+						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
@@ -748,7 +1005,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-1">
 						{/* Plus menu */}
-						<Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+						<Popover
+							modal={false}
+							open={plusMenuOpen}
+							onOpenChange={(open) => {
+								setPlusMenuOpen(open);
+								if (!open) setPlusMenuView("main");
+							}}
+						>
+							{" "}
 							<PopoverTrigger asChild>
 								<Button
 									type="button"
@@ -764,136 +1029,175 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<PopoverContent
 								side="bottom"
 								align="start"
-								className="w-auto min-w-[200px] p-1"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{onAttach && (
-									<button
-										type="button"
-										onClick={() => {
-											setPlusMenuOpen(false);
-											fileInputRef.current?.click();
-										}}
-										className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-									>
-										<ImageIcon className="size-3.5 shrink-0" />
-										Attach image
-									</button>
-								)}
-								{workspaceOptions && onWorkspaceChange && (
-									<Popover
-										open={workspacePickerOpen}
-										onOpenChange={setWorkspacePickerOpen}
-									>
-										<PopoverTrigger asChild>
+								{plusMenuView === "workspace" ? (
+									<div className="p-0">
+										<button
+											type="button"
+											onClick={() => setPlusMenuView("main")}
+											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+										>
+											<ArrowLeftIcon className="size-3.5 shrink-0" />
+											<span>Back</span>
+										</button>
+										<Separator className="my-1" />
+										<WorkspacePickerList
+											workspaceOptions={workspaceOptions}
+											selectedWorkspaceId={selectedWorkspaceId}
+											chatOrganizationId={chatOrganizationId}
+											onSelect={(id) => {
+												onWorkspaceChange?.(id);
+												setPlusMenuOpen(false);
+											}}
+										/>
+									</div>
+								) : (
+									<>
+										{onAttach && (
 											<button
 												type="button"
-												disabled={isDisabled || isWorkspaceLoading}
+												onClick={() => {
+													resetPromptCycle();
+													setPlusMenuOpen(false);
+													fileInputRef.current?.click();
+												}}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+											>
+												<PaperclipIcon className="size-3.5 shrink-0" />
+												Attach file
+											</button>
+										)}
+										{onPlanModeToggle && (
+											<button
+												type="button"
+												role="menuitemcheckbox"
+												aria-checked={planModeEnabled}
+												onClick={handlePlanModeToggle}
+												disabled={isDisabled}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
-												<MonitorIcon className="size-3.5 shrink-0" />
-												<span>Attach workspace</span>
-												<ChevronRightIcon
-													className={cn(
-														"ml-auto size-icon-sm transition-transform",
-														workspacePickerOpen && "rotate-180",
-													)}
-												/>
+												<PencilIcon className="size-3.5 shrink-0" />
+												<span>Plan first</span>
+												{planModeEnabled && (
+													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+												)}
 											</button>
-										</PopoverTrigger>
-										<PopoverContent
-											side="right"
-											align="start"
-											sideOffset={8}
-											className="w-64 p-0"
-										>
-											<Command loop>
-												<CommandInput
-													placeholder="Search workspaces..."
-													className="text-xs"
-												/>
-												<CommandList>
-													<CommandEmpty className="text-xs">
-														No workspaces found
-													</CommandEmpty>
-													<CommandGroup>
-														{workspaceOptions.map((workspace) => (
-															<CommandItem
-																className="text-xs font-normal"
-																key={workspace.id}
-																value={workspace.name}
-																onSelect={() => {
-																	onWorkspaceChange(workspace.id);
-																	setWorkspacePickerOpen(false);
-																	setPlusMenuOpen(false);
-																}}
-															>
-																{workspace.name}
-																{selectedWorkspaceId === workspace.id && (
-																	<Check className="ml-auto size-icon-sm shrink-0" />
-																)}
-															</CommandItem>
-														))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
-								)}
-								{enabledMcpServers.length > 0 && (
-									<>
-										<Separator className="my-1" />
-										{enabledMcpServers.map((server) => {
-											const isForceOn = server.availability === "force_on";
-											const isSelected =
-												isForceOn ||
-												(selectedMCPServerIds?.includes(server.id) ?? false);
-											const needsAuth =
-												server.auth_type === "oauth2" && !server.auth_connected;
-											const isConnecting = mcpConnectingId === server.id;
-											return (
-												<div
-													key={server.id}
-													className="flex items-center gap-1.5 px-1 py-1.5"
+										)}
+										{workspaceOptions &&
+											onWorkspaceChange &&
+											(isBelowMdViewport() ? (
+												<button
+													type="button"
+													disabled={isDisabled || isWorkspaceLoading}
+													onClick={() => setPlusMenuView("workspace")}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
-													{server.icon_url ? (
-														<ExternalImage
-															src={server.icon_url}
-															alt=""
-															className="size-3.5 shrink-0 rounded-sm"
-														/>
-													) : (
-														<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-													)}
-													<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-														{server.display_name}
-													</span>
-													{needsAuth ? (
-														<Button
-															variant="outline"
-															size="sm"
-															className="h-6 shrink-0 px-2 text-[10px] leading-none"
-															onClick={() => handleMcpConnect(server)}
-															disabled={isDisabled || mcpConnectingId !== null}
+													<MonitorIcon className="size-3.5 shrink-0" />
+													<span>Attach workspace</span>
+													<ChevronRightIcon className="ml-auto size-icon-sm" />
+												</button>
+											) : (
+												<Popover
+													open={workspacePickerOpen}
+													onOpenChange={setWorkspacePickerOpen}
+												>
+													<PopoverTrigger asChild>
+														<button
+															type="button"
+															disabled={isDisabled || isWorkspaceLoading}
+															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 														>
-															{isConnecting ? (
-																<Spinner loading className="size-2.5" />
-															) : null}
-															Auth
-														</Button>
-													) : (
-														<Switch
-															size="sm"
-															checked={isSelected}
-															onCheckedChange={(checked) =>
-																handleMcpToggle(server.id, checked)
-															}
-															disabled={isDisabled || isForceOn}
-															aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+															<MonitorIcon className="size-3.5 shrink-0" />
+															<span>Attach workspace</span>
+															<ChevronRightIcon
+																className={cn(
+																	"ml-auto size-icon-sm transition-transform",
+																	workspacePickerOpen && "rotate-180",
+																)}
+															/>
+														</button>
+													</PopoverTrigger>
+													<PopoverContent
+														side="right"
+														align="start"
+														sideOffset={8}
+														className="w-64 p-0"
+													>
+														<WorkspacePickerList
+															workspaceOptions={workspaceOptions}
+															selectedWorkspaceId={selectedWorkspaceId}
+															chatOrganizationId={chatOrganizationId}
+															onSelect={(id) => {
+																onWorkspaceChange(id);
+																setWorkspacePickerOpen(false);
+																setPlusMenuOpen(false);
+															}}
 														/>
-													)}
-												</div>
-											);
-										})}
+													</PopoverContent>
+												</Popover>
+											))}
+										{enabledMcpServers.length > 0 && (
+											<>
+												<Separator className="my-1" />
+												{enabledMcpServers.map((server) => {
+													const isForceOn = server.availability === "force_on";
+													const isSelected =
+														isForceOn ||
+														(selectedMCPServerIds?.includes(server.id) ??
+															false);
+													const needsAuth =
+														server.auth_type === "oauth2" &&
+														!server.auth_connected;
+													const isConnecting = mcpConnectingId === server.id;
+													return (
+														<div
+															key={server.id}
+															className="flex items-center gap-1.5 px-1 py-1.5"
+														>
+															{server.icon_url ? (
+																<ExternalImage
+																	src={server.icon_url}
+																	alt=""
+																	className="size-3.5 shrink-0 rounded-sm"
+																/>
+															) : (
+																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+															)}
+															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+																{server.display_name}
+															</span>
+															{needsAuth ? (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																	onClick={() => handleMcpConnect(server)}
+																	disabled={
+																		isDisabled || mcpConnectingId !== null
+																	}
+																>
+																	{isConnecting ? (
+																		<Spinner loading className="size-2.5" />
+																	) : null}
+																	Auth
+																</Button>
+															) : (
+																<Switch
+																	size="sm"
+																	checked={isSelected}
+																	onCheckedChange={(checked) =>
+																		handleMcpToggle(server.id, checked)
+																	}
+																	disabled={isDisabled || isForceOn}
+																	aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																/>
+															)}
+														</div>
+													);
+												})}
+											</>
+										)}
 									</>
 								)}
 							</PopoverContent>
@@ -910,14 +1214,39 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
 								dropdownAlign="center"
+								enableMobileFullWidthDropdown
 							/>
 						)}
-						{/* Badge row — all badges and the pill always
+						{planModeEnabled && (
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+								<PencilIcon className="size-3" />
+								Planning
+								{onPlanModeToggle && (
+									<BadgeDismissButton
+										onClick={handleDisablePlanMode}
+										ariaLabel="Disable plan mode"
+										isDisabled={isDisabled}
+									/>
+								)}
+							</span>
+						)}{" "}
+						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
+						{workspace && workspaceAgent && chatId && (
+							<span className="ml-1 sm:ml-0">
+								<WorkspacePill
+									workspace={workspace}
+									agent={workspaceAgent}
+									chatId={chatId}
+									sshCommand={sshCommand}
+									folder={folder}
+								/>
+							</span>
+						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -934,7 +1263,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill — always in the DOM so it permanently
+							{/* Pill; always in the DOM so it permanently
 							 * reserves layout space. Invisible when nothing
 							 * overflows. CSS order keeps it before order-1
 							 * (overflow) badges. */}
@@ -958,7 +1287,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								<PopoverContent
 									side="top"
 									align="start"
-									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
 									{overflowBadges.map((badge) => (
 										<ToolBadge
@@ -1019,31 +1348,43 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								onClick={onInterrupt}
 								disabled={isInterruptPending}
 							>
-								<Square className="fill-current" />
+								<SquareIcon className="fill-current" />
 								<span className="sr-only">Stop</span>
 							</Button>
 						)}
 						{!(isStreaming && editingQueuedMessageID === null) && (
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
-								onClick={
-									speech.isRecording ? handleAcceptRecording : handleSubmit
-								}
-								disabled={speech.isRecording ? false : !canSend}
-							>
-								{isLoading ? (
-									<Spinner size="sm" loading aria-hidden="true" />
-								) : speech.isRecording ? (
-									<CheckIcon />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">
-									{speech.isRecording ? "Accept voice input" : sendButtonLabel}
-								</span>
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										onClick={
+											speech.isRecording ? handleAcceptRecording : handleSubmit
+										}
+										disabled={speech.isRecording ? false : !canSend}
+										aria-keyshortcuts={sendButtonKeyShortcuts}
+									>
+										{isLoading ? (
+											<Spinner size="sm" loading aria-hidden="true" />
+										) : speech.isRecording ? (
+											<CheckIcon />
+										) : (
+											<ArrowUpIcon />
+										)}
+										<span className="sr-only">
+											{speech.isRecording
+												? "Accept voice input"
+												: sendButtonLabel}
+										</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									{speech.isRecording
+										? "Accept voice input"
+										: `${sendButtonLabel}: ${sendShortcutLabel}`}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</div>
 				</div>
@@ -1064,12 +1405,93 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<TextPreviewDialog
 					content={previewText}
 					fileName={previewTextFileName ?? undefined}
+					mediaType={previewTextMediaType ?? undefined}
 					onClose={() => {
 						setPreviewText(null);
 						setPreviewTextFileName(null);
+						setPreviewTextMediaType(null);
 					}}
 				/>
 			)}
 		</>
+	);
+};
+
+/**
+ * Shared workspace picker used by both the mobile and desktop
+ * "Attach workspace" menus. Workspaces from a different organization
+ * than the chat are rendered as disabled items with a tooltip.
+ */
+interface WorkspacePickerListProps {
+	workspaceOptions:
+		| ReadonlyArray<{
+				id: string;
+				name: string;
+				organization_id: string;
+		  }>
+		| undefined;
+	selectedWorkspaceId?: string | null;
+	chatOrganizationId?: string;
+	onSelect: (id: string) => void;
+}
+
+const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+	workspaceOptions,
+	selectedWorkspaceId,
+	chatOrganizationId,
+	onSelect,
+}) => {
+	return (
+		<Command loop>
+			<CommandInput placeholder="Search workspaces..." className="text-xs" />
+			<CommandList>
+				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
+				<CommandGroup>
+					{workspaceOptions?.map((workspace) => {
+						const isCrossOrg =
+							!!chatOrganizationId &&
+							workspace.organization_id !== chatOrganizationId;
+
+						const item = (
+							<CommandItem
+								className={cn(
+									"text-xs font-normal",
+									isCrossOrg &&
+										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
+								)}
+								key={workspace.id}
+								value={workspace.name}
+								disabled={isCrossOrg}
+								onSelect={() => {
+									if (!isCrossOrg) {
+										onSelect(workspace.id);
+									}
+								}}
+							>
+								{workspace.name}
+								{selectedWorkspaceId === workspace.id && (
+									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+								)}
+							</CommandItem>
+						);
+
+						if (isCrossOrg) {
+							return (
+								<Tooltip key={workspace.id}>
+									<TooltipTrigger asChild>
+										<div>{item}</div>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										Chat and workspace must be in the same organization
+									</TooltipContent>
+								</Tooltip>
+							);
+						}
+
+						return item;
+					})}
+				</CommandGroup>
+			</CommandList>
+		</Command>
 	);
 };

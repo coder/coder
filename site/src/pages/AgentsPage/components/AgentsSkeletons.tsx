@@ -1,7 +1,8 @@
-import type { FC } from "react";
+import { type CSSProperties, type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
 /** localStorage keys shared with the agents panel components. */
 const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -28,48 +29,59 @@ function getRightPanelState(): { open: boolean; width: number } {
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsPageSkeleton: FC = () => (
-	<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-		<div className="order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0 md:h-full md:w-[320px] md:min-h-0 md:border-b-0">
-			<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
-				<div className="absolute inset-0 flex flex-col">
-					<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
-						<div className="mb-2.5 flex items-center justify-between">
-							<Skeleton className="h-6 w-6 rounded" />
-							<div className="flex items-center gap-0.5 -mr-1.5">
-								<Skeleton className="h-7 w-7 rounded" />
-								<Skeleton className="h-7 w-7 rounded" />
-								<Skeleton className="h-7 w-7 rounded" />
-							</div>
-						</div>
-						<Skeleton className="h-9 w-full rounded-md" />
-					</div>
-					<div className="flex flex-col gap-2 px-2 py-3">
-						<Skeleton className="ml-2.5 h-3.5 w-16" />
-						<div className="flex flex-col gap-0.5">
-							{Array.from({ length: 6 }, (_, i) => (
-								<div
-									key={i}
-									className="flex items-start gap-2 rounded-md px-2 py-1"
-								>
-									<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-									<div className="min-w-0 flex-1 space-y-1.5">
-										<Skeleton
-											className="h-3.5"
-											style={{ width: `${55 + ((i * 17) % 35)}%` }}
-										/>
-										<Skeleton className="h-3 w-20" />
-									</div>
+export const AgentsPageSkeleton: FC = () => {
+	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
+
+	return (
+		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
+			<div
+				style={
+					{
+						"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
+					} as CSSProperties
+				}
+				className="order-2 sm:order-none flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
+			>
+				<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+					<div className="absolute inset-0 flex flex-col">
+						<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
+							<div className="mb-2.5 flex items-center justify-between">
+								<Skeleton className="h-6 w-6 rounded" />
+								<div className="flex items-center gap-0.5 -mr-1.5">
+									<Skeleton className="h-7 w-7 rounded" />
+									<Skeleton className="h-7 w-7 rounded" />
+									<Skeleton className="h-7 w-7 rounded" />
 								</div>
-							))}
+							</div>
+							<Skeleton className="h-9 w-full rounded-md" />
+						</div>
+						<div className="flex flex-col gap-2 px-2 py-3">
+							<Skeleton className="ml-2.5 h-3.5 w-16" />
+							<div className="flex flex-col gap-0.5">
+								{Array.from({ length: 6 }, (_, i) => (
+									<div
+										key={i}
+										className="flex items-start gap-2 rounded-md px-2 py-1"
+									>
+										<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+										<div className="min-w-0 flex-1 space-y-1.5">
+											<Skeleton
+												className="h-3.5"
+												style={{ width: `${55 + ((i * 17) % 35)}%` }}
+											/>
+											<Skeleton className="h-3 w-20" />
+										</div>
+									</div>
+								))}
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 sm:order-none" />
 		</div>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 md:order-none" />
-	</div>
-);
+	);
+};
 
 /**
  * Skeleton placeholder for a chat conversation: two user message

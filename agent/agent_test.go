@@ -483,6 +483,155 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestAgent_Session_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		EnvironmentVariables: map[string]string{
+			"SHOULD_BE_OVERRIDDEN": "manifest-value",
+		},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_SECRET_ENV", Value: []byte("env-secret-value")},
+		{FilePath: "/tmp/secret-file", Value: []byte("file-secret-content")},
+		{EnvName: "BOTH_ENV", FilePath: "/tmp/both-file", Value: []byte("both-value")},
+		{EnvName: "SHOULD_BE_OVERRIDDEN", Value: []byte("secret-wins")},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgentWithSecrets(t, manifest, secrets, 0)
+
+	// Verify file injection via the agent's filesystem.
+	content, err := afero.ReadFile(fs, "/tmp/secret-file")
+	require.NoError(t, err)
+	require.Equal(t, "file-secret-content", string(content))
+
+	content, err = afero.ReadFile(fs, "/tmp/both-file")
+	require.NoError(t, err)
+	require.Equal(t, "both-value", string(content))
+
+	// Verify env var injection via an SSH session.
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sshClient.Close() })
+
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	command := "sh"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe"
+	}
+
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	defer stdin.Close()
+	stdout, err := session.StdoutPipe()
+	require.NoError(t, err)
+
+	err = session.Start(command)
+	require.NoError(t, err)
+
+	go func() {
+		<-ctx.Done()
+		_ = session.Close()
+	}()
+
+	s := bufio.NewScanner(stdout)
+
+	echoEnv := func(t *testing.T, w io.Writer, env string) {
+		t.Helper()
+		if runtime.GOOS == "windows" {
+			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
+			require.NoError(t, err)
+		} else {
+			_, err := fmt.Fprintf(w, "echo $%s\n", env)
+			require.NoError(t, err)
+		}
+	}
+
+	for k, partialV := range map[string]string{
+		"MY_SECRET_ENV":        "env-secret-value",
+		"BOTH_ENV":             "both-value",
+		"SHOULD_BE_OVERRIDDEN": "secret-wins",
+	} {
+		echoEnv(t, stdin, k)
+		found := false
+		for s.Scan() {
+			got := strings.TrimSpace(s.Text())
+			t.Logf("%s=%s", k, got)
+			if strings.Contains(got, partialV) {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "env %s not found in output", k)
+		if err := s.Err(); !errors.Is(err, io.EOF) {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestAgent_StartupScript_SecretInjection(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("startup script test uses sh syntax")
+	}
+
+	tmpDir := t.TempDir()
+	secretFilePath := filepath.Join(tmpDir, "secret-file")
+	envProofPath := filepath.Join(tmpDir, "env-proof")
+	fileProofPath := filepath.Join(tmpDir, "file-proof")
+
+	// The startup script reads the secret env var and the secret file,
+	// writing both to proof files so we can verify they were available
+	// at script execution time.
+	script := fmt.Sprintf(
+		"echo \"$MY_STARTUP_SECRET\" > %s && cat %s > %s",
+		envProofPath, secretFilePath, fileProofPath,
+	)
+
+	manifest := agentsdk.Manifest{
+		Scripts: []codersdk.WorkspaceAgentScript{{
+			Script:     script,
+			Timeout:    30 * time.Second,
+			RunOnStart: true,
+		}},
+	}
+	secrets := []agentsdk.WorkspaceSecret{
+		{EnvName: "MY_STARTUP_SECRET", Value: []byte("startup-env-value")},
+		{FilePath: secretFilePath, Value: []byte("startup-file-content")},
+	}
+
+	// Use the real OS filesystem so that both writeSecretFiles and
+	// the startup script operate on the same filesystem.
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgentWithSecrets(t, manifest, secrets, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.Filesystem = afero.NewOsFs()
+	})
+
+	// Wait for the startup script to complete.
+	var got []codersdk.WorkspaceAgentLifecycle
+	assert.Eventually(t, func() bool {
+		got = client.GetLifecycleStates()
+		return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Contains(t, got, codersdk.WorkspaceAgentLifecycleReady, "agent never reached ready")
+
+	// Verify the startup script could read the secret env var.
+	envProof, err := os.ReadFile(envProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-env-value", strings.TrimSpace(string(envProof)))
+
+	// Verify the startup script could read the secret file.
+	fileProof, err := os.ReadFile(fileProofPath)
+	require.NoError(t, err)
+	require.Equal(t, "startup-file-content", string(fileProof))
+}
+
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
 	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
@@ -2015,8 +2164,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	_, err := exec.LookPath("screen")
 	hasScreen := err == nil
 
-	// Make sure UTF-8 works even with LANG set to something like C.
+	tmuxPath, err := exec.LookPath("tmux")
+	hasTmux := err == nil
+
+	// Make sure UTF-8 works even with locale variables set to C.
 	t.Setenv("LANG", "C")
+	t.Setenv("LC_CTYPE", "C")
+	t.Setenv("LC_ALL", "")
 
 	for _, backendType := range backends {
 		t.Run(backendType, func(t *testing.T) {
@@ -2080,12 +2234,25 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
-			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
-			// will sometimes put the command output on the same line as the command and the test will flake
+			// Wait for the prompt before writing commands. If the command
+			// arrives before the prompt is written, screen will sometimes put
+			// the command output on the same line as the command and the test
+			// will flake.
 			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
 			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
 
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "printf '%s\\n' \"$TERM\"\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+			require.NoError(t, tr1.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr2.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "echo test\r",
 			})
 			require.NoError(t, err)
@@ -2146,6 +2313,46 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			bytes, err := io.ReadAll(netConn5)
 			require.NoError(t, err)
 			require.Contains(t, string(bytes), "❯")
+
+			if !hasTmux {
+				t.Log("`tmux` not found, skipping tmux glyph regression")
+			} else {
+				glyphs := "⚠╭╮╰╯•›│─█▓░▄❯✔╌"
+				tmuxSocket := "coder-test-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				t.Cleanup(func() {
+					_ = exec.Command(tmuxPath, "-L", tmuxSocket, "kill-server").Run()
+				})
+				// Keep the pane alive with a shell builtin until the read loop sees
+				// the glyphs, otherwise tmux can restore the alternate screen first.
+				command := fmt.Sprintf(
+					"%s -L %s new-session %q",
+					strconv.Quote(tmuxPath),
+					tmuxSocket,
+					fmt.Sprintf("printf '%%s\\n' '%s'; read _", glyphs),
+				)
+				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
+				require.NoError(t, err)
+				defer netConn6.Close()
+
+				var output strings.Builder
+				buffer := make([]byte, 1024)
+				deadline := time.Now().Add(testutil.WaitMedium)
+				for !strings.Contains(output.String(), glyphs) {
+					if time.Now().After(deadline) {
+						require.Contains(t, output.String(), glyphs)
+					}
+					require.NoError(t, netConn6.SetReadDeadline(time.Now().Add(testutil.IntervalMedium)))
+					read, err := netConn6.Read(buffer)
+					if read > 0 {
+						_, _ = output.Write(buffer[:read])
+					}
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						continue
+					}
+					require.NoError(t, err)
+				}
+			}
 		})
 	}
 }
@@ -2680,15 +2887,20 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 		o.Devcontainers = true
 	})
 
-	// Query the containers API endpoint. This should fail because
-	// devcontainers have been disabled for the sub agent.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	_, err := conn.ListContainers(ctx)
+	var err error
+	// setupAgent only waits for tailnet reachability, not for the HTTP API
+	// listener to serve the expected sub-agent rejection response.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, err = conn.ListContainers(ctx)
+		if err != nil {
+			t.Logf("Error listing containers: %v", err)
+		}
+		return err != nil && strings.Contains(err.Error(), "Dev Container feature not supported.")
+	}, testutil.IntervalFast, "containers endpoint should reject devcontainers inside sub agents")
 	require.Error(t, err)
-
-	// Verify the error message contains the expected text.
 	require.Contains(t, err.Error(), "Dev Container feature not supported.")
 	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
@@ -3305,8 +3517,10 @@ func TestAgent_DebugServer(t *testing.T) {
 	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
-	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
+	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
+	}, []agentsdk.WorkspaceSecret{
+		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
 		o.LogDir = logDir
 	})
@@ -3406,6 +3620,31 @@ func TestAgent_DebugServer(t *testing.T) {
 		var v agentsdk.Manifest
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&v))
 		require.NotNil(t, v)
+	})
+
+	t.Run("ManifestSecretsStripped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// The response must not contain the secret value.
+		require.NotContains(t, string(body), "super-secret-value-12345")
+
+		// Confirm we can decode as a Manifest. The SDK type
+		// intentionally has no Secrets field, so there is nothing
+		// to leak through JSON encoding.
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
 	})
 
 	t.Run("Logs", func(t *testing.T) {
@@ -3560,6 +3799,20 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	afero.Fs,
 	agent.Agent,
 ) {
+	return setupAgentWithSecrets(t, metadata, nil, ptyTimeout, opts...)
+}
+
+// setupAgentWithSecrets is like setupAgent but also injects user
+// secrets into the agent's proto manifest. Separate from setupAgent
+// because agentsdk.Manifest intentionally does not carry secrets; see
+// the Manifest doc comment in codersdk/agentsdk.
+func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []agentsdk.WorkspaceSecret, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
+	*agenttest.Client,
+	<-chan *proto.Stats,
+	afero.Fs,
+	agent.Agent,
+) {
 	logger := slogtest.Make(t, &slogtest.Options{
 		// Agent can drop errors when shutting down, and some, like the
 		// fasthttplistener connection closed error, are unexported.
@@ -3589,7 +3842,7 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *proto.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger.Named("agenttest"), metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClientWithSecrets(t, logger.Named("agenttest"), metadata.AgentID, metadata, secrets, statsCh, coordinator)
 	t.Cleanup(c.Close)
 
 	options := agent.Options{

@@ -432,6 +432,10 @@ message PlanRequest {
 
   // state is the provisioner state (if any)
   bytes state = 6;
+
+  // Reserved 7 for `user_secrets` introduced in v1.17 (#24542) and removed
+  // in v1.18 along with the rest of the `coder_secret` Terraform integration.
+  reserved 7;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -475,11 +479,8 @@ message GraphComplete {
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
   repeated Preset presets = 6;
-  // Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-  // During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-  // still need to know that such resources are defined.
-  //
-  // See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+  // Whether actual `coder_ai_task` resource instances exist.
+  // Resources defined with count = 0 do not set this flag.
   bool has_ai_tasks = 7;
   repeated provisioner.AITask ai_tasks = 8;
   bool has_external_agents = 9;

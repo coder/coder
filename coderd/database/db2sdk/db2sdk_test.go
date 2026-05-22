@@ -483,6 +483,122 @@ func TestChatDebugStep_JSONNullYieldsEmptyStructures(t *testing.T) {
 	require.Empty(t, sdk.Metadata, "JSON literal null must produce empty map")
 }
 
+func TestChatDebugRunDetail(t *testing.T) {
+	t.Parallel()
+
+	startedAt := time.Now().UTC().Round(time.Second)
+	finishedAt := startedAt.Add(5 * time.Second)
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
+	modelConfigID := uuid.New()
+	triggerMessageID := int64(7)
+	historyTipMessageID := int64(11)
+
+	run := database.ChatDebugRun{
+		ID:                  uuid.New(),
+		ChatID:              uuid.New(),
+		RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
+		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		TriggerMessageID:    sql.NullInt64{Int64: triggerMessageID, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: historyTipMessageID, Valid: true},
+		Kind:                "chat_turn",
+		Status:              "completed",
+		Provider:            sql.NullString{String: "openai", Valid: true},
+		Model:               sql.NullString{String: "gpt-4o", Valid: true},
+		Summary:             json.RawMessage(`{"step_count":2}`),
+		StartedAt:           startedAt,
+		UpdatedAt:           finishedAt,
+		FinishedAt:          sql.NullTime{Time: finishedAt, Valid: true},
+	}
+	steps := []database.ChatDebugStep{
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        1,
+			Operation:         "stream",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+		{
+			ID:                uuid.New(),
+			RunID:             run.ID,
+			ChatID:            run.ChatID,
+			StepNumber:        2,
+			Operation:         "generate",
+			Status:            "completed",
+			NormalizedRequest: json.RawMessage(`{"messages":[]}`),
+			Attempts:          json.RawMessage(`[]`),
+			Metadata:          json.RawMessage(`{}`),
+			StartedAt:         startedAt,
+			UpdatedAt:         finishedAt,
+		},
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, steps)
+
+	require.Equal(t, run.ID, sdk.ID)
+	require.Equal(t, run.ChatID, sdk.ChatID)
+	require.NotNil(t, sdk.RootChatID)
+	require.Equal(t, rootChatID, *sdk.RootChatID)
+	require.NotNil(t, sdk.ParentChatID)
+	require.Equal(t, parentChatID, *sdk.ParentChatID)
+	require.NotNil(t, sdk.ModelConfigID)
+	require.Equal(t, modelConfigID, *sdk.ModelConfigID)
+	require.NotNil(t, sdk.TriggerMessageID)
+	require.Equal(t, triggerMessageID, *sdk.TriggerMessageID)
+	require.NotNil(t, sdk.HistoryTipMessageID)
+	require.Equal(t, historyTipMessageID, *sdk.HistoryTipMessageID)
+	require.Equal(t, codersdk.ChatDebugRunKindChatTurn, sdk.Kind)
+	require.Equal(t, codersdk.ChatDebugStatusCompleted, sdk.Status)
+	require.NotNil(t, sdk.Provider)
+	require.Equal(t, "openai", *sdk.Provider)
+	require.NotNil(t, sdk.Model)
+	require.Equal(t, "gpt-4o", *sdk.Model)
+	require.Equal(t, map[string]any{"step_count": float64(2)}, sdk.Summary)
+	require.Equal(t, startedAt, sdk.StartedAt)
+	require.Equal(t, finishedAt, sdk.UpdatedAt)
+	require.NotNil(t, sdk.FinishedAt)
+	require.Equal(t, finishedAt, *sdk.FinishedAt)
+	require.Len(t, sdk.Steps, 2)
+	require.Equal(t, steps[0].ID, sdk.Steps[0].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationStream, sdk.Steps[0].Operation)
+	require.Equal(t, steps[1].ID, sdk.Steps[1].ID)
+	require.Equal(t, codersdk.ChatDebugStepOperationGenerate, sdk.Steps[1].Operation)
+}
+
+func TestChatDebugRunDetail_NullableFieldsNil(t *testing.T) {
+	t.Parallel()
+
+	run := database.ChatDebugRun{
+		ID:        uuid.New(),
+		ChatID:    uuid.New(),
+		Kind:      "chat_turn",
+		Status:    "in_progress",
+		Summary:   json.RawMessage(`{}`),
+		StartedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	sdk := db2sdk.ChatDebugRunDetail(run, nil)
+
+	require.Nil(t, sdk.RootChatID, "NULL RootChatID should map to nil")
+	require.Nil(t, sdk.ParentChatID, "NULL ParentChatID should map to nil")
+	require.Nil(t, sdk.ModelConfigID, "NULL ModelConfigID should map to nil")
+	require.Nil(t, sdk.TriggerMessageID, "NULL TriggerMessageID should map to nil")
+	require.Nil(t, sdk.HistoryTipMessageID, "NULL HistoryTipMessageID should map to nil")
+	require.Nil(t, sdk.Provider, "NULL Provider should map to nil")
+	require.Nil(t, sdk.Model, "NULL Model should map to nil")
+	require.Nil(t, sdk.FinishedAt, "NULL FinishedAt should map to nil")
+	require.NotNil(t, sdk.Steps, "nil steps slice should serialize as empty array")
+	require.Empty(t, sdk.Steps)
+}
+
 func TestAIBridgeInterception(t *testing.T) {
 	t.Parallel()
 
@@ -800,9 +916,22 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// field to codersdk.Chat, this test will fail until the
 	// converter is updated.
 	now := dbtime.Now()
+	lastErrorPayload := codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
+	lastErrorRaw, err := json.Marshal(lastErrorPayload)
+	require.NoError(t, err)
+
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
+		OwnerUsername:     "owner-username",
+		OwnerName:         "Owner Name",
 		OrganizationID:    uuid.New(),
 		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
@@ -812,11 +941,14 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "all-fields-test",
 		Status:            database.ChatStatusRunning,
-		LastError:         sql.NullString{String: "boom", Valid: true},
+		ClientType:        database.ChatClientTypeUi,
+		LastError:         pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
+		LastTurnSummary:   sql.NullString{String: "turn completed", Valid: true},
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
 		PinOrder:          1,
+		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
 		LastInjectedContext: pqtype.NullRawMessage{
@@ -852,9 +984,11 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	got := db2sdk.Chat(input, diffStatus, fileRows)
 
+	require.Equal(t, &lastErrorPayload, got.LastError)
+
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRows (which joins the
+	// HasUnread is populated by ChatRowsWithChildren (which joins the
 	// read-cursor query), not by Chat. Warnings is a transient
 	// field populated by handlers, not the converter. Both are
 	// expected to remain zero here.
@@ -933,6 +1067,93 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestChat_LastErrorFallback(t *testing.T) {
+	t.Parallel()
+
+	const fallbackMessage = "The chat request failed unexpectedly."
+
+	tests := []struct {
+		name          string
+		raw           json.RawMessage
+		expectPayload *codersdk.ChatError
+	}{
+		{
+			name: "MalformedJSON",
+			raw:  json.RawMessage(`{`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Retryable: false,
+			},
+		},
+		{
+			name: "MessageMissingPreservesMetadata",
+			raw:  json.RawMessage(`{"kind":"timeout","provider":"openai","status_code":504}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    fallbackMessage,
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 504,
+			},
+		},
+		{
+			name: "WhitespaceMessageDefaultsKind",
+			raw:  json.RawMessage(`{"message":"  ","provider":"openai"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   fallbackMessage,
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  "openai",
+				Retryable: false,
+			},
+		},
+		{
+			name: "KindMissingDefaultsGeneric",
+			raw:  json.RawMessage(`{"message":"OpenAI returned an unexpected error.","provider":"openai","status_code":502}`),
+			expectPayload: &codersdk.ChatError{
+				Message:    "OpenAI returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 502,
+			},
+		},
+		{
+			name: "UsageLimitKindRoundTrips",
+			raw:  json.RawMessage(`{"message":"Usage limit reached.","kind":"usage_limit"}`),
+			expectPayload: &codersdk.ChatError{
+				Message:   "Usage limit reached.",
+				Kind:      codersdk.ChatErrorKindUsageLimit,
+				Retryable: false,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chat := database.Chat{
+				ID:                uuid.New(),
+				OwnerID:           uuid.New(),
+				LastModelConfigID: uuid.New(),
+				Title:             "fallback payload",
+				Status:            database.ChatStatusError,
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
+				LastError: pqtype.NullRawMessage{
+					RawMessage: tc.raw,
+					Valid:      true,
+				},
+			}
+
+			result := db2sdk.Chat(chat, nil, nil)
+			require.Equal(t, tc.expectPayload, result.LastError)
+		})
+	}
 }
 
 func TestChat_MultipleFiles(t *testing.T) {

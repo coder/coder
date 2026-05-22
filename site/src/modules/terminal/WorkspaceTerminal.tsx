@@ -164,6 +164,12 @@ export const WorkspaceTerminal = ({
 		const nextTerminal = new Terminal({
 			allowProposedApi: true,
 			allowTransparency: true,
+			// Use the selected terminal font for block element, box drawing,
+			// quadrant, and powerline glyphs. xterm's custom glyph renderer helps
+			// when fonts lack powerline glyphs, but it changes block and quadrant
+			// shapes and breaks TUIs that use them for pixel art, like Claude
+			// Code's logo.
+			customGlyphs: false,
 			disableStdin: false,
 			fontFamily: terminalFontFamily,
 			fontSize: 16,
@@ -276,14 +282,25 @@ export const WorkspaceTerminal = ({
 	}, [isVisible, refit]);
 
 	useEffect(() => {
+		if (!terminal || !isVisible || !autoFocus || loading) {
+			return;
+		}
+
+		const frame = requestAnimationFrame(() => {
+			terminal.focus();
+		});
+
+		return () => {
+			cancelAnimationFrame(frame);
+		};
+	}, [terminal, isVisible, autoFocus, loading]);
+
+	useEffect(() => {
 		if (!terminal || !hasBeenVisible) {
 			return;
 		}
 
 		terminal.clear();
-		if (autoFocus) {
-			terminal.focus();
-		}
 		terminal.options.disableStdin = true;
 
 		if (loading) {
@@ -454,7 +471,6 @@ export const WorkspaceTerminal = ({
 	}, [
 		hasBeenVisible,
 		agentId,
-		autoFocus,
 		baseUrl,
 		containerName,
 		containerUser,

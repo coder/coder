@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/coordinator \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /debug/coordinator`
+`GET /api/v2/debug/coordinator`
 
 ### Responses
 
@@ -31,7 +31,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /debug/health`
+`GET /api/v2/debug/health`
 
 ### Parameters
 
@@ -434,7 +434,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /debug/health/settings`
+`GET /api/v2/debug/health/settings`
 
 ### Example responses
 
@@ -468,7 +468,7 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /debug/health/settings`
+`PUT /api/v2/debug/health/settings`
 
 > Body parameter
 
@@ -516,7 +516,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /debug/tailnet`
+`GET /api/v2/debug/tailnet`
 
 ### Responses
 

@@ -1,5 +1,5 @@
 import { saveAs } from "file-saver";
-import { Download } from "lucide-react";
+import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -43,7 +43,7 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 				}
 			}}
 		>
-			<Download />
+			<DownloadIcon />
 			Export Policy
 		</Button>
 	);

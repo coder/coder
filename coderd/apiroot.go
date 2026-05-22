@@ -12,7 +12,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.Response
-// @Router / [get]
+// @Router /api/v2/ [get]
 func apiRoot(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
 		//nolint:gocritic

@@ -24,6 +24,14 @@ type ProviderStatus = {
 const getProviderStatus = (
 	provider: UserChatProviderConfig,
 ): ProviderStatus => {
+	if (!provider.byok_enabled) {
+		return {
+			label: "User keys disabled",
+			variant: "default",
+			note: "Personal API keys are disabled by your admin.",
+		};
+	}
+
 	if (provider.has_user_api_key) {
 		return {
 			label: "Key saved",
@@ -55,11 +63,13 @@ interface ProviderKeyPanelProps {
 	isRemoving: boolean;
 	onSave: (providerConfigId: string, apiKey: string) => void;
 	onRemove: (providerConfigId: string) => void;
+	hasAmbiguousProviderType: boolean;
 }
 
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	provider,
 	models,
+	hasAmbiguousProviderType,
 	isModelsLoading,
 	areModelsUnavailable,
 	isSaving,
@@ -76,15 +86,26 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 
 	const status = getProviderStatus(provider);
 	const enabledModels = models.filter((model) => {
-		return model.enabled && model.provider === provider.provider;
+		return (
+			model.enabled &&
+			(model.ai_provider_id === provider.provider_id ||
+				(!model.ai_provider_id &&
+					!hasAmbiguousProviderType &&
+					model.provider === provider.provider))
+		);
 	});
-	const trimmedApiKey = apiKey.trim();
+	const hasApiKeyValue = apiKey.trim().length > 0;
+	const hasAPIKeyWhitespace =
+		apiKey !== API_KEY_PLACEHOLDER && apiKey.trim() !== apiKey;
 	const saveDisabled =
-		trimmedApiKey.length === 0 ||
+		!provider.byok_enabled ||
+		!hasApiKeyValue ||
+		hasAPIKeyWhitespace ||
 		apiKey === API_KEY_PLACEHOLDER ||
 		isSaving ||
 		isRemoving;
-	const inputDisabled = isSaving || isRemoving;
+	const inputDisabled = !provider.byok_enabled || isSaving || isRemoving;
+	const removeDisabled = isSaving || isRemoving;
 	const providerName = provider.display_name || provider.provider;
 
 	const handleApiKeyFocus = () => {
@@ -101,7 +122,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 			return;
 		}
 
-		onSave(provider.provider_id, trimmedApiKey);
+		onSave(provider.provider_id, apiKey);
 	};
 
 	const handleRemoveKey = () => {
@@ -136,25 +157,32 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 					API Key
 				</label>
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<Input
-						id={apiKeyInputId}
-						name={`provider-api-key-${provider.provider_id}`}
-						type="password"
-						autoComplete="off"
-						data-1p-ignore
-						data-lpignore="true"
-						data-form-type="other"
-						data-bwignore
-						className="h-9 font-mono text-[13px] lg:flex-1"
-						placeholder="sk-..."
-						value={apiKey}
-						onFocus={handleApiKeyFocus}
-						onChange={(event) => {
-							setApiKey(event.target.value);
-							setApiKeyTouched(true);
-						}}
-						disabled={inputDisabled}
-					/>
+					<div className="flex flex-col gap-1.5 lg:flex-1">
+						<Input
+							id={apiKeyInputId}
+							name={`provider-api-key-${provider.provider_id}`}
+							type="password"
+							autoComplete="off"
+							data-1p-ignore
+							data-lpignore="true"
+							data-form-type="other"
+							data-bwignore
+							className="h-9 font-mono text-[13px]"
+							placeholder="sk-..."
+							value={apiKey}
+							onFocus={handleApiKeyFocus}
+							onChange={(event) => {
+								setApiKey(event.target.value);
+								setApiKeyTouched(true);
+							}}
+							disabled={inputDisabled}
+						/>
+						{hasAPIKeyWhitespace && (
+							<p className="m-0 text-xs text-content-destructive">
+								API key must not contain leading or trailing whitespace.
+							</p>
+						)}
+					</div>
 					<div className="flex items-center gap-2">
 						<Button type="submit" size="sm" disabled={saveDisabled}>
 							Save
@@ -165,7 +193,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 								variant="outline"
 								size="sm"
 								onClick={() => setIsDeleteDialogOpen(true)}
-								disabled={inputDisabled}
+								disabled={removeDisabled}
 							>
 								Remove
 							</Button>
@@ -245,14 +273,22 @@ export const AgentSettingsAPIKeysPageView: FC<
 	onSave,
 	onRemove,
 }) => {
+	const providerTypeCounts = new Map<string, number>();
+	for (const item of providerItems) {
+		providerTypeCounts.set(
+			item.provider.provider,
+			(providerTypeCounts.get(item.provider.provider) ?? 0) + 1,
+		);
+	}
+
 	return (
-		<div className="flex flex-col gap-8">
-			<section>
+		<div>
+			<section className="flex flex-col gap-8">
 				<SectionHeader
-					label="Personal API Keys"
+					label="Secrets (API keys)"
 					description="Add a personal API key for each provider. Your personal key takes precedence over the shared deployment key when both are available."
 				/>
-				<div className="mt-4">
+				<div>
 					{error ? (
 						<ErrorAlert error={error} />
 					) : isLoading ? (
@@ -275,6 +311,9 @@ export const AgentSettingsAPIKeysPageView: FC<
 									isRemoving={item.isRemoving}
 									onSave={onSave}
 									onRemove={onRemove}
+									hasAmbiguousProviderType={
+										(providerTypeCounts.get(item.provider.provider) ?? 0) > 1
+									}
 								/>
 							))}
 						</div>

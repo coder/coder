@@ -20,14 +20,17 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	site.RenderOAuthAllowPage(rec, req, site.RenderOAuthAllowData{
-		AppName:     "Test OAuth App",
-		CancelURI:   htmltemplate.URL("https://coder.com/cancel"),
-		RedirectURI: "https://coder.com/oauth2/authorize?client_id=test",
-		CSRFToken:   csrfFieldValue,
-		Username:    "test-user",
+		AppName:      "Test OAuth App",
+		CancelURI:    htmltemplate.URL("https://coder.com/cancel"),
+		DashboardURL: "https://coder.com/",
+		CSRFToken:    csrfFieldValue,
+		Username:     "test-user",
 	})
 
 	require.Equal(t, http.StatusOK, rec.Result().StatusCode)
-	assert.Contains(t, rec.Body.String(), `name="csrf_token"`)
-	assert.Contains(t, rec.Body.String(), `value="`+csrfFieldValue+`"`)
+	body := rec.Body.String()
+	assert.Contains(t, body, `name="csrf_token"`)
+	assert.Contains(t, body, `value="`+csrfFieldValue+`"`)
+	assert.Contains(t, body, `id="allow-form"`)
+	assert.Contains(t, body, `id="cancel-link"`)
 }

@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { MockUserOwner } from "#/testHelpers/entities";

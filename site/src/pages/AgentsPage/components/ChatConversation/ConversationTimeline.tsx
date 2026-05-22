@@ -1,15 +1,19 @@
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
 	memo,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
+
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ThinkingDisplayMode } from "#/api/typesGenerated";
+
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -18,12 +22,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import {
-	decodeInlineTextAttachment,
-	fetchTextAttachmentContent,
-	formatTextAttachmentPreview,
-} from "../../utils/fetchTextAttachment";
-import { ImageThumbnail } from "../AgentChatInput";
+
 import {
 	ConversationItem,
 	Message,
@@ -33,57 +32,156 @@ import {
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import {
+	AttachmentBlock,
+	type PreviewTextAttachment,
+} from "./AttachmentBlocks";
+import { FileProbeProvider } from "./FileProbeContext";
+import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
+import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
 	RenderBlock,
 } from "./types";
+import { UserMessageContent } from "./UserMessageContent";
+
+const getChatMessageTextContent = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): string | undefined => {
+	if (!content) {
+		return undefined;
+	}
+
+	let textContent = "";
+	for (const part of content) {
+		if (part.type === "text") {
+			textContent += part.text;
+		}
+	}
+
+	return textContent.length > 0 ? textContent : undefined;
+};
 
 const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}>(({ id, text, isStreaming = false, urlTransform }) => {
-	const { visibleText } = useSmoothStreamingText({
-		fullText: text,
-		isStreaming,
-		bypassSmoothing: !isStreaming,
-		streamKey: id,
-	});
-	const displayText = isStreaming ? visibleText : text;
-	const hasText = displayText.trim().length > 0;
+	thinkingDisplayMode?: ThinkingDisplayMode;
+}>(
+	({
+		id,
+		text,
+		isStreaming = false,
+		urlTransform,
+		thinkingDisplayMode: mode = "auto",
+	}) => {
+		const [manualToggle, setManualToggle] = useState<boolean | null>(null);
 
-	if (hasText) {
+		// Reset manual override on streaming transitions so
+		// auto/preview modes collapse when streaming stops.
+		const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+		if (prevStreaming !== isStreaming) {
+			setPrevStreaming(isStreaming);
+			if (mode === "auto" || mode === "preview") {
+				setManualToggle(null);
+			}
+		}
+
+		const autoExpanded = (() => {
+			switch (mode) {
+				case "always_expanded":
+					return true;
+				case "always_collapsed":
+					return false;
+				case "auto":
+				case "preview":
+					return isStreaming;
+				default: {
+					const _exhaustive: never = mode;
+					return _exhaustive;
+				}
+			}
+		})();
+
+		const expanded = manualToggle ?? autoExpanded;
+
+		const isPreviewConstrained =
+			mode === "preview" && isStreaming && manualToggle === null;
+
+		const previewScrollRef = useRef<HTMLDivElement>(null);
+
+		const { visibleText } = useSmoothStreamingText({
+			fullText: text,
+			isStreaming,
+			bypassSmoothing: !isStreaming,
+			streamKey: id,
+		});
+		const displayText = isStreaming ? visibleText : text;
+		const { title, body } = getThinkingDisclosureDisplay(displayText);
+		const hasText = body.trim().length > 0;
+
+		// Auto-scroll the preview container to the bottom as new
+		// thinking content streams in. useLayoutEffect avoids a
+		// visible frame where content has grown but not scrolled.
+		const displayTextLength = body.length;
+		useLayoutEffect(() => {
+			if (
+				displayTextLength &&
+				isPreviewConstrained &&
+				previewScrollRef.current
+			) {
+				previewScrollRef.current.scrollTop =
+					previewScrollRef.current.scrollHeight;
+			}
+		}, [displayTextLength, isPreviewConstrained]);
+
 		return (
-			<div className="w-full">
-				<Response
-					className="text-[11px] text-content-secondary"
-					urlTransform={urlTransform}
-					streaming={isStreaming}
+			<div data-transcript-row="">
+				<ToolCollapsible
+					className="w-full"
+					expanded={expanded}
+					onExpandedChange={(open) => setManualToggle(open)}
+					header={
+						isStreaming ? (
+							<Shimmer as="span" className="text-[13px]">
+								{title}
+							</Shimmer>
+						) : (
+							<span className="text-[13px]">{title}</span>
+						)
+					}
 				>
-					{displayText}
-				</Response>
+					{hasText && (
+						<div
+							ref={previewScrollRef}
+							className={cn(
+								"mt-1.5",
+								isPreviewConstrained && "max-h-24 overflow-y-auto",
+							)}
+						>
+							<Response
+								className="text-[11px] text-content-secondary"
+								urlTransform={urlTransform}
+								streaming={isStreaming}
+							>
+								{body}
+							</Response>
+						</div>
+					)}
+				</ToolCollapsible>
 			</div>
 		);
-	}
-
-	return (
-		<div className="w-full">
-			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-				<span className="text-sm">
-					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
-				</span>
-			</div>
-		</div>
-	);
-});
+	},
+);
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
 // response block. Only used during live streaming — historical
@@ -106,136 +204,6 @@ const SmoothedResponse = memo<{
 	);
 });
 
-const InlineTextAttachmentButton: FC<{
-	content: string;
-	onPreview?: (content: string) => void;
-	isPlaceholder?: boolean;
-}> = ({ content, onPreview, isPlaceholder }) => {
-	return (
-		<button
-			type="button"
-			aria-label="View text attachment"
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-			onClick={(e) => {
-				e.stopPropagation();
-				onPreview?.(content);
-			}}
-		>
-			<FileTextIcon className="size-icon-sm shrink-0 text-content-secondary" />
-			<span
-				className={cn(
-					"line-clamp-2 min-w-0 text-content-secondary",
-					isPlaceholder ? "text-sm" : "font-mono text-xs",
-				)}
-			>
-				{isPlaceholder ? content : formatTextAttachmentPreview(content)}
-			</span>
-		</button>
-	);
-};
-
-const TextAttachmentButton: FC<{
-	fileId: string;
-	onPreview?: (content: string) => void;
-}> = ({ fileId, onPreview }) => {
-	const [content, setContent] = useState<string | null>(null);
-	const controllerRef = useRef<AbortController | null>(null);
-
-	useEffect(() => {
-		return () => controllerRef.current?.abort();
-	}, []);
-
-	return (
-		<InlineTextAttachmentButton
-			content={content ?? "Pasted text"}
-			isPlaceholder={content === null}
-			onPreview={async () => {
-				if (content !== null) {
-					onPreview?.(content);
-					return;
-				}
-
-				controllerRef.current?.abort();
-				const controller = new AbortController();
-				controllerRef.current = controller;
-
-				let fetchedContent: string;
-				try {
-					fetchedContent = await fetchTextAttachmentContent(
-						fileId,
-						controller.signal,
-					);
-				} catch (err) {
-					if (controllerRef.current === controller) {
-						controllerRef.current = null;
-					}
-					if (err instanceof Error && err.name === "AbortError") {
-						return;
-					}
-					console.error("Failed to load text attachment:", err);
-					return;
-				}
-
-				if (controllerRef.current === controller) {
-					controllerRef.current = null;
-				}
-				setContent(fetchedContent);
-				onPreview?.(fetchedContent);
-			}}
-		/>
-	);
-};
-
-type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
-
-const FileBlock: FC<{
-	block: FileRenderBlock;
-	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
-}> = ({ block, onImageClick, onTextFileClick }) => {
-	if (block.media_type === "text/plain") {
-		if (block.file_id) {
-			return (
-				<TextAttachmentButton
-					fileId={block.file_id}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-		if (block.data != null) {
-			return (
-				<InlineTextAttachmentButton
-					content={decodeInlineTextAttachment(block.data)}
-					onPreview={onTextFileClick}
-				/>
-			);
-		}
-	}
-	if (!block.media_type.startsWith("image/")) {
-		return null;
-	}
-	const src = block.file_id
-		? `/api/experimental/chats/files/${block.file_id}`
-		: `data:${block.media_type};base64,${block.data}`;
-	return (
-		<button
-			type="button"
-			aria-label="View image"
-			className="inline-block rounded-md border-0 bg-transparent p-0"
-			onClick={(e) => {
-				e.stopPropagation();
-				onImageClick?.(src);
-			}}
-		>
-			<ImageThumbnail
-				previewUrl={src}
-				name="Attached image"
-				className="cursor-pointer transition-opacity hover:opacity-80"
-			/>
-		</button>
-	);
-};
-
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
 // response / thinking / tool / file / sources switch so both
@@ -247,12 +215,18 @@ export const BlockList: FC<{
 	keyPrefix: string;
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
-	onTextFileClick?: (content: string) => void;
+	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
+	latestAskUserQuestionToolId?: string;
+	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	hasUserResponseAfterAskQuestion?: boolean;
 	urlTransform?: UrlTransform;
 }> = ({
 	blocks,
@@ -260,14 +234,28 @@ export const BlockList: FC<{
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
-	computerUseSubagentIds,
+	subagentVariants,
 	showDesktopPreviews,
 	subagentStatusOverrides,
 	mcpServers,
 	onImageClick,
 	onTextFileClick,
+	onImplementPlan,
+	onSendAskUserQuestionResponse,
+	isChatCompleted,
+	latestAskUserQuestionToolId,
+	askUserQuestionResponseTextByToolId,
+	hasUserResponseAfterAskQuestion = false,
 	urlTransform,
 }) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const thinkingDisplayMode: ThinkingDisplayMode =
+		prefQuery.data?.thinking_display_mode || "auto";
+	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.shell_tool_display_mode || "auto";
+	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.code_diff_display_mode || "auto";
+
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
 	// Pre-compute which tool IDs have a corresponding block so
@@ -282,6 +270,12 @@ export const BlockList: FC<{
 	);
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
+
+	// A thinking block is actively streaming only when it is the
+	// very last block in the list. Once newer content arrives
+	// (response, tool call, etc.) the thinking phase is over.
+	const lastBlockIsThinking =
+		blocks.length > 0 && blocks[blocks.length - 1].type === "thinking";
 
 	return (
 		<>
@@ -315,8 +309,13 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-thinking-${index}`}
 								id={`${keyPrefix}-thinking-${index}`}
 								text={block.text}
-								isStreaming={isStreaming}
+								isStreaming={
+									isStreaming &&
+									lastBlockIsThinking &&
+									index === blocks.length - 1
+								}
 								urlTransform={urlTransform}
+								thinkingDisplayMode={thinkingDisplayMode}
 							/>
 						);
 					case "file-reference":
@@ -346,7 +345,10 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									shellToolDisplayMode={shellToolDisplayMode}
+									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
 									mcpServers={mcpServers}
 								/>
@@ -361,25 +363,42 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								shellToolDisplayMode={shellToolDisplayMode}
+								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
-								computerUseSubagentIds={computerUseSubagentIds}
+								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
 								subagentStatusOverrides={
 									isStreaming ? subagentStatusOverrides : undefined
 								}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								isLatestAskUserQuestion={
+									tool.id === latestAskUserQuestionToolId &&
+									!hasUserResponseAfterAskQuestion
+								}
+								previousResponseText={
+									tool.name === "ask_user_question"
+										? askUserQuestionResponseTextByToolId?.get(tool.id)
+										: undefined
+								}
 								modelIntent={tool.modelIntent}
+								parsedCommands={tool.parsedCommands}
 							/>
 						);
 					}
 					case "file":
 						return (
-							<FileBlock
+							<AttachmentBlock
 								key={`${keyPrefix}-file-${block.file_id ?? index}`}
 								block={block}
 								onImageClick={onImageClick}
 								onTextFileClick={onTextFileClick}
+								framePreview
+								showTextStatus
 							/>
 						);
 					case "sources":
@@ -402,15 +421,30 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					shellToolDisplayMode={shellToolDisplayMode}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
-					computerUseSubagentIds={computerUseSubagentIds}
+					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
 					subagentStatusOverrides={
 						isStreaming ? subagentStatusOverrides : undefined
 					}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
+					onImplementPlan={onImplementPlan}
+					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+					isChatCompleted={isChatCompleted}
+					isLatestAskUserQuestion={
+						tool.id === latestAskUserQuestionToolId &&
+						!hasUserResponseAfterAskQuestion
+					}
+					previousResponseText={
+						tool.name === "ask_user_question"
+							? askUserQuestionResponseTextByToolId?.get(tool.id)
+							: undefined
+					}
 					modelIntent={tool.modelIntent}
+					parsedCommands={tool.parsedCommands}
 				/>
 			))}
 		</>
@@ -428,16 +462,27 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	onImplementPlan?: () => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	subagentTitles?: Map<string, string>;
-	computerUseSubagentIds?: Set<string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
+	latestAskUserQuestionToolId?: string;
+	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
+	hasUserResponseAfterAskQuestion?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
 }>(
 	({
 		message,
@@ -446,77 +491,39 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		hasActiveStream = false,
+		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
+		onImplementPlan,
+		onSendAskUserQuestionResponse,
+		isChatCompleted,
+		latestAskUserQuestionToolId,
+		askUserQuestionResponseTextByToolId,
+		hasUserResponseAfterAskQuestion = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
 
 		urlTransform,
 		mcpServers,
 		subagentTitles,
-		computerUseSubagentIds,
+		subagentVariants,
 		showDesktopPreviews,
 	}) => {
 		const isUser = message.role === "user";
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] = useState<string | null>(null);
-		if (
-			parsed.toolResults.length > 0 &&
-			parsed.toolCalls.length === 0 &&
-			parsed.markdown === "" &&
-			parsed.reasoning === ""
-		) {
+		const [previewText, setPreviewText] =
+			useState<PreviewTextAttachment | null>(null);
+		const displayState = deriveMessageDisplayState({
+			message,
+			parsed,
+			hideActions,
+			hasActiveStream,
+			isAwaitingFirstStreamChunk,
+		});
+		if (displayState.shouldHide) {
 			return null;
 		}
-
-		// Hide messages that consist entirely of provider-executed
-		// tool results. The parser skips these parts, so the parsed
-		// output is empty and would show a "no renderable content"
-		// fallback.
-		const parts = message.content ?? [];
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "tool-result" && p.provider_executed)
-		) {
-			return null;
-		}
-
-		// Hide messages that consist entirely of context-file
-		// and/or skill parts. These are metadata for the context
-		// indicator, not conversation content.
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "context-file" || p.type === "skill")
-		) {
-			return null;
-		}
-		const hasRenderableContent =
-			parsed.blocks.length > 0 ||
-			parsed.tools.length > 0 ||
-			parsed.sources.length > 0;
-		// Pre-compute the inline content for user messages so we
-		// avoid a filter + map inside the JSX return path.
-		const userInlineContent = isUser
-			? parsed.blocks.filter(
-					(
-						b,
-					): b is
-						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
-				)
-			: [];
-		const userFileBlocks = isUser
-			? parsed.blocks.filter(
-					(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
-				)
-			: [];
-		const hasUserMessageBody =
-			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
-		const hasFileBlocks = userFileBlocks.length > 0;
-		const hasCopyableContent = Boolean(parsed.markdown.trim());
-		const needsAssistantBottomSpacer =
-			!hideActions &&
-			!isUser &&
-			!hasCopyableContent &&
-			(Boolean(parsed.reasoning) || parsed.sources.length > 0);
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -531,107 +538,59 @@ const ChatMessageItem = memo<{
 			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
-						<Message className="w-full max-w-none">
-							<MessageContent
-								className={cn(
-									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									editingMessageId === message.id &&
-										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-									fadeFromBottom && "relative overflow-hidden",
-								)}
-								style={
-									fadeFromBottom
-										? { maxHeight: "var(--clip-h, none)" }
-										: undefined
-								}
-							>
-								<div className="flex flex-col gap-1.5">
-									{(hasUserMessageBody || hasFileBlocks) && (
-										<div className="flex items-start gap-2">
-											{hasUserMessageBody && (
-												<span className="min-w-0 flex-1">
-													{userInlineContent.length > 0
-														? userInlineContent.map((block, i) =>
-																block.type === "response" ? (
-																	<Fragment key={i}>{block.text}</Fragment>
-																) : (
-																	<FileReferenceChip
-																		key={i}
-																		fileName={block.file_name}
-																		startLine={block.start_line}
-																		endLine={block.end_line}
-																		className="mx-1"
-																	/>
-																),
-															)
-														: parsed.markdown || ""}
-												</span>
-											)}
-										</div>
-									)}
-									{hasFileBlocks && (
-										<div
-											className={cn(
-												hasUserMessageBody && "mt-2",
-												"flex flex-wrap gap-2",
-											)}
-										>
-											{userFileBlocks.map((block, i) => (
-												<FileBlock
-													key={`user-file-${block.file_id ?? i}`}
-													block={block}
-													onImageClick={setPreviewImage}
-													onTextFileClick={setPreviewText}
-												/>
-											))}
-										</div>
-									)}
-									{fadeFromBottom && (
-										<div
-											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-											style={{
-												opacity: "var(--fade-opacity, 0)",
-												background:
-													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-											}}
-										/>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
+						<UserMessageContent
+							displayState={displayState}
+							markdown={parsed.markdown}
+							isEditing={editingMessageId === message.id}
+							fadeFromBottom={fadeFromBottom}
+							onImageClick={setPreviewImage}
+							onTextFileClick={setPreviewText}
+						/>
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								<div className="relative space-y-3 overflow-visible">
+								{/* Keep assistant content spacing consistent by letting the parent stack own every top-level gap. */}
+								<div className="relative flex flex-col gap-2 overflow-visible">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
 										keyPrefix={String(message.id)}
 										subagentTitles={subagentTitles}
-										computerUseSubagentIds={computerUseSubagentIds}
+										subagentVariants={subagentVariants}
 										showDesktopPreviews={showDesktopPreviews}
+										onImplementPlan={onImplementPlan}
+										onSendAskUserQuestionResponse={
+											onSendAskUserQuestionResponse
+										}
+										isChatCompleted={isChatCompleted}
+										latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+										askUserQuestionResponseTextByToolId={
+											askUserQuestionResponseTextByToolId
+										}
+										hasUserResponseAfterAskQuestion={
+											hasUserResponseAfterAskQuestion
+										}
 										onImageClick={setPreviewImage}
 										onTextFileClick={setPreviewText}
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
-									{!hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
-										</div>
-									)}
 								</div>
 							</MessageContent>
 						</Message>
 					)}
 				</ConversationItem>
 				{!hideActions &&
-					(hasCopyableContent || (isUser && onEditUserMessage)) && (
+					(displayState.hasCopyableContent ||
+						(isUser && onEditUserMessage)) && (
 						<div
-							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							className={cn(
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
+							)}
 							data-testid="message-actions"
 						>
-							{hasCopyableContent && (
+							{displayState.hasCopyableContent && (
 								<CopyButton
 									text={parsed.markdown}
 									label="Copy message"
@@ -660,12 +619,66 @@ const ChatMessageItem = memo<{
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
 							)}
+							{isUser &&
+								onJumpToUserMessage &&
+								(prevUserMessageId !== undefined ||
+									nextUserMessageId !== undefined) && (
+									<>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to previous user message"
+													disabled={prevUserMessageId === undefined}
+													onClick={() => {
+														if (prevUserMessageId !== undefined) {
+															onJumpToUserMessage(prevUserMessageId);
+														}
+													}}
+												>
+													<ChevronLeftIcon />
+													<span className="sr-only">
+														Jump to previous user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to previous user message
+											</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to next user message"
+													disabled={nextUserMessageId === undefined}
+													onClick={() => {
+														if (nextUserMessageId !== undefined) {
+															onJumpToUserMessage(nextUserMessageId);
+														}
+													}}
+												>
+													<ChevronRightIcon />
+													<span className="sr-only">
+														Jump to next user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to next user message
+											</TooltipContent>
+										</Tooltip>
+									</>
+								)}
 						</div>
 					)}
-				{/* Spacer for assistant messages without an action bar
-				   (e.g. reasoning-only or sources-only) so they have
-				   consistent bottom padding before the next user bubble. */}
-				{needsAssistantBottomSpacer && <div className="min-h-6" />}
+				{displayState.needsAssistantBottomSpacer && (
+					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
+				)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -674,7 +687,9 @@ const ChatMessageItem = memo<{
 				)}
 				{previewText !== null && (
 					<TextPreviewDialog
-						content={previewText}
+						content={previewText.content}
+						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -693,6 +708,10 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
+	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
 }>(
 	({
 		message,
@@ -700,11 +719,20 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
+		registerSentinel,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
 		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
+		const messageId = message.id;
+		const setSentinelRef = (el: HTMLDivElement | null) => {
+			sentinelRef.current = el;
+			registerSentinel?.(messageId, el);
+		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
 
@@ -895,7 +923,7 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
 				<div
 					ref={containerRef}
 					className={cn(
@@ -924,6 +952,9 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							prevUserMessageId={prevUserMessageId}
+							nextUserMessageId={nextUserMessageId}
+							onJumpToUserMessage={onJumpToUserMessage}
 						/>
 					</div>
 
@@ -966,6 +997,9 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									prevUserMessageId={prevUserMessageId}
+									nextUserMessageId={nextUserMessageId}
+									onJumpToUserMessage={onJumpToUserMessage}
 									fadeFromBottom
 								/>
 							</div>
@@ -977,33 +1011,83 @@ const StickyUserMessage = memo<{
 	},
 );
 
+function computeLastInChainFlags(
+	parsedMessages: readonly ParsedMessageEntry[],
+): boolean[] {
+	const flags = new Array<boolean>(parsedMessages.length).fill(false);
+	let nextVisibleIsUser = true; // no next visible => treat as chain end
+	for (let i = parsedMessages.length - 1; i >= 0; i--) {
+		const entry = parsedMessages[i];
+		const { shouldHide } = deriveMessageDisplayState({
+			message: entry.message,
+			parsed: entry.parsed,
+			hideActions: false,
+			hasActiveStream: false,
+			isAwaitingFirstStreamChunk: false,
+		});
+		if (entry.message.role !== "user") {
+			flags[i] = nextVisibleIsUser;
+		}
+		if (!shouldHide) {
+			nextVisibleIsUser = entry.message.role === "user";
+		}
+	}
+	return flags;
+}
+
 interface ConversationTimelineProps {
 	parsedMessages: readonly ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	onImplementPlan?: () => Promise<void> | void;
+	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	isChatCompleted?: boolean;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	computerUseSubagentIds?: Set<string>;
 	showDesktopPreviews?: boolean;
-	isTurnActive?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		parsedMessages,
 		subagentTitles,
+		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
+		onImplementPlan,
+		onSendAskUserQuestionResponse,
+		isChatCompleted,
 		urlTransform,
 		mcpServers,
-		computerUseSubagentIds,
 		showDesktopPreviews,
+		hasActiveStream,
+		isAwaitingFirstStreamChunk,
 	}) => {
+		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+		const registerSentinel = (messageId: number, el: HTMLDivElement | null) => {
+			if (el) {
+				sentinelsRef.current.set(messageId, el);
+			} else {
+				sentinelsRef.current.delete(messageId);
+			}
+		};
+		const jumpToUserMessage = (messageId: number) => {
+			sentinelsRef.current.get(messageId)?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
+		};
+
+		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
+
 		if (parsedMessages.length === 0) {
 			return null;
 		}
@@ -1024,41 +1108,136 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		// Ordered list of visible user message IDs, used to drive the
+		// per-bubble prev/next arrow buttons that jump the transcript
+		// to the neighbouring user prompt.
+		const visibleUserMessageIds: number[] = [];
+		for (const { message, parsed } of parsedMessages) {
+			if (message.role !== "user") continue;
+			const { shouldHide } = deriveMessageDisplayState({
+				message,
+				parsed,
+				hideActions: false,
+				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
+			});
+			if (!shouldHide) visibleUserMessageIds.push(message.id);
+		}
+		const userNeighborsById = new Map<
+			number,
+			{ prevId?: number; nextId?: number }
+		>();
+		for (let i = 0; i < visibleUserMessageIds.length; i++) {
+			userNeighborsById.set(visibleUserMessageIds[i], {
+				prevId: i > 0 ? visibleUserMessageIds[i - 1] : undefined,
+				nextId:
+					i < visibleUserMessageIds.length - 1
+						? visibleUserMessageIds[i + 1]
+						: undefined,
+			});
+		}
+		let latestAskUserQuestionToolId: string | undefined;
+		let hasUserResponseAfterAskQuestion = false;
+		const askUserQuestionResponseTextByToolId = new Map<string, string>();
+		let pendingAskUserQuestionToolId: string | undefined;
+		for (const { message, parsed } of parsedMessages) {
+			let askUserQuestionToolIdInMessage: string | undefined;
+			for (const tool of parsed.tools) {
+				if (tool.name === "ask_user_question") {
+					askUserQuestionToolIdInMessage = tool.id;
+					latestAskUserQuestionToolId = tool.id;
+					hasUserResponseAfterAskQuestion = false;
+				}
+			}
+
+			if (askUserQuestionToolIdInMessage) {
+				pendingAskUserQuestionToolId = askUserQuestionToolIdInMessage;
+			}
+
+			if (pendingAskUserQuestionToolId && message.role === "user") {
+				hasUserResponseAfterAskQuestion =
+					pendingAskUserQuestionToolId === latestAskUserQuestionToolId;
+				const responseText = getChatMessageTextContent(message.content);
+				if (responseText !== undefined) {
+					askUserQuestionResponseTextByToolId.set(
+						pendingAskUserQuestionToolId,
+						responseText,
+					);
+				}
+				pendingAskUserQuestionToolId = undefined;
+			}
+		}
+		const historicalAskUserQuestionResponseTextByToolId =
+			askUserQuestionResponseTextByToolId.size > 0
+				? askUserQuestionResponseTextByToolId
+				: undefined;
+
 		return (
-			<div data-testid="conversation-timeline" className="flex flex-col gap-2">
-				{parsedMessages.map(({ message, parsed }, msgIdx) => {
-					if (message.role === "user") {
+			<FileProbeProvider>
+				<div
+					data-testid="conversation-timeline"
+					className="flex flex-col gap-2"
+				>
+					{parsedMessages.map(({ message, parsed }, msgIdx) => {
+						if (message.role === "user") {
+							const { shouldHide } = deriveMessageDisplayState({
+								message,
+								parsed,
+								hideActions: false,
+								hasActiveStream: false,
+								isAwaitingFirstStreamChunk: false,
+							});
+							if (shouldHide) {
+								return null;
+							}
+							return (
+								<StickyUserMessage
+									key={message.id}
+									message={message}
+									parsed={parsed}
+									onEditUserMessage={onEditUserMessage}
+									editingMessageId={editingMessageId}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
+									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
+									onJumpToUserMessage={jumpToUserMessage}
+									registerSentinel={registerSentinel}
+								/>
+							);
+						}
+						// Hide actions on assistant messages that are not the
+						// last in a consecutive assistant chain. Flags are
+						// precomputed in a single reverse pass above.
+						const isLastInChain = lastInChainFlags[msgIdx];
 						return (
-							<StickyUserMessage
+							<ChatMessageItem
 								key={message.id}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
+								onImplementPlan={onImplementPlan}
+								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+								isChatCompleted={isChatCompleted}
+								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+								askUserQuestionResponseTextByToolId={
+									historicalAskUserQuestionResponseTextByToolId
+								}
+								hasUserResponseAfterAskQuestion={
+									hasUserResponseAfterAskQuestion
+								}
+								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								hideActions={!isLastInChain}
+								hasActiveStream={Boolean(hasActiveStream)}
+								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								mcpServers={mcpServers}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								showDesktopPreviews={showDesktopPreviews}
 							/>
 						);
-					}
-					// Hide actions on assistant messages that are not
-					// the last in a consecutive assistant chain.
-					const next = parsedMessages[msgIdx + 1];
-					const isLastInChain = !next || next.message.role === "user";
-					return (
-						<ChatMessageItem
-							key={message.id}
-							message={message}
-							parsed={parsed}
-							urlTransform={urlTransform}
-							isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							hideActions={!isLastInChain}
-							mcpServers={mcpServers}
-							subagentTitles={subagentTitles}
-							computerUseSubagentIds={computerUseSubagentIds}
-							showDesktopPreviews={showDesktopPreviews}
-						/>
-					);
-				})}
-			</div>
+					})}
+				</div>
+			</FileProbeProvider>
 		);
 	},
 );

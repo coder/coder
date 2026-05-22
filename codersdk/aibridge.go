@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 type AIBridgeInterception struct {
@@ -78,6 +79,7 @@ type AIBridgeSession struct {
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
 	LastPrompt        *string                          `json:"last_prompt,omitempty"`
+	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
@@ -279,6 +281,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListInterceptions returns AI Bridge interceptions with the given
 // filter.
+//
+// Deprecated: Use AIBridgeListSessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {
@@ -345,4 +350,68 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	}
 	var clients []string
 	return clients, json.NewDecoder(res.Body).Decode(&clients)
+}
+
+type GroupAIBudget struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	SpendLimitMicros int64     `json:"spend_limit_micros"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+type UpsertGroupAIBudgetRequest struct {
+	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
+}
+
+// GroupAIBudget returns the AI spend budget configured for the given group.
+func (c *Client) GroupAIBudget(ctx context.Context, group uuid.UUID) (GroupAIBudget, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
+		nil,
+	)
+	if err != nil {
+		return GroupAIBudget{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupAIBudget{}, ReadBodyAsError(res)
+	}
+	var resp GroupAIBudget
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpsertGroupAIBudget creates or updates the AI spend budget for the given group.
+func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req UpsertGroupAIBudgetRequest) (GroupAIBudget, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
+		req,
+	)
+	if err != nil {
+		return GroupAIBudget{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupAIBudget{}, ReadBodyAsError(res)
+	}
+	var resp GroupAIBudget
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteGroupAIBudget removes the AI spend budget for the given group.
+func (c *Client) DeleteGroupAIBudget(ctx context.Context, group uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

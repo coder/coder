@@ -28,15 +28,6 @@ const (
 	maxFilePathLength = 4096
 )
 
-// UserSecretEnvValidationOptions controls deployment-aware behavior
-// in environment variable name validation.
-type UserSecretEnvValidationOptions struct {
-	// AIGatewayEnabled indicates that the deployment has AI Gateway
-	// configured. When true, AI Gateway environment variables
-	// (OPENAI_API_KEY, etc.) are reserved to prevent conflicts.
-	AIGatewayEnabled bool
-}
-
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
 	// must start with a letter or underscore, followed by letters,
@@ -114,23 +105,6 @@ var (
 		"XDG_DATA_HOME":   {},
 		"XDG_CACHE_HOME":  {},
 		"XDG_STATE_HOME":  {},
-
-		// OIDC token. The Coder agent injects a short-lived
-		// OIDC token for cloud auth flows (e.g. GCP workload
-		// identity). Overriding it could break provisioner and
-		// agent authentication.
-		"OIDC_TOKEN": {},
-	}
-
-	// aiGatewayReservedEnvNames are reserved only when AI Gateway
-	// is enabled on the deployment. When AI Gateway is disabled,
-	// users may legitimately want to inject their own API keys
-	// via secrets.
-	aiGatewayReservedEnvNames = map[string]struct{}{
-		"OPENAI_API_KEY":       {},
-		"OPENAI_BASE_URL":      {},
-		"ANTHROPIC_AUTH_TOKEN": {},
-		"ANTHROPIC_BASE_URL":   {},
 	}
 
 	// reservedEnvPrefixes are namespace prefixes where every
@@ -158,11 +132,27 @@ var (
 	}
 )
 
+// UserSecretNameValid validates a user secret name. Names are used in
+// API route path segments, so they must not include route separators.
+func UserSecretNameValid(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return xerrors.New("Name is required.")
+	}
+
+	if strings.TrimSpace(s) != s {
+		return xerrors.New("Name must not have leading or trailing whitespace.")
+	}
+
+	if strings.ContainsAny(s, "/?#") {
+		return xerrors.New("Name must not contain /, ?, or #.")
+	}
+
+	return nil
+}
+
 // UserSecretEnvNameValid validates an environment variable name for
 // a user secret. Empty string is allowed (means no env injection).
-// The opts parameter controls deployment-aware checks such as AI
-// bridge variable reservation.
-func UserSecretEnvNameValid(s string, opts UserSecretEnvValidationOptions) error {
+func UserSecretEnvNameValid(s string) error {
 	if s == "" {
 		return nil
 	}
@@ -184,12 +174,6 @@ func UserSecretEnvNameValid(s string, opts UserSecretEnvValidationOptions) error
 	for _, prefix := range reservedEnvPrefixes {
 		if strings.HasPrefix(upper, prefix) {
 			return xerrors.Errorf("environment variables starting with %s are reserved", prefix)
-		}
-	}
-
-	if opts.AIGatewayEnabled {
-		if _, ok := aiGatewayReservedEnvNames[upper]; ok {
-			return xerrors.Errorf("%s is reserved when AI Gateway is enabled", upper)
 		}
 	}
 

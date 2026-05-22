@@ -9,7 +9,6 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -35,11 +34,13 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingModelConfigFields,
 } from "./ModelConfigFields";
+import { ModelIdentifierField } from "./ModelIdentifierField";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -75,6 +76,8 @@ const validationSchema = Yup.object({
 interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
+	/** When set without editingModel, the form creates from this model. */
+	duplicateSourceModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -95,6 +98,7 @@ interface ModelFormProps {
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,
+	duplicateSourceModel,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -107,8 +111,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onCancel,
 	onDeleteModel,
 }) => {
+	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
-	const isDefaultModel = isEditing && editingModel?.is_default === true;
+	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
+	const initialValues = {
+		...buildInitialModelFormValues(initialModel),
+		...(isDuplicating && { isDefault: false }),
+	};
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
@@ -119,9 +128,25 @@ export const ModelForm: FC<ModelFormProps> = ({
 			(selectedProviderState.hasEffectiveAPIKey ||
 				selectedProviderState.providerConfig.allow_user_api_key),
 	);
+	const formTitle = isEditing
+		? "Edit Model"
+		: isDuplicating
+			? "Duplicate Model"
+			: "Add Model";
+	const formDescription = isDuplicating
+		? "Review the copied settings, then save to create a new model."
+		: undefined;
+	const mode: "add" | "edit" | "duplicate" = (() => {
+		if (isEditing) return "edit";
+		if (isDuplicating) return "duplicate";
+		return "add";
+	})();
+
+	const selectedProviderType =
+		selectedProviderState?.provider ?? selectedProvider;
 
 	const form = useFormik<ModelFormValues>({
-		initialValues: buildInitialModelFormValues(editingModel),
+		initialValues,
 		validationSchema,
 		validateOnMount: true,
 		validateOnBlur: false,
@@ -137,7 +162,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProviderState?.provider,
+				selectedProviderType,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -145,8 +170,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
 
+			const selectedProviderConfigID =
+				selectedProviderState?.providerConfig?.id;
+
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(selectedProviderConfigID &&
+						selectedProviderConfigID !==
+							readOptionalString(editingModel.ai_provider_id) && {
+							provider: selectedProviderState.provider,
+							ai_provider_id: selectedProviderConfigID,
+						}),
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -174,12 +208,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				await onUpdateModel(editingModel.id, req);
 			} else {
-				if (!selectedProviderState?.providerConfig) return;
+				if (!selectedProvider || !selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
 					provider: selectedProviderState.provider,
+					ai_provider_id: selectedProviderState.providerConfig.id,
 					model: trimmedModel,
-					enabled: true,
+					enabled: values.enabled,
+					is_default: values.isDefault,
 					...(parsedContextLimit !== null && {
 						context_limit: parsedContextLimit,
 					}),
@@ -188,9 +224,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 					}),
 					...(trimmedDisplayName && {
 						display_name: trimmedDisplayName,
-					}),
-					...(values.isDefault && {
-						is_default: true,
 					}),
 					...(builtModelConfig && {
 						model_config: builtModelConfig,
@@ -208,13 +241,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProviderState?.provider,
+		selectedProviderType,
 		form.values.config,
 	);
 
 	const hasFieldErrors =
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
-	const defaultModelDisableGuard = isDefaultModel && form.values.enabled;
+	const defaultModelDisableGuard =
+		isEditing && form.values.isDefault && form.values.enabled;
 
 	// ── Provider select (shared across all form states) ───────
 
@@ -229,7 +263,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<Select
 				value={selectedProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || providerStates.length === 0}
+				disabled={
+					((isEditing || isDuplicating) && selectedProviderState !== null) ||
+					providerStates.length === 0
+				}
 			>
 				<SelectTrigger
 					id="providerSelect"
@@ -239,7 +276,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</SelectTrigger>
 				<SelectContent>
 					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
+						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
 								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
 								{ps.label}
@@ -257,7 +294,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<div>
 				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
-					{isEditing ? "Edit Model" : "Add Model"}
+					{formTitle}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">{providerSelect}</div>
@@ -271,15 +308,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<div>
 				<BackButton onClick={onCancel} />
 				<h2 className="m-0 text-lg font-medium text-content-primary">
-					Add Model
+					{formTitle}
 				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
 						{!selectedProviderState.providerConfig
-							? "Create a managed provider config on the Providers tab before adding models."
-							: "Set an API key for this provider on the Providers tab before adding models."}
+							? "Create a managed provider config on the Providers tab before managing models."
+							: "Set an API key for this provider on the Providers tab before managing models."}
 					</p>
 				</div>
 			</div>
@@ -295,7 +332,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<BackButton onClick={onCancel} /> {/* Header - editable display name */}
+			<BackButton onClick={onCancel} />
+			<div className="mb-4">
+				<h2 className="m-0 text-lg font-medium text-content-primary">
+					{formTitle}
+				</h2>
+				{formDescription && (
+					<p className="m-0 mt-1 text-sm text-content-secondary">
+						{formDescription}
+					</p>
+				)}
+			</div>
+			{/* Header - editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
 					<ProviderIcon
@@ -309,10 +357,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
 							aria-hidden="true"
 						>
-							{form.values.displayName ||
-								(isEditing
-									? (editingModel?.model ?? "Model name")
-									: "Model name")}
+							{form.values.displayName || initialModel?.model || "Model name"}
 						</span>
 						<input
 							type="text"
@@ -320,14 +365,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving}
 							spellCheck={false}
 							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-							placeholder={
-								isEditing ? (editingModel?.model ?? "Model name") : "Model name"
-							}
+							placeholder={initialModel?.model ?? "Model name"}
 						/>
 					</div>
 					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
-				{editingModel && (
+				{initialModel && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<span className="ml-auto inline-flex">
@@ -364,50 +407,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
 							{" "}
-							<div className="grid gap-1.5">
-								<Label
-									htmlFor={modelField.id}
-									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-								>
-									Model Identifier{" "}
-									<span className="text-xs font-bold text-content-destructive">
-										*
-									</span>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
-										</TooltipTrigger>
-										<TooltipContent side="top" className="max-w-[240px]">
-											The model identifier sent to the provider API.
-										</TooltipContent>
-									</Tooltip>
-								</Label>
-								<Input
-									id={modelField.id}
-									name={modelField.name}
-									className={cn(
-										"h-9 text-[13px] placeholder:text-content-disabled",
-										modelField.error && "border-content-destructive",
-									)}
-									placeholder="e.g. gpt-5, claude-sonnet-4-5"
-									value={modelField.value}
-									onChange={modelField.onChange}
-									onBlur={modelField.onBlur}
-									disabled={isSaving}
-									aria-invalid={modelField.error}
-									aria-describedby={
-										modelField.error ? `${modelField.id}-error` : undefined
-									}
-								/>
-								{modelField.error && (
-									<p
-										id={`${modelField.id}-error`}
-										className="m-0 text-xs text-content-destructive"
-									>
-										{modelField.helperText}
-									</p>
-								)}
-							</div>
+							<ModelIdentifierField
+								form={form}
+								modelField={modelField}
+								mode={mode}
+								selectedProvider={selectedProviderType}
+								disabled={isSaving}
+							/>
 							<div className="grid gap-1.5">
 								<Label
 									htmlFor={contextLimitField.id}
@@ -633,7 +639,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving || !form.isValid || hasFieldErrors}
 						>
 							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
-							{isEditing ? "Save" : "Add model"}
+							{isEditing
+								? "Save"
+								: isDuplicating
+									? "Create duplicate"
+									: "Add model"}
 						</Button>
 					</div>
 				</div>

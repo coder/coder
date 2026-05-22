@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -45,7 +46,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "path is required")
+		assert.Equal(t, "path is required (use the chat-specific absolute plan path)", resp.Content)
 	})
 
 	t.Run("WhitespaceOnlyPathReturnsError", func(t *testing.T) {
@@ -62,7 +63,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "path is required")
+		assert.Equal(t, "path is required (use the chat-specific absolute plan path)", resp.Content)
 	})
 
 	t.Run("NonMdPathReturnsError", func(t *testing.T) {
@@ -79,7 +80,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "path must end with .md")
+		assert.Equal(t, "path must end with .md", resp.Content)
 	})
 
 	t.Run("RelativePlanPathReturnsError", func(t *testing.T) {
@@ -129,7 +130,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "plan file exceeds 32 KiB size limit")
+		assert.Equal(t, "plan file exceeds 32 KiB size limit", resp.Content)
 	})
 
 	t.Run("ExactBoundaryFileSucceeds", func(t *testing.T) {
@@ -190,6 +191,13 @@ func TestProposePlan(t *testing.T) {
 		assert.Equal(t, "text/markdown", result.MediaType)
 		assert.Equal(t, []byte("# Plan\n\nContent"), *stored)
 		assert.NotContains(t, resp.Content, "content")
+
+		attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
+		require.NoError(t, err)
+		require.Len(t, attachments, 1)
+		assert.Equal(t, uuid.MustParse(result.FileID), attachments[0].FileID)
+		assert.Equal(t, result.MediaType, attachments[0].MediaType)
+		assert.Equal(t, filepath.Base(result.Path), attachments[0].Name)
 	})
 
 	t.Run("NestedPlanPathUnderHomeIsAllowed", func(t *testing.T) {
@@ -248,6 +256,27 @@ func TestProposePlan(t *testing.T) {
 		assert.Contains(t, resp.Content, "file not found")
 	})
 
+	t.Run("ReadFileError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
+			Return(nil, "", xerrors.New("read failed"))
+
+		storeFile, _ := fakeStoreFile(t)
+		tool := newProposePlanTool(t, mockConn, storeFile)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/PLAN.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "read failed", resp.Content)
+	})
+
 	t.Run("ReadAllError", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -278,8 +307,8 @@ func TestProposePlan(t *testing.T) {
 			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(io.NopCloser(strings.NewReader("# Plan")), "text/markdown", nil)
 
-		tool := newProposePlanTool(t, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (uuid.UUID, error) {
-			return uuid.Nil, xerrors.New("storage unavailable")
+		tool := newProposePlanTool(t, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
+			return chattool.AttachmentMetadata{}, xerrors.New("storage unavailable")
 		})
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
@@ -288,7 +317,7 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "storage unavailable")
+		assert.Equal(t, "failed to store plan file: storage unavailable", resp.Content)
 	})
 
 	t.Run("RejectsSharedPlanPathWithResolvedPath", func(t *testing.T) {
@@ -413,6 +442,106 @@ func TestProposePlan(t *testing.T) {
 		assert.Equal(t, []byte("# Nested Plan"), *stored)
 	})
 
+	t.Run("PlanTurnDefaultsEmptyPathToResolvedPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-chat.md"
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), chatPlanPath, int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("# Plan")), "text/markdown", nil)
+
+		storeFile, stored := fakeStoreFile(t)
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				return chatPlanPath, "/home/coder", nil
+			},
+			true,
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":""}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		result := decodeProposePlanResponse(t, resp)
+		assert.True(t, result.OK)
+		assert.Equal(t, chatPlanPath, result.Path)
+		assert.Equal(t, "plan", result.Kind)
+		assert.Equal(t, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", result.FileID)
+		assert.Equal(t, "text/markdown", result.MediaType)
+		assert.Equal(t, "# Plan", string(*stored))
+	})
+
+	t.Run("PlanTurnRejectsWrongPath", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-chat.md"
+
+		storeFile, _ := fakeStoreFile(t)
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			storeFile,
+			func(context.Context) (string, string, error) {
+				return chatPlanPath, "/home/coder", nil
+			},
+			true,
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/README.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "during plan turns, propose_plan path must be "+chatPlanPath, resp.Content)
+	})
+
+	t.Run("PlanTurnRejectsEmptyPlan", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		chatPlanPath := "/home/coder/.coder/plans/PLAN-chat.md"
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), chatPlanPath, int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("")), "text/markdown", nil)
+
+		storeFile, stored := fakeStoreFile(t)
+		storeCalled := false
+		tool := newProposePlanToolWithPlanPath(
+			t,
+			mockConn,
+			func(ctx context.Context, name string, detectName string, data []byte) (chattool.AttachmentMetadata, error) {
+				storeCalled = true
+				return storeFile(ctx, name, detectName, data)
+			},
+			func(context.Context) (string, string, error) {
+				return chatPlanPath, "/home/coder", nil
+			},
+			true,
+		)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"` + chatPlanPath + `"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "plan file is empty")
+		assert.Contains(t, resp.Content, chatPlanPath)
+		assert.False(t, storeCalled)
+		assert.Nil(t, *stored)
+	})
+
 	t.Run("WorkspaceConnectionError", func(t *testing.T) {
 		t.Parallel()
 		storeFile, _ := fakeStoreFile(t)
@@ -472,7 +601,7 @@ func TestProposePlan(t *testing.T) {
 func newProposePlanTool(
 	t *testing.T,
 	mockConn *agentconnmock.MockAgentConn,
-	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
+	storeFile chattool.StoreFileFunc,
 ) fantasy.AgentTool {
 	t.Helper()
 	return newProposePlanToolWithPlanPath(t, mockConn, storeFile, nil)
@@ -481,46 +610,38 @@ func newProposePlanTool(
 func newProposePlanToolWithPlanPath(
 	t *testing.T,
 	mockConn *agentconnmock.MockAgentConn,
-	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
+	storeFile chattool.StoreFileFunc,
 	resolvePlanPath func(context.Context) (string, string, error),
+	isPlanTurn ...bool,
 ) fantasy.AgentTool {
 	t.Helper()
+	enabled := false
+	if len(isPlanTurn) > 0 {
+		enabled = isPlanTurn[0]
+	}
 	return chattool.ProposePlan(chattool.ProposePlanOptions{
 		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
 			return mockConn, nil
 		},
 		ResolvePlanPath: resolvePlanPath,
 		StoreFile:       storeFile,
+		IsPlanTurn:      enabled,
 	})
 }
 
-func sharedPlanPathResolvedMessage(requestedPath, planPath string) string {
-	return "the plan path " + requestedPath +
-		" is no longer supported at the home root; use the chat-specific plan path: " + planPath
-}
-
-func planPathVerificationMessage(requestedPath string) string {
-	return "the plan path " + requestedPath +
-		" could not be verified because the workspace is currently unavailable to resolve the chat-specific plan path, try again shortly"
-}
-
-func editFilesBatchRejectedMessage(message string) string {
-	return message + "; no files in this batch were applied"
-}
-
-func relativePlanPathMessage() string {
-	return "plan files must use absolute paths; use the chat-specific absolute plan path"
-}
-
-func fakeStoreFile(t *testing.T) (func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error), *[]byte) {
+func fakeStoreFile(t *testing.T) (chattool.StoreFileFunc, *[]byte) {
 	t.Helper()
 
 	var stored []byte
-	return func(_ context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
+	return func(_ context.Context, name string, detectName string, data []byte) (chattool.AttachmentMetadata, error) {
 		assert.NotEmpty(t, name)
-		assert.Equal(t, "text/markdown", mediaType)
+		assert.NotEmpty(t, detectName)
 		stored = append([]byte(nil), data...)
-		return uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), nil
+		return chattool.AttachmentMetadata{
+			FileID:    uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+			MediaType: "text/markdown",
+			Name:      name,
+		}, nil
 	}, &stored
 }
 

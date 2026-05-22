@@ -4,19 +4,24 @@ AI Gateway runs inside the Coder control plane (`coderd`), requiring no separate
 
 **Required**:
 
-1. A **Premium** license with the [AI Governance Add-On](../ai-governance.md).
+1. The [AI Governance Add-On](../ai-governance.md) license.
 1. Feature must be [enabled](#activation) using the server flag
 1. One or more [providers](#configure-providers) API key(s) must be configured
+
+> [!NOTE]
+> AI Gateway environment variables and CLI flags have migrated to the new
+> `CODER_AI_GATEWAY_*` and `--ai-gateway-*` naming scheme. The earlier
+> `CODER_AIBRIDGE_*` and `--aibridge-*` names continue to work as aliases.
 
 ## Activation
 
 You will need to enable AI Gateway explicitly:
 
 ```sh
-export CODER_AIBRIDGE_ENABLED=true
+export CODER_AI_GATEWAY_ENABLED=true
 coder server
 # or
-coder server --aibridge-enabled=true
+coder server --ai-gateway-enabled=true
 ```
 
 ## Configure Providers
@@ -27,10 +32,10 @@ AI Gateway proxies requests to upstream LLM APIs. Configure at least one provide
 
 ### OpenAI
 
-Set the following when routing [OpenAI-compatible](https://coder.com/docs/reference/cli/server#--aibridge-openai-key) traffic through AI Gateway:
+Set the following when routing [OpenAI-compatible](https://coder.com/docs/reference/cli/server#--ai-gateway-openai-key) traffic through AI Gateway:
 
-- `CODER_AIBRIDGE_OPENAI_KEY` or `--aibridge-openai-key`
-- `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`
+- `CODER_AI_GATEWAY_OPENAI_KEY` or `--ai-gateway-openai-key`
+- `CODER_AI_GATEWAY_OPENAI_BASE_URL` or `--ai-gateway-openai-base-url`
 
 The default base URL (`https://api.openai.com/v1/`) works for the native OpenAI service. Point the base URL at your preferred OpenAI-compatible endpoint (for example, a hosted proxy or LiteLLM deployment) when needed.
 
@@ -40,10 +45,10 @@ If you'd like to create an [OpenAI key](https://platform.openai.com/api-keys) wi
 
 ### Anthropic
 
-Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Gateway:
+Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--ai-gateway-anthropic-key) traffic through AI Gateway:
 
-- `CODER_AIBRIDGE_ANTHROPIC_KEY` or `--aibridge-anthropic-key`
-- `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`
+- `CODER_AI_GATEWAY_ANTHROPIC_KEY` or `--ai-gateway-anthropic-key`
+- `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL` or `--ai-gateway-anthropic-base-url`
 
 The default base URL (`https://api.anthropic.com/`) targets Anthropic's public API. Override it for Anthropic-compatible brokers.
 
@@ -51,20 +56,46 @@ Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
 
 ### Amazon Bedrock
 
-Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--aibridge-bedrock-region) traffic through AI Gateway:
+Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--ai-gateway-bedrock-region) traffic through AI Gateway:
 
-- `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`
-- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
-- `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET` or `--aibridge-bedrock-access-key-secret`
-- `CODER_AIBRIDGE_BEDROCK_MODEL` or `--aibridge-bedrock-model`
-- `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL` or `--aibridge-bedrock-small-fast-model`
+**Required:**
+
+- `CODER_AI_GATEWAY_BEDROCK_REGION` or `--ai-gateway-bedrock-region`.
+Alternatively, set `CODER_AI_GATEWAY_BEDROCK_BASE_URL` or `--ai-gateway-bedrock-base-url` to a full URL (e.g., when routing through a proxy between AI Gateway and AWS Bedrock or using a non-standard endpoint that doesn't follow the `https://bedrock-runtime.<region>.amazonaws.com` format).
+If both are set, `CODER_AI_GATEWAY_BEDROCK_BASE_URL` takes precedence.
+- `CODER_AI_GATEWAY_BEDROCK_MODEL` or `--ai-gateway-bedrock-model`
+- `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL` or `--ai-gateway-bedrock-small-fastmodel`
 
 > [!NOTE]
-> `CODER_AIBRIDGE_BEDROCK_BASE_URL` or `--aibridge-bedrock-base-url` may be used instead of `CODER_AIBRIDGE_BEDROCK_REGION`/`--aibridge-bedrock-region`
-if you would like to specify a URL which does not follow the form of `https://bedrock-runtime.<region>.amazonaws.com` - for example if using a
-proxy between AI Gateway and AWS Bedrock.
+> These Bedrock settings configure AI Gateway only. To configure Bedrock as an
+> Agents provider, see [Configuring AWS Bedrock](../agents/models.md#configuring-aws-bedrock).
 
-#### Obtaining Bedrock credentials
+**Optional:**
+
+- `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY` or `--ai-gateway-bedrock-access-key`
+- `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET` or `--ai-gateway-bedrock-access-key-secret`
+
+#### Authentication
+
+AI Gateway supports two credential configuration paths:
+
+##### AWS SDK default credential chain (recommended)
+
+When no credentials are set in AI Gateway config, the AWS SDK resolves them automatically from the environment.
+This includes IAM Roles (instance profiles, IRSA, ECS task roles), shared config files, environment variables, SSO, and more.
+
+**IAM Roles are the recommended approach** when AI Gateway runs on AWS infrastructure.
+Attach an IAM Role with Bedrock permissions to the compute running AI Gateway (EC2 instance, EKS pod via IRSA, or ECS task), no credentials need to be configured in AI Gateway itself.
+
+The IAM Role must have permission to invoke the Bedrock models configured for AI Gateway (`bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`).
+See [Amazon Bedrock identity-based policy examples](https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_id-based-policy-examples.html) for policy examples,
+and [AWS IAM role creation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-service.html) for general guidance on attaching roles to AWS services.
+
+This aligns with [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html) for using temporary credentials instead of long-lived access keys.
+
+##### Static credentials
+
+For deployments when explicit credentials are preferred, provide an access key and secret for an IAM User:
 
 1. **Choose a region** where you want to use Bedrock.
 
@@ -86,36 +117,155 @@ proxy between AI Gateway and AWS Bedrock.
 4. **Configure your Coder deployment** with the credentials:
 
    ```sh
-   export CODER_AIBRIDGE_BEDROCK_REGION=us-east-1
-   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY=<your-access-key-id>
-   export CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET=<your-secret-access-key>
+   export CODER_AI_GATEWAY_BEDROCK_REGION=us-east-1
+   export CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY=<your-access-key-id>
+   export CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET=<your-secret-access-key>
    coder server
    ```
 
-### Additional providers and Model Proxies
+### GitHub Copilot
 
-AI Gateway can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+GitHub Copilot offers three plans: Individual, Business, and Enterprise,
+each with its own API endpoint. Configure one or more `copilot` providers
+using the [indexed provider format](#multiple-instances-of-the-same-provider)
+depending on which plans your organization uses.
+Copilot providers use OAuth app installations for authentication rather than
+static API keys.
+
+```sh
+# GitHub Copilot (Individual)
+export CODER_AI_GATEWAY_PROVIDER_0_TYPE=copilot
+export CODER_AI_GATEWAY_PROVIDER_0_NAME=copilot
+
+# GitHub Copilot Business
+export CODER_AI_GATEWAY_PROVIDER_1_TYPE=copilot
+export CODER_AI_GATEWAY_PROVIDER_1_NAME=copilot-business
+export CODER_AI_GATEWAY_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
+
+# GitHub Copilot Enterprise
+export CODER_AI_GATEWAY_PROVIDER_2_TYPE=copilot
+export CODER_AI_GATEWAY_PROVIDER_2_NAME=copilot-enterprise
+export CODER_AI_GATEWAY_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
+```
+
+The default base URL targets the individual Copilot API
+(`api.individual.githubcopilot.com`). Override `CODER_AI_GATEWAY_PROVIDER_<N>_BASE_URL`
+for Business or Enterprise tiers as shown above.
+
+For client-side setup (proxy, certificates, IDE configuration), see
+[GitHub Copilot client configuration](./clients/copilot.md).
+
+### ChatGPT
+
+Configure a ChatGPT provider by creating an `openai`-typed instance with the
+ChatGPT Codex base URL:
+
+```sh
+export CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai
+export CODER_AI_GATEWAY_PROVIDER_0_NAME=chatgpt
+export CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://chatgpt.com/backend-api/codex
+```
 
 </div>
 
 > [!NOTE]
 > See the [Supported APIs](./reference.md#supported-apis) section below for precise endpoint coverage and interception behavior.
 
+### Multiple instances of the same provider
+
+You can configure multiple instances of the same provider type, for example, to
+route different teams to separate API keys, use different base URLs per region, or
+connect to both a direct API and a proxy simultaneously. Use indexed environment
+variables following the pattern `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`:
+
+```sh
+# Anthropic routed through a corporate proxy
+export CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic
+export CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-corp
+export CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-corp-xxx
+export CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://llm-proxy.internal.example.com/anthropic
+
+# Anthropic direct (for teams that need direct access)
+export CODER_AI_GATEWAY_PROVIDER_1_TYPE=anthropic
+export CODER_AI_GATEWAY_PROVIDER_1_NAME=anthropic-direct
+export CODER_AI_GATEWAY_PROVIDER_1_KEY=sk-ant-direct-yyy
+
+# Azure-hosted OpenAI deployment
+export CODER_AI_GATEWAY_PROVIDER_2_TYPE=openai
+export CODER_AI_GATEWAY_PROVIDER_2_NAME=azure-openai
+export CODER_AI_GATEWAY_PROVIDER_2_KEY=azure-key-zzz
+export CODER_AI_GATEWAY_PROVIDER_2_BASE_URL=https://my-deployment.openai.azure.com/
+
+# Anthropic via AWS Bedrock
+export CODER_AI_GATEWAY_PROVIDER_3_TYPE=anthropic
+export CODER_AI_GATEWAY_PROVIDER_3_NAME=anthropic-bedrock
+export CODER_AI_GATEWAY_PROVIDER_3_BEDROCK_REGION=us-west-2
+export CODER_AI_GATEWAY_PROVIDER_3_BEDROCK_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+export CODER_AI_GATEWAY_PROVIDER_3_BEDROCK_ACCESS_KEY_SECRET=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+coder server
+```
+
+Each provider instance gets a unique route based on its `NAME`. Clients send
+requests to `/api/v2/aibridge/<NAME>/` to target a specific instance:
+
+| Instance name       | Route                                               |
+|---------------------|-----------------------------------------------------|
+| `anthropic-corp`    | `/api/v2/aibridge/anthropic-corp/v1/messages`       |
+| `anthropic-direct`  | `/api/v2/aibridge/anthropic-direct/v1/messages`     |
+| `azure-openai`      | `/api/v2/aibridge/azure-openai/v1/chat/completions` |
+| `anthropic-bedrock` | `/api/v2/aibridge/anthropic-bedrock/v1/messages`    |
+
+**Supported keys per provider:**
+
+| Key        | Required | Description                                           |
+|------------|----------|-------------------------------------------------------|
+| `TYPE`     | Yes      | Provider type: `openai`, `anthropic`, or `copilot`    |
+| `NAME`     | No       | Unique instance name for routing. Defaults to `TYPE`  |
+| `KEY`      | No       | API key for upstream authentication (alias: `KEYS`)   |
+| `BASE_URL` | No       | Base URL of the upstream API                          |
+| `DUMP_DIR` | No       | Directory for provider API request and response dumps |
+
+> [!WARNING]
+> `DUMP_DIR` is not intended for regular use. Setting this option
+> results in a high number of writes. Dump files contain raw request and
+> response data, which may include proprietary or sensitive information
+> (prompts, completions, tool inputs). Enable only briefly for diagnostic
+> purposes and protect the target directory.
+
+For `anthropic` providers using AWS Bedrock, the following keys are also
+available: `BEDROCK_BASE_URL`, `BEDROCK_REGION`,
+`BEDROCK_ACCESS_KEY` (alias: `BEDROCK_ACCESS_KEYS`),
+`BEDROCK_ACCESS_KEY_SECRET` (alias: `BEDROCK_ACCESS_KEY_SECRETS`),
+`BEDROCK_MODEL`, `BEDROCK_SMALL_FAST_MODEL`.
+
+> [!NOTE]
+> Indices must be contiguous and start at `0`. Each instance must have a unique
+> `NAME`. If two instances of the same `TYPE` omit `NAME`, they will both
+> default to the type name and fail with a duplicate name error.
+>
+> The legacy single-provider environment variables (`CODER_AI_GATEWAY_OPENAI_KEY`,
+> `CODER_AI_GATEWAY_ANTHROPIC_KEY`, etc.) continue to work. However, setting
+> both a legacy variable and an indexed provider with the same default name
+> (e.g. `CODER_AI_GATEWAY_OPENAI_KEY` and an indexed provider named `openai`)
+> will produce a startup error. Remove one or the other to resolve the
+> conflict.
+
 ## Data Retention
 
 AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
 monitoring purposes. By default, this data is retained for **60 days**.
 
-Configure retention using `--aibridge-retention` or `CODER_AIBRIDGE_RETENTION`:
+Configure retention using `--ai-gateway-retention` or `CODER_AI_GATEWAY_RETENTION`:
 
 ```sh
-coder server --aibridge-retention=90d
+coder server --ai-gateway-retention=90d
 ```
 
 Or in YAML:
 
 ```yaml
-aibridge:
+ai_gateway:
   retention: 90d
 ```
 
@@ -129,16 +279,16 @@ For duration formats, how retention works, and best practices, see the
 AI Gateway can emit structured logs for every interception record, making it
 straightforward to export data to external SIEM or observability platforms.
 
-Enable with `--aibridge-structured-logging` or `CODER_AIBRIDGE_STRUCTURED_LOGGING`:
+Enable with `--ai-gateway-structured-logging` or `CODER_AI_GATEWAY_STRUCTURED_LOGGING`:
 
 ```sh
-coder server --aibridge-structured-logging=true
+coder server --ai-gateway-structured-logging=true
 ```
 
 Or in YAML:
 
 ```yaml
-aibridge:
+ai_gateway:
   structured_logging: true
 ```
 

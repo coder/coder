@@ -143,9 +143,9 @@ func TestResolveParameters(t *testing.T) {
 			{name: "decreasing/decrease allowed", monotonic: "decreasing", prev: "10", cur: "5"},
 			{name: "decreasing/same allowed", monotonic: "decreasing", prev: "5", cur: "5"},
 			{name: "decreasing/increase rejected", monotonic: "decreasing", prev: "5", cur: "10", expectErr: "must be equal or lower than previous value"},
-			// First build — not enforced
+			// First build, not enforced
 			{name: "increasing/first build", monotonic: "increasing", cur: "1", firstBuild: true},
-			// No previous value — not enforced
+			// No previous value, not enforced
 			{name: "increasing/no previous", monotonic: "increasing", cur: "5"},
 		}
 

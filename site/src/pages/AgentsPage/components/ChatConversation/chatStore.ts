@@ -153,6 +153,11 @@ export type ChatStoreState = {
 	retryState: RetryState | null;
 	reconnectState: ReconnectState | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+	// Hides queued IDs from the visible queue while the backend is
+	// in a transient state that would briefly include them. Used by
+	// the running-case promote, where the backend reorders the
+	// queued message to the front before auto-promoting it.
+	suppressedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
@@ -173,6 +178,16 @@ export type ChatStore = {
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
+	// Server-truthful queue snapshot, filtered through the
+	// suppression set. Use for SSE queue_update and REST hydration;
+	// optimistic writes go through setQueuedMessages so they don't
+	// lift suppression.
+	applyAuthoritativeQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	) => void;
+	suppressQueuedMessageID: (id: number) => void;
+	unsuppressQueuedMessageID: (id: number) => void;
+	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
@@ -199,6 +214,7 @@ const createInitialState = (): ChatStoreState => ({
 	retryState: null,
 	reconnectState: null,
 	queuedMessages: [],
+	suppressedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
 });
 
@@ -402,6 +418,73 @@ export const createChatStore = (): ChatStore => {
 					return current;
 				}
 				return { ...current, queuedMessages: nextQueuedMessages };
+			});
+		},
+		applyAuthoritativeQueuedMessages: (queuedMessages) => {
+			const incoming = queuedMessages ?? [];
+			setState((current) => {
+				let nextSuppressed = current.suppressedQueuedMessageIDs;
+				if (current.suppressedQueuedMessageIDs.size > 0) {
+					const incomingIDs = new Set(incoming.map((message) => message.id));
+					let copy: Set<number> | null = null;
+					for (const id of current.suppressedQueuedMessageIDs) {
+						if (!incomingIDs.has(id)) {
+							if (!copy) {
+								copy = new Set(current.suppressedQueuedMessageIDs);
+							}
+							copy.delete(id);
+						}
+					}
+					if (copy) {
+						nextSuppressed = copy;
+					}
+				}
+				const filtered =
+					nextSuppressed.size === 0
+						? incoming
+						: incoming.filter((message) => !nextSuppressed.has(message.id));
+				const sameQueue = chatQueuedMessagesEqualByID(
+					current.queuedMessages,
+					filtered,
+				);
+				const sameSuppressed =
+					nextSuppressed === current.suppressedQueuedMessageIDs;
+				if (sameQueue && sameSuppressed) {
+					return current;
+				}
+				return {
+					...current,
+					queuedMessages: sameQueue ? current.queuedMessages : filtered,
+					suppressedQueuedMessageIDs: nextSuppressed,
+				};
+			});
+		},
+		suppressQueuedMessageID: (id) => {
+			setState((current) => {
+				if (current.suppressedQueuedMessageIDs.has(id)) {
+					return current;
+				}
+				const next = new Set(current.suppressedQueuedMessageIDs);
+				next.add(id);
+				return { ...current, suppressedQueuedMessageIDs: next };
+			});
+		},
+		unsuppressQueuedMessageID: (id) => {
+			setState((current) => {
+				if (!current.suppressedQueuedMessageIDs.has(id)) {
+					return current;
+				}
+				const next = new Set(current.suppressedQueuedMessageIDs);
+				next.delete(id);
+				return { ...current, suppressedQueuedMessageIDs: next };
+			});
+		},
+		clearSuppressedQueuedMessageIDs: () => {
+			setState((current) => {
+				if (current.suppressedQueuedMessageIDs.size === 0) {
+					return current;
+				}
+				return { ...current, suppressedQueuedMessageIDs: new Set() };
 			});
 		},
 		setChatStatus: (status) => {

@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, SlidersHorizontal } from "lucide-react";
+import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -274,7 +274,7 @@ const PresetMenu: FC<PresetMenuProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline">
-					<SlidersHorizontal />
+					<SlidersHorizontalIcon />
 					Filters
 				</Button>
 			</DropdownMenuTrigger>

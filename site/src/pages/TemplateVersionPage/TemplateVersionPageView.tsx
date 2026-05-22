@@ -11,7 +11,6 @@ import {
 	PageHeaderCaption,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { Stack } from "#/components/Stack/Stack";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
@@ -71,7 +70,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 
 			{!currentFiles && !error && <Loader />}
 
-			<Stack spacing={4}>
+			<div className="flex flex-col gap-8">
 				{Boolean(error) && <ErrorAlert error={error} />}
 				{currentVersion?.message && (
 					<TemplateUpdateMessage>
@@ -117,7 +116,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 						/>
 					</>
 				)}
-			</Stack>
+			</div>
 		</Margins>
 	);
 };

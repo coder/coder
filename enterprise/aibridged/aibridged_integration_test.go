@@ -19,9 +19,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
-	aibtracing "github.com/coder/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -271,7 +271,6 @@ func TestIntegration(t *testing.T) {
 	require.Len(t, tokens, 1)
 	require.EqualValues(t, tokens[0].InputTokens, 45)
 	require.EqualValues(t, tokens[0].OutputTokens, 15)
-	require.EqualValues(t, gjson.Get(string(tokens[0].Metadata.RawMessage), "prompt_cached").Int(), 15)
 	require.EqualValues(t, 15, tokens[0].CacheReadInputTokens)
 
 	tools, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptions[0].ID)
@@ -438,13 +437,13 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	metrics := aibridge.NewMetrics(registry)
 
-	// Set up mock OpenAI server that always returns 429 Too Many Requests.
+	// Set up mock OpenAI server that always returns 503 Service Unavailable.
 	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// Disable SDK retries.
 		w.Header().Set("x-should-retry", "false")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"error":{"type":"rate_limit_error","message":"rate limited","code":"rate_limit_exceeded"}}`))
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":{"message":"Service Unavailable.","type":"cf_service_unavailable","code":503}}`))
 	}))
 	t.Cleanup(mockOpenAI.Close)
 
