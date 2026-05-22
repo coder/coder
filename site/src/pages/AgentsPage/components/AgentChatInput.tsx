@@ -546,26 +546,44 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// Radix popover wrappers are fixed-positioned, so their
 		// inset values need to be in layout-viewport coordinates.
 		// The visual viewport can be offset inside the layout
-		// viewport when the mobile keyboard is open, so only use
-		// `visualViewport.offsetTop` to clamp the available height
-		// to the visible area.
+		// viewport when the mobile keyboard is open. Treat
+		// `visualViewport.offsetTop` as a clamp only when it yields
+		// a positive height, since mobile WebKit can report mixed
+		// coordinate systems while the keyboard is settling.
 		const viewport = globalThis.visualViewport;
 		const root = document.documentElement;
+		const fixedProbe = document.createElement("div");
+		Object.assign(fixedProbe.style, {
+			position: "fixed",
+			bottom: "0",
+			left: "0",
+			width: "0",
+			height: "0",
+			pointerEvents: "none",
+			visibility: "hidden",
+		});
+		document.body.appendChild(fixedProbe);
 		const composerGap = 8;
 		const viewportPadding = 16;
+		const minimumMenuHeight = 96;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
+			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
 			const visibleViewportTop = viewport?.offsetTop ?? 0;
-			const bottom = Math.max(0, innerHeight - rect.bottom);
-			// Distance from the fixed-position layout viewport bottom
-			// to a point just above the composer's top edge.
+			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
+			// Distance from the fixed-position viewport bottom to a point
+			// just above the composer's top edge.
 			const aboveComposerBottom = Math.max(
 				0,
-				innerHeight - rect.top + composerGap,
+				fixedViewportBottom - rect.top + composerGap,
 			);
-			const aboveComposerMaxHeight = Math.max(
-				0,
+			const maxHeightCandidates = [
 				rect.top - visibleViewportTop - composerGap - viewportPadding,
+				rect.top - composerGap - viewportPadding,
+			].filter((height) => height > 0);
+			const aboveComposerMaxHeight = Math.max(
+				minimumMenuHeight,
+				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
 			);
 			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
 			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
@@ -642,6 +660,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			viewport?.removeEventListener("resize", scheduleUpdate);
 			viewport?.removeEventListener("scroll", scheduleUpdate);
 			viewport?.removeEventListener("scrollend", scheduleUpdate);
+			fixedProbe.remove();
 			root.style.removeProperty("--mobile-dropdown-bottom");
 			root.style.removeProperty("--mobile-dropdown-left");
 			root.style.removeProperty("--mobile-dropdown-width");

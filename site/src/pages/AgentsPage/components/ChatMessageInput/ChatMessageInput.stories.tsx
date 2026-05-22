@@ -284,6 +284,7 @@ const mobileDropdownProperties = [
 const MOBILE_COMPOSER_HEIGHT = 96; // matches mobile composer min-height
 const MOBILE_COMPOSER_GAP = 8;
 const MOBILE_VIEWPORT_PADDING = 16;
+const MOBILE_MINIMUM_MENU_HEIGHT = 96;
 
 const setMobileDropdownGeometry = (options?: {
 	visualViewportOffsetTop?: number;
@@ -299,18 +300,23 @@ const setMobileDropdownGeometry = (options?: {
 		"--mobile-dropdown-above-composer-bottom",
 		`${innerHeight - composerTop + MOBILE_COMPOSER_GAP}px`,
 	);
+	const maxHeightCandidates = [
+		composerTop -
+			visualViewportOffsetTop -
+			MOBILE_COMPOSER_GAP -
+			MOBILE_VIEWPORT_PADDING,
+		composerTop - MOBILE_COMPOSER_GAP - MOBILE_VIEWPORT_PADDING,
+	].filter((height) => height > 0);
+	const maxHeight = Math.max(
+		MOBILE_MINIMUM_MENU_HEIGHT,
+		maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
+	);
 	document.documentElement.style.setProperty(
 		"--mobile-dropdown-above-composer-max-height",
-		`${Math.max(
-			0,
-			composerTop -
-				visualViewportOffsetTop -
-				MOBILE_COMPOSER_GAP -
-				MOBILE_VIEWPORT_PADDING,
-		)}px`,
+		`${maxHeight}px`,
 	);
 
-	return { composerTop, visualViewportOffsetTop };
+	return { composerTop, maxHeight, visualViewportOffsetTop };
 };
 
 const clearMobileDropdownGeometry = () => {
@@ -424,6 +430,39 @@ export const MobileShiftedVisualViewport: Story = {
 			expect(rect.bottom).toBeLessThanOrEqual(
 				composerTop - MOBILE_COMPOSER_GAP,
 			);
+		} finally {
+			restoreMatchMedia();
+		}
+	},
+};
+
+// Verifies an over-large visual viewport offset does not collapse the menu.
+export const MobileOffsetTopDoesNotCollapse: Story = {
+	decorators: [MobileDecorator],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { disableSnapshot: true },
+	},
+	play: async ({ canvasElement }) => {
+		const restoreMatchMedia = mockMobileMatchMedia();
+		const { maxHeight } = setMobileDropdownGeometry({
+			visualViewportOffsetTop: innerHeight,
+		});
+
+		try {
+			await typeInEditor(canvasElement, "/");
+			const skillItem = await findVisibleText("/reviewer");
+			const wrapper = skillItem.closest(
+				"[data-radix-popper-content-wrapper]",
+			) as HTMLElement | null;
+			expect(wrapper).not.toBeNull();
+			if (!wrapper) return;
+
+			expect(maxHeight).toBeGreaterThanOrEqual(MOBILE_MINIMUM_MENU_HEIGHT);
+			expect(Number.parseFloat(getComputedStyle(wrapper).maxHeight)).toBe(
+				maxHeight,
+			);
+			expect(wrapper.getBoundingClientRect().height).toBeGreaterThan(0);
 		} finally {
 			restoreMatchMedia();
 		}
