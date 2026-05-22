@@ -6240,6 +6240,47 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
+const clearChatGoalByID = `-- name: ClearChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'cleared',
+    updated_at = NOW(),
+    cleared_at = NOW()
+WHERE
+    root_chat_id = $1::uuid
+    AND id = $2::uuid
+    AND status IN ('active', 'paused')
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+type ClearChatGoalByIDParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ID         uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) ClearChatGoalByID(ctx context.Context, arg ClearChatGoalByIDParams) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, clearChatGoalByID, arg.RootChatID, arg.ID)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
+	return i, err
+}
+
 const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
 UPDATE chat_messages
 SET provider_response_id = NULL
@@ -6251,6 +6292,59 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, clearChatMessageProviderResponseIDsByChatID, chatID)
 	return err
+}
+
+const completeChatGoalByID = `-- name: CompleteChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'complete',
+    completion_summary = $1::text,
+    completed_by_user_id = $2::uuid,
+    completed_by_agent = $3::bool,
+    updated_at = NOW(),
+    completed_at = NOW()
+WHERE
+    root_chat_id = $4::uuid
+    AND id = $5::uuid
+    AND status = 'active'
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+type CompleteChatGoalByIDParams struct {
+	CompletionSummary sql.NullString `db:"completion_summary" json:"completion_summary"`
+	CompletedByUserID uuid.NullUUID  `db:"completed_by_user_id" json:"completed_by_user_id"`
+	CompletedByAgent  bool           `db:"completed_by_agent" json:"completed_by_agent"`
+	RootChatID        uuid.UUID      `db:"root_chat_id" json:"root_chat_id"`
+	ID                uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) CompleteChatGoalByID(ctx context.Context, arg CompleteChatGoalByIDParams) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, completeChatGoalByID,
+		arg.CompletionSummary,
+		arg.CompletedByUserID,
+		arg.CompletedByAgent,
+		arg.RootChatID,
+		arg.ID,
+	)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
+	return i, err
 }
 
 const countEnabledModelsWithoutPricing = `-- name: CountEnabledModelsWithoutPricing :one
@@ -8263,6 +8357,39 @@ func (q *sqlQuerier) GetChildChatsByParentIDs(ctx context.Context, arg GetChildC
 	return items, nil
 }
 
+const getCurrentChatGoalByRootChatID = `-- name: GetCurrentChatGoalByRootChatID :one
+SELECT
+    id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+FROM
+    chat_goals
+WHERE
+    root_chat_id = $1::uuid
+    AND status IN ('active', 'paused')
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, getCurrentChatGoalByRootChatID, rootChatID)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
+	return i, err
+}
+
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
@@ -8453,6 +8580,57 @@ func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, arg GetUserGrou
 	var limit_micros int64
 	err := row.Scan(&limit_micros)
 	return limit_micros, err
+}
+
+const insertActiveChatGoal = `-- name: InsertActiveChatGoal :one
+INSERT INTO chat_goals (
+    root_chat_id,
+    created_from_chat_id,
+    objective,
+    status,
+    created_by_user_id
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    'active',
+    $4::uuid
+)
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+type InsertActiveChatGoalParams struct {
+	RootChatID        uuid.UUID     `db:"root_chat_id" json:"root_chat_id"`
+	CreatedFromChatID uuid.NullUUID `db:"created_from_chat_id" json:"created_from_chat_id"`
+	Objective         string        `db:"objective" json:"objective"`
+	CreatedByUserID   uuid.UUID     `db:"created_by_user_id" json:"created_by_user_id"`
+}
+
+func (q *sqlQuerier) InsertActiveChatGoal(ctx context.Context, arg InsertActiveChatGoalParams) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, insertActiveChatGoal,
+		arg.RootChatID,
+		arg.CreatedFromChatID,
+		arg.Objective,
+		arg.CreatedByUserID,
+	)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
+	return i, err
 }
 
 const insertChat = `-- name: InsertChat :one
@@ -8950,6 +9128,97 @@ func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListCha
 	return items, nil
 }
 
+const markCurrentChatGoalReplacedByRootChatID = `-- name: MarkCurrentChatGoalReplacedByRootChatID :many
+UPDATE
+    chat_goals
+SET
+    status = 'replaced',
+    updated_at = NOW(),
+    replaced_at = NOW()
+WHERE
+    root_chat_id = $1::uuid
+    AND status IN ('active', 'paused')
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+func (q *sqlQuerier) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]ChatGoal, error) {
+	rows, err := q.db.QueryContext(ctx, markCurrentChatGoalReplacedByRootChatID, rootChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatGoal
+	for rows.Next() {
+		var i ChatGoal
+		if err := rows.Scan(
+			&i.ID,
+			&i.RootChatID,
+			&i.CreatedFromChatID,
+			&i.Objective,
+			&i.Status,
+			&i.CompletionSummary,
+			&i.CreatedByUserID,
+			&i.CompletedByUserID,
+			&i.CompletedByAgent,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+			&i.ClearedAt,
+			&i.ReplacedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pauseChatGoalByID = `-- name: PauseChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'paused',
+    updated_at = NOW()
+WHERE
+    root_chat_id = $1::uuid
+    AND id = $2::uuid
+    AND status = 'active'
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+type PauseChatGoalByIDParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ID         uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) PauseChatGoalByID(ctx context.Context, arg PauseChatGoalByIDParams) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, pauseChatGoalByID, arg.RootChatID, arg.ID)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
+	return i, err
+}
+
 const pinChatByID = `-- name: PinChatByID :exec
 WITH target_chat AS (
     SELECT
@@ -9114,6 +9383,46 @@ func (q *sqlQuerier) ResolveUserChatSpendLimit(ctx context.Context, arg ResolveU
 	row := q.db.QueryRowContext(ctx, resolveUserChatSpendLimit, arg.UserID, arg.OrganizationID)
 	var i ResolveUserChatSpendLimitRow
 	err := row.Scan(&i.EffectiveLimitMicros, &i.LimitSource)
+	return i, err
+}
+
+const resumeChatGoalByID = `-- name: ResumeChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'active',
+    updated_at = NOW()
+WHERE
+    root_chat_id = $1::uuid
+    AND id = $2::uuid
+    AND status = 'paused'
+RETURNING id, root_chat_id, created_from_chat_id, objective, status, completion_summary, created_by_user_id, completed_by_user_id, completed_by_agent, created_at, updated_at, completed_at, cleared_at, replaced_at
+`
+
+type ResumeChatGoalByIDParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ID         uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) ResumeChatGoalByID(ctx context.Context, arg ResumeChatGoalByIDParams) (ChatGoal, error) {
+	row := q.db.QueryRowContext(ctx, resumeChatGoalByID, arg.RootChatID, arg.ID)
+	var i ChatGoal
+	err := row.Scan(
+		&i.ID,
+		&i.RootChatID,
+		&i.CreatedFromChatID,
+		&i.Objective,
+		&i.Status,
+		&i.CompletionSummary,
+		&i.CreatedByUserID,
+		&i.CompletedByUserID,
+		&i.CompletedByAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+		&i.ClearedAt,
+		&i.ReplacedAt,
+	)
 	return i, err
 }
 

@@ -16282,6 +16282,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatFileMetadata"
                     }
                 },
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                },
                 "has_unread": {
                     "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
                     "type": "boolean"
@@ -16591,6 +16594,126 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
+        },
+        "codersdk.ChatGoal": {
+            "type": "object",
+            "properties": {
+                "cleared_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_by_agent": {
+                    "type": "boolean"
+                },
+                "completed_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_from_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "objective": {
+                    "type": "string"
+                },
+                "replaced_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatGoalStatus"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatGoalMutation": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "enum": [
+                        "set",
+                        "clear",
+                        "pause",
+                        "resume",
+                        "complete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatGoalMutationAction"
+                        }
+                    ]
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "goal_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "objective": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatGoalMutationAction": {
+            "type": "string",
+            "enum": [
+                "set",
+                "clear",
+                "pause",
+                "resume",
+                "complete"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalMutationActionSet",
+                "ChatGoalMutationActionClear",
+                "ChatGoalMutationActionPause",
+                "ChatGoalMutationActionResume",
+                "ChatGoalMutationActionComplete"
+            ]
+        },
+        "codersdk.ChatGoalStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "paused",
+                "complete",
+                "cleared",
+                "replaced"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalStatusActive",
+                "ChatGoalStatusPaused",
+                "ChatGoalStatusComplete",
+                "ChatGoalStatusCleared",
+                "ChatGoalStatusReplaced"
+            ]
         },
         "codersdk.ChatGroup": {
             "type": "object",
@@ -17570,6 +17693,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "goal_mutation": {
+                    "$ref": "#/definitions/codersdk.ChatGoalMutation"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -17622,6 +17748,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
+                },
+                "goal_mutation": {
+                    "$ref": "#/definitions/codersdk.ChatGoalMutation"
                 },
                 "labels": {
                     "type": "object",

@@ -379,6 +379,21 @@ func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDeletedMCPServerIDsFromChats", reflect.TypeOf((*MockStore)(nil).CleanupDeletedMCPServerIDsFromChats), ctx)
 }
 
+// ClearChatGoalByID mocks base method.
+func (m *MockStore) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatGoalByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearChatGoalByID indicates an expected call of ClearChatGoalByID.
+func (mr *MockStoreMockRecorder) ClearChatGoalByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatGoalByID", reflect.TypeOf((*MockStore)(nil).ClearChatGoalByID), ctx, arg)
+}
+
 // ClearChatMessageProviderResponseIDsByChatID mocks base method.
 func (m *MockStore) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -391,6 +406,21 @@ func (m *MockStore) ClearChatMessageProviderResponseIDsByChatID(ctx context.Cont
 func (mr *MockStoreMockRecorder) ClearChatMessageProviderResponseIDsByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatMessageProviderResponseIDsByChatID", reflect.TypeOf((*MockStore)(nil).ClearChatMessageProviderResponseIDsByChatID), ctx, chatID)
+}
+
+// CompleteChatGoalByID mocks base method.
+func (m *MockStore) CompleteChatGoalByID(ctx context.Context, arg database.CompleteChatGoalByIDParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteChatGoalByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteChatGoalByID indicates an expected call of CompleteChatGoalByID.
+func (mr *MockStoreMockRecorder) CompleteChatGoalByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteChatGoalByID", reflect.TypeOf((*MockStore)(nil).CompleteChatGoalByID), ctx, arg)
 }
 
 // CountAIBridgeInterceptions mocks base method.
@@ -3164,6 +3194,21 @@ func (m *MockStore) GetCryptoKeysByFeature(ctx context.Context, feature database
 func (mr *MockStoreMockRecorder) GetCryptoKeysByFeature(ctx, feature any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCryptoKeysByFeature", reflect.TypeOf((*MockStore)(nil).GetCryptoKeysByFeature), ctx, feature)
+}
+
+// GetCurrentChatGoalByRootChatID mocks base method.
+func (m *MockStore) GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCurrentChatGoalByRootChatID", ctx, rootChatID)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCurrentChatGoalByRootChatID indicates an expected call of GetCurrentChatGoalByRootChatID.
+func (mr *MockStoreMockRecorder) GetCurrentChatGoalByRootChatID(ctx, rootChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentChatGoalByRootChatID", reflect.TypeOf((*MockStore)(nil).GetCurrentChatGoalByRootChatID), ctx, rootChatID)
 }
 
 // GetDBCryptKeys mocks base method.
@@ -6960,6 +7005,21 @@ func (mr *MockStoreMockRecorder) InsertAPIKey(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAPIKey", reflect.TypeOf((*MockStore)(nil).InsertAPIKey), ctx, arg)
 }
 
+// InsertActiveChatGoal mocks base method.
+func (m *MockStore) InsertActiveChatGoal(ctx context.Context, arg database.InsertActiveChatGoalParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertActiveChatGoal", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertActiveChatGoal indicates an expected call of InsertActiveChatGoal.
+func (mr *MockStoreMockRecorder) InsertActiveChatGoal(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertActiveChatGoal", reflect.TypeOf((*MockStore)(nil).InsertActiveChatGoal), ctx, arg)
+}
+
 // InsertAllUsersGroup mocks base method.
 func (m *MockStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	m.ctrl.T.Helper()
@@ -8444,6 +8504,21 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkCurrentChatGoalReplacedByRootChatID mocks base method.
+func (m *MockStore) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkCurrentChatGoalReplacedByRootChatID", ctx, rootChatID)
+	ret0, _ := ret[0].([]database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkCurrentChatGoalReplacedByRootChatID indicates an expected call of MarkCurrentChatGoalReplacedByRootChatID.
+func (mr *MockStoreMockRecorder) MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkCurrentChatGoalReplacedByRootChatID", reflect.TypeOf((*MockStore)(nil).MarkCurrentChatGoalReplacedByRootChatID), ctx, rootChatID)
+}
+
 // OIDCClaimFieldValues mocks base method.
 func (m *MockStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -8517,6 +8592,21 @@ func (m *MockStore) PaginatedOrganizationMembers(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) PaginatedOrganizationMembers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PaginatedOrganizationMembers", reflect.TypeOf((*MockStore)(nil).PaginatedOrganizationMembers), ctx, arg)
+}
+
+// PauseChatGoalByID mocks base method.
+func (m *MockStore) PauseChatGoalByID(ctx context.Context, arg database.PauseChatGoalByIDParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PauseChatGoalByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PauseChatGoalByID indicates an expected call of PauseChatGoalByID.
+func (mr *MockStoreMockRecorder) PauseChatGoalByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PauseChatGoalByID", reflect.TypeOf((*MockStore)(nil).PauseChatGoalByID), ctx, arg)
 }
 
 // PinChatByID mocks base method.
@@ -8635,6 +8725,21 @@ func (m *MockStore) ResolveUserChatSpendLimit(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) ResolveUserChatSpendLimit(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveUserChatSpendLimit", reflect.TypeOf((*MockStore)(nil).ResolveUserChatSpendLimit), ctx, arg)
+}
+
+// ResumeChatGoalByID mocks base method.
+func (m *MockStore) ResumeChatGoalByID(ctx context.Context, arg database.ResumeChatGoalByIDParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResumeChatGoalByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResumeChatGoalByID indicates an expected call of ResumeChatGoalByID.
+func (mr *MockStoreMockRecorder) ResumeChatGoalByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResumeChatGoalByID", reflect.TypeOf((*MockStore)(nil).ResumeChatGoalByID), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.

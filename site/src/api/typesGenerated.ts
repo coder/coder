@@ -1495,6 +1495,7 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
+	readonly goal?: ChatGoal;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -2057,6 +2058,70 @@ export const ChatGitWatchWorkspaceNoAgentsMessage =
  * Keep these in sync with coderd/exp_chats.go.
  */
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
+
+// From codersdk/chats.go
+/**
+ * ChatGoal is a durable objective associated with a root chat.
+ */
+export interface ChatGoal {
+	readonly id: string;
+	readonly root_chat_id: string;
+	readonly created_from_chat_id?: string;
+	readonly objective: string;
+	readonly status: ChatGoalStatus;
+	readonly completion_summary?: string;
+	readonly created_by_user_id: string;
+	readonly completed_by_user_id?: string;
+	readonly completed_by_agent: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly completed_at?: string;
+	readonly cleared_at?: string;
+	readonly replaced_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatGoalMutation requests a goal lifecycle change.
+ */
+export interface ChatGoalMutation {
+	readonly action: ChatGoalMutationAction;
+	readonly goal_id?: string;
+	readonly objective?: string;
+	readonly completion_summary?: string;
+}
+
+// From codersdk/chats.go
+export type ChatGoalMutationAction =
+	| "clear"
+	| "complete"
+	| "pause"
+	| "resume"
+	| "set";
+
+export const ChatGoalMutationActions: ChatGoalMutationAction[] = [
+	"clear",
+	"complete",
+	"pause",
+	"resume",
+	"set",
+];
+
+// From codersdk/chats.go
+export type ChatGoalStatus =
+	| "active"
+	| "cleared"
+	| "complete"
+	| "paused"
+	| "replaced";
+
+export const ChatGoalStatuses: ChatGoalStatus[] = [
+	"active",
+	"cleared",
+	"complete",
+	"paused",
+	"replaced",
+];
 
 // From codersdk/chats.go
 export interface ChatGroup extends Group {
@@ -3227,6 +3292,7 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	readonly goal_mutation?: ChatGoalMutation;
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -3288,6 +3354,7 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	readonly goal_mutation?: ChatGoalMutation;
 	/**
 	 * UnsafeDynamicTools declares client-executed tools that the
 	 * LLM can invoke. This API is highly experimental and highly

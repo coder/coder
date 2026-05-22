@@ -68,6 +68,22 @@ Experimental: this endpoint is subject to change.
         "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
+    "goal": {
+      "cleared_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "completed_by_agent": true,
+      "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+      "completion_summary": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+      "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "objective": "string",
+      "replaced_at": "2019-08-24T14:15:22Z",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "active",
+      "updated_at": "2019-08-24T14:15:22Z"
+    },
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "labels": {
@@ -216,6 +232,21 @@ Status Code **200**
 | `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» organization_id`              | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» owner_id`                     | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» goal`                          | [codersdk.ChatGoal](schemas.md#codersdkchatgoal)                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» cleared_at`                   | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» completed_at`                 | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» completed_by_agent`           | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» completed_by_user_id`         | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» completion_summary`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» created_at`                   | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» created_by_user_id`           | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» created_from_chat_id`         | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» id`                           | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» objective`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» replaced_at`                  | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» root_chat_id`                 | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» status`                       | [codersdk.ChatGoalStatus](schemas.md#codersdkchatgoalstatus)           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» updated_at`                   | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» has_unread`                    | boolean                                                                | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                                                                                 |
 | `» id`                            | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» labels`                        | object                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -292,13 +323,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                     |
-|---------------|--------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                  |
-| `kind`        | `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit`         |
-| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
-| `plan_mode`   | `plan`                                                                                                       |
-| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                           |
+| Property      | Value(s)                                                                                                                        |
+|---------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                     |
+| `status`      | `active`, `cleared`, `complete`, `completed`, `error`, `paused`, `pending`, `replaced`, `requires_action`, `running`, `waiting` |
+| `kind`        | `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit`                            |
+| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                    |
+| `plan_mode`   | `plan`                                                                                                                          |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -334,6 +365,12 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -412,6 +449,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -545,6 +598,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -829,6 +898,22 @@ Experimental: this endpoint is subject to change.
         "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
+    "goal": {
+      "cleared_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "completed_by_agent": true,
+      "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+      "completion_summary": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+      "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "objective": "string",
+      "replaced_at": "2019-08-24T14:15:22Z",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "active",
+      "updated_at": "2019-08-24T14:15:22Z"
+    },
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "labels": {
@@ -1016,6 +1101,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -1149,6 +1250,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -1417,6 +1534,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -1550,6 +1683,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -1888,6 +2037,12 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -2705,6 +2860,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -2838,6 +3009,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {

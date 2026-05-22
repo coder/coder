@@ -104,6 +104,54 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatGoalStatus represents the lifecycle state of a chat goal.
+type ChatGoalStatus string
+
+const (
+	ChatGoalStatusActive   ChatGoalStatus = "active"
+	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusComplete ChatGoalStatus = "complete"
+	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
+	ChatGoalStatusReplaced ChatGoalStatus = "replaced"
+)
+
+// ChatGoal is a durable objective associated with a root chat.
+type ChatGoal struct {
+	ID                uuid.UUID      `json:"id" format:"uuid"`
+	RootChatID        uuid.UUID      `json:"root_chat_id" format:"uuid"`
+	CreatedFromChatID *uuid.UUID     `json:"created_from_chat_id,omitempty" format:"uuid"`
+	Objective         string         `json:"objective"`
+	Status            ChatGoalStatus `json:"status"`
+	CompletionSummary *string        `json:"completion_summary,omitempty"`
+	CreatedByUserID   uuid.UUID      `json:"created_by_user_id" format:"uuid"`
+	CompletedByUserID *uuid.UUID     `json:"completed_by_user_id,omitempty" format:"uuid"`
+	CompletedByAgent  bool           `json:"completed_by_agent"`
+	CreatedAt         time.Time      `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time      `json:"updated_at" format:"date-time"`
+	CompletedAt       *time.Time     `json:"completed_at,omitempty" format:"date-time"`
+	ClearedAt         *time.Time     `json:"cleared_at,omitempty" format:"date-time"`
+	ReplacedAt        *time.Time     `json:"replaced_at,omitempty" format:"date-time"`
+}
+
+// ChatGoalMutationAction identifies a goal lifecycle mutation.
+type ChatGoalMutationAction string
+
+const (
+	ChatGoalMutationActionSet      ChatGoalMutationAction = "set"
+	ChatGoalMutationActionClear    ChatGoalMutationAction = "clear"
+	ChatGoalMutationActionPause    ChatGoalMutationAction = "pause"
+	ChatGoalMutationActionResume   ChatGoalMutationAction = "resume"
+	ChatGoalMutationActionComplete ChatGoalMutationAction = "complete"
+)
+
+// ChatGoalMutation requests a goal lifecycle change.
+type ChatGoalMutation struct {
+	Action            ChatGoalMutationAction `json:"action" enums:"set,clear,pause,resume,complete"`
+	GoalID            *uuid.UUID             `json:"goal_id,omitempty" format:"uuid"`
+	Objective         string                 `json:"objective,omitempty"`
+	CompletionSummary *string                `json:"completion_summary,omitempty"`
+}
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
@@ -123,6 +171,7 @@ type Chat struct {
 	LastError         *ChatError         `json:"last_error,omitempty"`
 	LastTurnSummary   *string            `json:"last_turn_summary"`
 	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
+	Goal              *ChatGoal          `json:"goal,omitempty"`
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
 	Archived          bool               `json:"archived"`
@@ -473,6 +522,7 @@ type CreateChatRequest struct {
 	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels         map[string]string `json:"labels,omitempty"`
+	GoalMutation   *ChatGoalMutation `json:"goal_mutation,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -527,10 +577,11 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart   `json:"content"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID      `json:"mcp_server_ids,omitempty" format:"uuid"`
+	GoalMutation  *ChatGoalMutation `json:"goal_mutation,omitempty"`
+	BusyBehavior  ChatBusyBehavior  `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`

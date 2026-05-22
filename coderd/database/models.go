@@ -1292,6 +1292,73 @@ func AllChatClientTypeValues() []ChatClientType {
 	}
 }
 
+type ChatGoalStatus string
+
+const (
+	ChatGoalStatusActive   ChatGoalStatus = "active"
+	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusComplete ChatGoalStatus = "complete"
+	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
+	ChatGoalStatusReplaced ChatGoalStatus = "replaced"
+)
+
+func (e *ChatGoalStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatGoalStatus(s)
+	case string:
+		*e = ChatGoalStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatGoalStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatGoalStatus struct {
+	ChatGoalStatus ChatGoalStatus `json:"chat_goal_status"`
+	Valid          bool           `json:"valid"` // Valid is true if ChatGoalStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatGoalStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatGoalStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatGoalStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatGoalStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatGoalStatus), nil
+}
+
+func (e ChatGoalStatus) Valid() bool {
+	switch e {
+	case ChatGoalStatusActive,
+		ChatGoalStatusPaused,
+		ChatGoalStatusComplete,
+		ChatGoalStatusCleared,
+		ChatGoalStatusReplaced:
+		return true
+	}
+	return false
+}
+
+func AllChatGoalStatusValues() []ChatGoalStatus {
+	return []ChatGoalStatus{
+		ChatGoalStatusActive,
+		ChatGoalStatusPaused,
+		ChatGoalStatusComplete,
+		ChatGoalStatusCleared,
+		ChatGoalStatusReplaced,
+	}
+}
+
 type ChatMessageRole string
 
 const (
@@ -4637,6 +4704,23 @@ type ChatFile struct {
 type ChatFileLink struct {
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 	FileID uuid.UUID `db:"file_id" json:"file_id"`
+}
+
+type ChatGoal struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	RootChatID        uuid.UUID      `db:"root_chat_id" json:"root_chat_id"`
+	CreatedFromChatID uuid.NullUUID  `db:"created_from_chat_id" json:"created_from_chat_id"`
+	Objective         string         `db:"objective" json:"objective"`
+	Status            ChatGoalStatus `db:"status" json:"status"`
+	CompletionSummary sql.NullString `db:"completion_summary" json:"completion_summary"`
+	CreatedByUserID   uuid.UUID      `db:"created_by_user_id" json:"created_by_user_id"`
+	CompletedByUserID uuid.NullUUID  `db:"completed_by_user_id" json:"completed_by_user_id"`
+	CompletedByAgent  bool           `db:"completed_by_agent" json:"completed_by_agent"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	CompletedAt       sql.NullTime   `db:"completed_at" json:"completed_at"`
+	ClearedAt         sql.NullTime   `db:"cleared_at" json:"cleared_at"`
+	ReplacedAt        sql.NullTime   `db:"replaced_at" json:"replaced_at"`
 }
 
 type ChatMessage struct {

@@ -83,7 +83,9 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	ClearChatGoalByID(ctx context.Context, arg ClearChatGoalByIDParams) (ChatGoal, error)
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
+	CompleteChatGoalByID(ctx context.Context, arg CompleteChatGoalByIDParams) (ChatGoal, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
@@ -430,6 +432,7 @@ type sqlcQuerier interface {
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
 	GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error)
+	GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (ChatGoal, error)
 	GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error)
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	GetDefaultChatModelConfig(ctx context.Context) (ChatModelConfig, error)
@@ -900,6 +903,7 @@ type sqlcQuerier interface {
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
+	InsertActiveChatGoal(ctx context.Context, arg InsertActiveChatGoalParams) (ChatGoal, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
@@ -1047,6 +1051,7 @@ type sqlcQuerier interface {
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]ChatGoal, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
@@ -1057,6 +1062,7 @@ type sqlcQuerier interface {
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
+	PauseChatGoalByID(ctx context.Context, arg PauseChatGoalByIDParams) (ChatGoal, error)
 	// Under READ COMMITTED, concurrent pin operations for the same
 	// owner may momentarily produce duplicate pin_order values because
 	// each CTE snapshot does not see the other's writes. The next
@@ -1082,6 +1088,7 @@ type sqlcQuerier interface {
 	// limit_source indicates which tier won: 'user', 'group', 'default',
 	// or 'disabled'.
 	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (ResolveUserChatSpendLimitRow, error)
+	ResumeChatGoalByID(ctx context.Context, arg ResumeChatGoalByIDParams) (ChatGoal, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct

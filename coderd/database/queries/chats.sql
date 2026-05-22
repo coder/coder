@@ -1758,6 +1758,97 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
+-- name: GetCurrentChatGoalByRootChatID :one
+SELECT
+    *
+FROM
+    chat_goals
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND status IN ('active', 'paused')
+LIMIT 1;
+
+-- name: MarkCurrentChatGoalReplacedByRootChatID :many
+UPDATE
+    chat_goals
+SET
+    status = 'replaced',
+    updated_at = NOW(),
+    replaced_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND status IN ('active', 'paused')
+RETURNING *;
+
+-- name: InsertActiveChatGoal :one
+INSERT INTO chat_goals (
+    root_chat_id,
+    created_from_chat_id,
+    objective,
+    status,
+    created_by_user_id
+) VALUES (
+    @root_chat_id::uuid,
+    sqlc.narg('created_from_chat_id')::uuid,
+    @objective::text,
+    'active',
+    @created_by_user_id::uuid
+)
+RETURNING *;
+
+-- name: PauseChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'paused',
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
+RETURNING *;
+
+-- name: ResumeChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'active',
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'paused'
+RETURNING *;
+
+-- name: ClearChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'cleared',
+    updated_at = NOW(),
+    cleared_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status IN ('active', 'paused')
+RETURNING *;
+
+-- name: CompleteChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'complete',
+    completion_summary = sqlc.narg('completion_summary')::text,
+    completed_by_user_id = sqlc.narg('completed_by_user_id')::uuid,
+    completed_by_agent = @completed_by_agent::bool,
+    updated_at = NOW(),
+    completed_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
+RETURNING *;
+
 -- name: GetChatsByChatFileID :many
 SELECT
     *

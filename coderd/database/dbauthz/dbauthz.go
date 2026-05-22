@@ -1746,6 +1746,21 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
 }
 
+func (q *querier) authorizeChatGoalRoot(ctx context.Context, action policy.Action, rootChatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, chat)
+}
+
+func (q *querier) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.ClearChatGoalByID(ctx, arg)
+}
+
 func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -1755,6 +1770,13 @@ func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Contex
 		return err
 	}
 	return q.db.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
+}
+
+func (q *querier) CompleteChatGoalByID(ctx context.Context, arg database.CompleteChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.CompleteChatGoalByID(ctx, arg)
 }
 
 func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
@@ -3270,6 +3292,13 @@ func (q *querier) GetCryptoKeysByFeature(ctx context.Context, feature database.C
 		return nil, err
 	}
 	return q.db.GetCryptoKeysByFeature(ctx, feature)
+}
+
+func (q *querier) GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionRead, rootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.GetCurrentChatGoalByRootChatID(ctx, rootChatID)
 }
 
 func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
@@ -5374,6 +5403,13 @@ func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyPar
 		q.db.InsertAPIKey)(ctx, arg)
 }
 
+func (q *querier) InsertActiveChatGoal(ctx context.Context, arg database.InsertActiveChatGoalParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.InsertActiveChatGoal(ctx, arg)
+}
+
 func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
@@ -6202,6 +6238,13 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
+func (q *querier) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, rootChatID); err != nil {
+		return nil, err
+	}
+	return q.db.MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID)
+}
+
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	resource := rbac.ResourceIdpsyncSettings
 	if args.OrganizationID != uuid.Nil {
@@ -6235,6 +6278,13 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
+}
+
+func (q *querier) PauseChatGoalByID(ctx context.Context, arg database.PauseChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.PauseChatGoalByID(ctx, arg)
 }
 
 func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
@@ -6303,6 +6353,13 @@ func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.Re
 		return database.ResolveUserChatSpendLimitRow{}, err
 	}
 	return q.db.ResolveUserChatSpendLimit(ctx, arg)
+}
+
+func (q *querier) ResumeChatGoalByID(ctx context.Context, arg database.ResumeChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.ResumeChatGoalByID(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
