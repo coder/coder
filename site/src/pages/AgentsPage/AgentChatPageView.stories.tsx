@@ -860,6 +860,57 @@ const scrollStoryDecorators: Decorator[] = [
 	),
 ];
 
+const mobileViewportMediaQuery = "(max-width: 639px)";
+
+const mobileScrollStoryDecorators: Decorator[] = [
+	(Story) => (
+		<div
+			style={{
+				width: "390px",
+				height: "600px",
+				display: "flex",
+				flexDirection: "column",
+			}}
+		>
+			<Story />
+		</div>
+	),
+];
+
+const mockMobileViewport = () => {
+	const originalMatchMedia = matchMedia;
+	const mobileMatchMedia: typeof matchMedia = (query) => {
+		if (query !== mobileViewportMediaQuery) {
+			return originalMatchMedia(query);
+		}
+
+		return {
+			matches: true,
+			media: query,
+			onchange: null,
+			addListener: () => undefined,
+			removeListener: () => undefined,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+			dispatchEvent: () => true,
+		} satisfies MediaQueryList;
+	};
+
+	Object.defineProperty(globalThis, "matchMedia", {
+		configurable: true,
+		writable: true,
+		value: mobileMatchMedia,
+	});
+
+	return () => {
+		Object.defineProperty(globalThis, "matchMedia", {
+			configurable: true,
+			writable: true,
+			value: originalMatchMedia,
+		});
+	};
+};
+
 const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 	await waitFor(() => {
 		expect(scrollContainer.scrollHeight).toBeGreaterThan(
@@ -1239,6 +1290,33 @@ export const StickyUserMessagePinsOnScroll: Story = {
 		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
 		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
 		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
+	},
+};
+
+const mobileLongChatStore = buildStoreWithMessages(buildLongConversation(120));
+
+export const MobileLongChatSkipsStickyUserMessages: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+		viewport: { defaultViewport: "iphone12" },
+	},
+	decorators: mobileScrollStoryDecorators,
+	beforeEach: mockMobileViewport,
+	render: () => <StoryAgentChatPageView store={mobileLongChatStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(mobileLongChatStore, 120);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		await waitFor(() => {
+			expect(
+				scrollContainer.querySelectorAll("[data-user-sentinel]"),
+			).toHaveLength(0);
+		});
+		expect(
+			canvas.getByText("Question 60: Can you explain concept 60 in detail?"),
+		).toBeInTheDocument();
 	},
 };
 

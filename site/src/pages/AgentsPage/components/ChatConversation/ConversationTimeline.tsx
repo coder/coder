@@ -3,6 +3,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -22,6 +23,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { isMobileViewport } from "#/utils/mobile";
 
 import {
 	ConversationItem,
@@ -68,6 +70,22 @@ const getChatMessageTextContent = (
 	}
 
 	return textContent.length > 0 ? textContent : undefined;
+};
+
+const mobileViewportMediaQuery = "(max-width: 639px)";
+
+const useIsMobileViewport = (): boolean => {
+	const [isMobile, setIsMobile] = useState(() => isMobileViewport());
+
+	useEffect(() => {
+		const mediaQuery = matchMedia(mobileViewportMediaQuery);
+		const update = () => setIsMobile(mediaQuery.matches);
+		update();
+		mediaQuery.addEventListener("change", update);
+		return () => mediaQuery.removeEventListener("change", update);
+	}, []);
+
+	return isMobile;
 };
 
 const ReasoningDisclosure = memo<{
@@ -1071,6 +1089,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
 	}) => {
+		const isMobile = useIsMobileViewport();
 		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
 		const registerSentinel = (messageId: number, el: HTMLDivElement | null) => {
 			if (el) {
@@ -1190,6 +1209,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 							if (shouldHide) {
 								return null;
 							}
+							const isAfterEditingMessage = afterEditingMessageIds.has(
+								message.id,
+							);
+							if (isMobile) {
+								return (
+									<ChatMessageItem
+										key={message.id}
+										message={message}
+										parsed={parsed}
+										onEditUserMessage={onEditUserMessage}
+										editingMessageId={editingMessageId}
+										isAfterEditingMessage={isAfterEditingMessage}
+									/>
+								);
+							}
 							return (
 								<StickyUserMessage
 									key={message.id}
@@ -1197,7 +1231,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									parsed={parsed}
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
-									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									isAfterEditingMessage={isAfterEditingMessage}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
