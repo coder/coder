@@ -2,7 +2,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
 const workspaceSkillsKey = (workspaceId: string) =>
-	["workspace-skills", workspaceId] as const;
+	["workspace", workspaceId, "skills"] as const;
 
 export const workspaceSkills = (workspaceId: string) => ({
 	queryKey: workspaceSkillsKey(workspaceId),

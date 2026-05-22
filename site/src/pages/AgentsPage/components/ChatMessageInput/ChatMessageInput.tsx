@@ -627,6 +627,11 @@ const ChatMessageInput = ({
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills =
 		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
+	const shouldQualifyPersonalSkills = Boolean(
+		workspaceId &&
+			workspaceSkillsOverride === undefined &&
+			workspaceSkillsQuery.isLoading,
+	);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const filteredPersonalSkills = filterPersonalSkills(
 		personalSkills,
@@ -649,7 +654,7 @@ const ChatMessageInput = ({
 			createSkillMenuItem(
 				"personal",
 				skill,
-				collidingSkillNames.has(skill.name),
+				shouldQualifyPersonalSkills || collidingSkillNames.has(skill.name),
 			),
 		);
 	const workspaceSkillItems: readonly SkillMenuItem[] =

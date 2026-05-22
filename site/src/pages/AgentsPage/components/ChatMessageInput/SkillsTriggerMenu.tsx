@@ -65,11 +65,8 @@ type SkillsTriggerMenuProps = {
 	onClose: () => void;
 };
 
-const skillValue = (
-	source: "personal" | "workspace",
-	skill: SkillMenuItem,
-	index: number,
-) => `${source}:${skill.name}:${index}`;
+const skillValue = (skill: SkillMenuItem, index: number) =>
+	`${skill.source}:${skill.name}:${index}`;
 
 const selectedSkillValue = (
 	personalSkills: readonly SkillMenuItem[],
@@ -81,11 +78,11 @@ const selectedSkillValue = (
 	}
 	if (selectedIndex < personalSkills.length) {
 		const skill = personalSkills[selectedIndex];
-		return skill ? skillValue("personal", skill, selectedIndex) : "";
+		return skill ? skillValue(skill, selectedIndex) : "";
 	}
 	const workspaceIndex = selectedIndex - personalSkills.length;
 	const skill = workspaceSkills[workspaceIndex];
-	return skill ? skillValue("workspace", skill, workspaceIndex) : "";
+	return skill ? skillValue(skill, workspaceIndex) : "";
 };
 
 const SkillCommandItem = ({
@@ -164,7 +161,7 @@ export const SkillsTriggerMenu = ({
 
 	const handleHighlightedValueChange = (value: string) => {
 		const personalIndex = personalSkills.findIndex(
-			(skill, index) => skillValue("personal", skill, index) === value,
+			(skill, index) => skillValue(skill, index) === value,
 		);
 		if (personalIndex >= 0) {
 			onSelectedIndexChange(personalIndex);
@@ -172,7 +169,7 @@ export const SkillsTriggerMenu = ({
 		}
 
 		const workspaceIndex = workspaceSkills.findIndex(
-			(skill, index) => skillValue("workspace", skill, index) === value,
+			(skill, index) => skillValue(skill, index) === value,
 		);
 		if (workspaceIndex >= 0) {
 			onSelectedIndexChange(personalSkills.length + workspaceIndex);
@@ -264,9 +261,9 @@ export const SkillsTriggerMenu = ({
 							<CommandGroup heading="Personal skills">
 								{personalSkills.map((skill, index) => (
 									<SkillCommandItem
-										key={skillValue("personal", skill, index)}
+										key={skillValue(skill, index)}
 										skill={skill}
-										value={skillValue("personal", skill, index)}
+										value={skillValue(skill, index)}
 										selected={index === selectedIndex}
 										onSelect={handleSelect}
 									/>
@@ -279,9 +276,9 @@ export const SkillsTriggerMenu = ({
 									const itemIndex = personalSkills.length + index;
 									return (
 										<SkillCommandItem
-											key={`workspace:${skill.name}:${index}`}
+											key={skillValue(skill, index)}
 											skill={skill}
-											value={skillValue("workspace", skill, index)}
+											value={skillValue(skill, index)}
 											selected={itemIndex === selectedIndex}
 											onSelect={handleSelect}
 										/>
