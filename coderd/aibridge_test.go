@@ -22,16 +22,12 @@ type stubTransportFactory struct {
 }
 
 type callRecord struct {
-	providerID   uuid.UUID
-	isCoderAgent bool
+	providerID uuid.UUID
+	source     aibridge.Source
 }
 
-//nolint:nilnil,revive // matches aibridge.TransportFactory contract.
-func (f *stubTransportFactory) TransportFor(providerID uuid.UUID, isCoderAgent bool) (http.RoundTripper, error) {
-	f.calls <- callRecord{providerID: providerID, isCoderAgent: isCoderAgent}
-	if !isCoderAgent {
-		return nil, nil
-	}
+func (f *stubTransportFactory) TransportFor(providerID uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
+	f.calls <- callRecord{providerID: providerID, source: source}
 	return &handlerRoundTripper{handler: f.handler}, nil
 }
 
@@ -96,14 +92,14 @@ func TestAIBridgeTransportFactory_Registration(t *testing.T) {
 	require.NotNil(t, loaded)
 
 	providerID := uuid.New()
-	rt, err := (*loaded).TransportFor(providerID, true)
+	rt, err := (*loaded).TransportFor(providerID, aibridge.SourceAgents)
 	require.NoError(t, err)
 	require.NotNil(t, rt)
 
 	select {
 	case got := <-stub.calls:
 		require.Equal(t, providerID, got.providerID)
-		require.True(t, got.isCoderAgent)
+		require.Equal(t, aibridge.SourceAgents, got.source)
 	default:
 		t.Fatal("factory was not invoked")
 	}
@@ -122,29 +118,4 @@ func TestAIBridgeTransportFactory_Registration(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, `{"bridged":true}`, string(body))
 	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
-}
-
-// External (non-coder-agent) traffic must fall through so chatd keeps calling
-// upstream directly. This is the carve-out's licensing posture: the in-memory
-// path is reserved for coder-agent traffic only.
-func TestAIBridgeTransportFactory_NonCoderAgentFallsThrough(t *testing.T) {
-	t.Parallel()
-
-	_, _, api := coderdtest.NewWithAPI(t, nil)
-
-	stub := &stubTransportFactory{
-		handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("handler must not be invoked for non-coder-agent traffic")
-		}),
-		calls: make(chan callRecord, 1),
-	}
-	var asInterface aibridge.TransportFactory = stub
-	api.AIBridgeTransportFactory.Store(&asInterface)
-
-	loaded := api.AIBridgeTransportFactory.Load()
-	require.NotNil(t, loaded)
-
-	rt, err := (*loaded).TransportFor(uuid.New(), false)
-	require.NoError(t, err)
-	require.Nil(t, rt, "external traffic must not get an in-memory transport")
 }

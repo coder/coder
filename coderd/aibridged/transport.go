@@ -26,26 +26,21 @@ type transportFactory struct {
 	handler http.Handler
 }
 
-// TransportFor returns an in-process [http.RoundTripper] for coder-agent
-// traffic, or (nil, nil) when the caller should fall through to direct
-// upstream behavior. The license carve-out only applies to coder-agent
-// traffic; external callers continue through the gated HTTP route.
-//
-//nolint:nilnil,revive // (nil, nil) is the documented "fall through" signal; isCoderAgent is the carve-out gate, not a generic control flag.
-func (f *transportFactory) TransportFor(_ uuid.UUID, isCoderAgent bool) (http.RoundTripper, error) {
+// TransportFor returns an in-process [http.RoundTripper] that dispatches
+// requests through the aibridged handler. The source is attached to the
+// request context for downstream logging; routing does not depend on it.
+func (f *transportFactory) TransportFor(_ uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
 	if f.handler == nil {
 		return nil, xerrors.New("aibridged handler not registered")
 	}
-	if !isCoderAgent {
-		return nil, nil
-	}
-	return &inMemoryRoundTripper{handler: f.handler}, nil
+	return &inMemoryRoundTripper{handler: f.handler, source: source}, nil
 }
 
 // inMemoryRoundTripper implements [http.RoundTripper] by invoking handler
 // in a goroutine and streaming its response back through an [io.Pipe].
 type inMemoryRoundTripper struct {
 	handler http.Handler
+	source  aibridge.Source
 }
 
 func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -59,8 +54,9 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	// Cloning preserves caller-supplied headers and context but lets the
 	// handler operate on its own request value without surprising the caller
-	// if it mutates Headers or stores the request.
-	served := req.Clone(req.Context())
+	// if it mutates Headers or stores the request. The Source is attached to
+	// the served context so downstream handlers can log the call site.
+	served := req.Clone(aibridge.WithSource(req.Context(), t.source))
 
 	go func() {
 		defer func() {
