@@ -69,6 +69,7 @@
 				--mobile-dropdown-above-composer-max-height,
 				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
 			) !important;
+			overflow: hidden !important;
 		}
 		.mobile-full-width-dropdown {
 			width: 100% !important;
@@ -80,6 +81,17 @@
 				--mobile-dropdown-above-composer-max-height,
 				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
 			) !important;
+			overflow: hidden !important;
+		}
+		.mobile-full-width-dropdown-above-composer
+			.mobile-full-width-dropdown-scroll-area {
+			max-height: calc(
+				var(--mobile-dropdown-above-composer-max-height, 18rem) -
+				0.5rem
+			) !important;
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
 		}
 	}
 }
