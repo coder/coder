@@ -102,14 +102,6 @@ export const parseGoalCommand = (message: string): ParsedGoalCommand | null => {
 		return makeLifecycleMutation("complete", summary);
 	}
 
-	if (normalizedArgs.startsWith("budget ")) {
-		return {
-			kind: "unsupported",
-			reason:
-				"Goal budget and turn limit commands are not supported yet. Set only the objective for now.",
-		};
-	}
-
 	return {
 		kind: "set",
 		objective: args,
