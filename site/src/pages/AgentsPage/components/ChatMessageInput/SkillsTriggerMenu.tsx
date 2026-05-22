@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -88,6 +87,17 @@ const selectedSkillValue = (
 	return skill ? skillValue(skill, workspaceIndex) : "";
 };
 
+const getEmptyMessage = (query: string, workspaceSkillsEnabled: boolean) => {
+	if (query) {
+		return workspaceSkillsEnabled
+			? "No skills match that query."
+			: "No personal skills match that query.";
+	}
+	return workspaceSkillsEnabled
+		? "No personal or workspace skills found."
+		: "No personal skills found.";
+};
+
 const SkillCommandItem = ({
 	skill,
 	value,
@@ -109,10 +119,6 @@ const SkillCommandItem = ({
 				"items-start",
 				selected && "bg-surface-secondary text-content-primary",
 			)}
-			onClick={(event) => {
-				event.preventDefault();
-				handleSelect();
-			}}
 			onSelect={handleSelect}
 		>
 			<div className="min-w-0 space-y-1">
@@ -146,23 +152,6 @@ export const SkillsTriggerMenu = ({
 	onSelect,
 	onClose,
 }: SkillsTriggerMenuProps) => {
-	const hasSelectedRef = useRef(false);
-
-	useEffect(() => {
-		if (open) {
-			hasSelectedRef.current = false;
-		}
-	}, [open]);
-
-	const handleSelect = (skill: SkillMenuItem) => {
-		if (hasSelectedRef.current) {
-			return;
-		}
-
-		hasSelectedRef.current = true;
-		onSelect(skill);
-	};
-
 	const handleHighlightedValueChange = (value: string) => {
 		const personalIndex = personalSkills.findIndex(
 			(skill, index) => skillValue(skill, index) === value,
@@ -201,16 +190,7 @@ export const SkillsTriggerMenu = ({
 		workspaceSkills,
 		selectedIndex,
 	);
-	const emptyMessage = (() => {
-		if (query) {
-			return workspaceSkillsEnabled
-				? "No skills match that query."
-				: "No personal skills match that query.";
-		}
-		return workspaceSkillsEnabled
-			? "No personal or workspace skills found."
-			: "No personal skills found.";
-	})();
+	const emptyMessage = getEmptyMessage(query, Boolean(workspaceSkillsEnabled));
 
 	return (
 		<Popover
@@ -269,7 +249,7 @@ export const SkillsTriggerMenu = ({
 										skill={skill}
 										value={skillValue(skill, index)}
 										selected={index === selectedIndex}
-										onSelect={handleSelect}
+										onSelect={onSelect}
 									/>
 								))}
 							</CommandGroup>
@@ -284,7 +264,7 @@ export const SkillsTriggerMenu = ({
 											skill={skill}
 											value={skillValue(skill, index)}
 											selected={itemIndex === selectedIndex}
-											onSelect={handleSelect}
+											onSelect={onSelect}
 										/>
 									);
 								})}

@@ -615,7 +615,6 @@ const ChatMessageInput = ({
 	const [skillsTrigger, setSkillsTrigger] =
 		useState<ActiveSkillsTrigger | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
-	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const [skillsMenuSelectedKey, setSkillsMenuSelectedKey] = useState<
 		string | null
 	>(null);
@@ -652,6 +651,14 @@ const ChatMessageInput = ({
 		!workspaceId ||
 			workspaceSkillsOverride !== undefined ||
 			(workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching),
+	);
+	const personalSkillsSettled = Boolean(
+		personalSkillsAuthoritative ||
+			(skillsQuery.isError && !skillsQuery.isFetching),
+	);
+	const workspaceSkillsSettled = Boolean(
+		workspaceSkillsAuthoritative ||
+			(workspaceSkillsQuery.isError && !workspaceSkillsQuery.isFetching),
 	);
 	const workspaceSkillsErrorMessage = (() => {
 		if (!workspaceSkillsQueryEnabled || !workspaceSkillsQuery.error) {
@@ -698,6 +705,7 @@ const ChatMessageInput = ({
 		...personalSkillItems,
 		...workspaceSkillItems,
 	];
+	const skillsSourcesSettled = personalSkillsSettled && workspaceSkillsSettled;
 	const selectedSkillIndex = (() => {
 		if (allFilteredSkills.length === 0) {
 			return -1;
@@ -710,28 +718,17 @@ const ChatMessageInput = ({
 				return selectedKeyIndex;
 			}
 		}
-		return Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
+		if (!skillsSourcesSettled) {
+			return -1;
+		}
+		return 0;
 	})();
 	const handleSkillsMenuSelectedIndexChange = (index: number) => {
-		setSkillsMenuSelectedIndex(index);
 		const selectedSkill = allFilteredSkills[index];
 		setSkillsMenuSelectedKey(
 			selectedSkill ? skillSelectionKey(selectedSkill) : null,
 		);
 	};
-
-	const selectedSkill = allFilteredSkills[selectedSkillIndex];
-	const selectedSkillKey = selectedSkill
-		? skillSelectionKey(selectedSkill)
-		: null;
-	useEffect(() => {
-		if (!skillsMenuOpen) {
-			return;
-		}
-		if (skillsMenuSelectedKey !== selectedSkillKey) {
-			setSkillsMenuSelectedKey(selectedSkillKey);
-		}
-	}, [skillsMenuOpen, skillsMenuSelectedKey, selectedSkillKey]);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -746,7 +743,6 @@ const ChatMessageInput = ({
 			return;
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
-			setSkillsMenuSelectedIndex(0);
 			setSkillsMenuSelectedKey(null);
 		}
 		setSkillsTrigger(trigger);
@@ -757,7 +753,6 @@ const ChatMessageInput = ({
 		const trigger = skillsTrigger;
 		if (!editor || !trigger) {
 			setSkillsTrigger(null);
-			setSkillsMenuSelectedIndex(0);
 			setSkillsMenuSelectedKey(null);
 			return;
 		}
@@ -796,7 +791,6 @@ const ChatMessageInput = ({
 			selection.insertText(skillTriggerText(skill));
 		});
 		setSkillsTrigger(null);
-		setSkillsMenuSelectedIndex(0);
 		setSkillsMenuSelectedKey(null);
 	};
 
