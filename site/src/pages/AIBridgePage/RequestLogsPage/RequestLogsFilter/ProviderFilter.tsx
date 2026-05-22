@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { API } from "#/api/api";
-import type { AIProvider } from "#/api/typesGenerated";
+import type { AIProviderType } from "#/api/typesGenerated";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -11,9 +11,14 @@ import {
 } from "#/components/Filter/SelectFilter";
 import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
 
-const toFilterOption = (provider: AIProvider): SelectFilterOption => ({
-	value: provider.name,
+const toOption = (provider: {
+	id: string;
+	name: string;
+	display_name: string;
+	type: AIProviderType;
+}): SelectFilterOption => ({
 	label: provider.display_name || provider.name,
+	value: provider.id,
 	startIcon: (
 		<AIBridgeProviderIcon provider={provider.type} className="size-icon-sm" />
 	),
@@ -25,22 +30,22 @@ export const useProviderFilterMenu = ({
 	enabled,
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
 	return useFilterMenu({
-		id: "provider_name",
+		id: "provider",
+		value,
+		onChange,
+		enabled,
 		getSelectedOption: async () => {
 			if (!value) {
 				return null;
 			}
 			const providers = await API.experimental.listAIProviders();
-			const match = providers.find((p) => p.name === value);
-			return match ? toFilterOption(match) : null;
+			const match = providers.find((p) => p.id === value);
+			return match ? toOption(match) : null;
 		},
 		getOptions: async () => {
 			const providers = await API.experimental.listAIProviders();
-			return providers.map(toFilterOption);
+			return providers.map(toOption);
 		},
-		value,
-		onChange,
-		enabled,
 	});
 };
 
