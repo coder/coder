@@ -53,8 +53,8 @@ endif
 	tailnet/tailnettest/coordinateemock.go \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go \
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
@@ -62,7 +62,7 @@ endif
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -956,8 +956,8 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
@@ -967,7 +967,7 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -1032,7 +1032,7 @@ gen/mark-fresh:
 		agent/agentsocket/proto/agentsocket.pb.go \
 		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/aibridged/proto/aibridged.pb.go \
+		coderd/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
 		coderd/database/unique_constraint.go \
@@ -1121,8 +1121,8 @@ codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agen
 	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
-	go generate ./enterprise/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): coderd/aibridged/client.go coderd/aibridged/pool.go
+	go generate ./coderd/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -1189,13 +1189,13 @@ agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/bounda
 		--go_opt=paths=source_relative \
 		./agent/boundarylogproxy/codec/boundary.proto
 
-enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
+coderd/aibridged/proto/aibridged.pb.go: coderd/aibridged/proto/aibridged.proto
 	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/aibridged/proto/aibridged.proto
+		./coderd/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
 		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
@@ -1293,6 +1293,7 @@ coderd/apidoc/.gen: \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
 	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
+	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	.swaggo \

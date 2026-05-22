@@ -944,7 +944,7 @@ func TestWorker(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 
-	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
+	// 3. Set up FK chain: ai_providers -> chat_model_configs -> chats.
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
 
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{

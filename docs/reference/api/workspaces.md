@@ -1817,6 +1817,56 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Workspace Agent Connection Watch
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connection-watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaces/{workspace}/agent-connection-watch`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 101 Response
+
+```json
+{
+  "agent_update": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "lifecycle": "created"
+  },
+  "build_update": {
+    "job_status": "pending",
+    "transition": "start"
+  },
+  "error": {
+    "code": 0,
+    "details": "string",
+    "message": "string",
+    "retryable": true
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema                                                                           |
+|--------|--------------------------------------------------------------------------|---------------------|----------------------------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [workspacesdk.ConnectionWatchEvent](schemas.md#workspacesdkconnectionwatchevent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace autostart schedule by ID
 
 ### Code samples
@@ -2336,8 +2386,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 ```json
 {
-  "parameter_mismatch": true,
-  "secret_mismatch": true
+  "parameter_mismatch": true
 }
 ```
 

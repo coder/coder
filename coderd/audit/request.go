@@ -137,10 +137,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AIProvider:
 		return typed.Name
 	case database.AIProviderKey:
-		// Provider keys have no user-facing name; show the parent
-		// provider's UUID so the row can be correlated back to its
-		// provider in the audit UI.
-		return typed.ProviderID.String()
+		return typed.ID.String()
 	case database.AuditableGroupAiBudget:
 		return typed.GroupName
 	case database.Chat:
@@ -152,6 +149,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	case database.UserSecret:
+		return typed.Name
+	case database.UserSkill:
 		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
@@ -229,6 +228,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSecret:
 		return typed.ID
+	case database.UserSkill:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -287,15 +288,17 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
 	case database.AIProvider:
-		return database.ResourceTypeAiProvider
+		return database.ResourceTypeAIProvider
 	case database.AIProviderKey:
-		return database.ResourceTypeAiProviderKey
+		return database.ResourceTypeAIProviderKey
 	case database.AuditableGroupAiBudget:
 		return database.ResourceTypeGroupAiBudget
 	case database.Chat:
 		return database.ResourceTypeChat
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
+	case database.UserSkill:
+		return database.ResourceTypeUserSkill
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -360,7 +363,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// AI providers are deployment-scoped, not org-scoped.
 		return false
 	case database.AIProviderKey:
-		// AI provider keys are deployment-scoped, not org-scoped.
+		// AI provider keys inherit the deployment scope of their parent
+		// provider.
 		return false
 	case database.AuditableGroupAiBudget:
 		// Group AI budgets are org-scoped through their parent group.
@@ -371,6 +375,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
+		return false
+	case database.UserSkill:
+		// User skills are global to the user across organizations.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

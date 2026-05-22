@@ -34,6 +34,7 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
@@ -141,6 +142,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 		return "add";
 	})();
 
+	const selectedProviderType =
+		selectedProviderState?.provider ?? selectedProvider;
+
 	const form = useFormik<ModelFormValues>({
 		initialValues,
 		validationSchema,
@@ -158,7 +162,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProvider,
+				selectedProviderType,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -166,8 +170,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
 
+			const selectedProviderConfigID =
+				selectedProviderState?.providerConfig?.id;
+
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(selectedProviderConfigID &&
+						selectedProviderConfigID !==
+							readOptionalString(editingModel.ai_provider_id) && {
+							provider: selectedProviderState.provider,
+							ai_provider_id: selectedProviderConfigID,
+						}),
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -198,7 +211,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 				if (!selectedProvider || !selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProvider,
+					provider: selectedProviderState.provider,
+					ai_provider_id: selectedProviderState.providerConfig.id,
 					model: trimmedModel,
 					enabled: values.enabled,
 					is_default: values.isDefault,
@@ -227,7 +241,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProvider,
+		selectedProviderType,
 		form.values.config,
 	);
 
@@ -249,7 +263,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<Select
 				value={selectedProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || isDuplicating || providerStates.length === 0}
+				disabled={
+					((isEditing || isDuplicating) && selectedProviderState !== null) ||
+					providerStates.length === 0
+				}
 			>
 				<SelectTrigger
 					id="providerSelect"
@@ -259,7 +276,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</SelectTrigger>
 				<SelectContent>
 					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
+						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
 								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
 								{ps.label}
@@ -394,7 +411,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								form={form}
 								modelField={modelField}
 								mode={mode}
-								selectedProvider={selectedProvider}
+								selectedProvider={selectedProviderType}
 								disabled={isSaving}
 							/>
 							<div className="grid gap-1.5">

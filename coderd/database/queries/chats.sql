@@ -35,10 +35,13 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chats
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
@@ -87,10 +90,13 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chats
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
@@ -287,6 +293,24 @@ SELECT *
 FROM chats_expanded
 WHERE id = @id::uuid;
 
+-- name: GetChatACLByID :one
+SELECT
+    user_acl AS users,
+    group_acl AS groups
+FROM
+    chats
+WHERE
+    id = @id::uuid;
+
+-- name: UpdateChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl = @user_acl,
+    group_acl = @group_acl
+WHERE
+    id = @id::uuid;
+
 -- name: GetChatMessageByID :one
 SELECT
     *
@@ -458,7 +482,11 @@ FROM
     chats_expanded
 WHERE
     CASE
-        WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats_expanded.owner_id = @owner_id
+        WHEN @owned_only::boolean THEN chats_expanded.owner_id = @viewer_id::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN @shared_only::boolean THEN chats_expanded.owner_id != @viewer_id::uuid
         ELSE true
     END
     AND CASE
@@ -500,6 +528,44 @@ WHERE
               AND cds.url <> ''
               AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
+        )
+        ELSE true
+    END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN sqlc.narg('has_unread')::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = sqlc.narg('has_unread')::boolean
+        ELSE true
+    END
+    -- Filter by pull request status. Unlike the diff_url filter above,
+    -- this intentionally checks only the root chat's own diff status.
+    -- Child chats share the same workspace and git branch as their
+    -- parent, so gitsync populates identical PR state on both; traversing
+    -- descendants would be redundant.
+    AND CASE
+        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY(@pull_request_statuses::text[])
         )
         ELSE true
     END
@@ -620,10 +686,13 @@ chats_expanded AS (
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
+        COALESCE(root.user_acl, inserted_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, inserted_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         inserted_chat
+    LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = inserted_chat.owner_id
 )
 SELECT *
@@ -752,10 +821,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -804,10 +876,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -854,10 +929,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -904,10 +982,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -954,10 +1035,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1003,10 +1087,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1052,10 +1139,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1103,10 +1193,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1172,10 +1265,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1278,10 +1374,13 @@ chats_expanded AS (
         acquired_chats.plan_mode,
         acquired_chats.client_type,
         acquired_chats.last_turn_summary,
+        COALESCE(root.user_acl, acquired_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, acquired_chats.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         acquired_chats
+    LEFT JOIN chats root ON root.id = COALESCE(acquired_chats.root_chat_id, acquired_chats.parent_chat_id)
     JOIN visible_users owner ON owner.id = acquired_chats.owner_id
 )
 SELECT *
@@ -1332,10 +1431,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1386,10 +1488,13 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
         updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1641,13 +1746,32 @@ chats_expanded AS (
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
+        COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, locked_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
-    FROM locked_chat
+    FROM
+        locked_chat
+    LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
 SELECT *
 FROM chats_expanded;
+
+-- name: GetChatsByChatFileID :many
+SELECT
+    *
+FROM
+    chats_expanded
+WHERE
+    id IN (
+        SELECT chat_id
+        FROM chat_file_links
+        WHERE file_id = @file_id::uuid
+    )
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
+    -- @authorize_filter
+;
 
 -- name: AcquireStaleChatDiffStatuses :many
 WITH acquired AS (
@@ -2156,7 +2280,9 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Used by dbpurge.
+-- rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+-- chats sharing the same last-activity date are archived together.
+-- Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -2174,6 +2300,7 @@ WITH to_archive AS (
     WHERE c.archived = false
       AND c.pin_order = 0
       AND c.parent_chat_id IS NULL -- roots only
+      -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
