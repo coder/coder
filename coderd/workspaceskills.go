@@ -65,7 +65,10 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	agent, err := agentselect.FindChatAgent(agents)
 	if err != nil {
 		logger.Debug(ctx, "failed to select workspace skills agent", slog.Error(err))
-		writeWorkspaceSkills(ctx, rw, nil)
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to select workspace skills agent.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 

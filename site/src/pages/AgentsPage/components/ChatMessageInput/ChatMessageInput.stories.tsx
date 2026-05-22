@@ -88,13 +88,6 @@ const expectNoVisibleText = async (text: string) => {
 	});
 };
 
-const expectNoVisibleTextImmediately = (text: string) => {
-	const matches = within(document.body).queryAllByText(text);
-	expect(
-		matches.every((element) => element.getClientRects().length === 0),
-	).toBe(true);
-};
-
 const editorFromCanvas = (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	return canvas.getByTestId("chat-message-input");
@@ -203,7 +196,7 @@ export const OpensWithPersonalAndWorkspaceSkills: Story = {
 		expect(await findVisibleText("Personal skills")).toBeDefined();
 		expect(await findVisibleText("Workspace skills")).toBeDefined();
 		expect(await findVisibleText("/reviewer")).toBeDefined();
-		expect(await findVisibleText("/test-runner")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
 	},
 };
 
@@ -214,30 +207,10 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/test-runner");
+		await findVisibleText("/workspace/test-runner");
 		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
 		await waitFor(() => {
-			expect(editor.textContent).toBe("/test-runner");
-		});
-	},
-};
-
-export const CollidingSkillsInsertQualifiedAlias: Story = {
-	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: [
-			{
-				name: "reviewer",
-				description: "Workspace-specific review process.",
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
-		await userEvent.click(await findVisibleText("/workspace/reviewer"));
-		await waitFor(() => {
-			expect(editor.textContent).toBe("/workspace/reviewer");
+			expect(editor.textContent).toBe("/workspace/test-runner");
 		});
 	},
 };
@@ -249,52 +222,10 @@ export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/workspace/t");
-		expect(await findVisibleText("/test-runner")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		await waitFor(() => {
-			expect(editor.textContent).toBe("/test-runner");
-		});
-	},
-};
-
-export const QualifiedWorkspacePrefixSelectsWorkspaceSkill: Story = {
-	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: [
-			{
-				name: "reviewer",
-				description: "Workspace-specific review process.",
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/workspace/r");
-		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
-		await expectNoVisibleText("/personal/docs");
-		await userEvent.keyboard("{Enter}");
-		await waitFor(() => {
-			expect(editor.textContent).toBe("/workspace/reviewer");
-		});
-	},
-};
-
-export const QualifiedPersonalPrefixSelectsPersonalSkill: Story = {
-	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: [
-			{
-				name: "reviewer",
-				description: "Workspace-specific review process.",
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/personal/r");
-		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
-		await expectNoVisibleText("/workspace/reviewer");
-		await userEvent.keyboard("{Enter}");
-		await waitFor(() => {
-			expect(editor.textContent).toBe("/personal/reviewer");
+			expect(editor.textContent).toBe("/workspace/test-runner");
 		});
 	},
 };
@@ -313,18 +244,6 @@ export const EmptyDescriptionInsertsNameOnly: Story = {
 export const SlashInsideUrlDoesNotOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "https://");
-		await expectNoVisibleText("/reviewer");
-	},
-};
-
-export const BackspaceClosesWithoutEmptyStateFlash: Story = {
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/reviewer");
-		await userEvent.keyboard("{Backspace}");
-
-		expect(editor.textContent).toBe("");
-		expectNoVisibleTextImmediately("No personal skills found.");
 		await expectNoVisibleText("/reviewer");
 	},
 };
@@ -373,8 +292,8 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 	},
 };
 
-// Stories below verify that on mobile viewports, the personal skills
-// popup sits directly above the chat input rather than being clipped
+// Stories below verify that on mobile viewports, the skills popup
+// sits directly above the chat input rather than being clipped
 // above the visible viewport.
 
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";

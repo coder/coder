@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -164,6 +165,40 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, skills)
 	require.NotNil(t, skills)
+}
+
+func TestGetWorkspaceSkillsChatAgentSelectionFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	client, _ := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken, func(g *proto.GraphComplete) {
+			g.Resources[0].Agents[0].Name = "alpha-coderd-chat"
+			g.Resources[0].Agents = append(g.Resources[0].Agents, &proto.Agent{
+				Id:   uuid.NewString(),
+				Name: "beta-coderd-chat",
+				Auth: &proto.Agent_Token{Token: uuid.NewString()},
+			})
+		}),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	_, err := expClient.WorkspaceSkills(ctx, workspace.ID)
+	requireWorkspaceSkillsSDKError(t, err, http.StatusBadGateway, "Failed to select workspace skills agent.", "multiple agents match the chat suffix \"-coderd-chat\": alpha-coderd-chat, beta-coderd-chat; only one agent should use this suffix")
 }
 
 type workspaceSkillsAgentProvider struct {

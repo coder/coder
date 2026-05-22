@@ -483,6 +483,9 @@ export interface ChatMessageInputRef {
 	getContentParts: () => EditorContentPart[];
 }
 
+const skillSelectionKey = (skill: SkillMenuItem): string =>
+	`${skill.source}:${skill.name}`;
+
 interface ChatMessageInputProps
 	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
 	placeholder?: string;
@@ -613,6 +616,9 @@ const ChatMessageInput = ({
 		useState<ActiveSkillsTrigger | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
+	const [skillsMenuSelectedKey, setSkillsMenuSelectedKey] = useState<
+		string | null
+	>(null);
 	const skillsMenuOpen = Boolean(skillsTrigger);
 	const personalSkillsQueryEnabled =
 		skillsMenuOpen && personalSkillsOverride === undefined;
@@ -692,10 +698,40 @@ const ChatMessageInput = ({
 		...personalSkillItems,
 		...workspaceSkillItems,
 	];
-	const selectedSkillIndex =
-		allFilteredSkills.length === 0
-			? -1
-			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
+	const selectedSkillIndex = (() => {
+		if (allFilteredSkills.length === 0) {
+			return -1;
+		}
+		if (skillsMenuSelectedKey) {
+			const selectedKeyIndex = allFilteredSkills.findIndex(
+				(skill) => skillSelectionKey(skill) === skillsMenuSelectedKey,
+			);
+			if (selectedKeyIndex >= 0) {
+				return selectedKeyIndex;
+			}
+		}
+		return Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
+	})();
+	const handleSkillsMenuSelectedIndexChange = (index: number) => {
+		setSkillsMenuSelectedIndex(index);
+		const selectedSkill = allFilteredSkills[index];
+		setSkillsMenuSelectedKey(
+			selectedSkill ? skillSelectionKey(selectedSkill) : null,
+		);
+	};
+
+	const selectedSkill = allFilteredSkills[selectedSkillIndex];
+	const selectedSkillKey = selectedSkill
+		? skillSelectionKey(selectedSkill)
+		: null;
+	useEffect(() => {
+		if (!skillsMenuOpen) {
+			return;
+		}
+		if (skillsMenuSelectedKey !== selectedSkillKey) {
+			setSkillsMenuSelectedKey(selectedSkillKey);
+		}
+	}, [skillsMenuOpen, skillsMenuSelectedKey, selectedSkillKey]);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -711,6 +747,7 @@ const ChatMessageInput = ({
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
 			setSkillsMenuSelectedIndex(0);
+			setSkillsMenuSelectedKey(null);
 		}
 		setSkillsTrigger(trigger);
 	};
@@ -721,6 +758,7 @@ const ChatMessageInput = ({
 		if (!editor || !trigger) {
 			setSkillsTrigger(null);
 			setSkillsMenuSelectedIndex(0);
+			setSkillsMenuSelectedKey(null);
 			return;
 		}
 
@@ -759,6 +797,7 @@ const ChatMessageInput = ({
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
+		setSkillsMenuSelectedKey(null);
 	};
 
 	const handleEditorReady = (editor: LexicalEditor) => {
@@ -967,7 +1006,7 @@ const ChatMessageInput = ({
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
 					selectedIndex={selectedSkillIndex}
-					onSelectedIndexChange={setSkillsMenuSelectedIndex}
+					onSelectedIndexChange={handleSkillsMenuSelectedIndexChange}
 					onTriggerChange={handleSkillsTriggerChange}
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
@@ -992,7 +1031,7 @@ const ChatMessageInput = ({
 					}
 					workspaceErrorMessage={workspaceSkillsErrorMessage}
 					selectedIndex={selectedSkillIndex}
-					onSelectedIndexChange={setSkillsMenuSelectedIndex}
+					onSelectedIndexChange={handleSkillsMenuSelectedIndexChange}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
 				/>

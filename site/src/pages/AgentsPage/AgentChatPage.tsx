@@ -718,7 +718,9 @@ const AgentChatPage: FC = () => {
 		...chat(parentChatID ?? ""),
 		enabled: Boolean(parentChatID),
 	});
-	const workspaceId = chatQuery.data?.workspace_id;
+	const chatRecord = chatQuery.data;
+	const workspaceId = chatRecord?.workspace_id;
+	const workspaceAgentId = chatRecord?.agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -799,8 +801,8 @@ const AgentChatPage: FC = () => {
 								// reads has changed. This prevents react-query
 								// from notifying subscribers and avoids a full
 								// AgentChatPage re-render on every heartbeat.
-								const prevAgent = getWorkspaceAgent(prev, undefined);
-								const nextAgent = getWorkspaceAgent(next, undefined);
+								const prevAgent = getWorkspaceAgent(prev, workspaceAgentId);
+								const nextAgent = getWorkspaceAgent(next, workspaceAgentId);
 								if (
 									prev &&
 									prev.latest_build.status === next.latest_build.status &&
@@ -833,13 +835,12 @@ const AgentChatPage: FC = () => {
 				});
 			},
 		});
-	}, [workspaceId, queryClient]);
+	}, [workspaceId, workspaceAgentId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
-	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const workspaceAgent = getWorkspaceAgent(workspace, workspaceAgentId);
 	const { proxy } = useProxy();
 
-	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
