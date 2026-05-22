@@ -463,7 +463,7 @@ export const ModelIdentifierField = ({
 				<span className="text-xs font-bold text-content-destructive">*</span>
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<InfoIcon className="h-3 w-3 text-content-secondary" />
+						<InfoIcon className="size-3 text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent side="top" className="max-w-[240px]">
 						The model identifier sent to the provider API.

@@ -311,7 +311,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							onClick={handleRefresh}
 							aria-label="Refresh"
 							disabled={!hasGitContext}
-							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+							className="size-6 text-content-secondary hover:text-content-primary"
 						>
 							<RefreshCwIcon
 								className={cn(

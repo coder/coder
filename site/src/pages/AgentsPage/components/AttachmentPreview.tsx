@@ -42,7 +42,7 @@ export const ImageThumbnail: FC<{
 		src={previewUrl}
 		alt={name}
 		className={cn(
-			"h-16 w-16 rounded-md border border-border-default object-cover",
+			"size-16 rounded-md border border-border-default object-cover",
 			className,
 		)}
 		onError={onError}
@@ -175,7 +175,7 @@ export const AttachmentPreview: FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								<div className="flex size-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}
@@ -189,13 +189,10 @@ export const AttachmentPreview: FC<{
 										);
 										onInlineText?.(file, nextContent);
 									}}
-									className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 									aria-label="Paste inline"
 								>
-									<ClipboardPasteIcon
-										aria-hidden="true"
-										className="h-3.5 w-3.5"
-									/>
+									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
 								</button>
 							)}
 							{(uploadState?.status === "pending" ||
@@ -213,7 +210,7 @@ export const AttachmentPreview: FC<{
 											role="img"
 											aria-label="Upload error"
 										>
-											<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
+											<AlertTriangleIcon className="size-5 text-content-warning" />
 										</div>
 									</TooltipTrigger>
 									<TooltipContent side="top">
@@ -226,10 +223,10 @@ export const AttachmentPreview: FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 								aria-label={`Remove ${file.name}`}
 							>
-								<XIcon aria-hidden="true" className="h-3.5 w-3.5" />
+								<XIcon aria-hidden="true" className="size-3.5" />
 							</button>
 						</div>
 					);
@@ -239,7 +236,7 @@ export const AttachmentPreview: FC<{
 				<div className="space-y-1 px-3 pb-2 text-xs text-content-warning">
 					{draftWarnings.map((warning) => (
 						<div key={warning} className="flex items-start gap-1.5">
-							<AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+							<AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" />
 							<span>{warning}</span>
 						</div>
 					))}

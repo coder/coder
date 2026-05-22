@@ -149,7 +149,7 @@ const FieldLabel: FC<{
 		{description && (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<InfoIcon className="h-3 w-3 text-content-secondary" />
+					<InfoIcon className="size-3 text-content-secondary" />
 				</TooltipTrigger>
 				<TooltipContent side="top" className="max-w-[240px]">
 					{description}
