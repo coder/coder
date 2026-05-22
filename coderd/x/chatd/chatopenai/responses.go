@@ -148,6 +148,57 @@ func ClearPreviousResponseID(providerOptions fantasy.ProviderOptions) fantasy.Pr
 	return cloned
 }
 
+// WithStoreDisabled returns provider options with store=false and
+// previous_response_id cleared. It creates an OpenAI entry for OpenAI models
+// that lack one.
+func WithStoreDisabled(
+	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
+) fantasy.ProviderOptions {
+	storeDisabled := false
+	cloned := maps.Clone(providerOptions)
+	if cloned == nil {
+		cloned = fantasy.ProviderOptions{}
+	}
+
+	entry := cloned[fantasyopenai.Name]
+	switch options := entry.(type) {
+	case *fantasyopenai.ResponsesProviderOptions:
+		optionsClone := fantasyopenai.ResponsesProviderOptions{}
+		if options != nil {
+			optionsClone = *options
+		}
+		optionsClone.Store = &storeDisabled
+		optionsClone.PreviousResponseID = nil
+		cloned[fantasyopenai.Name] = &optionsClone
+	case *fantasyopenai.ProviderOptions:
+		optionsClone := fantasyopenai.ProviderOptions{}
+		if options != nil {
+			optionsClone = *options
+		}
+		optionsClone.Store = &storeDisabled
+		cloned[fantasyopenai.Name] = &optionsClone
+	default:
+		switch {
+		case UsesResponsesOptions(model):
+			cloned[fantasyopenai.Name] = &fantasyopenai.ResponsesProviderOptions{
+				Include: EnsureResponseIncludes(nil),
+				Store:   &storeDisabled,
+			}
+		case isOpenAIModel(model):
+			cloned[fantasyopenai.Name] = &fantasyopenai.ProviderOptions{
+				Store: &storeDisabled,
+			}
+		}
+	}
+
+	return cloned
+}
+
+func isOpenAIModel(model fantasy.LanguageModel) bool {
+	return model != nil && model.Provider() == fantasyopenai.Name
+}
+
 // extractResponseID extracts the OpenAI Responses API response ID from provider
 // metadata. Returns an empty string if no OpenAI Responses metadata is present.
 func extractResponseID(metadata fantasy.ProviderMetadata) string {

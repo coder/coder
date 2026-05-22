@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +36,48 @@ func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.
 	return database.ChatMessage{
 		Role:    database.ChatMessageRole(role),
 		Content: raw,
+	}
+}
+
+func TestHasReasoningReplayState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts fantasy.ProviderOptions
+		want bool
+	}{
+		{
+			name: "NoMetadata",
+		},
+		{
+			name: "OpenAIReasoningEmptyItemID",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{},
+			},
+		},
+		{
+			name: "OpenAIReasoningItemID",
+			opts: fantasy.ProviderOptions{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{ItemID: "rs-openai"},
+			},
+			want: true,
+		},
+		{
+			name: "AnthropicSignedReasoning",
+			opts: fantasy.ProviderOptions{
+				fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{RedactedData: "redacted"},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, chatprompt.HasReasoningReplayState(tt.opts))
+		})
 	}
 }
 
@@ -74,6 +117,44 @@ func TestConvertMessagesWithFilesPreservesEmptyRedactedReasoning(t *testing.T) {
 	reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
 	require.NotNil(t, reasoningMetadata)
 	require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
+}
+
+func TestConvertMessagesWithFilesPreservesEmptyOpenAIReasoningReference(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(fantasy.ProviderMetadata{
+		fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+			ItemID: "rs-openai",
+		},
+	})
+	require.NoError(t, err)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:             codersdk.ChatMessagePartTypeReasoning,
+			ProviderMetadata: metadata,
+		},
+		codersdk.ChatMessageText("done"),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        content,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	}, nil, slogtest.Make(t, nil))
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 2)
+
+	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Empty(t, reasoning.Text)
+	reasoningMetadata := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, reasoningMetadata)
+	require.Equal(t, "rs-openai", reasoningMetadata.ItemID)
 }
 
 func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *testing.T) {

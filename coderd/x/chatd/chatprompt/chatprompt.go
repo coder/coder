@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -58,6 +59,16 @@ func safeAsToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, boo
 	}
 	type toolResultPart = fantasy.ToolResultPart
 	return fantasy.AsMessagePart[toolResultPart](part)
+}
+
+// HasReasoningReplayState reports whether provider options include hidden
+// reasoning state that must be replayed even without visible reasoning text.
+func HasReasoningReplayState(opts fantasy.ProviderOptions) bool {
+	if chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+		return true
+	}
+	metadata := fantasyopenai.GetReasoningMetadata(opts)
+	return metadata != nil && metadata.ItemID != ""
 }
 
 // FileData holds resolved file content for LLM prompt building.
@@ -1521,7 +1532,7 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" && !HasReasoningReplayState(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{

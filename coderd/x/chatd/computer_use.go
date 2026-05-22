@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -103,6 +104,20 @@ func (p *Server) resolveComputerUseModel(
 	}
 
 	return model, debugEnabled, resolvedProvider, resolvedModel, nil
+}
+
+// providerOptionsForComputerUseTurn applies provider-specific computer-use
+// request constraints. OpenAI computer-use turns must run with store=false
+// before chain-mode selection, so previous_response_id is not set.
+func providerOptionsForComputerUseTurn(
+	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
+	computerUseProvider string,
+) fantasy.ProviderOptions {
+	if chattool.DefaultComputerUseProvider(computerUseProvider) == chattool.ComputerUseProviderOpenAI {
+		return chatopenai.WithStoreDisabled(model, providerOptions)
+	}
+	return providerOptions
 }
 
 type computerUseProviderToolOptions struct {

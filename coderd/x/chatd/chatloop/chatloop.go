@@ -268,7 +268,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 				continue
 			}
 			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
-			if strings.TrimSpace(reasoning.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(reasoning.Text) == "" && !chatprompt.HasReasoningReplayState(opts) {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
@@ -1630,7 +1630,7 @@ func flushActiveState(
 	// the interruption.
 	flushedAt := dbtime.Now()
 	for _, rs := range activeReasoning {
-		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
+		if rs.text == "" && !chatprompt.HasReasoningReplayState(fantasy.ProviderOptions(rs.options)) {
 			continue
 		}
 		result.content = append(result.content, fantasy.ReasoningContent{

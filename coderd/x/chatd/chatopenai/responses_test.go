@@ -334,6 +334,114 @@ func TestClearPreviousResponseID(t *testing.T) {
 	})
 }
 
+func TestWithStoreDisabled(t *testing.T) {
+	t.Parallel()
+
+	storeEnabled := true
+	previousResponseID := "resp-123"
+	responsesOptions := &fantasyopenai.ResponsesProviderOptions{
+		Store:              &storeEnabled,
+		PreviousResponseID: &previousResponseID,
+	}
+	otherOptions := &fantasyopenai.ProviderOptions{}
+	opts := fantasy.ProviderOptions{
+		fantasyopenai.Name: responsesOptions,
+		"other":            otherOptions,
+	}
+
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4o"},
+		opts,
+	)
+
+	require.True(t, storeEnabled)
+	require.NotNil(t, responsesOptions.PreviousResponseID)
+	require.Equal(t, "resp-123", *responsesOptions.PreviousResponseID)
+	require.NotContains(t, opts, "new")
+
+	gotOtherOptions, ok := got["other"].(*fantasyopenai.ProviderOptions)
+	require.True(t, ok)
+	require.True(t, otherOptions == gotOtherOptions)
+	gotOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.NotSame(t, responsesOptions, gotOptions)
+	chattest.RequireOpenAIStoreDisabled(t, got)
+}
+
+func TestWithStoreDisabledAddsResponsesOptions(t *testing.T) {
+	t.Parallel()
+
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4o"},
+		nil,
+	)
+
+	gotOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	chattest.RequireOpenAIStoreDisabled(t, got)
+	require.Contains(t, gotOptions.Include, fantasyopenai.IncludeReasoningEncryptedContent)
+}
+
+func TestWithStoreDisabledAddsLegacyOptionsForOpenAIModel(t *testing.T) {
+	t.Parallel()
+
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyopenai.Name, model: "not-responses"},
+		nil,
+	)
+
+	gotOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, gotOptions.Store)
+	chattest.RequireOpenAIStoreDisabled(t, got)
+}
+
+func TestWithStoreDisabledReplacesUnknownOpenAIEntry(t *testing.T) {
+	t.Parallel()
+
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4o"},
+		fantasy.ProviderOptions{fantasyopenai.Name: &unknownProviderOptions{}},
+	)
+
+	_, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	chattest.RequireOpenAIStoreDisabled(t, got)
+}
+
+func TestWithStoreDisabledNonOpenAIModelWithoutOpenAIEntry(t *testing.T) {
+	t.Parallel()
+
+	otherOptions := &unknownProviderOptions{}
+	opts := fantasy.ProviderOptions{"other": otherOptions}
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: "anthropic", model: "claude-opus-4-6"},
+		opts,
+	)
+
+	require.Equal(t, opts, got)
+}
+
+func TestWithStoreDisabledHandlesLegacyOptions(t *testing.T) {
+	t.Parallel()
+
+	storeEnabled := true
+	legacyOptions := &fantasyopenai.ProviderOptions{Store: &storeEnabled}
+	opts := fantasy.ProviderOptions{fantasyopenai.Name: legacyOptions}
+
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyopenai.Name, model: "not-responses"},
+		opts,
+	)
+
+	require.True(t, storeEnabled)
+	gotOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
+	require.True(t, ok)
+	require.NotSame(t, legacyOptions, gotOptions)
+	require.NotNil(t, gotOptions.Store)
+	require.False(t, *gotOptions.Store)
+}
+
 func TestExtractResponseIDIfStoredMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -899,6 +1007,18 @@ func TestFilterPromptForChainModeUsesContributingTrailingUsers(t *testing.T) {
 	part, ok := fantasy.AsMessagePart[fantasy.TextPart](got[1].Content[0])
 	require.True(t, ok)
 	require.Equal(t, "latest user message", part.Text)
+}
+
+type unknownProviderOptions struct{}
+
+func (*unknownProviderOptions) Options() {}
+
+func (*unknownProviderOptions) MarshalJSON() ([]byte, error) {
+	return []byte(`{}`), nil
+}
+
+func (*unknownProviderOptions) UnmarshalJSON([]byte) error {
+	return nil
 }
 
 func chainModeProviderOptions(store bool) fantasy.ProviderOptions {

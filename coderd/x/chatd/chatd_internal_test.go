@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -165,6 +166,63 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
 	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
+}
+
+func TestProviderOptionsForComputerUseTurn_OpenAIDisablesStorage(t *testing.T) {
+	t.Parallel()
+
+	storeEnabled := true
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+		&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4o"},
+		&codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+				Store: &storeEnabled,
+			},
+		},
+	)
+	got := providerOptionsForComputerUseTurn(
+		&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4o"},
+		providerOptions,
+		chattool.ComputerUseProviderOpenAI,
+	)
+
+	require.True(t, storeEnabled)
+	chattest.RequireOpenAIStoreDisabled(t, got)
+}
+
+func TestProviderOptionsForComputerUseTurn_OpenAIAddsExplicitStoreFalse(t *testing.T) {
+	t.Parallel()
+
+	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderOpenAI)
+	require.True(t, ok)
+	model := &chattest.FakeModel{ProviderName: modelProvider, ModelName: modelName}
+	got := providerOptionsForComputerUseTurn(
+		model,
+		nil,
+		chattool.ComputerUseProviderOpenAI,
+	)
+
+	chattest.RequireOpenAIStoreDisabled(t, got)
+}
+
+func TestProviderOptionsForComputerUseTurn_AnthropicKeepsStorage(t *testing.T) {
+	t.Parallel()
+
+	storeEnabled := true
+	providerOptions := fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{Store: &storeEnabled},
+	}
+	got := providerOptionsForComputerUseTurn(
+		&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4o"},
+		providerOptions,
+		chattool.ComputerUseProviderAnthropic,
+	)
+
+	require.Equal(t, providerOptions, got)
+	options, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, options.Store)
+	require.True(t, *options.Store)
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {

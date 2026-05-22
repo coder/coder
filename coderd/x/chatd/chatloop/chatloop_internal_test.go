@@ -680,6 +680,41 @@ func TestStepResultToResponseMessagesPreservesEmptySignedReasoning(t *testing.T)
 	require.Equal(t, "redacted-payload", metadata.RedactedData)
 }
 
+func TestStepResultToResponseMessagesPreservesEmptyOpenAIReasoningReference(t *testing.T) {
+	t.Parallel()
+
+	result := stepResult{
+		content: []fantasy.Content{
+			fantasy.ReasoningContent{
+				ProviderMetadata: fantasy.ProviderMetadata{
+					fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+						ItemID: "rs-openai",
+					},
+				},
+			},
+			fantasy.ToolCallContent{
+				ToolCallID: "cu-openai",
+				ToolName:   "computer",
+				Input:      `{"call_id":"cu-openai","actions":[{"type":"screenshot"}]}`,
+			},
+		},
+	}
+
+	messages := result.toResponseMessages()
+
+	require.Len(t, messages, 1)
+	require.Len(t, messages[0].Content, 2)
+	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](messages[0].Content[0])
+	require.True(t, ok)
+	require.Empty(t, reasoning.Text)
+	metadata := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, metadata)
+	require.Equal(t, "rs-openai", metadata.ItemID)
+	toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](messages[0].Content[1])
+	require.True(t, ok)
+	require.Equal(t, "cu-openai", toolCall.ToolCallID)
+}
+
 func TestFlushActiveStatePreservesEmptySignedReasoning(t *testing.T) {
 	t.Parallel()
 
@@ -708,6 +743,36 @@ func TestFlushActiveStatePreservesEmptySignedReasoning(t *testing.T) {
 	metadata := fantasyanthropic.GetReasoningMetadata(fantasy.ProviderOptions(reasoning.ProviderMetadata))
 	require.NotNil(t, metadata)
 	require.Equal(t, "redacted-payload", metadata.RedactedData)
+}
+
+func TestFlushActiveStatePreservesEmptyOpenAIReasoningReference(t *testing.T) {
+	t.Parallel()
+
+	result := &stepResult{}
+	flushActiveState(
+		result,
+		map[string]string{},
+		map[string]reasoningState{
+			"openai": {
+				options: fantasy.ProviderMetadata{
+					fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+						ItemID: "rs-openai",
+					},
+				},
+			},
+			"empty": {},
+		},
+		map[string]*fantasy.ToolCallContent{},
+		map[string]string{},
+	)
+
+	require.Len(t, result.content, 1)
+	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
+	require.True(t, ok)
+	require.Empty(t, reasoning.Text)
+	metadata := fantasyopenai.GetReasoningMetadata(fantasy.ProviderOptions(reasoning.ProviderMetadata))
+	require.NotNil(t, metadata)
+	require.Equal(t, "rs-openai", metadata.ItemID)
 }
 
 // chainBrokenError is what OpenAI returns when previous_response_id

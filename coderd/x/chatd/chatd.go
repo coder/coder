@@ -7934,6 +7934,15 @@ func (p *Server) runChat(
 		model,
 		callConfig.ProviderOptions,
 	)
+	// Apply computer-use provider constraints before chain-mode selection.
+	// OpenAI computer use forces store=false, which prevents previous_response_id.
+	if isComputerUse {
+		providerOptions = providerOptionsForComputerUseTurn(
+			model,
+			providerOptions,
+			computerUseProvider,
+		)
+	}
 	// When the OpenAI Responses API has store=true, the provider
 	// retains conversation history server-side. For follow-up turns,
 	// we set previous_response_id and send only system instructions
