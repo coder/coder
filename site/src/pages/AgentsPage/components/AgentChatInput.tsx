@@ -579,19 +579,69 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				`${aboveComposerMaxHeight}px`,
 			);
 		};
-		update();
-		const ro = new ResizeObserver(update);
+		const animationFrameIDs = new Set<number>();
+		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
+		const cancelScheduledUpdates = () => {
+			for (const id of animationFrameIDs) {
+				cancelAnimationFrame(id);
+			}
+			animationFrameIDs.clear();
+			for (const id of timeoutIDs) {
+				clearTimeout(id);
+			}
+			timeoutIDs.clear();
+		};
+		const queueAnimationFrame = (callback: () => void) => {
+			const id = requestAnimationFrame(() => {
+				animationFrameIDs.delete(id);
+				callback();
+			});
+			animationFrameIDs.add(id);
+		};
+		const scheduleUpdate = () => {
+			cancelScheduledUpdates();
+			update();
+			// Mobile WebKit can finish keyboard panning after focus and
+			// input events. Re-read geometry after the viewport settles so
+			// the first slash-menu render is not stuck under the composer.
+			queueAnimationFrame(() => {
+				update();
+				queueAnimationFrame(update);
+			});
+			for (const delay of [50, 150, 300]) {
+				const id = setTimeout(() => {
+					timeoutIDs.delete(id);
+					update();
+				}, delay);
+				timeoutIDs.add(id);
+			}
+		};
+		scheduleUpdate();
+		const ro = new ResizeObserver(scheduleUpdate);
 		ro.observe(composerElement);
-		addEventListener("resize", update);
-		addEventListener("scroll", update, { passive: true });
-		viewport?.addEventListener("resize", update);
-		viewport?.addEventListener("scroll", update);
+		addEventListener("resize", scheduleUpdate);
+		addEventListener("scroll", scheduleUpdate, { passive: true });
+		addEventListener("focusin", scheduleUpdate);
+		addEventListener("focusout", scheduleUpdate);
+		composerElement.addEventListener("input", scheduleUpdate);
+		composerElement.addEventListener("keyup", scheduleUpdate);
+		document.addEventListener("selectionchange", scheduleUpdate);
+		viewport?.addEventListener("resize", scheduleUpdate);
+		viewport?.addEventListener("scroll", scheduleUpdate);
+		viewport?.addEventListener("scrollend", scheduleUpdate);
 		return () => {
 			ro.disconnect();
-			removeEventListener("resize", update);
-			removeEventListener("scroll", update);
-			viewport?.removeEventListener("resize", update);
-			viewport?.removeEventListener("scroll", update);
+			cancelScheduledUpdates();
+			removeEventListener("resize", scheduleUpdate);
+			removeEventListener("scroll", scheduleUpdate);
+			removeEventListener("focusin", scheduleUpdate);
+			removeEventListener("focusout", scheduleUpdate);
+			composerElement.removeEventListener("input", scheduleUpdate);
+			composerElement.removeEventListener("keyup", scheduleUpdate);
+			document.removeEventListener("selectionchange", scheduleUpdate);
+			viewport?.removeEventListener("resize", scheduleUpdate);
+			viewport?.removeEventListener("scroll", scheduleUpdate);
+			viewport?.removeEventListener("scrollend", scheduleUpdate);
 			root.style.removeProperty("--mobile-dropdown-bottom");
 			root.style.removeProperty("--mobile-dropdown-left");
 			root.style.removeProperty("--mobile-dropdown-width");
