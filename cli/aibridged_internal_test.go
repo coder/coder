@@ -25,13 +25,23 @@ func testLogger(t *testing.T) slog.Logger {
 	return slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 }
 
-
 func providerNames(providers []aibridge.Provider) []string {
 	names := make([]string, len(providers))
 	for i, p := range providers {
 		names[i] = p.Name()
 	}
 	return names
+}
+
+// providerKeyCount returns the number of API keys the provider's failover
+// pool holds, or 0 when no pool is configured.
+func providerKeyCount(t *testing.T, p aibridge.Provider) int {
+	t.Helper()
+	pool := p.KeyFailoverConfig(testLogger(t)).Pool
+	if pool == nil {
+		return 0
+	}
+	return len(pool.PoolState())
 }
 
 func TestBuildProvidersFromDB(t *testing.T) {
@@ -82,6 +92,7 @@ func TestBuildProvidersFromDB(t *testing.T) {
 		assert.Equal(t, aibridge.ProviderOpenAI, p.Type())
 		assert.Equal(t, "https://api.openai.com", p.BaseURL())
 		assert.Equal(t, prov.ID, p.ID())
+		assert.Equal(t, 2, providerKeyCount(t, p), "both seeded keys must be provisioned into the failover pool")
 	})
 
 	t.Run("AnthropicProviderNoKeys", func(t *testing.T) {
@@ -106,6 +117,7 @@ func TestBuildProvidersFromDB(t *testing.T) {
 		assert.Equal(t, "my-anthropic", p.Name())
 		assert.Equal(t, aibridge.ProviderAnthropic, p.Type())
 		assert.Equal(t, prov.ID, p.ID())
+		assert.Zero(t, providerKeyCount(t, p), "no keys were seeded so the failover pool must be empty")
 	})
 
 	t.Run("AnthropicProviderWithBedrock", func(t *testing.T) {
