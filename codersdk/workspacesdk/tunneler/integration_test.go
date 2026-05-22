@@ -3,6 +3,7 @@ package tunneler_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,8 @@ func TestTunneler_Integration(t *testing.T) {
 	defer testAgent.Close()
 
 	testutil.TryReceive(ctx, t, app.done)
-	require.Equal(t, app.result, "foo\n")
+	// TrimSpace removes line endings, which vary by OS and are not important to this test.
+	require.Equal(t, "foo", strings.TrimSpace(app.result))
 
 	err := tun.GracefulShutdown(ctx)
 	require.NoError(t, err)

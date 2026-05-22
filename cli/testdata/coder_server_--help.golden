@@ -157,7 +157,7 @@ AI GATEWAY OPTIONS:
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
 
-      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: false)
+      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
           Whether to start an in-memory AI Gateway instance.
 
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)

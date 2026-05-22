@@ -122,14 +122,20 @@ func seedChatDependencies(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
-		BaseUrl:   safetyNet.URL,
-		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AiProviderTypeOpenai,
+		Name:    "test-" + uuid.NewString(),
+		BaseUrl: safetyNet.URL,
+	})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{
+		ProviderID: provider.ID,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
-		IsDefault: true,
+		Provider:     "openai",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		CreatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:    uuid.NullUUID{UUID: user.ID, Valid: true},
+		IsDefault:    true,
 	})
 	return user, org, model
 }
@@ -186,21 +192,24 @@ func setOpenAIProviderBaseURL(
 ) {
 	t.Helper()
 
-	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	require.NoError(t, err)
-
-	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		ID:                         provider.ID,
-		DisplayName:                provider.DisplayName,
-		APIKey:                     provider.APIKey,
-		BaseUrl:                    baseURL,
-		CentralApiKeyEnabled:       true,
-		AllowUserApiKey:            false,
-		AllowCentralApiKeyFallback: false,
-		ApiKeyKeyID:                provider.ApiKeyKeyID,
-		Enabled:                    provider.Enabled,
-	})
-	require.NoError(t, err)
+	for _, provider := range providers {
+		if provider.Type != database.AiProviderTypeOpenai {
+			continue
+		}
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            provider.ID,
+			DisplayName:   provider.DisplayName,
+			Enabled:       provider.Enabled,
+			BaseUrl:       baseURL,
+			Settings:      provider.Settings,
+			SettingsKeyID: provider.SettingsKeyID,
+		})
+		require.NoError(t, err)
+		return
+	}
+	require.Fail(t, "openai provider not found")
 }
 
 func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {

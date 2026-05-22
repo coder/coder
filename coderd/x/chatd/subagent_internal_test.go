@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -183,13 +184,15 @@ func seedInternalChatDeps(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		Provider:     "openai",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		IsDefault:    true,
 	})
 
 	return user, org, model
@@ -213,6 +216,151 @@ func insertEnabledAnthropicProvider(
 	})
 }
 
+func insertInternalAIProvider(
+	t *testing.T,
+	db database.Store,
+	providerType database.AIProviderType,
+	apiKey string,
+	enabled bool,
+) database.AIProvider {
+	t.Helper()
+	return dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: providerType,
+	}, apiKey, func(params *database.InsertAIProviderParams) {
+		params.Enabled = enabled
+	})
+}
+
+func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UserKeyWinsWhenBYOKEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		now := time.Now()
+		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+			APIKey:       "user-api-key",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.Equal(t, "user-api-key", keys.APIKey("openai"))
+		require.Equal(t, "https://api.example.com/", keys.BaseURL("openai"))
+	})
+
+	t.Run("ProviderKeyUsedWhenBYOKDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server.allowBYOK = false
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		now := time.Now()
+		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+			APIKey:       "user-api-key",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.Equal(t, "provider-api-key", keys.APIKey("openai"))
+	})
+
+	t.Run("ProviderTypeUsesAIProvider", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		insertInternalAIProvider(t, db, database.AiProviderTypeAzure, "provider-api-key", true)
+
+		keys, err := server.resolveUserProviderAPIKeysForProviderType(ctx, user.ID, "azure")
+		require.NoError(t, err)
+		require.Equal(t, "provider-api-key", keys.APIKey("azure"))
+	})
+
+	t.Run("BedrockUsesAmbientAuth", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeBedrock, "", true)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.True(t, keys.HasProvider("bedrock"))
+		require.Empty(t, keys.APIKey("bedrock"))
+	})
+
+	t.Run("RejectsAmbiguousProviderTypeWithoutSelectedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "first-provider-api-key", true)
+		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "second-provider-api-key", true)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
+		require.ErrorContains(t, err, "multiple enabled AI providers use provider type")
+		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
+	})
+}
+
+func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := chatdTestContext(t)
+	db, ps := dbtestutil.NewDB(t)
+	user, org, _ := seedInternalChatDeps(t, db)
+	provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", false)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-4o-mini",
+		AIProviderID: uuid.NullUUID{
+			UUID:  provider.ID,
+			Valid: true,
+		},
+	})
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	model, config, keys, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat)
+	require.ErrorContains(t, err, "is disabled")
+	require.Nil(t, model)
+	require.Equal(t, database.ChatModelConfig{}, config)
+	require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
+	require.False(t, debugEnabled)
+	require.Empty(t, resolvedProvider)
+	require.Empty(t, resolvedModel)
+}
+
 func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +374,7 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 		user, _, _ := seedInternalChatDeps(t, db)
 		insertEnabledAnthropicProvider(t, db, user.ID)
 
-		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
 		require.NoError(t, err)
 		require.Equal(t, "test-anthropic-key", keys.Anthropic)
 		require.Equal(t, "test-anthropic-key", keys.APIKey("anthropic"))
@@ -244,7 +392,7 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
 
-		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
 		require.NoError(t, err)
 		require.Empty(t, keys.Anthropic)
 		require.Empty(t, keys.APIKey("anthropic"))
@@ -277,19 +425,20 @@ func insertInternalChatProvider(
 	centralAPIKeyEnabled bool,
 	allowUserAPIKey bool,
 	allowCentralAPIKeyFallback bool,
-) database.ChatProvider {
+) database.AIProvider {
 	t.Helper()
 
-	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider:    provider,
-		DisplayName: provider,
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-	}, func(p *database.InsertChatProviderParams) {
-		p.APIKey = apiKey
-		p.CentralApiKeyEnabled = centralAPIKeyEnabled
-		p.AllowUserApiKey = allowUserAPIKey
-		p.AllowCentralApiKeyFallback = allowCentralAPIKeyFallback
+	providerConfig := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderType(provider),
+		Name:        "test-" + uuid.NewString(),
+		DisplayName: sql.NullString{String: provider, Valid: true},
 	})
+	if apiKey != "" {
+		dbgen.AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID: providerConfig.ID,
+			APIKey:     apiKey,
+		})
+	}
 
 	return providerConfig
 }
@@ -1065,6 +1214,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 		func(
 			_ context.Context,
 			resolvedOwnerID uuid.UUID,
+			_ uuid.UUID,
 		) (chatprovider.ProviderAPIKeys, error) {
 			require.Equal(t, ownerID, resolvedOwnerID)
 			return chatprovider.ProviderAPIKeys{

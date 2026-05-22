@@ -38,6 +38,7 @@ type modelOverrideConfigResolver func(
 type modelOverrideProviderKeysResolver func(
 	context.Context,
 	uuid.UUID,
+	uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error)
 
 const (
@@ -75,30 +76,6 @@ type messageAgentArgs struct {
 
 type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
-}
-
-// providerConfigured reports whether a provider has an API key from
-// static configuration or from the database provider configuration.
-func (p *Server) providerConfigured(ctx context.Context, provider string) (bool, error) {
-	normalizedProvider := chatprovider.NormalizeProvider(provider)
-	if normalizedProvider == "" {
-		return false, nil
-	}
-	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
-		return true, nil
-	}
-
-	dbProviders, err := p.configCache.EnabledProviders(ctx)
-	if err != nil {
-		return false, xerrors.Errorf("list enabled chat providers: %w", err)
-	}
-	for _, prov := range dbProviders {
-		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
-			strings.TrimSpace(prov.APIKey) != "" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
@@ -177,12 +154,12 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
-	providers []database.ChatProvider,
+	providers []database.AIProvider,
 	providerName string,
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
 			return true
 		}
 	}
@@ -292,7 +269,7 @@ func (p *Server) resolveConfiguredModelOverride(
 		return database.ChatModelConfig{}, false, nil
 	}
 
-	providerKeys, err := resolveProviderKeys(ctx, ownerID)
+	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -425,7 +402,7 @@ func (p *Server) resolvePersonalModelOverride(
 		}
 		return database.ChatModelConfig{}, false, nil
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -499,6 +476,13 @@ func (p *Server) resolveSubagentModelConfigID(
 	return modelConfig.ID, nil
 }
 
+func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
+	if !modelConfig.AIProviderID.Valid {
+		return uuid.Nil
+	}
+	return modelConfig.AIProviderID.UUID
+}
+
 func (p *Server) resolveModelConfigAndNormalizedProvider(
 	ctx context.Context,
 	modelConfigID uuid.UUID,
@@ -509,6 +493,26 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
+	}
+	if !modelConfig.Enabled {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	if modelConfig.AIProviderID.Valid {
+		provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+		if err != nil {
+			return database.ChatModelConfig{}, "", err
+		}
+		if !provider.Enabled {
+			return database.ChatModelConfig{}, "", sql.ErrNoRows
+		}
+		providerName := chatprovider.NormalizeProvider(string(provider.Type))
+		if providerName == "" {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		if _, _, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName); err != nil {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		return modelConfig, providerName, nil
 	}
 	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
 	if err != nil {

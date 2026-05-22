@@ -94,6 +94,7 @@ func TestEntitlements(t *testing.T) {
 		features[codersdk.FeatureUserLimit] = 100
 		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: features,
+			Addons:   []codersdk.Addon{codersdk.AddonAIGovernance},
 			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
 		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // adding another user would put us over user limit

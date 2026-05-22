@@ -16825,7 +16825,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "parsed_commands": {
-                    "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Only populated when ToolName is \"execute\" and\nthe command parses successfully; nil otherwise.",
+                    "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Program names are normalized to their base\nname (e.g. /usr/bin/go becomes go). Only populated when ToolName\nis \"execute\" and the command parses successfully; nil otherwise.",
                     "type": "array",
                     "items": {
                         "type": "array",
@@ -18895,7 +18895,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "description": "ID identifies the request for response ordering. Websocket response\nIDs are monotonically increasing and may exceed the request ID when\nserver-side events trigger additional renders.",
+                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
                     "type": "integer"
                 },
                 "inputs": {
@@ -18927,12 +18927,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
-                    }
-                },
-                "secret_requirements": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.SecretRequirementStatus"
                     }
                 }
             }
@@ -22554,10 +22548,6 @@ const docTemplate = `{
             "properties": {
                 "parameter_mismatch": {
                     "type": "boolean"
-                },
-                "secret_mismatch": {
-                    "description": "SecretMismatch is true when the active template version declares\n` + "`" + `coder_secret` + "`" + ` requirements that the workspace owner's secrets do not\nsatisfy.",
-                    "type": "boolean"
                 }
             }
         },
@@ -22775,23 +22765,6 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "codersdk.SecretRequirementStatus": {
-            "type": "object",
-            "properties": {
-                "env": {
-                    "type": "string"
-                },
-                "file": {
-                    "type": "string"
-                },
-                "help_message": {
-                    "type": "string"
-                },
-                "satisfied": {
-                    "type": "boolean"
                 }
             }
         },
