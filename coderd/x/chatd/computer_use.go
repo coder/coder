@@ -106,9 +106,8 @@ func (p *Server) resolveComputerUseModel(
 	return model, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
-// providerOptionsForComputerUseTurn applies provider-specific computer-use
-// request constraints. OpenAI computer-use turns must run with store=false
-// before chain-mode selection, so previous_response_id is not set.
+// providerOptionsForComputerUseTurn forces store=false for OpenAI computer
+// use to prevent stateful response chaining.
 func providerOptionsForComputerUseTurn(
 	model fantasy.LanguageModel,
 	providerOptions fantasy.ProviderOptions,

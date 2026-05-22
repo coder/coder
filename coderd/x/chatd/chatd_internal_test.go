@@ -168,7 +168,7 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
 }
 
-func TestProviderOptionsForComputerUseTurn_OpenAIDisablesStorage(t *testing.T) {
+func TestProviderOptionsForComputerUseTurn_OpenAIDisablesStore(t *testing.T) {
 	t.Parallel()
 
 	storeEnabled := true
@@ -205,7 +205,7 @@ func TestProviderOptionsForComputerUseTurn_OpenAIAddsExplicitStoreFalse(t *testi
 	chattest.RequireOpenAIStoreDisabled(t, got)
 }
 
-func TestProviderOptionsForComputerUseTurn_AnthropicKeepsStorage(t *testing.T) {
+func TestProviderOptionsForComputerUseTurn_AnthropicKeepsStore(t *testing.T) {
 	t.Parallel()
 
 	storeEnabled := true

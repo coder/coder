@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -416,6 +417,19 @@ func TestWithStoreDisabledNonOpenAIModelWithoutOpenAIEntry(t *testing.T) {
 	opts := fantasy.ProviderOptions{"other": otherOptions}
 	got := chatopenai.WithStoreDisabled(
 		fakeLanguageModel{provider: "anthropic", model: "claude-opus-4-6"},
+		opts,
+	)
+
+	require.Equal(t, opts, got)
+}
+
+func TestWithStoreDisabledAzureResponsesModelWithoutOpenAIEntry(t *testing.T) {
+	t.Parallel()
+
+	otherOptions := &unknownProviderOptions{}
+	opts := fantasy.ProviderOptions{"other": otherOptions}
+	got := chatopenai.WithStoreDisabled(
+		fakeLanguageModel{provider: fantasyazure.Name, model: "gpt-4o"},
 		opts,
 	)
 

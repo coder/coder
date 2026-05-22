@@ -155,7 +155,7 @@ func WithStoreDisabled(
 	model fantasy.LanguageModel,
 	providerOptions fantasy.ProviderOptions,
 ) fantasy.ProviderOptions {
-	storeDisabled := false
+	store := false
 	cloned := maps.Clone(providerOptions)
 	if cloned == nil {
 		cloned = fantasy.ProviderOptions{}
@@ -168,7 +168,7 @@ func WithStoreDisabled(
 		if options != nil {
 			optionsClone = *options
 		}
-		optionsClone.Store = &storeDisabled
+		optionsClone.Store = &store
 		optionsClone.PreviousResponseID = nil
 		cloned[fantasyopenai.Name] = &optionsClone
 	case *fantasyopenai.ProviderOptions:
@@ -176,18 +176,18 @@ func WithStoreDisabled(
 		if options != nil {
 			optionsClone = *options
 		}
-		optionsClone.Store = &storeDisabled
+		optionsClone.Store = &store
 		cloned[fantasyopenai.Name] = &optionsClone
 	default:
 		switch {
-		case UsesResponsesOptions(model):
+		case isOpenAIModel(model) && UsesResponsesOptions(model):
 			cloned[fantasyopenai.Name] = &fantasyopenai.ResponsesProviderOptions{
 				Include: EnsureResponseIncludes(nil),
-				Store:   &storeDisabled,
+				Store:   &store,
 			}
 		case isOpenAIModel(model):
 			cloned[fantasyopenai.Name] = &fantasyopenai.ProviderOptions{
-				Store: &storeDisabled,
+				Store: &store,
 			}
 		}
 	}
