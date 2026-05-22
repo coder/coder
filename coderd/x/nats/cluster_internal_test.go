@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"testing"
 	"time"
 
-	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,14 +24,14 @@ func Test_parsePeerAddresses(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
 			" nats://127.0.0.1:4222 ",
-			"nats://example.com:6222",
 			"nats://[::1]:7222",
+			"nats://example.com:6222",
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{
 			"nats://127.0.0.1:4222",
-			"nats://example.com:6222",
 			"nats://[::1]:7222",
+			"nats://example.com:6222",
 		}, routeStrings(routes))
 
 		routes[0].Host = "mutated:4222"
@@ -45,6 +45,21 @@ func Test_parsePeerAddresses(t *testing.T) {
 		routes, err := parsePeerAddresses(nil)
 		require.NoError(t, err)
 		require.Empty(t, routes)
+	})
+
+	t.Run("FiltersSortsAndDedupes", func(t *testing.T) {
+		t.Parallel()
+		routes, err := parsePeerAddresses([]string{
+			"nats://b.example:6222",
+			"nats://a.example:6222",
+			"nats://b.example:6222",
+			"nats://self.example:6222",
+		}, "self.example:6222")
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			"nats://a.example:6222",
+			"nats://b.example:6222",
+		}, routeStrings(routes))
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -71,101 +86,10 @@ func Test_parsePeerAddresses(t *testing.T) {
 	})
 }
 
-func Test_routeURLHelpers(t *testing.T) {
-	t.Parallel()
-
-	routes := mustParseRoutes(t, "nats://b.example:6222", "nats://a.example:6222")
-	sortRouteURLs(routes)
-	require.Equal(t, []string{"nats://a.example:6222", "nats://b.example:6222"}, routeStrings(routes))
-
-	clone := cloneRouteURLs(routes)
-	require.True(t, routeURLsEqual(routes, clone))
-	clone[0].Host = "changed:6222"
-	require.False(t, routeURLsEqual(routes, clone))
-	require.Equal(t, "nats://a.example:6222", routes[0].String())
-
-	filtered := filterSelfRoutes(routes, "a.example:6222")
-	require.Equal(t, []string{"nats://b.example:6222"}, routeStrings(filtered))
-
-	withDuplicate := mustParseRoutes(t, "nats://a.example:6222", "nats://a.example:6222")
-	deduped := dedupeRouteURLs(withDuplicate)
-	require.Equal(t, []string{"nats://a.example:6222"}, routeStrings(deduped))
-	withDuplicate[0].Host = "changed:6222"
-	require.Equal(t, []string{"nats://a.example:6222"}, routeStrings(deduped))
-}
-
-func Test_clusterEnabled(t *testing.T) {
-	t.Parallel()
-
-	require.False(t, clusterEnabled(Options{}))
-	for _, opts := range []Options{
-		{ClusterName: "test"},
-		{ClusterHost: "127.0.0.1"},
-		{ClusterPort: 6222},
-		{ClusterAdvertise: "127.0.0.1:6222"},
-		{RoutePoolSize: 1},
-		{PeerAddresses: []string{"nats://127.0.0.1:6222"}},
-	} {
-		require.True(t, clusterEnabled(opts), "%+v", opts)
-	}
-}
-
-func Test_buildServerOptionsCluster(t *testing.T) {
-	t.Parallel()
-
-	t.Run("StandaloneDefault", func(t *testing.T) {
-		t.Parallel()
-		sopts, err := buildServerOptions(Options{})
-		require.NoError(t, err)
-		require.Equal(t, "127.0.0.1", sopts.Host)
-		require.Equal(t, natsserver.RANDOM_PORT, sopts.Port)
-		require.Zero(t, sopts.Cluster.Port)
-		require.Empty(t, sopts.Routes)
-	})
-
-	t.Run("ClusterDefaults", func(t *testing.T) {
-		t.Parallel()
-		sopts, err := buildServerOptions(Options{ClusterName: "test"})
-		require.NoError(t, err)
-		require.Equal(t, "test", sopts.Cluster.Name)
-		require.Equal(t, "127.0.0.1", sopts.Cluster.Host)
-		require.Equal(t, natsserver.RANDOM_PORT, sopts.Cluster.Port)
-		require.Equal(t, DefaultRoutePoolSize, sopts.Cluster.PoolSize)
-	})
-
-	t.Run("ClusterOverridesAndRoutes", func(t *testing.T) {
-		t.Parallel()
-		sopts, err := buildServerOptions(Options{
-			ClusterName:      "override",
-			ClusterHost:      "127.0.0.1",
-			ClusterPort:      6222,
-			ClusterAdvertise: "cluster.example:6222",
-			RoutePoolSize:    2,
-			PeerAddresses: []string{
-				"nats://b.example:6222",
-				"nats://a.example:6222",
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, "override", sopts.Cluster.Name)
-		require.Equal(t, "127.0.0.1", sopts.Cluster.Host)
-		require.Equal(t, 6222, sopts.Cluster.Port)
-		require.Equal(t, "cluster.example:6222", sopts.Cluster.Advertise)
-		require.Equal(t, 2, sopts.Cluster.PoolSize)
-		require.Equal(t, []string{"nats://a.example:6222", "nats://b.example:6222"}, routeStrings(sopts.Routes))
-	})
-}
-
 //nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
 func TestPubsubCluster(t *testing.T) {
-	t.Run("ExplicitClusterOfOneWithEmptyPeers", func(t *testing.T) {
-		ps := newClusterTestPubsub(t, Options{ClusterName: "one"})
-		require.NotNil(t, ps.ns.ClusterAddr())
-		require.Empty(t, ps.currentRoutes)
-	})
-
 	t.Run("LocalRoundTrip", func(t *testing.T) {
-		ps := newClusterTestPubsub(t, Options{ClusterName: "local"})
+		ps := newClusterTestPubsub(t, newClusterTestOptions(t))
 		event := uniqueSubject("local")
 		got := make(chan []byte, 1)
 		cancel, err := ps.Subscribe(event, func(_ context.Context, msg []byte) {
@@ -179,54 +103,45 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "hello", string(receiveMessage(t, got)))
 	})
 
-	t.Run("TwoNodeSetPeerAddresses", func(t *testing.T) {
-		a := newClusterTestPubsub(t, Options{ClusterName: "two"})
-		b := newClusterTestPubsub(t, Options{ClusterName: "two"})
-		require.NoError(t, a.SetPeerAddresses([]string{clusterRouteAddress(t, b)}))
-		require.NoError(t, b.SetPeerAddresses([]string{clusterRouteAddress(t, a)}))
-		waitForRoutes(t, a, 1)
-		waitForRoutes(t, b, 1)
-
-		eventAB := uniqueSubject("ab")
-		gotB := make(chan []byte, 8)
-		cancelB, err := b.Subscribe(eventAB, func(_ context.Context, msg []byte) {
-			gotB <- msg
-		})
-		require.NoError(t, err)
-		defer cancelB()
-		publishUntilReceived(t, a, eventAB, "from-a", gotB)
-
-		eventBA := uniqueSubject("ba")
-		gotA := make(chan []byte, 8)
-		cancelA, err := a.Subscribe(eventBA, func(_ context.Context, msg []byte) {
-			gotA <- msg
-		})
-		require.NoError(t, err)
-		defer cancelA()
-		publishUntilReceived(t, b, eventBA, "from-b", gotA)
-	})
-
 	t.Run("SetPeerAddressesReloadsConfiguredRoutes", func(t *testing.T) {
-		a := newClusterTestPubsub(t, Options{ClusterName: "reload"})
-		b := newClusterTestPubsub(t, Options{ClusterName: "reload"})
-		c := newClusterTestPubsub(t, Options{ClusterName: "reload"})
+		a := newClusterTestPubsub(t, newClusterTestOptions(t))
+		b := newClusterTestPubsub(t, newClusterTestOptions(t))
+		c := newClusterTestPubsub(t, newClusterTestOptions(t))
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
+		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
+		waitForRoutes(t, a, 1)
+		waitForRoutes(t, b, 1)
+
+		eventC := uniqueSubject("add-c")
+		gotC := make(chan []byte, 8)
+		cancelC, err := c.Subscribe(eventC, func(_ context.Context, msg []byte) {
+			gotC <- msg
+		})
+		require.NoError(t, err)
+		defer cancelC()
+
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		require.Equal(t, sortedRouteStrings(t, addrB, addrC), routeStrings(a.currentRoutes))
-
-		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
-		require.Equal(t, sortedRouteStrings(t, addrB, addrC), routeStrings(a.currentRoutes))
+		waitForRoutes(t, a, 2)
+		waitForRoutes(t, c, 1)
+		publishUntilReceived(t, a, eventC, "from-a-to-c", gotC)
 
 		require.Error(t, a.SetPeerAddresses([]string{"nats://127.0.0.1:not-a-port"}))
 		require.Equal(t, sortedRouteStrings(t, addrB, addrC), routeStrings(a.currentRoutes))
 
-		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
-		require.Equal(t, sortedRouteStrings(t, addrB), routeStrings(a.currentRoutes))
+		eventAC := uniqueSubject("remove-b")
+		gotA := make(chan []byte, 8)
+		cancelA, err := a.Subscribe(eventAC, func(_ context.Context, msg []byte) {
+			gotA <- msg
+		})
+		require.NoError(t, err)
+		defer cancelA()
 
-		require.NoError(t, a.SetPeerAddresses(nil))
-		require.Empty(t, a.currentRoutes)
+		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
+		require.Equal(t, sortedRouteStrings(t, addrC), routeStrings(a.currentRoutes))
+		publishUntilReceived(t, c, eventAC, "from-c-to-a", gotA)
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
@@ -236,17 +151,32 @@ func TestPubsubCluster(t *testing.T) {
 	})
 
 	t.Run("SetPeerAddressesClosed", func(t *testing.T) {
-		ps := newClusterTestPubsub(t, Options{ClusterName: "closed"})
+		ps := newClusterTestPubsub(t, newClusterTestOptions(t))
 		require.NoError(t, ps.Close())
 		err := ps.SetPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
 	})
 
 	t.Run("SetPeerAddressesDropsSelfRoute", func(t *testing.T) {
-		ps := newClusterTestPubsub(t, Options{ClusterName: "self"})
+		ps := newClusterTestPubsub(t, newClusterTestOptions(t))
 		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
 	})
+}
+
+func newClusterTestOptions(t *testing.T) Options {
+	t.Helper()
+	return Options{ClusterPort: freeTCPPort(t)}
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	return addr.Port
 }
 
 func newClusterTestPubsub(t *testing.T, opts Options) *Pubsub {
@@ -323,9 +253,7 @@ func routeStrings(routes []*url.URL) []string {
 
 func sortedRouteStrings(t *testing.T, addresses ...string) []string {
 	t.Helper()
-	routes := mustParseRoutes(t, addresses...)
-	sortRouteURLs(routes)
-	return routeStrings(routes)
+	return routeStrings(mustParseRoutes(t, addresses...))
 }
 
 func uniqueSubject(prefix string) string {

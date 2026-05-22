@@ -20,13 +20,11 @@ import (
 // DefaultMaxPending is the per-client outbound pending byte budget.
 const DefaultMaxPending int64 = 128 << 20
 
-// DefaultClusterName is the embedded NATS cluster name used when cluster
-// mode is enabled and Options.ClusterName is empty.
-const DefaultClusterName = "coder"
-
-// DefaultRoutePoolSize is the NATS route pool size used when cluster mode
-// is enabled and Options.RoutePoolSize is zero.
-const DefaultRoutePoolSize = 3
+const (
+	defaultClusterName   = "coder"
+	defaultClusterPort   = 6222
+	defaultRoutePoolSize = 3
+)
 
 var errClosed = xerrors.New("nats pubsub closed")
 
@@ -75,23 +73,16 @@ type Options struct {
 	// of its subject. Zero or negative means 1.
 	SubscribeConns int
 
-	// ClusterName is the embedded NATS cluster name. Empty means
-	// DefaultClusterName when cluster mode is enabled.
-	ClusterName string
-
 	// ClusterHost is the embedded NATS route listener host. Empty means
 	// 127.0.0.1 when cluster mode is enabled.
 	ClusterHost string
 
-	// ClusterPort is the embedded NATS route listener port. Zero means a
-	// random port when cluster mode is enabled.
+	// ClusterPort is the embedded NATS route listener port. Zero means
+	// 6222 when cluster mode is enabled.
 	ClusterPort int
 
-	// ClusterAdvertise is the host:port advertised to cluster peers.
-	ClusterAdvertise string
-
-	// RoutePoolSize is the NATS route pool size. Zero means
-	// DefaultRoutePoolSize when cluster mode is enabled.
+	// RoutePoolSize is the NATS route pool size. Zero means the package
+	// default when cluster mode is enabled.
 	RoutePoolSize int
 
 	// PeerAddresses are the initial nats://host:port cluster routes.

@@ -2,8 +2,6 @@ package nats
 
 import (
 	"context"
-	"net"
-	"strconv"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -41,41 +39,29 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	sopts.Port = natsserver.RANDOM_PORT
 
 	if clusterEnabled(opts) {
-		clusterName := opts.ClusterName
-		if clusterName == "" {
-			clusterName = DefaultClusterName
-		}
 		clusterHost := opts.ClusterHost
 		if clusterHost == "" {
 			clusterHost = "127.0.0.1"
 		}
 		clusterPort := opts.ClusterPort
 		if clusterPort == 0 {
-			clusterPort = natsserver.RANDOM_PORT
+			clusterPort = defaultClusterPort
 		}
 		routePoolSize := opts.RoutePoolSize
 		if routePoolSize == 0 {
-			routePoolSize = DefaultRoutePoolSize
+			routePoolSize = defaultRoutePoolSize
 		}
 
-		routes, err := parsePeerAddresses(opts.PeerAddresses)
+		routes, err := parsePeerAddresses(opts.PeerAddresses, effectiveClusterAddress(clusterHost, clusterPort))
 		if err != nil {
 			return nil, err
 		}
-		selfAddresses := []string{opts.ClusterAdvertise}
-		if clusterPort > 0 {
-			selfAddresses = append(selfAddresses, net.JoinHostPort(clusterHost, strconv.Itoa(clusterPort)))
-		}
-		routes = filterSelfRoutes(routes, selfAddresses...)
-		sortRouteURLs(routes)
-		routes = dedupeRouteURLs(routes)
 
 		sopts.Cluster = natsserver.ClusterOpts{
-			Name:      clusterName,
-			Host:      clusterHost,
-			Port:      clusterPort,
-			Advertise: opts.ClusterAdvertise,
-			PoolSize:  routePoolSize,
+			Name:     defaultClusterName,
+			Host:     clusterHost,
+			Port:     clusterPort,
+			PoolSize: routePoolSize,
 		}
 		sopts.Routes = routes
 	}

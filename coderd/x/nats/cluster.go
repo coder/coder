@@ -11,16 +11,15 @@ import (
 )
 
 func clusterEnabled(opts Options) bool {
-	return opts.ClusterName != "" ||
-		opts.ClusterHost != "" ||
+	return opts.ClusterHost != "" ||
 		opts.ClusterPort != 0 ||
-		opts.ClusterAdvertise != "" ||
 		opts.RoutePoolSize != 0 ||
 		len(opts.PeerAddresses) > 0
 }
 
-func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
-	routes := make([]*url.URL, 0, len(addresses))
+func parsePeerAddresses(addresses []string, selfAddresses ...string) ([]*url.URL, error) {
+	self := normalizedAddresses(selfAddresses...)
+	routesByAddress := make(map[string]*url.URL, len(addresses))
 	for i, address := range addresses {
 		trimmed := strings.TrimSpace(address)
 		if trimmed == "" {
@@ -50,41 +49,54 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 			return nil, xerrors.Errorf("peer address %q must include a valid port", address)
 		}
 
-		normalized := &url.URL{
-			Scheme: "nats",
-			Host:   net.JoinHostPort(host, strconv.Itoa(portNumber)),
+		normalizedHost := net.JoinHostPort(host, strconv.Itoa(portNumber))
+		if _, ok := self[normalizedHost]; ok {
+			continue
 		}
-		routes = append(routes, normalized)
+		routesByAddress[normalizedHost] = &url.URL{
+			Scheme: "nats",
+			Host:   normalizedHost,
+		}
 	}
-	return routes, nil
-}
 
-func sortRouteURLs(routes []*url.URL) {
+	routes := make([]*url.URL, 0, len(routesByAddress))
+	for _, route := range routesByAddress {
+		routes = append(routes, route)
+	}
 	slices.SortFunc(routes, func(a, b *url.URL) int {
 		return strings.Compare(routeURLString(a), routeURLString(b))
 	})
+	return routes, nil
 }
 
-func dedupeRouteURLs(routes []*url.URL) []*url.URL {
-	if len(routes) < 2 {
-		return cloneRouteURLs(routes)
+func effectiveClusterAddress(host string, port int) string {
+	if host == "" || port <= 0 {
+		return ""
 	}
-	deduped := make([]*url.URL, 0, len(routes))
-	var previous string
-	for _, route := range routes {
-		current := routeURLString(route)
-		if current == previous {
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
+func normalizedAddresses(addresses ...string) map[string]struct{} {
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string]struct{}, len(addresses))
+	for _, address := range addresses {
+		if address == "" {
 			continue
 		}
-		previous = current
-		if route == nil {
-			deduped = append(deduped, nil)
+		host, port, err := net.SplitHostPort(address)
+		if err != nil || host == "" || port == "" {
 			continue
 		}
-		clone := *route
-		deduped = append(deduped, &clone)
+		portNumber, err := strconv.Atoi(port)
+		if err != nil || portNumber <= 0 || portNumber > 65535 {
+			continue
+		}
+		normalized[net.JoinHostPort(host, strconv.Itoa(portNumber))] = struct{}{}
 	}
-	return deduped
+	return normalized
 }
 
 func routeURLsEqual(a, b []*url.URL) bool {
@@ -121,74 +133,31 @@ func routeURLString(route *url.URL) string {
 	return route.String()
 }
 
-func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) []*url.URL {
-	if len(routes) == 0 || len(selfAddresses) == 0 {
-		return cloneRouteURLs(routes)
-	}
-
-	self := make(map[string]struct{}, len(selfAddresses))
-	for _, address := range selfAddresses {
-		if address == "" {
-			continue
-		}
-		host, port, err := net.SplitHostPort(address)
-		if err != nil || host == "" || port == "" {
-			continue
-		}
-		self[net.JoinHostPort(host, port)] = struct{}{}
-	}
-	if len(self) == 0 {
-		return cloneRouteURLs(routes)
-	}
-
-	filtered := make([]*url.URL, 0, len(routes))
-	for _, route := range routes {
-		if route == nil {
-			continue
-		}
-		if _, ok := self[route.Host]; ok {
-			continue
-		}
-		clone := *route
-		filtered = append(filtered, &clone)
-	}
-	return filtered
-}
-
 // SetPeerAddresses replaces the configured NATS cluster peer routes.
 func (p *Pubsub) SetPeerAddresses(addresses []string) error {
-	if p.ctx.Err() != nil {
-		return errClosed
-	}
-	if !p.clustered {
-		return xerrors.New("nats pubsub was not started with clustering enabled")
-	}
-
-	routes, err := parsePeerAddresses(addresses)
-	if err != nil {
-		return err
-	}
-	selfAddresses := []string{p.opts.ClusterAdvertise}
-	if p.ns != nil {
-		if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
-			selfAddresses = append(selfAddresses, clusterAddr.String())
-		}
-	}
-	routes = filterSelfRoutes(routes, selfAddresses...)
-	sortRouteURLs(routes)
-	routes = dedupeRouteURLs(routes)
-
 	p.clusterMu.Lock()
 	defer p.clusterMu.Unlock()
 
 	if p.ctx.Err() != nil {
 		return errClosed
 	}
-	if routeURLsEqual(p.currentRoutes, routes) {
-		return nil
+	if !p.clustered {
+		return xerrors.New("nats pubsub was not started with clustering enabled")
 	}
 	if p.serverOpts == nil || p.ns == nil {
 		return errClosed
+	}
+
+	selfAddresses := []string{effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port)}
+	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
+		selfAddresses = append(selfAddresses, clusterAddr.String())
+	}
+	routes, err := parsePeerAddresses(addresses, selfAddresses...)
+	if err != nil {
+		return err
+	}
+	if routeURLsEqual(p.currentRoutes, routes) {
+		return nil
 	}
 
 	newOpts := p.serverOpts.Clone()
