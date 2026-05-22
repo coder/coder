@@ -102,9 +102,7 @@ const frontmatterStringField = (
 	return value.replace(/[\r\n]+$/, "");
 };
 
-// This parser is only for projecting SKILL.md content into form fields.
-// The API reparses and validates saved content on submit, so this uses YAML
-// frontmatter semantics to match the backend parser.
+// The API re-validates on submit; this only projects content into form fields.
 export const parsePersonalSkillMarkdown = (
 	content: string,
 ): PersonalSkillFormValues => {
@@ -186,7 +184,7 @@ export const buildPersonalSkillMarkdown = (
 	const name = frontmatterLineValue(values.name);
 	const description = frontmatterLineValue(values.description);
 	const body = values.body.trim();
-	const frontmatter = ["---", `name: ${name}`];
+	const frontmatter = ["---", `name: ${frontmatterStringValue(name)}`];
 	if (description) {
 		frontmatter.push(`description: ${frontmatterStringValue(description)}`);
 	}

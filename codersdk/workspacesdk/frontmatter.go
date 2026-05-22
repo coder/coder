@@ -76,7 +76,7 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 
 	name, ok, err := frontmatterStringField(frontmatter, "name")
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", xerrors.Errorf("%w: %v", ErrFrontmatterNameRequired, err)
 	}
 	if !ok || name == "" {
 		return "", "", "", xerrors.Errorf("%w", ErrFrontmatterNameRequired)

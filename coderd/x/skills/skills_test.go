@@ -94,6 +94,16 @@ func TestParsePersonalSkillMarkdown(t *testing.T) {
 		require.ErrorContains(t, err, "frontmatter must contain a 'name' field")
 	})
 
+	t.Run("NonStringName", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(
+			"---\nname: null\n---\nBody.\n",
+		))
+
+		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
+	})
+
 	t.Run("NonKebabCaseName", func(t *testing.T) {
 		t.Parallel()
 

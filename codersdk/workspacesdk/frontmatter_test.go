@@ -178,6 +178,7 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
 			"---\nname: null\n---\nBody\n",
 		)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
 		require.ErrorContains(t, err, `frontmatter field "name" must be a string`)
 	})
 

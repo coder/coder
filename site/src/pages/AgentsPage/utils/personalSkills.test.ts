@@ -98,7 +98,7 @@ describe("parsePersonalSkillMarkdown", () => {
 	it("parses SKILL.md frontmatter and body", () => {
 		expect(
 			parsePersonalSkillMarkdown(
-				'---\nname: test-skill\ndescription: "Does a thing"\n---\n\nUse this skill.',
+				'---\nname: "test-skill"\ndescription: "Does a thing"\n---\n\nUse this skill.',
 			),
 		).toEqual({
 			name: "test-skill",
@@ -236,7 +236,7 @@ describe("buildPersonalSkillMarkdown", () => {
 		});
 
 		expect(content).toBe(
-			'---\nname: test-skill\ndescription: "Does a thing"\n---\nUse this skill.\n',
+			'---\nname: "test-skill"\ndescription: "Does a thing"\n---\nUse this skill.\n',
 		);
 		expect(parsePersonalSkillMarkdown(content)).toEqual({
 			name: "test-skill",
@@ -252,7 +252,20 @@ describe("buildPersonalSkillMarkdown", () => {
 				description: "",
 				body: "Use this skill.",
 			}),
-		).toBe("---\nname: test-skill\n---\nUse this skill.\n");
+		).toBe('---\nname: "test-skill"\n---\nUse this skill.\n');
+	});
+
+	it("quotes skill names that YAML would otherwise coerce", () => {
+		const content = buildPersonalSkillMarkdown({
+			name: "true",
+			description: "",
+			body: "Use this skill.",
+		});
+
+		expect(content).toContain('name: "true"');
+		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
+			name: "true",
+		});
 	});
 
 	it("escapes quoted description values", () => {
