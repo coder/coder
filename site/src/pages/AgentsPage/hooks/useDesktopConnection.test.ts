@@ -186,7 +186,11 @@ describe("useDesktopConnection", () => {
 
 	it("sets scaleViewport and resizeSession on the RFB instance", () => {
 		renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1", activated: true }),
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				scaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 
@@ -906,7 +910,11 @@ describe("useDesktopConnection", () => {
 
 	it("forces scaleViewport on hidden→visible transition", () => {
 		renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1", activated: true }),
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				scaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
