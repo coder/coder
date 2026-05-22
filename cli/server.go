@@ -1006,24 +1006,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 			defer notificationReportGenerator.Close()
 
+			// Seed providers before newAPI so the aibridgeproxyd inside
+			// the enterprise closure observes env-configured providers
+			// at init.
+			if err := coderd.SeedAIProvidersFromEnv(
+				ctx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
-			}
-
-			// Runs unconditionally so operators can seed providers via
-			// env without enabling the bridge or proxy features.
-			if err := coderd.SeedAIProvidersFromEnv(
-				ctx,
-				options.Database,
-				vals.AI.BridgeConfig,
-				options.Auditor,
-				logger.Named("aibridge.envseed"),
-			); err != nil {
-				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
