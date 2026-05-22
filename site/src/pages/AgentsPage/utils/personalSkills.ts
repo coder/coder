@@ -1,3 +1,4 @@
+import frontMatter from "front-matter";
 import type * as TypesGen from "#/api/typesGenerated";
 
 export const PERSONAL_SKILL_MAX_SIZE_BYTES = 64 * 1024;
@@ -87,34 +88,26 @@ export const filterPersonalSkills = (
 
 class PersonalSkillMarkdownError extends Error {}
 
-const unquoteFrontmatterScalar = (value: string): string => {
-	if (value.length < 2) {
-		return value;
+const frontmatterStringField = (
+	attributes: Record<string, unknown>,
+	key: "name" | "description",
+): string => {
+	const value = attributes[key];
+	if (value === undefined) {
+		return "";
 	}
-
-	const first = value[0];
-	const last = value[value.length - 1];
-	if (first !== last) {
-		return value;
+	if (typeof value !== "string") {
+		throw new PersonalSkillMarkdownError(`Skill ${key} must be a string.`);
 	}
-
-	const inner = value.slice(1, -1);
-	if (first === '"') {
-		return inner.replaceAll('\\"', '"').replaceAll("\\\\", "\\");
-	}
-	if (first === "'") {
-		return inner;
-	}
-	return value;
+	return value.replace(/[\r\n]+$/, "");
 };
 
-// This parser is only for projecting SKILL.md content into form fields.
-// The API reparses and validates saved content on submit, so this mirrors the
-// backend scalar subset instead of accepting full YAML semantics.
+// The API re-validates on submit; this only projects content into form fields.
 export const parsePersonalSkillMarkdown = (
 	content: string,
 ): PersonalSkillFormValues => {
-	const lines = content.replace(/^\uFEFF/, "").split("\n");
+	const normalizedContent = content.replace(/^\uFEFF/, "");
+	const lines = normalizedContent.split("\n");
 	if (lines[0]?.trim() !== "---") {
 		throw new PersonalSkillMarkdownError(
 			"Missing opening frontmatter delimiter.",
@@ -130,28 +123,24 @@ export const parsePersonalSkillMarkdown = (
 		);
 	}
 
-	let name = "";
-	let description = "";
-	for (const line of lines.slice(1, closingIndex)) {
-		const separatorIndex = line.indexOf(":");
-		if (separatorIndex < 0) {
-			continue;
+	const parseableContent = [
+		"---",
+		...lines.slice(1, closingIndex),
+		"---",
+		...lines.slice(closingIndex + 1),
+	].join("\n");
+	const parsed = (() => {
+		try {
+			return frontMatter<Record<string, unknown>>(parseableContent);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "unknown error";
+			throw new PersonalSkillMarkdownError(`Invalid frontmatter: ${message}`);
 		}
-		const key = line.slice(0, separatorIndex).trim().toLowerCase();
-		const value = unquoteFrontmatterScalar(
-			line.slice(separatorIndex + 1).trim(),
-		);
-		if (key === "name") {
-			name = value;
-		} else if (key === "description") {
-			description = value;
-		}
-	}
+	})();
 
-	const body = lines
-		.slice(closingIndex + 1)
-		.join("\n")
-		.trim();
+	const name = frontmatterStringField(parsed.attributes, "name");
+	const description = frontmatterStringField(parsed.attributes, "description");
+	const body = parsed.body.trim();
 
 	if (!name) {
 		throw new PersonalSkillMarkdownError("Skill name is required.");
@@ -185,6 +174,14 @@ const frontmatterLineValue = (value: string): string =>
 const frontmatterStringValue = (value: string): string =>
 	`"${frontmatterLineValue(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 
+const frontmatterNameValue = (value: string): string => {
+	const lineValue = frontmatterLineValue(value);
+	if (/^(?:true|false|null)$/.test(lineValue) || /^[0-9]/.test(lineValue)) {
+		return frontmatterStringValue(lineValue);
+	}
+	return lineValue;
+};
+
 export const isValidPersonalSkillDescription = (description: string): boolean =>
 	getPersonalSkillContentSizeBytes(description) <=
 	PERSONAL_SKILL_MAX_DESCRIPTION_BYTES;
@@ -192,7 +189,7 @@ export const isValidPersonalSkillDescription = (description: string): boolean =>
 export const buildPersonalSkillMarkdown = (
 	values: PersonalSkillFormValues,
 ): string => {
-	const name = frontmatterLineValue(values.name);
+	const name = frontmatterNameValue(values.name);
 	const description = frontmatterLineValue(values.description);
 	const body = values.body.trim();
 	const frontmatter = ["---", `name: ${name}`];
