@@ -24,6 +24,29 @@ var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 // the frontmatter is missing a required name field.
 var ErrFrontmatterNameRequired = xerrors.New("frontmatter missing required 'name' field")
 
+func unquoteFrontmatterScalar(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+
+	quote := value[0]
+	if quote != value[len(value)-1] {
+		return value
+	}
+
+	inner := value[1 : len(value)-1]
+	switch quote {
+	case '"':
+		// This parser supports a small SKILL.md scalar subset, not full
+		// YAML. Double quotes only unescape quoted text and Windows paths.
+		return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(inner)
+	case '\'':
+		return inner
+	default:
+		return value
+	}
+}
+
 // ParseSkillFrontmatter extracts name, description, and the
 // remaining body from a skill meta file. The expected format is
 // YAML-ish frontmatter delimited by "---" lines:
@@ -62,13 +85,7 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 		}
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
-		// Strip surrounding quotes from YAML string values.
-		if len(value) >= 2 {
-			if (value[0] == '"' && value[len(value)-1] == '"') ||
-				(value[0] == '\'' && value[len(value)-1] == '\'') {
-				value = value[1 : len(value)-1]
-			}
-		}
+		value = unquoteFrontmatterScalar(value)
 		switch strings.ToLower(key) {
 		case "name":
 			name = value

@@ -183,9 +183,9 @@ type AIProviderKey struct {
 }
 
 // CreateAIProviderRequest is the payload for creating a new AI
-// provider. Name, Type, and BaseURL are required. APIKeys carries
-// the plaintext keys for OpenAI/Anthropic providers; Bedrock
-// providers authenticate via Settings and must omit APIKeys.
+// provider. Name and Type are required. APIKeys carries the plaintext
+// keys for OpenAI/Anthropic providers; Bedrock providers authenticate
+// via Settings and must omit APIKeys.
 type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
@@ -201,19 +201,24 @@ type CreateAIProviderRequest struct {
 func (req CreateAIProviderRequest) Validate() []ValidationError {
 	var validations []ValidationError
 	switch req.Type {
-	case AIProviderTypeOpenAI, AIProviderTypeAnthropic:
+	case AIProviderTypeOpenAI,
+		AIProviderTypeAnthropic,
+		AIProviderTypeAzure,
+		AIProviderTypeBedrock,
+		AIProviderTypeGoogle,
+		AIProviderTypeOpenAICompat,
+		AIProviderTypeOpenrouter,
+		AIProviderTypeVercel:
 	case "":
 		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})
 	default:
 		validations = append(validations, ValidationError{
 			Field:  "type",
-			Detail: fmt.Sprintf("unsupported provider type %q; expected one of: openai, anthropic", req.Type),
+			Detail: fmt.Sprintf("unsupported provider type %q", req.Type),
 		})
 	}
 	validations = append(validations, validateAIProviderName(req.Name)...)
-	if req.BaseURL == "" {
-		validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url is required"})
-	} else {
+	if req.BaseURL != "" {
 		validations = append(validations, validateAIProviderBaseURL(req.BaseURL)...)
 	}
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)

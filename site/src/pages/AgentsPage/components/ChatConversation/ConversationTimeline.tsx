@@ -44,6 +44,7 @@ import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
+import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -125,12 +126,13 @@ const ReasoningDisclosure = memo<{
 			streamKey: id,
 		});
 		const displayText = isStreaming ? visibleText : text;
-		const hasText = displayText.trim().length > 0;
+		const { title, body } = getThinkingDisclosureDisplay(displayText);
+		const hasText = body.trim().length > 0;
 
 		// Auto-scroll the preview container to the bottom as new
 		// thinking content streams in. useLayoutEffect avoids a
 		// visible frame where content has grown but not scrolled.
-		const displayTextLength = displayText.length;
+		const displayTextLength = body.length;
 		useLayoutEffect(() => {
 			if (
 				displayTextLength &&
@@ -151,10 +153,10 @@ const ReasoningDisclosure = memo<{
 					header={
 						isStreaming ? (
 							<Shimmer as="span" className="text-[13px]">
-								Thinking
+								{title}
 							</Shimmer>
 						) : (
-							<span className="text-[13px]">Thinking</span>
+							<span className="text-[13px]">{title}</span>
 						)
 					}
 				>
@@ -171,7 +173,7 @@ const ReasoningDisclosure = memo<{
 								urlTransform={urlTransform}
 								streaming={isStreaming}
 							>
-								{displayText}
+								{body}
 							</Response>
 						</div>
 					)}

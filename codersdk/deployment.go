@@ -3579,7 +3579,7 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      false,
 		},
 		{
-			// Env handling is done in cli.ReadGitAuthFromEnvironment
+			// Env handling is done in cli.ReadExternalAuthProvidersFromEnv
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
 			YAML:        "externalAuthProviders",

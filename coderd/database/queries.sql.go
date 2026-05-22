@@ -4972,7 +4972,7 @@ func (q *sqlQuerier) DeleteChatModelConfigsByProvider(ctx context.Context, provi
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 FROM
     chat_model_configs
 WHERE
@@ -4999,13 +4999,14 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.AIProviderID,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 FROM
     chat_model_configs
 WHERE
@@ -5042,6 +5043,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			&i.AIProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -5058,7 +5060,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 FROM
     chat_model_configs
 WHERE
@@ -5085,13 +5087,14 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.AIProviderID,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
 JOIN
@@ -5124,13 +5127,14 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.AIProviderID,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
 JOIN
@@ -5171,6 +5175,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
+			&i.AIProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -5210,7 +5215,7 @@ INSERT INTO chat_model_configs (
     $10::jsonb
 )
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 `
 
 type InsertChatModelConfigParams struct {
@@ -5256,6 +5261,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -5294,7 +5300,7 @@ WHERE
     id = $10::uuid
     AND deleted = FALSE
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 `
 
 type UpdateChatModelConfigParams struct {
@@ -5340,6 +5346,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -26304,6 +26311,293 @@ func (q *sqlQuerier) UsageEventExistsByID(ctx context.Context, id string) (bool,
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const deleteUserAIProviderKey = `-- name: DeleteUserAIProviderKey :exec
+DELETE FROM
+    user_ai_provider_keys
+WHERE
+    user_id = $1::uuid
+    AND ai_provider_id = $2::uuid
+`
+
+type DeleteUserAIProviderKeyParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+}
+
+func (q *sqlQuerier) DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserAIProviderKey, arg.UserID, arg.AIProviderID)
+	return err
+}
+
+const deleteUserAIProviderKeysByProviderID = `-- name: DeleteUserAIProviderKeysByProviderID :exec
+DELETE FROM
+    user_ai_provider_keys
+WHERE
+    ai_provider_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUserAIProviderKeysByProviderID, aiProviderID)
+	return err
+}
+
+const getUserAIProviderKeyByProviderID = `-- name: GetUserAIProviderKeyByProviderID :one
+SELECT
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    user_ai_provider_keys
+WHERE
+    user_id = $1::uuid
+    AND ai_provider_id = $2::uuid
+`
+
+type GetUserAIProviderKeyByProviderIDParams struct {
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+}
+
+func (q *sqlQuerier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, getUserAIProviderKeyByProviderID, arg.UserID, arg.AIProviderID)
+	var i UserAiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserAIProviderKeys = `-- name: GetUserAIProviderKeys :many
+SELECT
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    user_ai_provider_keys
+ORDER BY
+    user_id ASC,
+    ai_provider_id ASC,
+    created_at ASC,
+    id ASC
+`
+
+// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
+// user-scoped lookups instead of this bulk accessor.
+func (q *sqlQuerier) GetUserAIProviderKeys(ctx context.Context) ([]UserAiProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAIProviderKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserAiProviderKey
+	for rows.Next() {
+		var i UserAiProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AIProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserAIProviderKeysByUserID = `-- name: GetUserAIProviderKeysByUserID :many
+SELECT
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    user_ai_provider_keys
+WHERE
+    user_id = $1::uuid
+ORDER BY
+    ai_provider_id ASC,
+    created_at ASC,
+    id ASC
+`
+
+func (q *sqlQuerier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]UserAiProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getUserAIProviderKeysByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserAiProviderKey
+	for rows.Next() {
+		var i UserAiProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AIProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEncryptedUserAIProviderKey = `-- name: UpdateEncryptedUserAIProviderKey :one
+UPDATE
+    user_ai_provider_keys
+SET
+    api_key = $1::text,
+    api_key_key_id = $2::text,
+    updated_at = NOW()
+WHERE
+    id = $3::uuid
+RETURNING
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpdateEncryptedUserAIProviderKeyParams struct {
+	APIKey      string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedUserAIProviderKey, arg.APIKey, arg.ApiKeyKeyID, arg.ID)
+	var i UserAiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserAIProviderKey = `-- name: UpdateUserAIProviderKey :one
+UPDATE
+    user_ai_provider_keys
+SET
+    api_key = $1::text,
+    api_key_key_id = $2::text,
+    updated_at = NOW()
+WHERE
+    user_id = $3::uuid
+    AND ai_provider_id = $4::uuid
+RETURNING
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpdateUserAIProviderKeyParams struct {
+	APIKey       string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID  sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
+}
+
+func (q *sqlQuerier) UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateUserAIProviderKey,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.UserID,
+		arg.AIProviderID,
+	)
+	var i UserAiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserAIProviderKey = `-- name: UpsertUserAIProviderKey :one
+INSERT INTO user_ai_provider_keys (
+    id,
+    user_id,
+    ai_provider_id,
+    api_key,
+    api_key_key_id,
+    created_at,
+    updated_at
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6::timestamptz,
+    $7::timestamptz
+)
+ON CONFLICT (user_id, ai_provider_id) DO UPDATE
+SET
+    api_key = EXCLUDED.api_key,
+    api_key_key_id = EXCLUDED.api_key_key_id,
+    updated_at = EXCLUDED.updated_at
+RETURNING
+    id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpsertUserAIProviderKeyParams struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
+	APIKey       string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID  sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// UpsertUserAIProviderKey preserves the original id and created_at when the
+// user/provider pair already exists. On conflict, callers provide id and
+// created_at for the insert path only.
+func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserAIProviderKey,
+		arg.ID,
+		arg.UserID,
+		arg.AIProviderID,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i UserAiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AIProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
