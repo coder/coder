@@ -174,9 +174,6 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 // AIProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
 func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrockConfig {
-	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
-		return nil
-	}
 	// Currently, only the first key pair is used, if any.
 	// TODO(ssncferreira): pass a keypool.Pool instead.
 	var accessKey, accessKeySecret string
@@ -185,6 +182,13 @@ func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrock
 	}
 	if len(p.BedrockAccessKeySecrets) > 0 {
 		accessKeySecret = p.BedrockAccessKeySecrets[0]
+	}
+	settings := codersdk.NewAIProviderBedrockSettings(
+		p.BedrockRegion, accessKey, accessKeySecret,
+		p.BedrockModel, p.BedrockSmallFastModel,
+	)
+	if !codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings) {
+		return nil
 	}
 	return &aibridge.AWSBedrockConfig{
 		BaseURL:         p.BedrockBaseURL,
@@ -197,11 +201,17 @@ func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrock
 }
 
 func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
-	// Bedrock is considered disabled when no region or base URL is configured.
-	// Static credentials are optional. When not provided, the AWS SDK default
-	// credential chain resolves credentials (environment variables, shared config,
-	// IAM roles, etc.).
-	if cfg.Region.String() == "" && cfg.BaseURL.String() == "" {
+	// codersdk.IsBedrockConfigured decides what counts as Bedrock; when
+	// it returns false, the AWS SDK default credential chain (env vars,
+	// shared config, IAM roles, etc.) is left to resolve credentials.
+	settings := codersdk.NewAIProviderBedrockSettings(
+		cfg.Region.String(),
+		cfg.AccessKey.String(),
+		cfg.AccessKeySecret.String(),
+		cfg.Model.String(),
+		cfg.SmallFastModel.String(),
+	)
+	if !codersdk.IsBedrockConfigured(cfg.BaseURL.String(), settings) {
 		return nil
 	}
 

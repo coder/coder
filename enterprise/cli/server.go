@@ -162,7 +162,9 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		closers.Add(usageCron)
 
 		// Build the provider list and start AI Bridge daemons only when
-		// at least one of the bridge or proxy features is enabled.
+		// at least one of the bridge or proxy features is enabled. The
+		// ai_providers env-seed runs unconditionally in the AGPL
+		// codepath, regardless of whether bridge or proxy are enabled.
 		bridgeEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value()
 		proxyEnabled := options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value()
 		if bridgeEnabled || proxyEnabled {
