@@ -10685,14 +10685,37 @@ func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitl
 }
 
 const updateChatWorkspaceBinding = `-- name: UpdateChatWorkspaceBinding :one
-WITH updated_chat AS (
+WITH cleared_context_messages AS (
+UPDATE chat_messages
+SET deleted = true
+WHERE chat_id = $1::uuid
+    AND deleted = false
+    AND (
+        content::jsonb @> '[{"type": "context-file"}]'
+        OR content::jsonb @> '[{"type": "skill"}]'
+    )
+RETURNING id
+),
+cleared_provider_response_ids AS (
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = $1::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL
+    AND NOT (
+        content::jsonb @> '[{"type": "context-file"}]'
+        OR content::jsonb @> '[{"type": "skill"}]'
+    )
+RETURNING id
+),
+updated_chat AS (
 UPDATE chats SET
-    workspace_id = $1::uuid,
-    build_id = $2::uuid,
-    agent_id = $3::uuid,
+    workspace_id = $2::uuid,
+    build_id = $3::uuid,
+    agent_id = $4::uuid,
     last_injected_context = NULL,
     updated_at = NOW()
-WHERE id = $4::uuid
+WHERE id = $1::uuid
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl
 ),
 chats_expanded AS (
@@ -10739,18 +10762,18 @@ FROM chats_expanded
 `
 
 type UpdateChatWorkspaceBindingParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
 	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 	BuildID     uuid.NullUUID `db:"build_id" json:"build_id"`
 	AgentID     uuid.NullUUID `db:"agent_id" json:"agent_id"`
-	ID          uuid.UUID     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatWorkspaceBinding,
+		arg.ID,
 		arg.WorkspaceID,
 		arg.BuildID,
 		arg.AgentID,
-		arg.ID,
 	)
 	var i Chat
 	err := row.Scan(

@@ -297,10 +297,9 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
-	const nextLastInjectedContext =
-		isFreshEnough && watchedChat.last_injected_context !== undefined
-			? watchedChat.last_injected_context
-			: cachedChat.last_injected_context;
+	const nextLastInjectedContext = isFreshEnough
+		? watchedChat.last_injected_context
+		: cachedChat.last_injected_context;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true

@@ -1081,7 +1081,30 @@ SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatWorkspaceBinding :one
-WITH updated_chat AS (
+WITH cleared_context_messages AS (
+UPDATE chat_messages
+SET deleted = true
+WHERE chat_id = @id::uuid
+    AND deleted = false
+    AND (
+        content::jsonb @> '[{"type": "context-file"}]'
+        OR content::jsonb @> '[{"type": "skill"}]'
+    )
+RETURNING id
+),
+cleared_provider_response_ids AS (
+UPDATE chat_messages
+SET provider_response_id = NULL
+WHERE chat_id = @id::uuid
+    AND deleted = false
+    AND provider_response_id IS NOT NULL
+    AND NOT (
+        content::jsonb @> '[{"type": "context-file"}]'
+        OR content::jsonb @> '[{"type": "skill"}]'
+    )
+RETURNING id
+),
+updated_chat AS (
 UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     build_id = sqlc.narg('build_id')::uuid,

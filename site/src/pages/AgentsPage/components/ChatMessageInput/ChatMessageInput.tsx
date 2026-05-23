@@ -33,7 +33,7 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { getErrorMessage, getErrorStatus } from "#/api/errors";
+import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -667,10 +667,12 @@ const ChatMessageInput = ({
 		if (getErrorStatus(workspaceSkillsQuery.error) === 403) {
 			return "You do not have permission to load workspace skills.";
 		}
-		return getErrorMessage(
+		const message = getErrorMessage(
 			workspaceSkillsQuery.error,
 			"Could not load workspace skills. Close and type / again to retry.",
 		);
+		const detail = getErrorDetail(workspaceSkillsQuery.error);
+		return detail && detail !== message ? `${message} ${detail}` : message;
 	})();
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const workspaceSkillNames = new Set(

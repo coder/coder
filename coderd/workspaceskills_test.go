@@ -90,16 +90,18 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	restore()
 	requireWorkspaceSkillsSDKError(t, err, http.StatusBadGateway, "Failed to connect to workspace agent.", "dial failure")
 
+	contextConfigReleaseCalled := false
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{}, xerrors.New("context config failure"))
 	restore = coderd.SetAgentProviderForTest(api, workspaceSkillsAgentProvider{
 		agentConn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			return conn, func() {}, nil
+			return conn, func() { contextConfigReleaseCalled = true }, nil
 		},
 	})
 	_, err = expClient.WorkspaceSkills(ctx, workspace.ID)
 	restore()
 	requireWorkspaceSkillsSDKError(t, err, http.StatusBadGateway, "Failed to fetch workspace skills from agent.", "context config failure")
+	require.True(t, contextConfigReleaseCalled)
 
 	writeWorkspaceSkill(t, skillsDir, "review-code", "Review code", "Read the diff.")
 	expectedSkills := []codersdk.WorkspaceSkillMetadata{{
@@ -115,6 +117,26 @@ func TestGetWorkspaceSkills(t *testing.T) {
 		"expected workspace skills %v, got %v, error %v",
 		expectedSkills, skills, skillsErr,
 	)
+
+	successReleaseCalled := false
+	successConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	successConn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{
+		Parts: []codersdk.ChatMessagePart{{
+			Type:             codersdk.ChatMessagePartTypeSkill,
+			SkillName:        "review-code",
+			SkillDescription: "Review code",
+		}},
+	}, nil)
+	restore = coderd.SetAgentProviderForTest(api, workspaceSkillsAgentProvider{
+		agentConn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return successConn, func() { successReleaseCalled = true }, nil
+		},
+	})
+	skills, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	restore()
+	require.NoError(t, err)
+	require.Equal(t, expectedSkills, skills)
+	require.True(t, successReleaseCalled)
 
 	res, err := expClient.Request(ctx, http.MethodGet, "/api/experimental/workspaces/"+workspace.ID.String()+"/skills", nil)
 	require.NoError(t, err)

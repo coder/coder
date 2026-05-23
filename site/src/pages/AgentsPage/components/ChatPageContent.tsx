@@ -81,16 +81,35 @@ const workspaceContextFromMessages = (
 	if (!workspaceAgentId) {
 		return undefined;
 	}
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const content = messages[index]?.content;
-		if (!content) {
-			continue;
+	let latestContextAgentId: string | undefined;
+	const contextParts: Array<
+		TypesGen.ChatContextFilePart | TypesGen.ChatSkillPart
+	> = [];
+	for (const message of messages) {
+		let messageContextAgentId: string | undefined;
+		for (const part of message.content ?? []) {
+			if (isWorkspaceContextPart(part)) {
+				contextParts.push(part);
+			}
+			if (
+				messageContextAgentId === undefined &&
+				part.type === "context-file" &&
+				part.context_file_agent_id
+			) {
+				messageContextAgentId = part.context_file_agent_id;
+			}
 		}
-		if (contextBelongsToAgent(content, workspaceAgentId)) {
-			return content.filter(isWorkspaceContextPart);
-		}
+		latestContextAgentId = messageContextAgentId ?? latestContextAgentId;
 	}
-	return undefined;
+	if (latestContextAgentId !== workspaceAgentId) {
+		return undefined;
+	}
+	const filteredParts = contextParts.filter(
+		(part) =>
+			!part.context_file_agent_id ||
+			part.context_file_agent_id === latestContextAgentId,
+	);
+	return filteredParts.length > 0 ? filteredParts : undefined;
 };
 
 const workspaceSkillsFromContext = (

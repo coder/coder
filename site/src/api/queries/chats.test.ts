@@ -2095,6 +2095,29 @@ describe("mergeWatchedChatSummary", () => {
 		).toBe(watchedContext);
 	});
 
+	it("clears last_injected_context when fresh watched snapshots omit it", () => {
+		const cachedChat = makeChat("chat-1", {
+			last_injected_context: [
+				{
+					type: "skill",
+					skill_name: "old-skill",
+					context_file_agent_id: "agent-1",
+				},
+			],
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_injected_context: undefined,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).last_injected_context,
+		).toBeUndefined();
+	});
+
 	it("applies summary_change even when event updated_at is older", () => {
 		const cachedChat = makeChat("chat-1", {
 			last_turn_summary: null,
