@@ -275,6 +275,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	if err != nil {
 		return xerrors.Errorf("%s script: create script temp dir: %w", scriptDataDir, err)
 	}
+	logDir := filepath.Dir(logPath)
+	err = r.Filesystem.MkdirAll(logDir, 0o700)
+	if err != nil {
+		return xerrors.Errorf("%s script: create script log dir: %w", logDir, err)
+	}
 
 	logger := r.Logger.With(
 		slog.F("log_source_id", script.LogSourceID),

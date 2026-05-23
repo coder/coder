@@ -47,6 +47,32 @@ func TestExecuteBasic(t *testing.T) {
 	require.Equal(t, "hello", log.Output)
 }
 
+func TestExecuteCreatesLogPathParents(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	fLogger := newFakeScriptLogger()
+	runner := setupWithFilesystem(t, afero.NewOsFs(), t.TempDir(), t.TempDir(), func(uuid.UUID) agentscripts.ScriptLogger {
+		return fLogger
+	})
+	defer runner.Close()
+
+	logPath := filepath.Join("nested", "install.log")
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+	err := runner.Init([]codersdk.WorkspaceAgentScript{{
+		LogSourceID: uuid.New(),
+		LogPath:     logPath,
+		Script:      "echo hello",
+	}}, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
+
+	log := testutil.TryReceive(ctx, t, fLogger.logs)
+	require.Equal(t, "hello", log.Output)
+
+	_, err = runner.Filesystem.Stat(filepath.Join(runner.LogDir, logPath))
+	require.NoError(t, err)
+}
+
 func TestEnv(t *testing.T) {
 	t.Parallel()
 	fLogger := newFakeScriptLogger()
@@ -299,13 +325,23 @@ func (*executeOptionTestLogger) Flush(context.Context) error {
 
 func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger) *agentscripts.Runner {
 	t.Helper()
+	return setupWithFilesystem(t, afero.NewMemMapFs(), t.TempDir(), t.TempDir(), getScriptLogger)
+}
+
+func setupWithFilesystem(
+	t *testing.T,
+	fs afero.Fs,
+	logDir string,
+	dataDirBase string,
+	getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger,
+) *agentscripts.Runner {
+	t.Helper()
 	if getScriptLogger == nil {
 		// noop
 		getScriptLogger = func(uuid.UUID) agentscripts.ScriptLogger {
 			return noopScriptLogger{}
 		}
 	}
-	fs := afero.NewMemMapFs()
 	logger := testutil.Logger(t)
 	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
@@ -313,8 +349,8 @@ func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscript
 		_ = s.Close()
 	})
 	return agentscripts.New(agentscripts.Options{
-		LogDir:          t.TempDir(),
-		DataDirBase:     t.TempDir(),
+		LogDir:          logDir,
+		DataDirBase:     dataDirBase,
 		Logger:          logger,
 		SSHServer:       s,
 		Filesystem:      fs,
