@@ -297,6 +297,10 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
+	const nextLastInjectedContext =
+		isFreshEnough && watchedChat.last_injected_context !== undefined
+			? watchedChat.last_injected_context
+			: cachedChat.last_injected_context;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -315,6 +319,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextLastInjectedContext === cachedChat.last_injected_context &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at
 	) {
@@ -330,6 +335,7 @@ export const mergeWatchedChatSummary = (
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
 		last_turn_summary: nextLastTurnSummary,
+		last_injected_context: nextLastInjectedContext,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 	};
@@ -1184,6 +1190,10 @@ export const createChatMessage = (
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,

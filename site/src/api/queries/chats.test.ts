@@ -842,7 +842,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("createChatMessage invalidates only debug runs, not chat detail or messages", async () => {
+	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -856,10 +856,9 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 
 		const chatState = queryClient.getQueryState(chatKey(chatId));
-		expect(
-			chatState?.isInvalidated,
-			"chatKey should NOT be invalidated",
-		).not.toBe(true);
+		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
+			true,
+		);
 
 		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
 		expect(
@@ -2063,6 +2062,37 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "summary_change",
 			}).last_turn_summary,
 		).toBe("Updated summary");
+	});
+
+	it("merges last_injected_context from fresh watched snapshots", () => {
+		const cachedContext: readonly TypesGen.ChatMessagePart[] = [
+			{
+				type: "skill",
+				skill_name: "old-skill",
+				context_file_agent_id: "agent-1",
+			},
+		];
+		const watchedContext: readonly TypesGen.ChatMessagePart[] = [
+			{
+				type: "skill",
+				skill_name: "new-skill",
+				context_file_agent_id: "agent-1",
+			},
+		];
+		const cachedChat = makeChat("chat-1", {
+			last_injected_context: cachedContext,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			last_injected_context: watchedContext,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).last_injected_context,
+		).toBe(watchedContext);
 	});
 
 	it("applies summary_change even when event updated_at is older", () => {
