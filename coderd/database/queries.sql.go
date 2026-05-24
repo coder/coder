@@ -10685,11 +10685,24 @@ func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitl
 }
 
 const updateChatWorkspaceBinding = `-- name: UpdateChatWorkspaceBinding :one
-WITH cleared_context_messages AS (
+WITH current_chat AS (
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl
+FROM chats
+WHERE id = $1::uuid
+),
+binding_changed AS (
+SELECT
+    workspace_id IS DISTINCT FROM $2::uuid
+        OR build_id IS DISTINCT FROM $3::uuid
+        OR agent_id IS DISTINCT FROM $4::uuid AS changed
+FROM current_chat
+),
+cleared_context_messages AS (
 UPDATE chat_messages
 SET deleted = true
 WHERE chat_id = $1::uuid
     AND deleted = false
+    AND EXISTS (SELECT 1 FROM binding_changed WHERE changed)
     AND (
         content::jsonb @> '[{"type": "context-file"}]'
         OR content::jsonb @> '[{"type": "skill"}]'
@@ -10702,6 +10715,7 @@ SET provider_response_id = NULL
 WHERE chat_id = $1::uuid
     AND deleted = false
     AND provider_response_id IS NOT NULL
+    AND EXISTS (SELECT 1 FROM binding_changed WHERE changed)
     AND NOT (
         content::jsonb @> '[{"type": "context-file"}]'
         OR content::jsonb @> '[{"type": "skill"}]'
@@ -10716,46 +10730,55 @@ UPDATE chats SET
     last_injected_context = NULL,
     updated_at = NOW()
 WHERE id = $1::uuid
+    AND EXISTS (SELECT 1 FROM binding_changed WHERE changed)
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl
+),
+returned_chat AS (
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl
+    FROM updated_chat
+    UNION ALL
+    SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl
+    FROM current_chat
+    WHERE NOT EXISTS (SELECT 1 FROM binding_changed WHERE changed)
 ),
 chats_expanded AS (
     SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        returned_chat.id,
+        returned_chat.owner_id,
+        returned_chat.workspace_id,
+        returned_chat.title,
+        returned_chat.status,
+        returned_chat.worker_id,
+        returned_chat.started_at,
+        returned_chat.heartbeat_at,
+        returned_chat.created_at,
+        returned_chat.updated_at,
+        returned_chat.parent_chat_id,
+        returned_chat.root_chat_id,
+        returned_chat.last_model_config_id,
+        returned_chat.archived,
+        returned_chat.last_error,
+        returned_chat.mode,
+        returned_chat.mcp_server_ids,
+        returned_chat.labels,
+        returned_chat.build_id,
+        returned_chat.agent_id,
+        returned_chat.pin_order,
+        returned_chat.last_read_message_id,
+        returned_chat.last_injected_context,
+        returned_chat.dynamic_tools,
+        returned_chat.organization_id,
+        returned_chat.plan_mode,
+        returned_chat.client_type,
+        returned_chat.last_turn_summary,
+        COALESCE(root.user_acl, returned_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, returned_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+        returned_chat
+    LEFT JOIN chats root ON root.id = COALESCE(returned_chat.root_chat_id, returned_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = returned_chat.owner_id
 )
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, owner_username, owner_name
 FROM chats_expanded
