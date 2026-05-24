@@ -633,21 +633,21 @@ const ChatMessageInput = ({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
 	});
-	const livePersonalSkills = skillsQuery.isSuccess
-		? (skillsQuery.data ?? [])
-		: [];
-	const liveWorkspaceSkills = workspaceSkillsQuery.isSuccess
-		? (workspaceSkillsQuery.data ?? [])
+	const personalSkillsQueryHasData = skillsQuery.data !== undefined;
+	const workspaceSkillsQueryHasData = workspaceSkillsQuery.data !== undefined;
+	const livePersonalSkills = personalSkillsQueryHasData ? skillsQuery.data : [];
+	const liveWorkspaceSkills = workspaceSkillsQueryHasData
+		? workspaceSkillsQuery.data
 		: [];
 	const personalSkills = personalSkillsOverride ?? livePersonalSkills;
 	const loadedWorkspaceSkills = workspaceSkillsOverride ?? liveWorkspaceSkills;
 	const personalSkillsAuthoritative = Boolean(
-		personalSkillsOverride !== undefined || skillsQuery.isSuccess,
+		personalSkillsOverride !== undefined || personalSkillsQueryHasData,
 	);
 	const workspaceSkillsAuthoritative = Boolean(
 		!workspaceId ||
 			workspaceSkillsOverride !== undefined ||
-			workspaceSkillsQuery.isSuccess,
+			workspaceSkillsQueryHasData,
 	);
 	const personalSkillsSettled = Boolean(
 		personalSkillsAuthoritative ||
@@ -1013,14 +1013,24 @@ const ChatMessageInput = ({
 					workspaceSkills={workspaceSkillItems}
 					workspaceSkillsEnabled={Boolean(workspaceId)}
 					isPersonalLoading={
-						personalSkillsQueryEnabled && skillsQuery.isFetching
+						personalSkillsQueryEnabled &&
+						skillsQuery.isFetching &&
+						!personalSkillsQueryHasData
 					}
-					isPersonalError={personalSkillsQueryEnabled && skillsQuery.isError}
+					isPersonalError={
+						personalSkillsQueryEnabled &&
+						skillsQuery.isError &&
+						!personalSkillsQueryHasData
+					}
 					isWorkspaceLoading={
-						workspaceSkillsQueryEnabled && workspaceSkillsQuery.isFetching
+						workspaceSkillsQueryEnabled &&
+						workspaceSkillsQuery.isFetching &&
+						!workspaceSkillsQueryHasData
 					}
 					isWorkspaceError={
-						workspaceSkillsQueryEnabled && workspaceSkillsQuery.isError
+						workspaceSkillsQueryEnabled &&
+						workspaceSkillsQuery.isError &&
+						!workspaceSkillsQueryHasData
 					}
 					workspaceErrorMessage={workspaceSkillsErrorMessage}
 					selectedIndex={selectedSkillIndex}

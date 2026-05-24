@@ -197,4 +197,109 @@ describe("ChatMessageInput", () => {
 			expect(editor.textContent).toBe("/cached-personal");
 		});
 	});
+
+	it("keeps cached skills selectable after background refetch errors", async () => {
+		const queryClient = createTestQueryClient();
+		const personalQuery = userSkills();
+		const workspaceQuery = workspaceSkills("workspace-cached");
+		queryClient.setQueryData(personalQuery.queryKey, cachedPersonalSkills);
+		queryClient.setQueryData(workspaceQuery.queryKey, cachedWorkspaceSkills);
+		const personalError = new Error("personal skills failed");
+		const workspaceError = new Error("workspace skills failed");
+		const getUserSkills = vi
+			.spyOn(API.experimental, "getUserSkills")
+			.mockRejectedValue(personalError);
+		const getWorkspaceSkills = vi
+			.spyOn(API.experimental, "getWorkspaceSkills")
+			.mockRejectedValue(workspaceError);
+
+		const inputRef = { current: null as ChatMessageInputRef | null };
+		renderWithQueryClient(
+			<ChatMessageInput
+				ref={inputRef}
+				workspaceId="workspace-cached"
+				aria-label="Chat message input"
+			/>,
+			queryClient,
+		);
+
+		await waitFor(() => {
+			expect(inputRef.current).not.toBeNull();
+		});
+		inputRef.current?.insertText("/");
+
+		await waitFor(() => {
+			expect(getUserSkills).toHaveBeenCalledWith("me");
+			expect(getWorkspaceSkills).toHaveBeenCalledWith("workspace-cached");
+			expect(queryClient.getQueryState(personalQuery.queryKey)?.error).toBe(
+				personalError,
+			);
+			expect(queryClient.getQueryState(workspaceQuery.queryKey)?.error).toBe(
+				workspaceError,
+			);
+		});
+		const editor = await screen.findByTestId("chat-message-input");
+		expect(await screen.findByText("/cached-personal")).toBeVisible();
+		expect(await screen.findByText("/cached-workspace")).toBeVisible();
+
+		fireEvent.keyDown(editor, { code: "Enter", key: "Enter" });
+
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/cached-personal");
+		});
+	});
+
+	it("keeps cached empty skill lists authoritative after refetch errors", async () => {
+		const queryClient = createTestQueryClient();
+		const personalQuery = userSkills();
+		const workspaceQuery = workspaceSkills("workspace-cached");
+		queryClient.setQueryData(personalQuery.queryKey, []);
+		queryClient.setQueryData(workspaceQuery.queryKey, []);
+		const personalError = new Error("personal skills failed");
+		const workspaceError = new Error("workspace skills failed");
+		vi.spyOn(API.experimental, "getUserSkills").mockRejectedValue(
+			personalError,
+		);
+		vi.spyOn(API.experimental, "getWorkspaceSkills").mockRejectedValue(
+			workspaceError,
+		);
+
+		const inputRef = { current: null as ChatMessageInputRef | null };
+		renderWithQueryClient(
+			<ChatMessageInput
+				ref={inputRef}
+				workspaceId="workspace-cached"
+				aria-label="Chat message input"
+			/>,
+			queryClient,
+		);
+
+		await waitFor(() => {
+			expect(inputRef.current).not.toBeNull();
+		});
+		inputRef.current?.insertText("/");
+
+		await waitFor(() => {
+			expect(queryClient.getQueryState(personalQuery.queryKey)?.error).toBe(
+				personalError,
+			);
+			expect(queryClient.getQueryState(workspaceQuery.queryKey)?.error).toBe(
+				workspaceError,
+			);
+		});
+
+		expect(
+			await screen.findByText("No personal or workspace skills found."),
+		).toBeVisible();
+		expect(
+			screen.queryByText(
+				"Could not load personal skills. Close and type / again to retry.",
+			),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(
+				"Could not load workspace skills. Close and type / again to retry.",
+			),
+		).not.toBeInTheDocument();
+	});
 });
