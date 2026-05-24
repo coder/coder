@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
 	type FC,
 	type ReactNode,
@@ -6,18 +6,45 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { QueryClientProvider } from "react-query";
-import { describe, expect, it } from "vitest";
+import { type QueryClient, QueryClientProvider } from "react-query";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
+import { userSkills } from "#/api/queries/userSkills";
+import { workspaceSkills } from "#/api/queries/workspaceSkills";
+import type * as TypesGen from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
-const renderWithQueryClient = (children: ReactNode) => {
-	const queryClient = createTestQueryClient();
-
+const renderWithQueryClient = (
+	children: ReactNode,
+	queryClient: QueryClient = createTestQueryClient(),
+) => {
 	return render(
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
 	);
 };
+
+const now = "2026-05-08T00:00:00Z";
+const cachedPersonalSkills: TypesGen.UserSkillMetadata[] = [
+	{
+		id: "skill-cached-personal",
+		name: "cached-personal",
+		description: "Cached personal skill.",
+		created_at: now,
+		updated_at: now,
+	},
+];
+const cachedWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
+	{
+		name: "cached-workspace",
+		description: "Cached workspace skill.",
+	},
+];
+
+const pendingPromise = <T,>() =>
+	new Promise<T>(() => {
+		// Leave unresolved to model an in-flight background refetch.
+	});
 
 const InitialValueHarness: FC<{ initialValue: string }> = ({
 	initialValue,
@@ -65,7 +92,18 @@ const QueuedReplacementHarness: FC<{
 	);
 };
 
+beforeAll(() => {
+	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+		configurable: true,
+		value: () => new DOMRect(0, 0, 1, 16),
+	});
+});
+
 describe("ChatMessageInput", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("returns the initial draft before the editor visually hydrates", async () => {
 		renderWithQueryClient(
 			<InitialValueHarness initialValue="persisted draft" />,
@@ -113,6 +151,50 @@ describe("ChatMessageInput", () => {
 
 		await waitFor(() => {
 			expect(inputRef.current?.getValue()).toBe("typed content");
+		});
+	});
+
+	it("keeps cached skills selectable during background refetches", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(userSkills().queryKey, cachedPersonalSkills);
+		queryClient.setQueryData(
+			workspaceSkills("workspace-cached").queryKey,
+			cachedWorkspaceSkills,
+		);
+		const getUserSkills = vi
+			.spyOn(API.experimental, "getUserSkills")
+			.mockReturnValue(pendingPromise<TypesGen.UserSkillMetadata[]>());
+		const getWorkspaceSkills = vi
+			.spyOn(API.experimental, "getWorkspaceSkills")
+			.mockReturnValue(pendingPromise<TypesGen.WorkspaceSkillMetadata[]>());
+
+		const inputRef = { current: null as ChatMessageInputRef | null };
+		renderWithQueryClient(
+			<ChatMessageInput
+				ref={inputRef}
+				workspaceId="workspace-cached"
+				aria-label="Chat message input"
+			/>,
+			queryClient,
+		);
+
+		await waitFor(() => {
+			expect(inputRef.current).not.toBeNull();
+		});
+		inputRef.current?.insertText("/");
+
+		await waitFor(() => {
+			expect(getUserSkills).toHaveBeenCalledWith("me");
+			expect(getWorkspaceSkills).toHaveBeenCalledWith("workspace-cached");
+		});
+		const editor = await screen.findByTestId("chat-message-input");
+		expect(await screen.findByText("/cached-personal")).toBeVisible();
+		expect(await screen.findByText("/cached-workspace")).toBeVisible();
+
+		fireEvent.keyDown(editor, { code: "Enter", key: "Enter" });
+
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/cached-personal");
 		});
 	});
 });

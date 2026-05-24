@@ -633,24 +633,21 @@ const ChatMessageInput = ({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
 	});
-	const livePersonalSkills =
-		skillsQuery.isSuccess && !skillsQuery.isFetching
-			? (skillsQuery.data ?? [])
-			: [];
-	const liveWorkspaceSkills =
-		workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching
-			? (workspaceSkillsQuery.data ?? [])
-			: [];
+	const livePersonalSkills = skillsQuery.isSuccess
+		? (skillsQuery.data ?? [])
+		: [];
+	const liveWorkspaceSkills = workspaceSkillsQuery.isSuccess
+		? (workspaceSkillsQuery.data ?? [])
+		: [];
 	const personalSkills = personalSkillsOverride ?? livePersonalSkills;
 	const loadedWorkspaceSkills = workspaceSkillsOverride ?? liveWorkspaceSkills;
 	const personalSkillsAuthoritative = Boolean(
-		personalSkillsOverride !== undefined ||
-			(skillsQuery.isSuccess && !skillsQuery.isFetching),
+		personalSkillsOverride !== undefined || skillsQuery.isSuccess,
 	);
 	const workspaceSkillsAuthoritative = Boolean(
 		!workspaceId ||
 			workspaceSkillsOverride !== undefined ||
-			(workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching),
+			workspaceSkillsQuery.isSuccess,
 	);
 	const personalSkillsSettled = Boolean(
 		personalSkillsAuthoritative ||
