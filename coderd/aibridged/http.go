@@ -56,33 +56,56 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		authMode = "byok"
 	}
 
-	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
-	if key == "" {
-		// Some clients (e.g. Claude) send a HEAD request
-		// without credentials to check connectivity.
-		if r.Method == http.MethodHead {
-			logger.Info(ctx, "unauthenticated HEAD request")
-		} else {
-			logger.Warn(ctx, "no auth key provided")
+	// When the request arrived via the in-process transport, the caller
+	// has placed a delegated API key ID on the context. We trust that the
+	// caller already established the user's identity and only validate
+	// liveness; the caller does not have (and cannot send) the key secret.
+	// Delegation is orthogonal to BYOK: a delegated request still carries
+	// the user's own LLM credentials in Authorization/X-Api-Key when BYOK
+	// is in effect.
+	var (
+		authReq    *proto.IsAuthorizedRequest
+		sessionKey string
+		delegated  bool
+	)
+	if delegatedID, ok := agplaibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
+		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+		delegated = true
+		// SessionKey is consumed only by the injected MCP path, which is
+		// not available to delegated callers (they have no secret).
+	} else {
+		key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
+		if key == "" {
+			// Some clients (e.g. Claude) send a HEAD request
+			// without credentials to check connectivity.
+			if r.Method == http.MethodHead {
+				logger.Info(ctx, "unauthenticated HEAD request")
+			} else {
+				logger.Warn(ctx, "no auth key provided")
+			}
+			http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
+			return
 		}
-		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
-		return
+		authReq = &proto.IsAuthorizedRequest{Key: key}
+		sessionKey = key
 	}
 
-	// Strip every header that may carry the Coder token so it is
-	// never forwarded to upstream providers. After stripping, the
-	// aibridge library can treat the request as a normal LLM API call
-	// with no Coder-specific information.
+	// Strip every header that may carry the Coder token so it is never
+	// forwarded to upstream providers. Runs for both header-auth and
+	// delegated requests: a delegated caller may forward the user's BYOK
+	// headers, and we still want to scrub any Coder-specific credentials
+	// that may have leaked through. After stripping, the aibridge library
+	// can treat the request as a normal LLM API call with no
+	// Coder-specific information.
 	if byok {
-		// In BYOK mode the token is in X-Coder-AI-Governance-Token;
-		// Authorization and X-Api-Key carry the user's own LLM credentials
-		// and must be preserved.
+		// In BYOK mode the Coder token is in X-Coder-AI-Governance-Token;
+		// Authorization and X-Api-Key carry the user's own LLM
+		// credentials and must be preserved.
 		r.Header.Del(agplaibridge.HeaderCoderToken)
 	} else {
-		// In centralized mode the token may be in Authorization (the
-		// documented path) or X-Api-Key (legacy clients that set
-		// ANTHROPIC_API_KEY to their Coder token). Both are
-		// stripped.
+		// In centralized mode the Coder token may be in Authorization
+		// (the documented path) or X-Api-Key (legacy clients that set
+		// ANTHROPIC_API_KEY to their Coder token). Both are stripped.
 		r.Header.Del("Authorization")
 		r.Header.Del("X-Api-Key")
 	}
@@ -94,9 +117,19 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := client.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: key})
+	// Attach auth attributes used by all log lines below. "source" is the
+	// transport origin (e.g., "agents" for in-process callers, empty for
+	// network callers); "auth_delegated" distinguishes header-based from
+	// context-delegated authentication.
+	logger = logger.With(
+		slog.F("source", string(agplaibridge.SourceFromContext(ctx))),
+		slog.F("auth_mode", authMode),
+		slog.F("auth_delegated", delegated),
+	)
+
+	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err), slog.F("auth_mode", authMode))
+		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}
@@ -118,7 +151,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
-		SessionKey:  key,
+		SessionKey:  sessionKey,
 		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
 	})
