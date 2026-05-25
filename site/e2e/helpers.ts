@@ -7,8 +7,8 @@ import {
 	type BrowserContext,
 	expect,
 	type Page,
-	type WebSocket as PlaywrightWebSocket,
 	test,
+	type WebSocket,
 } from "@playwright/test";
 import express from "express";
 import capitalize from "lodash/capitalize";
@@ -128,12 +128,14 @@ export const createWorkspace = async (
 			? template
 			: `${template.organization}/${template.name}`;
 
-	const wsPromise = captureDynamicParamsWebSocket(page);
+	const socketPromise = page.waitForEvent("websocket", {
+		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+	});
 	await page.goto(`/templates/${templatePath}/workspace`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
-	const dynamicParamsWS = await wsPromise;
+	const paramsSocket = await socketPromise;
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
@@ -143,7 +145,7 @@ export const createWorkspace = async (
 	}
 
 	await fillParameters(page, richParameters, buildParameters, {
-		dynamicParamsWS,
+		paramsSocket,
 	});
 
 	if (useExternalAuth) {
@@ -437,13 +439,15 @@ export const startWorkspaceWithEphemeralParameters = async (
 		waitUntil: "domcontentloaded",
 	});
 
-	const wsPromise = captureDynamicParamsWebSocket(page);
+	const socketPromise = page.waitForEvent("websocket", {
+		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+	});
 	await page.getByTestId("workspace-start").click();
 	await page.getByTestId("workspace-parameters").click();
-	const dynamicParamsWS = await wsPromise;
+	const paramsSocket = await socketPromise;
 
 	await fillParameters(page, richParameters, buildParameters, {
-		dynamicParamsWS,
+		paramsSocket,
 	});
 
 	await page.getByRole("button", { name: /update and start/i }).click();
@@ -1061,9 +1065,9 @@ const fillParameters = async (
 	page: Page,
 	richParameters: RichParameter[] = [],
 	buildParameters: WorkspaceBuildParameter[] = [],
-	options: { dynamicParamsWS?: PlaywrightWebSocket } = {},
+	options: { paramsSocket?: WebSocket } = {},
 ) => {
-	const { dynamicParamsWS } = options;
+	const { paramsSocket } = options;
 
 	for (const buildParameter of buildParameters) {
 		const richParameter = richParameters.find(
@@ -1084,9 +1088,10 @@ const fillParameters = async (
 			const parameterValue = parameterLabel.getByRole("button", {
 				name: buildParameter.value,
 			});
-			await withDynamicParamsFrame(dynamicParamsWS, () =>
+			await Promise.all([
+				paramsSocket?.waitForEvent("framereceived", { timeout: 15_000 }),
 				parameterValue.click(),
-			);
+			]);
 			continue;
 		}
 
@@ -1094,9 +1099,12 @@ const fillParameters = async (
 			case "bool":
 				{
 					const parameterField = parameterLabel.locator("button");
-					await withDynamicParamsFrame(dynamicParamsWS, () =>
+					await Promise.all([
+						paramsSocket?.waitForEvent("framereceived", {
+							timeout: 15_000,
+						}),
 						parameterField.click(),
-					);
+					]);
 				}
 				break;
 			case "string":
@@ -1107,9 +1115,12 @@ const fillParameters = async (
 					// overwrite an early fill. Re-apply until the desired value
 					// is stable.
 					for (let attempt = 0; attempt < 3; attempt++) {
-						await withDynamicParamsFrame(dynamicParamsWS, () =>
+						await Promise.all([
+							paramsSocket?.waitForEvent("framereceived", {
+								timeout: 15_000,
+							}),
 							parameterField.fill(buildParameter.value),
-						);
+						]);
 						try {
 							await expect(parameterField).toHaveValue(buildParameter.value, {
 								timeout: 1000,
@@ -1128,22 +1139,6 @@ const fillParameters = async (
 				throw new Error("not implemented yet");
 		}
 	}
-};
-
-const captureDynamicParamsWebSocket = (page: Page, timeout = 30_000) =>
-	page.waitForEvent("websocket", {
-		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
-		timeout,
-	});
-
-const withDynamicParamsFrame = async (
-	ws: PlaywrightWebSocket | undefined,
-	action: () => Promise<void>,
-	timeout = 15_000,
-) => {
-	const framePromise = ws?.waitForEvent("framereceived", { timeout });
-	await action();
-	await framePromise;
 };
 
 export const updateTemplate = async (
@@ -1237,14 +1232,16 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
-	const wsPromise = captureDynamicParamsWebSocket(page);
+	const socketPromise = page.waitForEvent("websocket", {
+		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+	});
 	await page
 		.getByRole("button", { name: /go to workspace parameters/i })
 		.click();
-	const dynamicParamsWS = await wsPromise;
+	const paramsSocket = await socketPromise;
 
 	await fillParameters(page, richParameters, buildParameters, {
-		dynamicParamsWS,
+		paramsSocket,
 	});
 
 	if (workspaceStatus === "running") {
@@ -1265,14 +1262,16 @@ export const updateWorkspaceParameters = async (
 ) => {
 	const user = currentUser(page);
 
-	const wsPromise = captureDynamicParamsWebSocket(page);
+	const socketPromise = page.waitForEvent("websocket", {
+		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+	});
 	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
 		waitUntil: "domcontentloaded",
 	});
-	const dynamicParamsWS = await wsPromise;
+	const paramsSocket = await socketPromise;
 
 	await fillParameters(page, richParameters, buildParameters, {
-		dynamicParamsWS,
+		paramsSocket,
 	});
 
 	if (workspaceStatus === "running") {
