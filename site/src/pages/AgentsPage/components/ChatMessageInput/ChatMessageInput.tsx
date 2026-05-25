@@ -33,7 +33,6 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { getErrorDetail, getErrorMessage, getErrorStatus } from "#/api/errors";
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -64,7 +63,6 @@ import {
 	createSkillMenuItem,
 	type SkillMenuItem,
 	SkillsTriggerMenu,
-	skillTriggerText,
 } from "./SkillsTriggerMenu";
 import {
 	type ActiveSkillsTrigger,
@@ -483,9 +481,6 @@ export interface ChatMessageInputRef {
 	getContentParts: () => EditorContentPart[];
 }
 
-const skillSelectionKey = (skill: SkillMenuItem): string =>
-	`${skill.source}:${skill.name}`;
-
 interface ChatMessageInputProps
 	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
 	placeholder?: string;
@@ -615,9 +610,7 @@ const ChatMessageInput = ({
 	const [skillsTrigger, setSkillsTrigger] =
 		useState<ActiveSkillsTrigger | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
-	const [skillsMenuSelectedKey, setSkillsMenuSelectedKey] = useState<
-		string | null
-	>(null);
+	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const skillsMenuOpen = Boolean(skillsTrigger);
 	const personalSkillsQueryEnabled =
 		skillsMenuOpen && personalSkillsOverride === undefined;
@@ -633,70 +626,17 @@ const ChatMessageInput = ({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
 	});
-	const personalSkillsQueryHasData = skillsQuery.data !== undefined;
-	const workspaceSkillsQueryHasData = workspaceSkillsQuery.data !== undefined;
-	const livePersonalSkills = personalSkillsQueryHasData ? skillsQuery.data : [];
-	const liveWorkspaceSkills = workspaceSkillsQueryHasData
-		? workspaceSkillsQuery.data
-		: [];
-	const personalSkills = personalSkillsOverride ?? livePersonalSkills;
-	const loadedWorkspaceSkills = workspaceSkillsOverride ?? liveWorkspaceSkills;
-	const personalSkillsAuthoritative = Boolean(
-		personalSkillsOverride !== undefined || personalSkillsQueryHasData,
-	);
-	const workspaceSkillsAuthoritative = Boolean(
-		!workspaceId ||
-			workspaceSkillsOverride !== undefined ||
-			workspaceSkillsQueryHasData,
-	);
-	const personalSkillsSettled = Boolean(
-		personalSkillsAuthoritative ||
-			(skillsQuery.isError && !skillsQuery.isFetching),
-	);
-	const workspaceSkillsSettled = Boolean(
-		workspaceSkillsAuthoritative ||
-			(workspaceSkillsQuery.isError && !workspaceSkillsQuery.isFetching),
-	);
-	const workspaceSkillsErrorMessage = (() => {
-		if (!workspaceSkillsQueryEnabled || !workspaceSkillsQuery.error) {
-			return undefined;
-		}
-		if (getErrorStatus(workspaceSkillsQuery.error) === 403) {
-			return "You do not have permission to load workspace skills.";
-		}
-		const message = getErrorMessage(
-			workspaceSkillsQuery.error,
-			"Could not load workspace skills. Close and type / again to retry.",
-		);
-		const detail = getErrorDetail(workspaceSkillsQuery.error);
-		return detail && detail !== message ? `${message} ${detail}` : message;
-	})();
+	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
+	const loadedWorkspaceSkills =
+		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
-	const workspaceSkillNames = new Set(
-		loadedWorkspaceSkills.map((skill) => skill.name),
-	);
-	const collidingSkillNames = new Set(
-		personalSkills
-			.filter((skill) => workspaceSkillNames.has(skill.name))
-			.map((skill) => skill.name),
-	);
 	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		personalSkills.map((skill) =>
-			createSkillMenuItem(
-				"personal",
-				skill,
-				!workspaceSkillsAuthoritative || collidingSkillNames.has(skill.name),
-			),
-		),
+		personalSkills.map((skill) => createSkillMenuItem("personal", skill)),
 		skillsSearchQuery,
 	);
 	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
 		loadedWorkspaceSkills.map((skill) =>
-			createSkillMenuItem(
-				"workspace",
-				skill,
-				!personalSkillsAuthoritative || collidingSkillNames.has(skill.name),
-			),
+			createSkillMenuItem("workspace", skill),
 		),
 		skillsSearchQuery,
 	);
@@ -704,30 +644,10 @@ const ChatMessageInput = ({
 		...personalSkillItems,
 		...workspaceSkillItems,
 	];
-	const skillsSourcesSettled = personalSkillsSettled && workspaceSkillsSettled;
-	const selectedSkillIndex = (() => {
-		if (allFilteredSkills.length === 0) {
-			return -1;
-		}
-		if (skillsMenuSelectedKey) {
-			const selectedKeyIndex = allFilteredSkills.findIndex(
-				(skill) => skillSelectionKey(skill) === skillsMenuSelectedKey,
-			);
-			if (selectedKeyIndex >= 0) {
-				return selectedKeyIndex;
-			}
-		}
-		if (!skillsSourcesSettled) {
-			return -1;
-		}
-		return 0;
-	})();
-	const handleSkillsMenuSelectedIndexChange = (index: number) => {
-		const selectedSkill = allFilteredSkills[index];
-		setSkillsMenuSelectedKey(
-			selectedSkill ? skillSelectionKey(selectedSkill) : null,
-		);
-	};
+	const selectedSkillIndex =
+		allFilteredSkills.length === 0
+			? -1
+			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -742,7 +662,7 @@ const ChatMessageInput = ({
 			return;
 		}
 		if (trigger?.query !== skillsTrigger?.query) {
-			setSkillsMenuSelectedKey(null);
+			setSkillsMenuSelectedIndex(0);
 		}
 		setSkillsTrigger(trigger);
 	};
@@ -752,7 +672,7 @@ const ChatMessageInput = ({
 		const trigger = skillsTrigger;
 		if (!editor || !trigger) {
 			setSkillsTrigger(null);
-			setSkillsMenuSelectedKey(null);
+			setSkillsMenuSelectedIndex(0);
 			return;
 		}
 
@@ -787,10 +707,10 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(skillTriggerText(skill));
+			selection.insertText(skill.triggerText);
 		});
 		setSkillsTrigger(null);
-		setSkillsMenuSelectedKey(null);
+		setSkillsMenuSelectedIndex(0);
 	};
 
 	const handleEditorReady = (editor: LexicalEditor) => {
@@ -999,7 +919,7 @@ const ChatMessageInput = ({
 					open={skillsMenuOpen}
 					skills={allFilteredSkills}
 					selectedIndex={selectedSkillIndex}
-					onSelectedIndexChange={handleSkillsMenuSelectedIndexChange}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
@@ -1015,26 +935,25 @@ const ChatMessageInput = ({
 					isPersonalLoading={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isFetching &&
-						!personalSkillsQueryHasData
+						skillsQuery.data === undefined
 					}
 					isPersonalError={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isError &&
-						!personalSkillsQueryHasData
+						skillsQuery.data === undefined
 					}
 					isWorkspaceLoading={
 						workspaceSkillsQueryEnabled &&
 						workspaceSkillsQuery.isFetching &&
-						!workspaceSkillsQueryHasData
+						workspaceSkillsQuery.data === undefined
 					}
 					isWorkspaceError={
 						workspaceSkillsQueryEnabled &&
 						workspaceSkillsQuery.isError &&
-						!workspaceSkillsQueryHasData
+						workspaceSkillsQuery.data === undefined
 					}
-					workspaceErrorMessage={workspaceSkillsErrorMessage}
 					selectedIndex={selectedSkillIndex}
-					onSelectedIndexChange={handleSkillsMenuSelectedIndexChange}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
 				/>

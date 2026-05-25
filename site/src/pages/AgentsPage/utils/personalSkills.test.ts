@@ -67,32 +67,25 @@ describe("filterSkillsByQuery", () => {
 		).toEqual(["deploy-bot"]);
 	});
 
-	it("matches qualified trigger text", () => {
-		const skillsWithAliases = [
+	it("matches trigger text", () => {
+		const skillsWithTriggerText = [
 			{
 				name: "reviewer",
 				description: "Review changed files",
 				triggerText: "/reviewer",
-				qualifiedTriggerText: "/personal/reviewer",
 			},
 			{
-				name: "reviewer",
-				description: "Workspace review process",
-				triggerText: "/reviewer",
-				qualifiedTriggerText: "/workspace/reviewer",
+				name: "test-runner",
+				description: "Run tests",
+				triggerText: "/workspace/test-runner",
 			},
 		];
 
 		expect(
-			filterSkillsByQuery(skillsWithAliases, "workspace/r").map(
-				({ qualifiedTriggerText }) => qualifiedTriggerText,
+			filterSkillsByQuery(skillsWithTriggerText, "workspace/t").map(
+				({ triggerText }) => triggerText,
 			),
-		).toEqual(["/workspace/reviewer"]);
-		expect(
-			filterSkillsByQuery(skillsWithAliases, "personal/r").map(
-				({ qualifiedTriggerText }) => qualifiedTriggerText,
-			),
-		).toEqual(["/personal/reviewer"]);
+		).toEqual(["/workspace/test-runner"]);
 	});
 });
 

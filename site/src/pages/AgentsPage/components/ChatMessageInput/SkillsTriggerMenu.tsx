@@ -31,22 +31,17 @@ type SkillMetadata = {
 export type SkillMenuItem = SkillMetadata & {
 	source: SkillSource;
 	triggerText: string;
-	qualifiedTriggerText: string;
 };
-
-export const skillTriggerText = (skill: SkillMenuItem): string =>
-	skill.triggerText;
 
 export const createSkillMenuItem = (
 	source: SkillSource,
 	skill: SkillMetadata,
-	useQualifiedAlias: boolean,
 ): SkillMenuItem => ({
 	name: skill.name,
 	description: skill.description,
 	source,
-	triggerText: `/${useQualifiedAlias ? `${source}/` : ""}${skill.name}`,
-	qualifiedTriggerText: `/${source}/${skill.name}`,
+	triggerText:
+		source === "workspace" ? `/workspace/${skill.name}` : `/${skill.name}`,
 });
 
 type SkillsTriggerMenuProps = {
@@ -60,31 +55,10 @@ type SkillsTriggerMenuProps = {
 	isPersonalError?: boolean;
 	isWorkspaceLoading?: boolean;
 	isWorkspaceError?: boolean;
-	workspaceErrorMessage?: string;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
 	onClose: () => void;
-};
-
-const skillValue = (skill: SkillMenuItem, index: number) =>
-	`${skill.source}:${skill.name}:${index}`;
-
-const selectedSkillValue = (
-	personalSkills: readonly SkillMenuItem[],
-	workspaceSkills: readonly SkillMenuItem[],
-	selectedIndex: number,
-): string => {
-	if (selectedIndex < 0) {
-		return "";
-	}
-	if (selectedIndex < personalSkills.length) {
-		const skill = personalSkills[selectedIndex];
-		return skill ? skillValue(skill, selectedIndex) : "";
-	}
-	const workspaceIndex = selectedIndex - personalSkills.length;
-	const skill = workspaceSkills[workspaceIndex];
-	return skill ? skillValue(skill, workspaceIndex) : "";
 };
 
 const getEmptyMessage = (query: string, workspaceSkillsEnabled: boolean) => {
@@ -123,7 +97,7 @@ const SkillCommandItem = ({
 		>
 			<div className="min-w-0 space-y-1">
 				<div className="truncate font-mono text-content-primary text-xs">
-					{skillTriggerText(skill)}
+					{skill.triggerText}
 				</div>
 				{skill.description.trim() && (
 					<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
@@ -146,51 +120,50 @@ export const SkillsTriggerMenu = ({
 	isPersonalError,
 	isWorkspaceLoading,
 	isWorkspaceError,
-	workspaceErrorMessage,
 	selectedIndex,
 	onSelectedIndexChange,
 	onSelect,
 	onClose,
 }: SkillsTriggerMenuProps) => {
-	const handleHighlightedValueChange = (value: string) => {
-		const personalIndex = personalSkills.findIndex(
-			(skill, index) => skillValue(skill, index) === value,
-		);
-		if (personalIndex >= 0) {
-			onSelectedIndexChange(personalIndex);
-			return;
-		}
+	const allSkills = [...personalSkills, ...workspaceSkills];
+	const statusItems = [
+		isPersonalLoading && personalSkills.length === 0
+			? "Loading personal skills..."
+			: undefined,
+		isPersonalError && personalSkills.length === 0
+			? "Could not load personal skills. Close and type / again to retry."
+			: undefined,
+		isWorkspaceLoading && workspaceSkills.length === 0
+			? "Loading workspace skills..."
+			: undefined,
+		isWorkspaceError && workspaceSkills.length === 0
+			? "Could not load workspace skills. Close and type / again to retry."
+			: undefined,
+	].filter((item): item is string => item !== undefined);
+	const shouldRender = open && anchorRect;
+	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
+	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
-		const workspaceIndex = workspaceSkills.findIndex(
-			(skill, index) => skillValue(skill, index) === value,
-		);
-		if (workspaceIndex >= 0) {
-			onSelectedIndexChange(personalSkills.length + workspaceIndex);
+	const handleHighlightedValueChange = (value: string) => {
+		const nextIndex = Number(value);
+		if (
+			Number.isInteger(nextIndex) &&
+			nextIndex >= 0 &&
+			nextIndex < allSkills.length
+		) {
+			onSelectedIndexChange(nextIndex);
 		}
 	};
 
-	const shouldRender = open && anchorRect;
-	const hasPersonalSkills = personalSkills.length > 0;
-	const hasWorkspaceSkills = workspaceSkills.length > 0;
-	const showPersonalLoading = Boolean(isPersonalLoading && !hasPersonalSkills);
-	const showWorkspaceLoading = Boolean(
-		isWorkspaceLoading && !hasWorkspaceSkills,
+	const renderSkill = (skill: SkillMenuItem, index: number) => (
+		<SkillCommandItem
+			key={`${skill.source}:${skill.name}:${index}`}
+			skill={skill}
+			value={String(index)}
+			selected={index === selectedIndex}
+			onSelect={onSelect}
+		/>
 	);
-	const showPersonalError = Boolean(isPersonalError && !hasPersonalSkills);
-	const showWorkspaceError = Boolean(isWorkspaceError && !hasWorkspaceSkills);
-	const hasStatusItems =
-		showPersonalLoading ||
-		showWorkspaceLoading ||
-		showPersonalError ||
-		showWorkspaceError;
-	const shouldShowEmpty =
-		!hasPersonalSkills && !hasWorkspaceSkills && !hasStatusItems;
-	const selectedValue = selectedSkillValue(
-		personalSkills,
-		workspaceSkills,
-		selectedIndex,
-	);
-	const emptyMessage = getEmptyMessage(query, Boolean(workspaceSkillsEnabled));
 
 	return (
 		<Popover
@@ -219,7 +192,7 @@ export const SkillsTriggerMenu = ({
 			<PopoverContent
 				align="start"
 				side="bottom"
-				className="w-80 p-1"
+				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
@@ -230,58 +203,31 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList className="max-h-72 border-t-0">
-						{showPersonalLoading && (
-							<CommandItem value="personal-loading" disabled>
-								Loading personal skills...
-							</CommandItem>
-						)}
-						{showPersonalError && (
-							<CommandItem value="personal-error" disabled>
-								Could not load personal skills. Close and type / again to retry.
-							</CommandItem>
-						)}
-						{hasPersonalSkills && (
+					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+						{personalSkills.length > 0 && (
 							<CommandGroup heading="Personal skills">
-								{personalSkills.map((skill, index) => (
-									<SkillCommandItem
-										key={skillValue(skill, index)}
-										skill={skill}
-										value={skillValue(skill, index)}
-										selected={index === selectedIndex}
-										onSelect={onSelect}
-									/>
-								))}
+								{personalSkills.map((skill, index) =>
+									renderSkill(skill, index),
+								)}
 							</CommandGroup>
 						)}
-						{hasWorkspaceSkills && (
+						{workspaceSkills.length > 0 && (
 							<CommandGroup heading="Workspace skills">
-								{workspaceSkills.map((skill, index) => {
-									const itemIndex = personalSkills.length + index;
-									return (
-										<SkillCommandItem
-											key={skillValue(skill, index)}
-											skill={skill}
-											value={skillValue(skill, index)}
-											selected={itemIndex === selectedIndex}
-											onSelect={onSelect}
-										/>
-									);
-								})}
+								{workspaceSkills.map((skill, index) =>
+									renderSkill(skill, personalSkills.length + index),
+								)}
 							</CommandGroup>
 						)}
-						{showWorkspaceLoading && (
-							<CommandItem value="workspace-loading" disabled>
-								Loading workspace skills...
+						{statusItems.map((message) => (
+							<CommandItem key={message} value={message} disabled>
+								{message}
 							</CommandItem>
+						))}
+						{shouldShowEmpty && (
+							<CommandEmpty>
+								{getEmptyMessage(query, Boolean(workspaceSkillsEnabled))}
+							</CommandEmpty>
 						)}
-						{showWorkspaceError && (
-							<CommandItem value="workspace-error" disabled>
-								{workspaceErrorMessage ??
-									"Could not load workspace skills. Close and type / again to retry."}
-							</CommandItem>
-						)}
-						{shouldShowEmpty && <CommandEmpty>{emptyMessage}</CommandEmpty>}
 					</CommandList>
 				</Command>
 			</PopoverContent>

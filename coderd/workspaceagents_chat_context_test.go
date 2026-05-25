@@ -257,49 +257,13 @@ func TestAgentChatContext(t *testing.T) {
 		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
-		skillPart := codersdk.ChatMessagePart{
-			Type:                     codersdk.ChatMessagePartTypeSkill,
-			SkillName:                "repo-helper",
-			SkillDescription:         "Repository instructions",
-			SkillDir:                 "/workspace/.agents/skills/repo-helper",
-			ContextFileSkillMetaFile: "SKILL.md",
-		}
-		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{skillPart},
-		})
-		require.NoError(t, err)
-
-		messages, err := setup.db.GetChatMessagesByChatID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
-		)
-		require.NoError(t, err)
-		require.Len(t, messages, 1)
-
-		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
-		require.Len(t, storedParts, 2)
-
-		// Strip the sentinel so clear must delete the skill message via
-		// the skill-part scan instead of the context-file bulk delete.
-		rawSkillOnly, err := json.Marshal([]codersdk.ChatMessagePart{storedParts[1]})
-		require.NoError(t, err)
-		_, err = setup.db.UpdateChatMessageByID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpdateChatMessageByIDParams{
-				ID: messages[0].ID,
-				Content: pqtype.NullRawMessage{
-					RawMessage: rawSkillOnly,
-					Valid:      true,
-				},
-			},
-		)
-		require.NoError(t, err)
+		stripAgentChatContextSentinelFromSkillMessage(ctx, t, setup, chat.ID)
 
 		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, resp.ChatID)
 
-		messages, err = setup.db.GetChatMessagesByChatID(
+		messages, err := setup.db.GetChatMessagesByChatID(
 			dbauthz.AsSystemRestricted(ctx),
 			database.GetChatMessagesByChatIDParams{ChatID: chat.ID, AfterID: 0},
 		)
@@ -319,40 +283,7 @@ func TestAgentChatContext(t *testing.T) {
 		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
 		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
-		skillPart := codersdk.ChatMessagePart{
-			Type:                     codersdk.ChatMessagePartTypeSkill,
-			SkillName:                "repo-helper",
-			SkillDescription:         "Repository instructions",
-			SkillDir:                 "/workspace/.agents/skills/repo-helper",
-			ContextFileSkillMetaFile: "SKILL.md",
-		}
-		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
-			Parts: []codersdk.ChatMessagePart{skillPart},
-		})
-		require.NoError(t, err)
-
-		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
-		require.Len(t, messages, 1)
-
-		storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
-		require.Len(t, storedParts, 2)
-
-		// Strip the sentinel so the skill message must be found by the
-		// full-history scan even after compaction hides it from the
-		// prompt-scoped query.
-		rawSkillOnly, err := json.Marshal([]codersdk.ChatMessagePart{storedParts[1]})
-		require.NoError(t, err)
-		_, err = setup.db.UpdateChatMessageByID(
-			dbauthz.AsSystemRestricted(ctx),
-			database.UpdateChatMessageByIDParams{
-				ID: messages[0].ID,
-				Content: pqtype.NullRawMessage{
-					RawMessage: rawSkillOnly,
-					Valid:      true,
-				},
-			},
-		)
-		require.NoError(t, err)
+		stripAgentChatContextSentinelFromSkillMessage(ctx, t, setup, chat.ID)
 
 		summaryContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("compressed summary"),
@@ -386,7 +317,7 @@ func TestAgentChatContext(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, resp.ChatID)
 
-		messages = requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
 		require.Len(t, messages, 1)
 		require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
 
@@ -905,88 +836,81 @@ func TestAgentChatContext(t *testing.T) {
 	})
 }
 
-func TestUpdateChatWorkspaceBindingClearsLastInjectedContext(t *testing.T) {
+func TestUpdateChatWorkspaceBindingContextCleanup(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	setup := newAgentChatContextTestSetup(t)
-	model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
-	agentID := setup.workspace.Agents[0].ID
-	cachedContext := json.RawMessage(`[{"type":"skill","skill_name":"old-skill"}]`)
-	chat := dbgen.Chat(t, setup.db, database.Chat{
-		OrganizationID:      setup.user.OrganizationID,
-		OwnerID:             setup.user.UserID,
-		LastModelConfigID:   model.ID,
-		Title:               t.Name(),
-		AgentID:             uuid.NullUUID{UUID: agentID, Valid: true},
-		LastInjectedContext: pqtype.NullRawMessage{RawMessage: cachedContext, Valid: true},
-	})
+	for _, tt := range []struct {
+		name                   string
+		bindBeforeCache        bool
+		wantCachedContext      bool
+		wantUpdatedAtUnchanged bool
+		wantMessageIDs         func([]database.ChatMessage) []int64
+	}{
+		{
+			name:              "changed binding clears cached context messages",
+			wantCachedContext: false,
+			wantMessageIDs: func(messages []database.ChatMessage) []int64 {
+				return []int64{messages[2].ID}
+			},
+		},
+		{
+			name:                   "unchanged binding preserves cached context messages",
+			bindBeforeCache:        true,
+			wantCachedContext:      true,
+			wantUpdatedAtUnchanged: true,
+			wantMessageIDs:         chatMessageIDs,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	insertedMessages := insertAgentChatWorkspaceBindingMessages(t, setup.db, chat.ID, setup.user.UserID, model.ID, agentID)
-	normalMessage := insertedMessages[2]
+			ctx := testutil.Context(t, testutil.WaitLong)
+			setup := newAgentChatContextTestSetup(t)
+			model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+			agentID := setup.workspace.Agents[0].ID
+			cachedContext := json.RawMessage(`[{"type":"skill","skill_name":"old-skill"}]`)
+			chat := dbgen.Chat(t, setup.db, database.Chat{
+				OrganizationID:    setup.user.OrganizationID,
+				OwnerID:           setup.user.UserID,
+				LastModelConfigID: model.ID,
+				Title:             t.Name(),
+			})
+			params := database.UpdateChatWorkspaceBindingParams{
+				WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
+				BuildID:     uuid.NullUUID{UUID: setup.workspace.Build.ID, Valid: true},
+				AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
+				ID:          chat.ID,
+			}
 
-	updated, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceBindingParams{
-		WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
-		BuildID:     uuid.NullUUID{UUID: setup.workspace.Build.ID, Valid: true},
-		AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
-		ID:          chat.ID,
-	})
-	require.NoError(t, err)
-	require.False(t, updated.LastInjectedContext.Valid)
+			if tt.bindBeforeCache {
+				_, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), params)
+				require.NoError(t, err)
+			}
+			_, err := setup.db.UpdateChatLastInjectedContext(dbauthz.AsSystemRestricted(ctx), database.UpdateChatLastInjectedContextParams{
+				LastInjectedContext: pqtype.NullRawMessage{RawMessage: cachedContext, Valid: true},
+				ID:                  chat.ID,
+			})
+			require.NoError(t, err)
+			persistedBefore, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			require.NoError(t, err)
+			insertedMessages := insertAgentChatWorkspaceBindingMessages(t, setup.db, chat.ID, setup.user.UserID, model.ID, agentID)
 
-	persisted, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-	require.NoError(t, err)
-	require.False(t, persisted.LastInjectedContext.Valid)
+			updated, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), params)
+			require.NoError(t, err)
+			if tt.wantUpdatedAtUnchanged {
+				require.Equal(t, persistedBefore.UpdatedAt, updated.UpdatedAt)
+			}
+			if tt.wantCachedContext {
+				require.True(t, updated.LastInjectedContext.Valid)
+				require.JSONEq(t, string(cachedContext), string(updated.LastInjectedContext.RawMessage))
+			} else {
+				require.False(t, updated.LastInjectedContext.Valid)
+			}
 
-	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
-	require.Len(t, messages, 1)
-	require.Equal(t, normalMessage.ID, messages[0].ID)
-}
-
-func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	setup := newAgentChatContextTestSetup(t)
-	model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
-	agentID := setup.workspace.Agents[0].ID
-	cachedContext := json.RawMessage(`[{"type":"skill","skill_name":"old-skill"}]`)
-	chat := dbgen.Chat(t, setup.db, database.Chat{
-		OrganizationID:    setup.user.OrganizationID,
-		OwnerID:           setup.user.UserID,
-		LastModelConfigID: model.ID,
-		Title:             t.Name(),
-	})
-	_, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceBindingParams{
-		WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
-		BuildID:     uuid.NullUUID{UUID: setup.workspace.Build.ID, Valid: true},
-		AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
-		ID:          chat.ID,
-	})
-	require.NoError(t, err)
-	_, err = setup.db.UpdateChatLastInjectedContext(dbauthz.AsSystemRestricted(ctx), database.UpdateChatLastInjectedContextParams{
-		LastInjectedContext: pqtype.NullRawMessage{RawMessage: cachedContext, Valid: true},
-		ID:                  chat.ID,
-	})
-	require.NoError(t, err)
-	persistedBefore, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-	require.NoError(t, err)
-
-	insertedMessages := insertAgentChatWorkspaceBindingMessages(t, setup.db, chat.ID, setup.user.UserID, model.ID, agentID)
-
-	updated, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceBindingParams{
-		WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
-		BuildID:     uuid.NullUUID{UUID: setup.workspace.Build.ID, Valid: true},
-		AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
-		ID:          chat.ID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, persistedBefore.UpdatedAt, updated.UpdatedAt)
-	require.True(t, updated.LastInjectedContext.Valid)
-	require.JSONEq(t, string(cachedContext), string(updated.LastInjectedContext.RawMessage))
-
-	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
-	require.ElementsMatch(t, chatMessageIDs(insertedMessages), chatMessageIDs(messages))
+			messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
+			require.ElementsMatch(t, tt.wantMessageIDs(insertedMessages), chatMessageIDs(messages))
+		})
+	}
 }
 
 func chatMessageIDs(messages []database.ChatMessage) []int64 {
@@ -1000,45 +924,75 @@ func chatMessageIDs(messages []database.ChatMessage) []int64 {
 func insertAgentChatWorkspaceBindingMessages(t testing.TB, db database.Store, chatID uuid.UUID, userID uuid.UUID, modelID uuid.UUID, agentID uuid.UUID) []database.ChatMessage {
 	t.Helper()
 
-	contextRaw, err := json.Marshal([]codersdk.ChatMessagePart{{
-		Type:               codersdk.ChatMessagePartTypeContextFile,
-		ContextFilePath:    "/workspace/AGENTS.md",
-		ContextFileContent: "old instructions",
-		ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
-	}})
-	require.NoError(t, err)
-	skillRaw, err := json.Marshal([]codersdk.ChatMessagePart{{
-		Type:               codersdk.ChatMessagePartTypeSkill,
-		SkillName:          "old-skill",
-		SkillDescription:   "old skill",
-		ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
-	}})
-	require.NoError(t, err)
-	normalRaw, err := json.Marshal([]codersdk.ChatMessagePart{{
-		Type: codersdk.ChatMessagePartTypeText,
-		Text: "keep me",
-	}})
+	messageParts := [][]codersdk.ChatMessagePart{
+		{{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/workspace/AGENTS.md",
+			ContextFileContent: "old instructions",
+			ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		}},
+		{{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          "old-skill",
+			SkillDescription:   "old skill",
+			ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		}},
+		{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "keep me",
+		}},
+	}
+
+	messages := make([]database.ChatMessage, 0, len(messageParts))
+	for _, parts := range messageParts {
+		raw, err := json.Marshal(parts)
+		require.NoError(t, err)
+		messages = append(messages, dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
+			Content:       pqtype.NullRawMessage{RawMessage: raw, Valid: true},
+		}))
+	}
+	return messages
+}
+
+func stripAgentChatContextSentinelFromSkillMessage(ctx context.Context, t testing.TB, setup agentChatContextTestSetup, chatID uuid.UUID) {
+	t.Helper()
+
+	skillPart := codersdk.ChatMessagePart{
+		Type:                     codersdk.ChatMessagePartTypeSkill,
+		SkillName:                "repo-helper",
+		SkillDescription:         "Repository instructions",
+		SkillDir:                 "/workspace/.agents/skills/repo-helper",
+		ContextFileSkillMetaFile: "SKILL.md",
+	}
+	_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
+		Parts: []codersdk.ChatMessagePart{skillPart},
+	})
 	require.NoError(t, err)
 
-	contextMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chatID,
-		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
-		Content:       pqtype.NullRawMessage{RawMessage: contextRaw, Valid: true},
-	})
-	skillMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chatID,
-		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
-		Content:       pqtype.NullRawMessage{RawMessage: skillRaw, Valid: true},
-	})
-	normalMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chatID,
-		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
-		Content:       pqtype.NullRawMessage{RawMessage: normalRaw, Valid: true},
-	})
-	return []database.ChatMessage{contextMessage, skillMessage, normalMessage}
+	messages := requireAgentChatContextMessages(ctx, t, setup.db, chatID)
+	require.Len(t, messages, 1)
+
+	storedParts := requireAgentChatContextParts(t, messages[0].Content.RawMessage)
+	require.Len(t, storedParts, 2)
+
+	// Remove the sentinel context-file part so tests exercise skill-message
+	// cleanup paths.
+	rawSkillOnly, err := json.Marshal([]codersdk.ChatMessagePart{storedParts[1]})
+	require.NoError(t, err)
+	_, err = setup.db.UpdateChatMessageByID(
+		dbauthz.AsSystemRestricted(ctx),
+		database.UpdateChatMessageByIDParams{
+			ID: messages[0].ID,
+			Content: pqtype.NullRawMessage{
+				RawMessage: rawSkillOnly,
+				Valid:      true,
+			},
+		},
+	)
+	require.NoError(t, err)
 }
 
 func requireAgentChatContextMessages(ctx context.Context, t testing.TB, db database.Store, chatID uuid.UUID) []database.ChatMessage {

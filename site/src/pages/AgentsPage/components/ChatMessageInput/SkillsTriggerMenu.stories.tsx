@@ -42,10 +42,10 @@ const mockWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
 ];
 
 const mockPersonalSkillItems = mockPersonalSkills.map((skill) =>
-	createSkillMenuItem("personal", skill, false),
+	createSkillMenuItem("personal", skill),
 );
 const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
-	createSkillMenuItem("workspace", skill, false),
+	createSkillMenuItem("workspace", skill),
 );
 
 const findVisibleText = async (text: string) => {
@@ -110,19 +110,6 @@ export const PersonalOnly: Story = {
 	},
 };
 
-export const WorkspaceOnly: Story = {
-	args: {
-		personalSkills: [],
-		workspaceSkills: mockWorkspaceSkillItems,
-		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		await expectNoVisibleText("Personal skills");
-		expect(await findVisibleText("Workspace skills")).toBeDefined();
-		expect(await findVisibleText("/test-runner")).toBeDefined();
-	},
-};
-
 export const BothGroups: Story = {
 	args: {
 		workspaceSkills: mockWorkspaceSkillItems,
@@ -132,56 +119,7 @@ export const BothGroups: Story = {
 		expect(await findVisibleText("Personal skills")).toBeDefined();
 		expect(await findVisibleText("Workspace skills")).toBeDefined();
 		expect(await findVisibleText("/reviewer")).toBeDefined();
-		expect(await findVisibleText("/test-runner")).toBeDefined();
-	},
-};
-
-export const Collision: Story = {
-	args: {
-		personalSkills: [
-			createSkillMenuItem("personal", mockPersonalSkills[0], true),
-		],
-		workspaceSkills: [
-			createSkillMenuItem(
-				"workspace",
-				{
-					name: "reviewer",
-					description: "Workspace-specific review process.",
-				},
-				true,
-			),
-		],
-		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
-		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
-		expect(
-			await findVisibleText("Workspace-specific review process."),
-		).toBeDefined();
-	},
-};
-
-export const EmptyWorkspaceWithPersonal: Story = {
-	args: {
-		workspaceSkills: [],
-		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("Personal skills")).toBeDefined();
-		await expectNoVisibleText("Workspace skills");
-	},
-};
-
-export const WorkspaceLoading: Story = {
-	args: {
-		workspaceSkills: [],
-		workspaceSkillsEnabled: true,
-		isWorkspaceLoading: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("Personal skills")).toBeDefined();
-		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
 	},
 };
 
@@ -195,49 +133,18 @@ export const Loading: Story = {
 	},
 };
 
-export const PersonalError: Story = {
-	args: {
-		personalSkills: [],
-		isPersonalError: true,
-	},
-	play: async () => {
-		expect(
-			await findVisibleText(
-				"Could not load personal skills. Close and type / again to retry.",
-			),
-		).toBeDefined();
-	},
-};
-
-export const WorkspaceForbidden: Story = {
+export const WorkspaceError: Story = {
 	args: {
 		personalSkills: [],
 		workspaceSkills: [],
 		workspaceSkillsEnabled: true,
 		isWorkspaceError: true,
-		workspaceErrorMessage:
-			"You do not have permission to load workspace skills.",
 	},
 	play: async () => {
 		expect(
 			await findVisibleText(
-				"You do not have permission to load workspace skills.",
+				"Could not load workspace skills. Close and type / again to retry.",
 			),
-		).toBeDefined();
-	},
-};
-
-export const WorkspaceAgentError: Story = {
-	args: {
-		personalSkills: [],
-		workspaceSkills: [],
-		workspaceSkillsEnabled: true,
-		isWorkspaceError: true,
-		workspaceErrorMessage: "Failed to connect to workspace agent.",
-	},
-	play: async () => {
-		expect(
-			await findVisibleText("Failed to connect to workspace agent."),
 		).toBeDefined();
 	},
 };
@@ -262,19 +169,7 @@ export const Filtered: Story = {
 	play: async () => {
 		expect(await findVisibleText("/reviewer")).toBeDefined();
 		await expectNoVisibleText("/docs");
-		await expectNoVisibleText("/test-runner");
-	},
-};
-
-export const FilteredEmpty: Story = {
-	args: {
-		query: "missing",
-		personalSkills: filterSkillsByQuery(mockPersonalSkillItems, "missing"),
-		workspaceSkills: filterSkillsByQuery(mockWorkspaceSkillItems, "missing"),
-		workspaceSkillsEnabled: true,
-	},
-	play: async () => {
-		expect(await findVisibleText("No skills match that query.")).toBeDefined();
+		await expectNoVisibleText("/workspace/test-runner");
 	},
 };
 
