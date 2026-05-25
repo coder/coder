@@ -121,3 +121,30 @@ func TestParseRetryAfter(t *testing.T) {
 		assert.Equal(t, time.Second, d)
 	})
 }
+
+func TestMapGitLabState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  string
+		expect PRState
+	}{
+		{name: "opened", input: "opened", expect: PRStateOpen},
+		{name: "Opened_mixed_case", input: "Opened", expect: PRStateOpen},
+		{name: "merged", input: "merged", expect: PRStateMerged},
+		{name: "closed", input: "closed", expect: PRStateClosed},
+		{name: "locked", input: "locked", expect: PRStateClosed},
+		{name: "unknown_defaults_to_closed", input: "something_else", expect: PRStateClosed},
+		{name: "empty_defaults_to_closed", input: "", expect: PRStateClosed},
+		{name: "whitespace_trimmed", input: "  opened  ", expect: PRStateOpen},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mapGitLabState(tt.input)
+			assert.Equal(t, tt.expect, got)
+		})
+	}
+}
