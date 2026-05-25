@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -17,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // Assert that our fake agent routine establishes the drpc connection and sets its lifecycle status to Ready.
@@ -86,7 +89,24 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	// Drive both the fake agent's metadata ticker AND coderd's
+	// metadatabatcher off the same mock clock so we don't wait on
+	// wall-clock time for either. Without this the test takes ~5s
+	// (the batcher's default scheduled flush interval); with it the
+	// test bottoms out at the SSE handler's stdlib 1s ticker.
+	mClock := quartz.NewMock(t)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Clock: mClock,
+		MetadataBatcherOptions: []metadatabatcher.Option{
+			metadatabatcher.WithClock(mClock),
+			// Shorten the scheduled flush so we don't have to advance
+			// the mock by 5s every time; 100ms is small enough to feel
+			// instant but large enough that we're not racing the agent
+			// tick when we advance below.
+			metadatabatcher.WithInterval(100 * time.Millisecond),
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Declare two metadata descriptions on the workspace agent. Both at
@@ -112,8 +132,15 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	// the rows that path created. No manual seeding needed.
 	agentID := workspaceAgentID(ctx, t, client, r.Workspace.ID)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	a := agentfake.NewAgent(client.URL, r.AgentToken, logger)
+	a := agentfake.NewAgent(client.URL, r.AgentToken, logger, agentfake.WithClock(mClock))
 	t.Cleanup(func() { a.Close() })
+
+	// Trap the agent's runMetadata TickerFunc registration so we know
+	// the goroutine is parked on the mock clock before we Advance.
+	// Otherwise Advance could race the goroutine startup and the first
+	// tick would be missed.
+	tickerTrap := mClock.Trap().TickerFunc("agentfake", "runMetadata")
+	defer tickerTrap.Close()
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
@@ -127,6 +154,10 @@ func TestAgent_SendsMetadata(t *testing.T) {
 		WithContext(ctx).
 		Wait()
 
+	// Wait for the agent to register its metadata ticker on the mock,
+	// then release the trapped call so the TickerFunc proceeds.
+	tickerTrap.MustWait(ctx).Release(ctx)
+
 	// Watch metadata via SSE. This exercises the same path coderd uses to
 	// surface metadata in the UI: BatchUpdate -> pubsub flush -> watcher.
 	// We wait for both declared keys to receive a non-empty, validly-encoded
@@ -134,6 +165,21 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	t.Cleanup(watchCancel)
 	mdChan, mdErrChan := client.WatchWorkspaceAgentMetadata(watchCtx, agentID)
+
+	// Advance the mock clock past the agent's 1s metadata tick and
+	// the batcher's 100ms scheduled flush. coderd registers other
+	// tickers on this clock too (cache refresh, etc.), so we use
+	// AdvanceNext in a loop to fire the soonest pending event each
+	// iteration until we've covered our 2-second window. This is
+	// robust regardless of which internal timers are registered.
+	target := mClock.Now().Add(2 * time.Second)
+	for mClock.Now().Before(target) {
+		d, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+		if d == 0 {
+			break
+		}
+	}
 
 	wantKeys := map[string]bool{"01_meta": false, "02_meta": false}
 waitLoop:
