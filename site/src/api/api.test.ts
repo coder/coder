@@ -1,4 +1,5 @@
 import {
+	MockProvisionerJob,
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
@@ -272,6 +273,102 @@ describe("api.ts", () => {
 					},
 				);
 			});
+		});
+	});
+
+	describe("changeWorkspaceVersion", () => {
+		it("stops workspace before changing version if running", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "succeeded",
+			});
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id);
+
+			expect(API.stopWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+				transition: "start",
+				template_version_id: MockTemplateVersion2.id,
+				rich_parameter_values: [],
+			});
+		});
+
+		it("does not stop workspace if already stopped", async () => {
+			vi.spyOn(API, "stopWorkspace");
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(
+				MockStoppedWorkspace,
+				MockTemplateVersion2.id,
+			);
+
+			expect(API.stopWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("rejects if stop is canceled", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "canceled",
+			});
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild");
+
+			await expect(
+				API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
+			).rejects.toThrow("Workspace stop was canceled");
+			expect(API.postWorkspaceBuild).not.toHaveBeenCalled();
+		});
+
+		it("throws MissingBuildParameters for missing params", async () => {
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+				MockTemplateVersionParameter1,
+				{ ...MockTemplateVersionParameter2, mutable: false },
+			]);
+
+			let error = new Error();
+			try {
+				await API.changeWorkspaceVersion(
+					MockStoppedWorkspace,
+					MockTemplateVersion2.id,
+				);
+			} catch (e) {
+				error = e as Error;
+			}
+
+			expect(error).toBeInstanceOf(MissingBuildParameters);
+			expect((error as MissingBuildParameters).parameters).toEqual([
+				MockTemplateVersionParameter1,
+				{ ...MockTemplateVersionParameter2, mutable: false },
+			]);
 		});
 	});
 
