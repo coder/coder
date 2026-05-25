@@ -10,6 +10,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+// Configuration validation type errors. These surface when the
+// pool is built from invalid input.
 var (
 	// ErrNoKeys is returned when the input is empty.
 	ErrNoKeys = xerrors.New("no keys provided")
@@ -18,20 +20,35 @@ var (
 	ErrDuplicateKey = xerrors.New("duplicate key")
 )
 
-// ErrPermanentKeyPool is returned when every key in the
-// pool has been permanently marked unavailable.
-var ErrPermanentKeyPool = xerrors.New("all keys permanently unavailable")
+// ErrorKind classifies a runtime key-pool failure.
+type ErrorKind int
 
-// TransientKeyPoolError is returned when no key is currently
-// available but at least one will recover. RetryAfter is the
-// soonest remaining cooldown across the pool, or 0 if a key
-// just became valid mid-walk.
-type TransientKeyPoolError struct {
+const (
+	// ErrorKindRateLimited means no key is currently available
+	// but at least one key will recover after a cooldown.
+	ErrorKindRateLimited ErrorKind = iota
+	// ErrorKindPermanent means every key is permanently marked
+	// and no key can satisfy the request.
+	ErrorKindPermanent
+)
+
+// Error is returned when no key is available for the
+// current attempt. RetryAfter is the soonest remaining
+// cooldown across the pool.
+type Error struct {
+	Kind       ErrorKind
 	RetryAfter time.Duration
 }
 
-func (e *TransientKeyPoolError) Error() string {
-	return fmt.Sprintf("all keys exhausted (retry after %s)", e.RetryAfter)
+func (e *Error) Error() string {
+	switch e.Kind {
+	case ErrorKindPermanent:
+		return "all configured keys failed authentication"
+	case ErrorKindRateLimited:
+		return fmt.Sprintf("all configured keys are rate-limited (retry after %s)", e.RetryAfter)
+	default:
+		return "key pool error"
+	}
 }
 
 // KeyState represents the current state of a key in the pool.
@@ -176,20 +193,21 @@ func (k *Key) MarkPermanent() bool {
 	return true
 }
 
-// keyPoolError returns ErrPermanentKeyPool if every key
-// is permanently unavailable, or *TransientKeyPoolError if
-// at least one key is temporarily unavailable. When multiple
-// keys are temporary, the smallest remaining cooldown is used
-// as the retry-after.
-func (p *Pool) keyPoolError() error {
+// keyPoolError returns an Error summarizing why no
+// key is currently available. When at least one key is
+// temporary, the smallest remaining cooldown is used as the
+// retry-after.
+func (p *Pool) keyPoolError() *Error {
 	var retryAfter time.Duration
 	var hasCooldown bool
 	for i := range p.keys {
 		state, cooldown := p.keys[i].stateAndCooldown()
 		switch state {
-		// Recoverable now: signal transient with zero retry-after.
+		// Recoverable now: a key's cooldown expired between the walker's
+		// check and this scan. Return Retry-After: 0 to indicate that
+		// an immediate retry will succeed.
 		case KeyStateValid:
-			return &TransientKeyPoolError{}
+			return &Error{Kind: ErrorKindRateLimited}
 		// Recoverable later: track soonest remaining cooldown.
 		case KeyStateTemporary:
 			if !hasCooldown || cooldown < retryAfter {
@@ -201,9 +219,9 @@ func (p *Pool) keyPoolError() error {
 		}
 	}
 	if hasCooldown {
-		return &TransientKeyPoolError{RetryAfter: retryAfter}
+		return &Error{Kind: ErrorKindRateLimited, RetryAfter: retryAfter}
 	}
-	return ErrPermanentKeyPool
+	return &Error{Kind: ErrorKindPermanent}
 }
 
 // PoolState returns a snapshot of each key's state in the pool's
@@ -236,16 +254,10 @@ func (p *Pool) Walker() *Walker {
 // Next returns a Key handle for the next available key without
 // modifying the pool state.
 //
-// Returns *TransientKeyPoolError or ErrPermanentKeyPool
-// when no more keys are available.
-func (w *Walker) Next() (*Key, error) {
-	pool := w.pool
-	if pool == nil {
-		return nil, ErrPermanentKeyPool
-	}
-
-	for i := w.pos; i < len(pool.keys); i++ {
-		key := &pool.keys[i]
+// Returns *Error when no more keys are available.
+func (w *Walker) Next() (*Key, *Error) {
+	for i := w.pos; i < len(w.pool.keys); i++ {
+		key := &w.pool.keys[i]
 		if key.State() != KeyStateValid {
 			continue
 		}
@@ -255,5 +267,5 @@ func (w *Walker) Next() (*Key, error) {
 	}
 
 	// No keys available.
-	return nil, pool.keyPoolError()
+	return nil, w.pool.keyPoolError()
 }

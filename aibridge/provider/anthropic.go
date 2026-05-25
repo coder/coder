@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -173,8 +172,8 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		// Centralized: use the first key as a placeholder hint.
 		// TODO(ssncferreira): record the actually-used key in
 		// the interception record to reflect failover.
-		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
-			credSecret = k.Value()
+		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
+			credSecret = key.Value()
 		}
 	}
 
@@ -222,20 +221,18 @@ func (p *Anthropic) InjectAuthHeader(headers *http.Header) {
 }
 
 func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
-	name := p.Name()
 	return keypool.KeyFailoverConfig{
-		Pool: p.cfg.KeyPool,
+		Pool:         p.cfg.KeyPool,
+		ProviderName: p.Name(),
+		Logger:       logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("X-Api-Key") != "" || r.Header.Get("Authorization") != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
 			h.Set("X-Api-Key", key)
 		},
-		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
-		},
-		BuildExhaustedResponse: func(err error) *http.Response {
-			return messages.ProcessKeyPoolError(err).ToResponse()
+		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
+			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
 		},
 	}
 }
