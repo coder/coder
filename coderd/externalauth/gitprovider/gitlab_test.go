@@ -36,7 +36,12 @@ func TestGitLabFetchPullRequestStatus(t *testing.T) {
 		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests/1/commits", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-Total", "2")
-			_, _ = w.Write([]byte(`[{"id":"abc","short_id":"abc","title":"c1","stats":{"additions":5,"deletions":2,"total":7}},{"id":"def","short_id":"def","title":"c2","stats":{"additions":3,"deletions":1,"total":4}}]`))
+			_, _ = w.Write([]byte(`[{"id":"abc","short_id":"abc","title":"c1"}]`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests/1/diffs", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// Two file diffs: first has +5/-2, second has +3/-1
+			_, _ = w.Write([]byte(`[{"diff":"@@ -1,3 +1,6 @@\n+a\n+b\n+c\n+d\n+e\n-x\n-y\n","new_path":"file1.txt","old_path":"file1.txt"},{"diff":"@@ -1,2 +1,4 @@\n+a\n+b\n+c\n-x\n","new_path":"file2.txt","old_path":"file2.txt"}]`))
 		})
 
 		srv := httptest.NewServer(mux)
@@ -55,6 +60,7 @@ func TestGitLabFetchPullRequestStatus(t *testing.T) {
 		assert.Equal(t, int32(2), status.Commits)
 		assert.Equal(t, int32(8), status.DiffStats.Additions)
 		assert.Equal(t, int32(3), status.DiffStats.Deletions)
+		assert.Equal(t, int32(1), status.DiffStats.ChangedFiles)
 	})
 }
 

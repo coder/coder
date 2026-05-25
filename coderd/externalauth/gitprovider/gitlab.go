@@ -96,13 +96,8 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		return nil, g.wrapError(err, "get merge request approvals")
 	}
 
-	// Fetch commits to get count and approximate diff stats.
-	// Note: the MR commits endpoint may not return per-commit stats;
-	// when stats are present, the sum is an approximation of MR-level
-	// additions/deletions (overlapping changes across commits can cause
-	// the sum to differ from the true merge-base diff).
+	// Fetch commits to get the commit count.
 	var totalCommits int32
-	var additions, deletions int32
 	commits, resp, err := g.client.MergeRequests.GetMergeRequestCommits(
 		pid, int64(ref.Number),
 		&gitlab.GetMergeRequestCommitsOptions{ListOptions: gitlab.ListOptions{PerPage: 100}},
@@ -116,10 +111,26 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	} else {
 		totalCommits = int32(len(commits))
 	}
-	for _, c := range commits {
-		if c.Stats != nil {
-			additions += int32(c.Stats.Additions)
-			deletions += int32(c.Stats.Deletions)
+
+	// Fetch MR diffs to compute additions/deletions.
+	// The commits endpoint does not return per-commit stats, so we
+	// count +/- lines from the unified diff returned by this endpoint.
+	var additions, deletions int32
+	diffs, _, err := g.client.MergeRequests.ListMergeRequestDiffs(
+		pid, int64(ref.Number),
+		&gitlab.ListMergeRequestDiffsOptions{ListOptions: gitlab.ListOptions{PerPage: 100}},
+		opts...,
+	)
+	if err != nil {
+		return nil, g.wrapError(err, "list merge request diffs")
+	}
+	for _, d := range diffs {
+		for _, line := range strings.Split(d.Diff, "\n") {
+			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+				additions++
+			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+				deletions++
+			}
 		}
 	}
 
