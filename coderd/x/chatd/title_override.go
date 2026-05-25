@@ -31,20 +31,23 @@ func readTitleGenerationModelOverride(
 }
 
 // resolveTitleGenerationModelOverride resolves the deployment-wide title
-// generation model override. It returns four values:
+// generation model override. It returns:
 //
 //   - modelConfig and model: populated only on success.
+//   - providerKeys and route: the credentials and routing metadata for the
+//     resolved override model.
 //   - overrideSet: true when the admin configured a non-empty override,
 //     regardless of whether resolution succeeded. Callers MUST always check
 //     err first; overrideSet alone does not imply the model is usable.
 //   - err: non-nil when resolution failed. DB read failure returns
-//     (zero, nil, false, err). With overrideSet=true, the override is
-//     configured but unusable (deleted model, missing credentials, etc.) and
-//     callers should treat this as a hard failure for explicit-override
+//     zero values with overrideSet=false. With overrideSet=true, the override
+//     is configured but unusable (deleted model, missing credentials, etc.)
+//     and callers should treat this as a hard failure for explicit-override
 //     semantics, not a soft fallback.
 //
 // When the override is unset or stored as malformed, the function returns
-// (zero, nil, false, nil) so callers can fall back to default behavior.
+// zero values with overrideSet=false so callers can fall back to default
+// behavior.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,

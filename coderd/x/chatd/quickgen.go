@@ -80,11 +80,13 @@ func (p *Server) preferredShortTextCandidates(
 		return nil
 	}
 
-	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels))
+	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
+	userAgent := chatprovider.UserAgent()
+	extraHeaders := chatprovider.CoderHeaders(chat)
 	for _, candidate := range preferredTitleModels {
 		model, err := chatprovider.ModelFromConfig(
-			candidate.provider, candidate.model, keys, chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
+			candidate.provider, candidate.model, keys, userAgent,
+			extraHeaders,
 			nil,
 		)
 		if err == nil {
@@ -194,8 +196,7 @@ func (p *Server) maybeGenerateChatTitle(
 	} else {
 		// Build candidate list: preferred lightweight models first,
 		// then the user's chat model as last resort.
-		candidates = make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-		candidates = append(candidates, p.preferredShortTextCandidates(chat, keys)...)
+		candidates = p.preferredShortTextCandidates(chat, keys)
 		candidates = append(candidates, shortTextCandidate{
 			provider: fallbackProvider,
 			model:    fallbackModelName,
@@ -853,8 +854,7 @@ func (p *Server) generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-	candidates = append(candidates, p.preferredShortTextCandidates(chat, keys)...)
+	candidates := p.preferredShortTextCandidates(chat, keys)
 	candidates = append(candidates, shortTextCandidate{
 		provider: fallbackProvider,
 		model:    fallbackModelName,
