@@ -119,6 +119,10 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	var additions, deletions int32
 	diffs, _, err := g.client.MergeRequests.ListMergeRequestDiffs(
 		pid, int64(ref.Number),
+		// NOTE: fetches a single page of up to 100 diffs. MRs with more than
+		// 100 changed files will have correct ChangedFiles (from MR metadata)
+		// but undercounted Additions/Deletions. Pagination is omitted because
+		// the gitsync worker only uses ChangedFiles for its heuristics today.
 		&gitlab.ListMergeRequestDiffsOptions{ListOptions: gitlab.ListOptions{PerPage: 100}},
 		opts...,
 	)
@@ -339,8 +343,15 @@ func (g *gitlabProvider) FetchBranchDiff(
 		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
 			return "", rlErr
 		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		if readErr != nil {
+			return "", g.wrapError(
+				xerrors.Errorf("unexpected status %d", resp.StatusCode),
+				"compare branches",
+			)
+		}
 		return "", g.wrapError(
-			xerrors.Errorf("unexpected status %d", resp.StatusCode),
+			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"compare branches",
 		)
 	}
