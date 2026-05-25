@@ -16417,9 +16417,6 @@ const docTemplate = `{
                 "acquire_batch_size": {
                     "type": "integer"
                 },
-                "ai_gateway_routing_enabled": {
-                    "type": "boolean"
-                },
                 "debug_logging_enabled": {
                     "type": "boolean"
                 }

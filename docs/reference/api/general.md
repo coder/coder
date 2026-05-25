@@ -225,7 +225,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       },
       "chat": {
         "acquire_batch_size": 0,
-        "ai_gateway_routing_enabled": true,
         "debug_logging_enabled": true
       }
     },

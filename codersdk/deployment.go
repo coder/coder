@@ -4727,7 +4727,7 @@ type AIBridgeProxyConfig struct {
 type ChatConfig struct {
 	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
-	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {
