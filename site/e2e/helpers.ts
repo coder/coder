@@ -1207,11 +1207,6 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		// The submit button on the workspace parameters settings page stays
-		// disabled until a WebSocket round-trip syncs the form values with
-		// the backend (see `hasUnsyncedParameters` in
-		// `WorkspaceParametersPageViewExperimental`). Under CI load this can
-		// exceed the default 5s action timeout, so wait longer here.
 		await page
 			.getByRole("button", { name: /update and restart/i })
 			.click({ timeout: 15_000 });
@@ -1239,8 +1234,6 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		// See the note in `updateWorkspace` for why this needs a longer
-		// timeout than the default 5s action timeout.
 		await page
 			.getByRole("button", { name: /update and restart/i })
 			.click({ timeout: 15_000 });
