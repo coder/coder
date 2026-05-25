@@ -11,15 +11,19 @@ on:
   #   PRs: `build_image` builds the image variants but never pushes
   #   (each `depot/build-push-action` step's `push:` and the
   #   `Push Nix image` step are gated on `github.ref ==
-  #   'refs/heads/main'`). `deploy_template` runs `terraform init` +
-  #   `validate` only; the apply step and SHA/title gathering are
-  #   gated on main.
+  #   'refs/heads/main'`). `test_image` rebuilds the Ubuntu images
+  #   from Depot cache with `load: true` and runs `make gen`, `fmt`,
+  #   `lint`, and a Linux build inside each image to validate that
+  #   the baked-in tooling works. `deploy_template` runs
+  #   `terraform init` + `validate` only; the apply step and
+  #   SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
   #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
   #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
   #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-branch tag on
-  #   each. `deploy_template` runs `terraform apply` and creates new
+  #   each. `test_image` validates tooling as above.
+  #   `deploy_template` runs `terraform apply` and creates new
   #   `coderd_template` versions on dev.coder.com whose `name` is the
   #   commit short SHA. Content is unchanged when neither `dogfood/**`
   #   nor the flake files changed, so the new versions are cosmetic.
@@ -31,12 +35,16 @@ on:
       - ".github/workflows/dogfood.yaml"
       - "flake.lock"
       - "flake.nix"
+      - "mise.toml"
+      - "mise.lock"
   pull_request:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
       - "flake.lock"
       - "flake.nix"
+      - "mise.toml"
+      - "mise.lock"
   workflow_dispatch:
 
 permissions:
@@ -193,8 +201,59 @@ jobs:
         env:
           DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
-  deploy_template:
+  # Validate that the Ubuntu dogfood images contain working tooling.
+  # Failures here block template deployment (deploy_template).
+  test_image:
     needs: build_image
+    strategy:
+      fail-fast: false
+      matrix:
+        image-version: ["22.04", "26.04"]
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      # Near-instant cache hit from build_image; loads into local daemon
+      # without pushing to a registry.
+      - name: Load dogfood image from Depot cache
+        uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
+        with:
+          project: b4q6ltmpzh
+          token: ${{ secrets.DEPOT_TOKEN }}
+          buildx-fallback: true
+          context: "{{defaultContext}}"
+          file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          pull: true
+          load: true
+          push: false
+          tags: "dogfood-test:${{ matrix.image-version }}"
+
+      - name: Test image tooling
+        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy_template:
+    needs:
+      - build_image
+      - test_image
     runs-on: ubuntu-latest
     permissions:
       # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
