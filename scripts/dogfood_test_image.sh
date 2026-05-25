@@ -36,7 +36,9 @@ fi
 IMAGE="$1"
 STEPS="${STEPS:-gen fmt lint build check-unstaged}"
 
-GITCONFIG=/tmp/coder-dogfood-gitconfig
+GITCONFIG=$(mktemp /tmp/coder-dogfood-gitconfig.XXXXXX)
+cleanup() { rm -f "$GITCONFIG"; }
+trap cleanup EXIT
 
 log() {
 	echo "==> $*" >&2
@@ -44,8 +46,12 @@ log() {
 
 # --- setup -------------------------------------------------------------------
 
-log "Preparing checkout for container user (UID 1000)"
-chmod -R a+rwX .
+if [[ -n "${CI:-}" ]]; then
+	log "Preparing checkout for container user (UID 1000)"
+	chmod -R a+rwX .
+else
+	log "NOTE: if the container cannot write to the checkout, run: chmod -R a+rwX ."
+fi
 
 # Without this, git rev-parse fails inside scripts/lib.sh when resolving
 # PROJECT_ROOT (the volume-mounted checkout is owned by the runner UID).
