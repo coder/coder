@@ -1130,22 +1130,12 @@ const fillParameters = async (
 	}
 };
 
-// captureDynamicParamsWebSocket returns a promise that resolves to the
-// `/api/v2/templateversions/.../dynamic-parameters` WebSocket opened by the
-// workspace create/parameters pages. Call this BEFORE the navigation that
-// triggers the connection.
 const captureDynamicParamsWebSocket = (page: Page, timeout = 30_000) =>
 	page.waitForEvent("websocket", {
 		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
 		timeout,
 	});
 
-// withDynamicParamsFrame runs `action` and waits for the next `framereceived`
-// event on the dynamic-parameters WebSocket. The experimental workspace
-// parameters page keeps the submit button disabled until the WS echo arrives
-// (`hasUnsyncedParameters`), so each parameter change must round-trip before
-// we can submit. Falls back to just running the action when no WS is given
-// (e.g. classic parameter flow).
 const withDynamicParamsFrame = async (
 	ws: PlaywrightWebSocket | undefined,
 	action: () => Promise<void>,
