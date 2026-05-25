@@ -79,12 +79,20 @@ func (m *MCPProxyFactory) retrieveMCPServerConfigs(ctx context.Context, req Requ
 	proxiers := make(map[string]mcp.ServerProxier, len(mcpSrvCfgs.GetExternalAuthMcpConfigs())+1) // Extra one for Coder MCP server.
 
 	if mcpSrvCfgs.GetCoderMcpConfig() != nil {
-		// Setup the Coder MCP server proxy.
-		coderMCPProxy, err := m.newStreamableHTTPServerProxy(mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
-		if err != nil {
-			m.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
+		// Delegated callers (e.g., chatd) do not hold the user's API key
+		// secret and so cannot authenticate against the Coder MCP server.
+		// Skip the proxy in that case rather than attempting a connection
+		// with an empty bearer token, which will fail upstream.
+		if req.SessionKey == "" {
+			m.logger.Debug(ctx, "skipping Coder MCP server proxy: no session key (delegated request)", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()))
 		} else {
-			proxiers[InternalMCPServerID] = coderMCPProxy
+			// Setup the Coder MCP server proxy.
+			coderMCPProxy, err := m.newStreamableHTTPServerProxy(mcpSrvCfgs.GetCoderMcpConfig(), req.SessionKey) // The session key is used to auth against our internal MCP server.
+			if err != nil {
+				m.logger.Warn(ctx, "failed to create MCP server proxy", slog.F("mcp_server_id", mcpSrvCfgs.GetCoderMcpConfig().GetId()), slog.Error(err))
+			} else {
+				proxiers[InternalMCPServerID] = coderMCPProxy
+			}
 		}
 	}
 

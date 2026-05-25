@@ -45,6 +45,14 @@ type inMemoryRoundTripper struct {
 }
 
 func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// The in-process transport requires the caller to have placed the
+	// delegated API key ID on the context. Without it, aibridged has no
+	// identity to act under. Fail fast at the transport boundary so the
+	// handler can assume the invariant.
+	if _, ok := aibridge.DelegatedAPIKeyIDFromContext(req.Context()); !ok {
+		return nil, xerrors.New("aibridged in-memory transport requires WithDelegatedAPIKeyID on the request context")
+	}
+
 	pr, pw := io.Pipe()
 	rw := &pipeResponseWriter{
 		header:     http.Header{},
