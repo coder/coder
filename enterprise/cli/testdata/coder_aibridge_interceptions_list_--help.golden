@@ -24,7 +24,13 @@ OPTIONS:
           Only return interceptions from this model.
 
       --provider string
-          Only return interceptions from this provider.
+          Only return interceptions from this provider type (openai, anthropic,
+          copilot). Retained for backward compatibility; prefer --provider-name
+          to scope by configured provider row.
+
+      --provider-name string
+          Only return interceptions from the named provider (matches
+          ai_providers.name).
 
       --started-after string
           Only return interceptions started after this time. Must be before
