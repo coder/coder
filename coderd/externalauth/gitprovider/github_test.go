@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
-	"github.com/coder/quartz"
 )
 
 func TestGitHubParseRepositoryOrigin(t *testing.T) {
@@ -974,55 +972,4 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 	require.NotNil(t, gp)
 	got := gp.BuildBranchURL("owner", "repo", "feat/my thing")
 	assert.Equal(t, "https://github.com/owner/repo/tree/feat/my%20thing", got)
-}
-
-func TestParseRetryAfter(t *testing.T) {
-	t.Parallel()
-
-	clk := quartz.NewMock(t)
-	clk.Set(time.Now())
-
-	t.Run("RetryAfterSeconds", func(t *testing.T) {
-		t.Parallel()
-		h := http.Header{}
-		h.Set("Retry-After", "120")
-		d := gitprovider.ParseRetryAfter(h, clk)
-		assert.Equal(t, 120*time.Second, d)
-	})
-
-	t.Run("XRatelimitReset", func(t *testing.T) {
-		t.Parallel()
-		future := clk.Now().Add(90 * time.Second)
-		t.Logf("now: %d future: %d", clk.Now().Unix(), future.Unix())
-		h := http.Header{}
-		h.Set("X-Ratelimit-Reset", strconv.FormatInt(future.Unix(), 10))
-		d := gitprovider.ParseRetryAfter(h, clk)
-		assert.WithinDuration(t, future, clk.Now().Add(d), time.Second)
-	})
-
-	t.Run("NoHeaders", func(t *testing.T) {
-		t.Parallel()
-		h := http.Header{}
-		d := gitprovider.ParseRetryAfter(h, clk)
-		assert.Equal(t, time.Duration(0), d)
-	})
-
-	t.Run("InvalidValue", func(t *testing.T) {
-		t.Parallel()
-		h := http.Header{}
-		h.Set("Retry-After", "not-a-number")
-		d := gitprovider.ParseRetryAfter(h, clk)
-		assert.Equal(t, time.Duration(0), d)
-	})
-
-	t.Run("RetryAfterTakesPrecedence", func(t *testing.T) {
-		t.Parallel()
-		h := http.Header{}
-		h.Set("Retry-After", "60")
-		h.Set("X-Ratelimit-Reset", strconv.FormatInt(
-			clk.Now().Unix()+120, 10,
-		))
-		d := gitprovider.ParseRetryAfter(h, clk)
-		assert.Equal(t, 60*time.Second, d)
-	})
 }

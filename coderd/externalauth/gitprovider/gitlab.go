@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/xerrors"
@@ -70,9 +69,9 @@ func reqOpts(ctx context.Context, token string) []gitlab.RequestOptionFunc {
 	return opts
 }
 
-// projectPath returns the full project path (owner/repo) for use as a pid.
+// gitLabPID returns the full project path (owner/repo) for use as a pid.
 // The library handles URL encoding internally.
-func projectPath(owner, repo string) string {
+func gitLabPID(owner, repo string) string {
 	return owner + "/" + repo
 }
 
@@ -81,7 +80,7 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	token string,
 	ref PRRef,
 ) (*PRStatus, error) {
-	pid := projectPath(ref.Owner, ref.Repo)
+	pid := gitLabPID(ref.Owner, ref.Repo)
 	opts := reqOpts(ctx, token)
 
 	// Fetch merge request details.
@@ -125,13 +124,9 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		return nil, g.wrapError(err, "list merge request diffs")
 	}
 	for _, d := range diffs {
-		for _, line := range strings.Split(d.Diff, "\n") {
-			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
-				additions++
-			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
-				deletions++
-			}
-		}
+		diffAdditions, diffDeletions := countDiffLines(d.Diff)
+		additions += diffAdditions
+		deletions += diffDeletions
 	}
 
 	// Map GitLab state to normalized state.
@@ -193,7 +188,7 @@ func (g *gitlabProvider) ResolveBranchPullRequest(
 		return nil, nil
 	}
 
-	pid := projectPath(ref.Owner, ref.Repo)
+	pid := gitLabPID(ref.Owner, ref.Repo)
 	opts := reqOpts(ctx, token)
 
 	mrs, _, err := g.client.MergeRequests.ListProjectMergeRequests(pid, &gitlab.ListProjectMergeRequestsOptions{
@@ -227,7 +222,7 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	token string,
 	ref PRRef,
 ) (string, error) {
-	pid := projectPath(ref.Owner, ref.Repo)
+	pid := gitLabPID(ref.Owner, ref.Repo)
 
 	// Make a direct HTTP request instead of using the library's
 	// ShowMergeRequestRawDiffs, which reads the entire response
@@ -250,14 +245,18 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-			retryAfter := parseGitLabRetryAfter(resp.Header, g.clock)
-			if retryAfter > 0 {
-				return "", &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
-			}
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+			return "", rlErr
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		if readErr != nil {
+			return "", g.wrapError(
+				xerrors.Errorf("unexpected status %d", resp.StatusCode),
+				"get merge request raw diffs",
+			)
 		}
 		return "", g.wrapError(
-			xerrors.Errorf("unexpected status %d", resp.StatusCode),
+			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"get merge request raw diffs",
 		)
 	}
@@ -281,7 +280,7 @@ func (g *gitlabProvider) FetchBranchDiff(
 		return "", nil
 	}
 
-	pid := projectPath(ref.Owner, ref.Repo)
+	pid := gitLabPID(ref.Owner, ref.Repo)
 	opts := reqOpts(ctx, token)
 
 	// Get the default branch from the project.
@@ -333,6 +332,8 @@ func (g *gitlabProvider) FetchBranchDiff(
 	return result, nil
 }
 
+// ParseRepositoryOrigin preserves slashes in owner because GitLab supports
+// subgroup paths such as group/subgroup/repo.
 func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normalizedOrigin string, ok bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -438,10 +439,11 @@ func (g *gitlabProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
 	}, true
 }
 
+// NormalizePullRequestURL normalizes a GitLab merge request URL.
 func (g *gitlabProvider) NormalizePullRequestURL(raw string) string {
 	ref, ok := g.ParsePullRequestURL(strings.TrimRight(
 		strings.TrimSpace(raw),
-		"),;.",
+		trailingPunctuation,
 	))
 	if !ok {
 		return ""
@@ -449,6 +451,8 @@ func (g *gitlabProvider) NormalizePullRequestURL(raw string) string {
 	return g.BuildPullRequestURL(ref)
 }
 
+// BuildBranchURL keeps owner and repo unescaped because GitLab owners can
+// include subgroup paths with slashes.
 func (g *gitlabProvider) BuildBranchURL(owner, repo, branch string) string {
 	owner = strings.TrimSpace(owner)
 	repo = strings.TrimSpace(repo)
@@ -466,6 +470,8 @@ func (g *gitlabProvider) BuildBranchURL(owner, repo, branch string) string {
 	)
 }
 
+// BuildRepositoryURL keeps owner and repo unescaped because GitLab owners can
+// include subgroup paths with slashes.
 func (g *gitlabProvider) BuildRepositoryURL(owner, repo string) string {
 	owner = strings.TrimSpace(owner)
 	repo = strings.TrimSpace(repo)
@@ -485,39 +491,11 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
 	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
-		if errResp.Response != nil {
-			sc := errResp.Response.StatusCode
-			if sc == http.StatusForbidden || sc == http.StatusTooManyRequests {
-				retryAfter := parseGitLabRetryAfter(errResp.Response.Header, g.clock)
-				if retryAfter > 0 {
-					return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
-				}
-			}
+		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
+			return rlErr
 		}
 	}
 	return xerrors.Errorf("gitlab %s: %w", action, err)
-}
-
-// parseGitLabRetryAfter extracts a retry duration from GitLab rate-limit headers.
-// GitLab uses "Retry-After" (seconds) and "RateLimit-Reset" (unix timestamp).
-func parseGitLabRetryAfter(h http.Header, clk quartz.Clock) time.Duration {
-	if clk == nil {
-		clk = quartz.NewReal()
-	}
-	// Retry-After header: seconds until retry.
-	if ra := h.Get("Retry-After"); ra != "" {
-		if secs, err := strconv.Atoi(ra); err == nil {
-			return time.Duration(secs) * time.Second
-		}
-	}
-	// RateLimit-Reset header: unix timestamp.
-	if reset := h.Get("RateLimit-Reset"); reset != "" {
-		if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
-			d := time.Unix(ts, 0).Sub(clk.Now())
-			return d
-		}
-	}
-	return 0
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

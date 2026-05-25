@@ -337,7 +337,10 @@ func TestGitLabRateLimit(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		mClock := quartz.NewMock(t)
+		mClock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client(), gitprovider.WithClock(mClock))
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestDiff(
@@ -350,8 +353,8 @@ func TestGitLabRateLimit(t *testing.T) {
 		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
 		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
 
-		expected := time.Now().Add(60 * time.Second)
-		assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+		expected := mClock.Now().Add(60*time.Second + gitprovider.RateLimitPadding)
+		assert.Equal(t, expected, rlErr.RetryAfter)
 	})
 
 	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {

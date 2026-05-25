@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -102,6 +104,10 @@ type PRStatus struct {
 	FetchedAt time.Time
 }
 
+// trailingPunctuation is the set of characters stripped from the right
+// of a raw URL before parsing it as a pull request URL.
+const trailingPunctuation = "),;."
+
 // MaxDiffSize is the maximum number of bytes read from a diff
 // response. Diffs exceeding this limit are rejected with
 // ErrDiffTooLarge.
@@ -194,6 +200,63 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 		// added here as they are implemented.
 		return nil, nil //nolint:nilnil // nil provider means unsupported type, not an error
 	}
+}
+
+// parseRetryAfter extracts a retry duration from rate-limit response
+// headers. It checks Retry-After (seconds) first, then the named
+// resetHeader (unix timestamp). Returns zero if no recognizable header
+// is present.
+func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+	// Retry-After header: seconds until retry.
+	if ra := h.Get("Retry-After"); ra != "" {
+		if secs, err := strconv.Atoi(ra); err == nil {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	// Reset header: unix timestamp. We compute the duration from now
+	// according to the caller's clock.
+	if reset := h.Get(resetHeader); reset != "" {
+		if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
+			return time.Unix(ts, 0).Sub(clk.Now())
+		}
+	}
+	return 0
+}
+
+// checkRateLimitError returns a *RateLimitError when resp indicates a
+// rate limit (HTTP 403 or 429) with recognizable retry headers;
+// otherwise nil. A nil resp returns nil.
+func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
+	if resp == nil {
+		return nil
+	}
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return nil
+	}
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+	retryAfter := parseRetryAfter(resp.Header, resetHeader, clk)
+	if retryAfter <= 0 {
+		return nil
+	}
+	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter + RateLimitPadding)}
+}
+
+// countDiffLines counts added and deleted lines in a unified diff. It excludes
+// file header lines such as +++ b/file and --- a/file.
+func countDiffLines(diff string) (additions, deletions int32) {
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			additions++
+		} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+			deletions++
+		}
+	}
+	return additions, deletions
 }
 
 // RateLimitError indicates the git provider's API rate limit was hit.
