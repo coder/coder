@@ -106,3 +106,8 @@ Diffs should appear within a couple of minutes.
 
 The chat owner must have linked their account through the relevant external
 auth provider.
+
+### Checking logs
+
+Look for gitsync warnings such as `no provider for origin` or
+`resolve token` errors.
