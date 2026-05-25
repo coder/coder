@@ -195,6 +195,20 @@ export const Loading: Story = {
 	},
 };
 
+export const PersonalError: Story = {
+	args: {
+		personalSkills: [],
+		isPersonalError: true,
+	},
+	play: async () => {
+		expect(
+			await findVisibleText(
+				"Could not load personal skills. Close and type / again to retry.",
+			),
+		).toBeDefined();
+	},
+};
+
 export const WorkspaceForbidden: Story = {
 	args: {
 		personalSkills: [],
@@ -249,6 +263,18 @@ export const Filtered: Story = {
 		expect(await findVisibleText("/reviewer")).toBeDefined();
 		await expectNoVisibleText("/docs");
 		await expectNoVisibleText("/test-runner");
+	},
+};
+
+export const FilteredEmpty: Story = {
+	args: {
+		query: "missing",
+		personalSkills: filterSkillsByQuery(mockPersonalSkillItems, "missing"),
+		workspaceSkills: filterSkillsByQuery(mockWorkspaceSkillItems, "missing"),
+		workspaceSkillsEnabled: true,
+	},
+	play: async () => {
+		expect(await findVisibleText("No skills match that query.")).toBeDefined();
 	},
 };
 

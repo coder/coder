@@ -63,6 +63,15 @@ describe("workspaceContextFromMessages", () => {
 		]);
 	});
 
+	it("returns skill-only context snapshots", () => {
+		const context = workspaceContextFromMessages(
+			[message(1, [skill("new-skill", "agent-1")])],
+			"agent-1",
+		);
+
+		expect(context?.map(summarizeContextPart)).toEqual(["skill:new-skill"]);
+	});
+
 	it("ignores stale context when the latest snapshot belongs to another agent", () => {
 		const context = workspaceContextFromMessages(
 			[
