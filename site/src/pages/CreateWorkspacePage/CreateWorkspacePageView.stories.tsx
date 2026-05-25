@@ -300,6 +300,16 @@ const cpuSmallPreset: Preset = {
 	Icon: "/emojis/1f4bc.png",
 };
 
+const urlPreset: Preset = {
+	ID: "preset-url",
+	Name: "URL Preset",
+	Description: "The URL-specified preset",
+	Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Icon: "/emojis/1f534.png",
+};
+
 const parameterCheckbox: PreviewParameter = {
 	name: "auto_stop",
 	display_name: "Auto-stop",
@@ -434,25 +444,9 @@ export const WithUrlPresetOverridesDefault: Story = {
 				DesiredPrebuildInstances: null,
 				Icon: "/emojis/1f7e2.png",
 			},
-			{
-				ID: "preset-url",
-				Name: "URL Preset",
-				Description: "The URL-specified preset",
-				Parameters: [{ Name: "instance_type", Value: "t3.large" }],
-				Default: false,
-				DesiredPrebuildInstances: null,
-				Icon: "/emojis/1f534.png",
-			},
+			urlPreset,
 		],
-		urlPreset: {
-			ID: "preset-url",
-			Name: "URL Preset",
-			Description: "The URL-specified preset",
-			Parameters: [{ Name: "instance_type", Value: "t3.large" }],
-			Default: false,
-			DesiredPrebuildInstances: null,
-			Icon: "/emojis/1f534.png",
-		},
+		urlPreset,
 		parameters: [parameterDropdown],
 	},
 	play: async ({ canvasElement }) => {
