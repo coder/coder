@@ -892,14 +892,19 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -911,6 +916,7 @@ type CountAIBridgeInterceptionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 }
@@ -921,6 +927,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 	)
@@ -956,19 +963,24 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $7::text != '' THEN aibridge_interceptions.session_id = $7::text
+		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -980,6 +992,7 @@ type CountAIBridgeSessionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	SessionID     string    `db:"session_id" json:"session_id"`
@@ -991,6 +1004,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -1611,19 +1625,24 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Cursor pagination
 	AND CASE
-		WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
@@ -1631,8 +1650,8 @@ WHERE
 			-- "after_id" terminology comes from our pagination parser in
 			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
-				(SELECT started_at FROM aibridge_interceptions WHERE id = $7),
-				$7::uuid
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $8),
+				$8::uuid
 			)
 		)
 		ELSE true
@@ -1642,8 +1661,8 @@ WHERE
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF($9::integer, 0), 100)
-OFFSET $8
+LIMIT COALESCE(NULLIF($10::integer, 0), 100)
+OFFSET $9
 `
 
 type ListAIBridgeInterceptionsParams struct {
@@ -1651,6 +1670,7 @@ type ListAIBridgeInterceptionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
@@ -1669,6 +1689,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.AfterID,
@@ -2033,19 +2054,24 @@ session_page AS (
 			WHEN $5::text != '' THEN ai.provider = $5::text
 			ELSE true
 		END
+		-- Filter provider_name
+		AND CASE
+			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			ELSE true
+		END
 		-- Filter model
 		AND CASE
-			WHEN $6::text != '' THEN ai.model = $6::text
+			WHEN $7::text != '' THEN ai.model = $7::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $7::text != '' THEN COALESCE(ai.client, 'Unknown') = $7::text
+			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $8::text != '' THEN ai.session_id = $8::text
+			WHEN $9::text != '' THEN ai.session_id = $9::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -2069,8 +2095,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($10::integer, 0), 100)
-	OFFSET $9
+	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
+	OFFSET $10
 )
 SELECT
 	sp.session_id,
@@ -2137,6 +2163,7 @@ type ListAIBridgeSessionsParams struct {
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider       string    `db:"provider" json:"provider"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
@@ -2179,6 +2206,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
