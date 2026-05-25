@@ -10484,20 +10484,12 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 	require.Zero(t, promoteResult.PromotedMessage.ID,
 		"running-case promotion is deferred to auto-promote")
 
-	// PromoteQueued reorders to [B, A, C]. IDs are stable because
-	// only created_at is mutated.
-	queuedAfterPromote, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queuedAfterPromote, 3)
-	require.Equal(t, queueB.QueuedMessage.ID, queuedAfterPromote[0].ID,
-		"promoted message must be first in the queue")
-	require.Equal(t, queueA.QueuedMessage.ID, queuedAfterPromote[1].ID,
-		"non-promoted messages preserve their relative order")
-	require.Equal(t, queueC.QueuedMessage.ID, queuedAfterPromote[2].ID,
-		"non-promoted messages preserve their relative order")
-
-	// Poll for B in history rather than asserting the queue
-	// state, which races the worker's auto-promote pipeline.
+	// Wait for the worker to drain all three queued messages into
+	// chat history, then verify ordering. Reading queue state right
+	// after PromoteQueued races the worker's auto-promote pipeline
+	// (TOCTOU), so we wait for the settled outcome instead.
+	var posB, posA, posC int
+	var foundA, foundB, foundC bool
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		messages, getErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
@@ -10506,7 +10498,8 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
-		for _, msg := range messages {
+		foundA, foundB, foundC = false, false, false
+		for i, msg := range messages {
 			if msg.Role != database.ChatMessageRoleUser {
 				continue
 			}
@@ -10515,44 +10508,33 @@ func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
 				return false
 			}
 			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "B" {
-					return true
+				if part.Type != codersdk.ChatMessagePartTypeText {
+					continue
+				}
+				// Only A, B, C are tracked; other user messages are ignored.
+				switch part.Text {
+				case "A":
+					posA = i
+					foundA = true
+				case "B":
+					posB = i
+					foundB = true
+				case "C":
+					posC = i
+					foundC = true
 				}
 			}
 		}
-		return false
+		return foundA && foundB && foundC
 	}, testutil.IntervalFast,
-		"the promoted message B must appear in chat history")
+		"queued messages not found in chat history: foundA=%v, foundB=%v, foundC=%v", foundA, foundB, foundC)
 
-	// A and C must end up in queue or history, not dropped.
-	remainingIDs := map[int64]bool{}
-	remainingQueue, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	for _, qm := range remainingQueue {
-		remainingIDs[qm.ID] = true
-	}
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	promotedTexts := map[string]bool{}
-	for _, msg := range messages {
-		if msg.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		parts, parseErr := chatprompt.ParseContent(msg)
-		require.NoError(t, parseErr)
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeText {
-				promotedTexts[part.Text] = true
-			}
-		}
-	}
-	require.True(t, remainingIDs[queueA.QueuedMessage.ID] || promotedTexts["A"],
-		"message A must not be lost")
-	require.True(t, remainingIDs[queueC.QueuedMessage.ID] || promotedTexts["C"],
-		"message C must not be lost")
+	// PromoteQueued reorders the queue to [B, A, C], so the worker
+	// processes B first, then A, then C. Verify that ordering.
+	require.Less(t, posB, posA,
+		"promoted message B must appear before A in history")
+	require.Less(t, posA, posC,
+		"non-promoted messages must preserve relative order (A before C)")
 }
 
 // TestFinishActiveChatExternalWaitingInsertsSyntheticResults
