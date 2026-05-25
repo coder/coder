@@ -48,6 +48,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 		startedBeforeRaw string
 		startedAfterRaw  string
 		provider         string
+		providerName     string
 		model            string
 		client           string
 		afterIDRaw       string
@@ -78,9 +79,15 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 			},
 			{
 				Flag:        "provider",
-				Description: `Only return interceptions from this provider.`,
+				Description: `Only return interceptions from this provider type (openai, anthropic, copilot). Retained for backward compatibility; prefer --provider-name to scope by configured provider row.`,
 				Default:     "",
 				Value:       serpent.StringOf(&provider),
+			},
+			{
+				Flag:        "provider-name",
+				Description: `Only return interceptions from the named provider (matches ai_providers.name).`,
+				Default:     "",
+				Value:       serpent.StringOf(&providerName),
 			},
 			{
 				Flag:        "model",
@@ -152,6 +159,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				StartedBefore: startedBefore,
 				StartedAfter:  startedAfter,
 				Provider:      provider,
+				ProviderName:  providerName,
 				Model:         model,
 			})
 			if err != nil {
