@@ -59,7 +59,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 			DoAndReturn(func(_ context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
 				assert.Equal(t, sessionID, arg.ID)
 				assert.Equal(t, agentID, arg.WorkspaceAgentID)
-				assert.Equal(t, "claude-code", arg.ConfinedProcess)
+				assert.Equal(t, "claude-code", arg.ConfinedProcessName)
 				return database.BoundarySession{ID: arg.ID}, nil
 			})
 
@@ -68,8 +68,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 			InsertBoundaryLog(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
 				assert.Equal(t, sessionID, arg.SessionID)
-				assert.Equal(t, int64(0), arg.SequenceNumber)
-				assert.True(t, arg.Allowed)
+				assert.Equal(t, int32(0), arg.SequenceNumber)
 				assert.Equal(t, "http", arg.Proto)
 				assert.Equal(t, "GET", arg.Method)
 				assert.Equal(t, "https://example.com", arg.Detail)
@@ -82,8 +81,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 			InsertBoundaryLog(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
 				assert.Equal(t, sessionID, arg.SessionID)
-				assert.Equal(t, int64(1), arg.SequenceNumber)
-				assert.False(t, arg.Allowed)
+				assert.Equal(t, int32(1), arg.SequenceNumber)
 				assert.Equal(t, "http", arg.Proto)
 				assert.Equal(t, "POST", arg.Method)
 				assert.Equal(t, "https://evil.com/exfil", arg.Detail)
@@ -92,8 +90,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 			})
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:       sessionID.String(),
-			ConfinedProcess: "claude-code",
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
 			Logs: []*agentproto.BoundaryLog{
 				{
 					Allowed:        true,
@@ -151,8 +149,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 			Return(database.BoundaryLog{}, nil)
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:       sessionID.String(),
-			ConfinedProcess: "claude-code",
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
 			Logs: []*agentproto.BoundaryLog{
 				{
 					Allowed:        true,
@@ -202,8 +200,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 			Times(2) // One per batch
 
 		req := &agentproto.ReportBoundaryLogsRequest{
-			SessionId:       sessionID.String(),
-			ConfinedProcess: "codex",
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "codex",
 			Logs: []*agentproto.BoundaryLog{
 				{
 					Allowed:        true,
@@ -284,8 +282,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 		// No InsertBoundaryLog expected because the HTTP request is nil.
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:       sessionID.String(),
-			ConfinedProcess: "claude-code",
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
 			Logs: []*agentproto.BoundaryLog{
 				{
 					Allowed: true,
@@ -362,8 +360,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 			Times(2)
 
 		_, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:       sessionID.String(),
-			ConfinedProcess: "claude-code",
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
 			Logs: []*agentproto.BoundaryLog{
 				{
 					Allowed:        true,

@@ -13,7 +13,6 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
@@ -42,16 +41,11 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	sessionID, err := uuid.Parse(req.GetSessionId())
 	persistEnabled := err == nil && a.Database != nil
 
-	authCtx := ctx
-	if persistEnabled {
-		authCtx = dbauthz.AsAgentAPIHandler(ctx)
-	}
-
 	now := dbtime.Now()
 
 	// Lazy-create the boundary session on first log arrival.
 	if persistEnabled {
-		if sessionErr := a.ensureSession(authCtx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
+		if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
 			a.Log.Error(ctx, "failed to ensure boundary session",
 				slog.F("session_id", sessionID.String()),
 				slog.Error(sessionErr))
@@ -97,7 +91,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 			a.Log.With(fields...).Info(ctx, "boundary_request")
 
 			if persistEnabled {
-				insertErr := a.insertHTTPLog(authCtx, sessionID, l, r.HttpRequest, now, logTime)
+				insertErr := a.insertHTTPLog(ctx, sessionID, l, r.HttpRequest, now, logTime)
 				if insertErr != nil {
 					a.Log.Error(ctx, "failed to insert boundary log",
 						slog.F("session_id", sessionID.String()),
@@ -146,11 +140,11 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 	// Session does not exist; create it. started_at is the time
 	// the first log is received by coderd, per the RFC.
 	_, err = a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
-		ID:               sessionID,
-		WorkspaceAgentID: a.AgentID,
-		ConfinedProcess:  confinedProcess,
-		StartedAt:        now,
-		UpdatedAt:        now,
+		ID:                  sessionID,
+		WorkspaceAgentID:    a.AgentID,
+		ConfinedProcessName: confinedProcess,
+		StartedAt:           now,
+		UpdatedAt:           now,
 	})
 	if err != nil {
 		// If another goroutine or replica raced us, the insert
@@ -188,8 +182,7 @@ func (a *BoundaryLogsAPI) insertHTTPLog(
 	_, err := a.Database.InsertBoundaryLog(ctx, database.InsertBoundaryLogParams{
 		ID:             uuid.New(),
 		SessionID:      sessionID,
-		SequenceNumber: int64(l.SequenceNumber),
-		Allowed:        l.Allowed,
+		SequenceNumber: l.SequenceNumber,
 		CapturedAt:     capturedAt,
 		CreatedAt:      createdAt,
 		Proto:          "http",
