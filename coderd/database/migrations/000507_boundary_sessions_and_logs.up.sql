@@ -15,8 +15,8 @@ COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was las
 
 CREATE TABLE boundary_logs (
     id UUID NOT NULL,
-    session_id UUID NOT NULL REFERENCES boundary_sessions(id),
-    sequence_number INT NOT NULL,
+    session_id UUID NOT NULL REFERENCES boundary_sessions(id) ON DELETE CASCADE,
+    sequence_number INT NOT NULL CHECK (sequence_number >= 0),
     captured_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     proto TEXT NOT NULL DEFAULT '',

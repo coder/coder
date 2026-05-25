@@ -1386,7 +1386,8 @@ CREATE TABLE boundary_logs (
     proto text DEFAULT ''::text NOT NULL,
     method text DEFAULT ''::text NOT NULL,
     detail text DEFAULT ''::text NOT NULL,
-    matched_rule text
+    matched_rule text,
+    CONSTRAINT boundary_logs_sequence_number_check CHECK ((sequence_number >= 0))
 );
 
 COMMENT ON TABLE boundary_logs IS 'Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.';
@@ -4426,7 +4427,7 @@ ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY boundary_logs
-    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id);
+    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
