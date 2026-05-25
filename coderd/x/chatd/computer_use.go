@@ -60,11 +60,10 @@ func (p *Server) computerUseProviderAndModelFromConfig(
 func (p *Server) resolveComputerUseModel(
 	ctx context.Context,
 	chat database.Chat,
-	providerKeys chatprovider.ProviderAPIKeys,
+	route resolvedModelRoute,
 	computerUseProvider string,
 	computerUseModelProvider string,
 	computerUseModelName string,
-	aiProvider *database.AIProvider,
 	modelOpts modelBuildOptions,
 ) (
 	model fantasy.LanguageModel,
@@ -86,15 +85,12 @@ func (p *Server) resolveComputerUseModel(
 		)
 	}
 
-	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelBuildRequest{
+	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelClientRequest{
 		Chat:         chat,
-		ProviderHint: computerUseModelProvider,
 		ModelName:    computerUseModelName,
-		ProviderKeys: providerKeys,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, modelOpts)
+	}, route, modelOpts)
 	if err != nil {
 		return nil, false, "", "", xerrors.Errorf(
 			"resolve computer use model for provider %q model %q: %w",

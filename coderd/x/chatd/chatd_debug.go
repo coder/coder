@@ -108,21 +108,26 @@ func (p *Server) scheduleDebugCleanup(
 
 func (p *Server) newDebugAwareModel(
 	ctx context.Context,
-	req modelBuildRequest,
+	req modelClientRequest,
+	route resolvedModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, bool, error) {
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, req.ProviderHint)
+	providerHint, err := route.providerHint()
 	if err != nil {
 		return nil, false, err
 	}
-	req.ProviderHint = provider
+	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, providerHint)
+	if err != nil {
+		return nil, false, err
+	}
+	route = route.withProviderHint(provider)
 	req.ModelName = resolvedModel
 
 	debugSvc := p.debugService()
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, req.Chat.ID, req.Chat.OwnerID)
 	opts.RecordHTTP = debugEnabled
 
-	model, err := p.newModel(ctx, req, opts)
+	model, err := p.newModel(ctx, req, route, opts)
 	if err != nil {
 		return nil, debugEnabled, err
 	}

@@ -392,14 +392,14 @@ func (p *Server) resolveAdvisorModelOverride(
 		}
 	}
 
-	providerHint, overrideKeys, aiProvider, err := p.resolveModelConfigProviderHintKeysAndProvider(
+	route, err := p.resolveModelRouteForConfig(
 		ctx,
 		chat.OwnerID,
 		overrideConfig,
 		providerKeys,
 	)
 	if err != nil {
-		if p.shouldRouteModelsThroughAIBridge() && overrideConfig.AIProviderID.Valid {
+		if p.shouldUseAIGatewayRouting() && overrideConfig.AIProviderID.Valid {
 			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
 		}
 		logger.Warn(
@@ -410,17 +410,14 @@ func (p *Server) resolveAdvisorModelOverride(
 		)
 		return fallbackModel, fallbackCallConfig, nil
 	}
-	overrideModel, err := p.newModel(ctx, modelBuildRequest{
+	overrideModel, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
-		ProviderHint: providerHint,
 		ModelName:    overrideConfig.Model,
-		ProviderKeys: overrideKeys,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, modelOpts)
+	}, route, modelOpts)
 	if err != nil {
-		if p.shouldRouteModelsThroughAIBridge() && overrideConfig.AIProviderID.Valid {
+		if p.shouldUseAIGatewayRouting() && overrideConfig.AIProviderID.Valid {
 			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
 		}
 		logger.Warn(
@@ -3333,23 +3330,20 @@ func (p *Server) prepareManualTitleDebugRun(
 	titleModel := fallbackModel
 	finishDebugRun := func(error) {}
 
-	providerHint, aiProvider, routeErr := p.aiProviderForConfig(ctx, modelConfig)
-	if routeErr != nil {
-		providerHint = modelConfig.Provider
-	}
+	route, routeErr := p.resolveModelRouteForConfig(ctx, chat.OwnerID, modelConfig, keys)
 	debugOpts := modelOpts
 	debugOpts.RecordHTTP = true
-	debugModel, debugModelErr := p.newModel(ctx, modelBuildRequest{
-		Chat:         chat,
-		ProviderHint: providerHint,
-		ModelName:    modelConfig.Model,
-		ProviderKeys: keys,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, debugOpts)
-	if routeErr != nil && debugModelErr == nil && p.shouldRouteModelsThroughAIBridge() {
+	var debugModelErr error
+	var debugModel fantasy.LanguageModel
+	if routeErr != nil {
 		debugModelErr = routeErr
+	} else {
+		debugModel, debugModelErr = p.newModel(ctx, modelClientRequest{
+			Chat:         chat,
+			ModelName:    modelConfig.Model,
+			UserAgent:    chatprovider.UserAgent(),
+			ExtraHeaders: chatprovider.CoderHeaders(chat),
+		}, route, debugOpts)
 	}
 	switch {
 	case debugModelErr != nil:
@@ -3635,7 +3629,7 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
 	}
 
-	providerHint, modelKeys, aiProvider, err := p.resolveModelConfigProviderHintKeysAndProvider(ctx, chat.OwnerID, config, keys)
+	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config, keys)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
@@ -3645,26 +3639,23 @@ func (p *Server) resolveManualTitleModel(
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
 	}
-	model, err := p.newModel(ctx, modelBuildRequest{
+	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
-		ProviderHint: providerHint,
 		ModelName:    config.Model,
-		ProviderKeys: modelKeys,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, modelOpts)
+	}, route, modelOpts)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", providerHint),
+			slog.F("provider", config.Provider),
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
 	}
 
-	return model, config, modelKeys, nil
+	return model, config, route.directProviderKeys(), nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(
@@ -3680,26 +3671,23 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
-	providerHint, modelKeys, aiProvider, err := p.resolveModelConfigProviderHintKeysAndProvider(ctx, chat.OwnerID, config, keys)
+	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config, keys)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
-	model, err := p.newModel(ctx, modelBuildRequest{
+	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
-		ProviderHint: providerHint,
 		ModelName:    config.Model,
-		ProviderKeys: modelKeys,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, modelOpts)
+	}, route, modelOpts)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"create fallback manual title model: %w",
 			err,
 		)
 	}
-	return model, config, modelKeys, nil
+	return model, config, route.directProviderKeys(), nil
 }
 
 func mergeManualTitleMessages(
@@ -6405,6 +6393,7 @@ type runChatResult struct {
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 	FallbackProvider        string
+	FallbackRoute           resolvedModelRoute
 	FallbackAIProvider      *database.AIProvider
 	FallbackModel           string
 	ModelBuildOptions       modelBuildOptions
@@ -7060,6 +7049,7 @@ func (p *Server) runChat(
 		debugEnabled  bool
 		debugProvider string
 		aiProvider    *database.AIProvider
+		modelRoute    resolvedModelRoute
 		debugModel    string
 	)
 
@@ -7080,7 +7070,7 @@ func (p *Server) runChat(
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
-		model, modelConfig, providerKeys, aiProvider, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat, modelOpts)
+		model, modelConfig, providerKeys, modelRoute, aiProvider, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat, modelOpts)
 		if err != nil {
 			return err
 		}
@@ -7206,6 +7196,7 @@ func (p *Server) runChat(
 	result.StatusLabelModel = model
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
+	result.FallbackRoute = modelRoute
 	result.FallbackAIProvider = aiProvider
 	result.FallbackModel = modelConfig.Model
 	result.ModelBuildOptions = modelOpts
@@ -7229,7 +7220,7 @@ func (p *Server) runChat(
 			modelConfig.Provider,
 			modelConfig.Model,
 			titleModel,
-			aiProvider,
+			modelRoute,
 			titleProviderKeys,
 			modelOpts,
 			generatedTitle,
@@ -7801,21 +7792,20 @@ func (p *Server) runChat(
 	}
 
 	if isComputerUse {
-		computerUseProviderKeys, computerUseAIProvider, keyErr := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
+		computerUseRoute, keyErr := p.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
 		if keyErr != nil {
-			return result, xerrors.Errorf("resolve computer use provider API keys: %w", keyErr)
+			return result, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
 		}
-		providerKeys = computerUseProviderKeys
+		providerKeys = computerUseRoute.directProviderKeys()
 
 		// Override model for computer use subagent.
 		cuModel, cuDebugEnabled, resolvedProvider, resolvedModel, cuErr := p.resolveComputerUseModel(
 			ctx,
 			chat,
-			providerKeys,
+			computerUseRoute,
 			computerUseProvider,
 			computerUseModelProvider,
 			computerUseModelName,
-			computerUseAIProvider,
 			modelOpts,
 		)
 		if cuErr != nil {
@@ -8524,6 +8514,7 @@ func (p *Server) resolveChatModel(
 	model fantasy.LanguageModel,
 	dbConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
+	route resolvedModelRoute,
 	aiProvider *database.AIProvider,
 	debugEnabled bool,
 	resolvedProvider string,
@@ -8532,43 +8523,46 @@ func (p *Server) resolveChatModel(
 ) {
 	dbConfig, err = p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, nil, false, "", "", xerrors.Errorf("resolve model config: %w", err)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf("resolve model config: %w", err)
 	}
 
 	if !dbConfig.Enabled {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, nil, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
 	}
 
-	providerHint, keys, aiProvider, err := p.resolveModelConfigProviderHintKeysAndProvider(ctx, chat.OwnerID, dbConfig, chatprovider.ProviderAPIKeys{})
+	route, err = p.resolveModelRouteForConfig(ctx, chat.OwnerID, dbConfig, chatprovider.ProviderAPIKeys{})
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, nil, false, "", "", err
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", err
 	}
+	keys = route.directProviderKeys()
+	aiProvider = route.aiProvider()
 
+	providerHint, err := route.providerHint()
+	if err != nil {
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", err
+	}
 	resolvedProvider, resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
 		dbConfig.Model,
 		providerHint,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, nil, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf(
 			"resolve model metadata: %w", err,
 		)
 	}
 
-	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelBuildRequest{
+	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelClientRequest{
 		Chat:         chat,
-		ProviderHint: providerHint,
 		ModelName:    dbConfig.Model,
-		ProviderKeys: keys,
 		UserAgent:    chatprovider.UserAgent(),
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
-		AIProvider:   aiProvider,
-	}, modelOpts)
+	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, nil, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, aiProvider, debugEnabled, resolvedProvider, resolvedModel, nil
+	return model, dbConfig, keys, route, aiProvider, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
 func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvider) (chatprovider.ConfiguredProvider, error) {
@@ -8709,7 +8703,7 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 			return keys, &provider, nil
 		}
 	}
-	if p.shouldRouteModelsThroughAIBridge() {
+	if p.shouldUseAIGatewayRouting() {
 		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf(
 			"AI Gateway routing requires a usable AI provider for provider type %q",
 			providerType,
@@ -9643,7 +9637,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		runResult.FallbackProvider,
 		runResult.FallbackModel,
 		runResult.StatusLabelModel,
-		runResult.FallbackAIProvider,
+		runResult.FallbackRoute,
 		runResult.ProviderKeys,
 		runResult.ModelBuildOptions,
 		logger,

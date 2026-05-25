@@ -152,11 +152,10 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		context.Background(),
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		chatprovider.ProviderAPIKeys{},
+		resolvedModelRoute{Direct: &directModelRoute{ProviderHint: modelProvider}},
 		provider,
 		modelProvider,
 		modelName,
-		nil,
 		modelBuildOptions{},
 	)
 	require.Error(t, err)

@@ -911,7 +911,7 @@ func (p *Server) resolveExploreToolSnapshot(
 
 func (p *Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
 	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-	if !ok && p.shouldRouteModelsThroughAIBridge() {
+	if !ok && p.shouldUseAIGatewayRouting() {
 		return "", xerrors.New("AI Gateway routing requires the active turn API key ID for subagent messages")
 	}
 	return apiKeyID, nil

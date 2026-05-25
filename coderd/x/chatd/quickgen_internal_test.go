@@ -438,7 +438,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		"openai",
 		"test-model",
 		model,
-		nil,
+		resolvedModelRoute{},
 		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{},
 		generated,
