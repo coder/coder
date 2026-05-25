@@ -194,8 +194,6 @@ func (p *Server) maybeGenerateChatTitle(
 			lm:       overrideModel,
 		}}
 	} else {
-		// Build candidate list: preferred lightweight models first,
-		// then the user's chat model as last resort.
 		candidates = p.preferredShortTextCandidates(chat, keys)
 		candidates = append(candidates, shortTextCandidate{
 			provider: fallbackProvider,
