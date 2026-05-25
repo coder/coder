@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -26,7 +25,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 	t.Run("ReturnsTransport", func(t *testing.T) {
 		t.Parallel()
 		f := aibridged.NewTransportFactory(http.NotFoundHandler())
-		rt, err := f.TransportFor(uuid.New(), aibridge.SourceAgents)
+		rt, err := f.TransportFor("openai", aibridge.SourceAgents)
 		require.NoError(t, err)
 		require.NotNil(t, rt)
 	})
@@ -34,8 +33,49 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 	t.Run("NilHandlerErrors", func(t *testing.T) {
 		t.Parallel()
 		f := aibridged.NewTransportFactory(nil)
-		_, err := f.TransportFor(uuid.New(), aibridge.SourceAgents)
+		_, err := f.TransportFor("openai", aibridge.SourceAgents)
 		require.Error(t, err)
+	})
+
+	t.Run("EmptyProviderErrors", func(t *testing.T) {
+		t.Parallel()
+		f := aibridged.NewTransportFactory(http.NotFoundHandler())
+		_, err := f.TransportFor("", aibridge.SourceAgents)
+		require.Error(t, err)
+	})
+
+	t.Run("RewritesURLToAibridgeMount", func(t *testing.T) {
+		t.Parallel()
+
+		// The round-tripper must adapt an upstream-shaped URL.Path
+		// ("/v1/messages") to the aibridge mount layout
+		// ("/api/v2/aibridge/<provider>/v1/messages") so callers don't
+		// have to encode the daemon's routing key into their requests.
+		got := make(chan string, 1)
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got <- r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		})
+
+		rt, err := aibridged.NewTransportFactory(handler).TransportFor("my-anthropic", aibridge.SourceAgents)
+		require.NoError(t, err)
+
+		ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/v1/messages", nil)
+		require.NoError(t, err)
+
+		// The caller's req.URL.Path is the upstream shape. Capture it so
+		// we can prove the transport mutates a clone, not the caller's
+		// request, after RoundTrip returns.
+		origPath := req.URL.Path
+
+		resp, err := rt.RoundTrip(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, "/api/v2/aibridge/my-anthropic/v1/messages", <-got)
+		require.Equal(t, origPath, req.URL.Path,
+			"caller's request URL must not be mutated by RoundTrip")
 	})
 
 	t.Run("AttachesSourceToContext", func(t *testing.T) {
@@ -47,7 +87,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+		rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 		require.NoError(t, err)
 
 		ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
@@ -72,7 +112,7 @@ func TestInMemoryRoundTripper_PassesHeadersAndStatus(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
@@ -122,7 +162,7 @@ func TestInMemoryRoundTripper_Streams(t *testing.T) {
 		}
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
@@ -161,7 +201,7 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 		close(handlerCtxObserved)
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	parentCtx := testutil.Context(t, testutil.WaitShort)
@@ -199,7 +239,7 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 		_, _ = w.Write(body)
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	const n = 16
@@ -248,7 +288,7 @@ func TestInMemoryRoundTripper_HandlerPanic(t *testing.T) {
 		panic("unexpected nil pointer")
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
@@ -307,7 +347,7 @@ func TestInMemoryRoundTripper_RequiresDelegatedAPIKeyID(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+			rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 			require.NoError(t, err)
 
 			ctx := tc.withCtx(testutil.Context(t, testutil.WaitShort))
@@ -340,7 +380,7 @@ func TestInMemoryRoundTripper_HandlerReturnsWithoutWriting(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")

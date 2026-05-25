@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -23,12 +22,12 @@ type stubTransportFactory struct {
 }
 
 type callRecord struct {
-	providerID uuid.UUID
-	source     aibridge.Source
+	providerName string
+	source       aibridge.Source
 }
 
-func (f *stubTransportFactory) TransportFor(providerID uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
-	f.calls <- callRecord{providerID: providerID, source: source}
+func (f *stubTransportFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	f.calls <- callRecord{providerName: providerName, source: source}
 	return &handlerRoundTripper{handler: f.handler}, nil
 }
 
@@ -71,14 +70,14 @@ func TestAIBridgeTransportFactory_Registration(t *testing.T) {
 	loaded := api.AIBridgeTransportFactory.Load()
 	require.NotNil(t, loaded)
 
-	providerID := uuid.New()
-	rt, err := (*loaded).TransportFor(providerID, aibridge.SourceAgents)
+	providerName := "openai"
+	rt, err := (*loaded).TransportFor(providerName, aibridge.SourceAgents)
 	require.NoError(t, err)
 	require.NotNil(t, rt)
 
 	select {
 	case got := <-stub.calls:
-		require.Equal(t, providerID, got.providerID)
+		require.Equal(t, providerName, got.providerName)
 		require.Equal(t, aibridge.SourceAgents, got.source)
 	default:
 		t.Fatal("factory was not invoked")
