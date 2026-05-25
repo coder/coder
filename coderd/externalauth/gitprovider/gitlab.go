@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -283,6 +284,8 @@ type compareResponse struct {
 		NewFile     bool   `json:"new_file"`
 		DeletedFile bool   `json:"deleted_file"`
 		RenamedFile bool   `json:"renamed_file"`
+		Collapsed   bool   `json:"collapsed"`
+		TooLarge    bool   `json:"too_large"`
 	} `json:"diffs"`
 	CompareTimeout bool `json:"compare_timeout"`
 }
@@ -373,6 +376,13 @@ func (g *gitlabProvider) FetchBranchDiff(
 	}
 	sb.Grow(estimated)
 	for _, d := range compare.Diffs {
+		if d.Collapsed || d.TooLarge {
+			slog.WarnContext(ctx, "gitlab compare: file diff truncated",
+				slog.String("path", d.NewPath),
+				slog.Bool("collapsed", d.Collapsed),
+				slog.Bool("too_large", d.TooLarge),
+			)
+		}
 		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
 		// Add standard unified diff file headers.
 		switch {
