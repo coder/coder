@@ -9000,27 +9000,32 @@ func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
 		messagesSeen         int
 	)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case ev := <-events:
-			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+		for {
+			select {
+			case ev := <-events:
+				if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+					continue
+				}
+				messagesSeen++
+				switch ev.Message.Role {
+				case codersdk.ChatMessageRoleTool:
+					if syntheticPublishedAt == 0 {
+						syntheticPublishedAt = messagesSeen
+					}
+				case codersdk.ChatMessageRoleUser:
+					if ev.Message.ID == promoteResult.PromotedMessage.ID {
+						userPublishedAt = messagesSeen
+					}
+				}
+				if syntheticPublishedAt > 0 && userPublishedAt > 0 {
+					return true
+				}
+			default:
 				return false
 			}
-			messagesSeen++
-			switch ev.Message.Role {
-			case codersdk.ChatMessageRoleTool:
-				if syntheticPublishedAt == 0 {
-					syntheticPublishedAt = messagesSeen
-				}
-			case codersdk.ChatMessageRoleUser:
-				if ev.Message.ID == promoteResult.PromotedMessage.ID {
-					userPublishedAt = messagesSeen
-				}
-			}
-			return syntheticPublishedAt > 0 && userPublishedAt > 0
-		default:
-			return false
 		}
 	}, testutil.IntervalFast)
+
 	require.Less(t, syntheticPublishedAt, userPublishedAt,
 		"synthetic tool-result must be published before the promoted user message")
 
@@ -9221,26 +9226,31 @@ func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
 		userPublished         bool
 	)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case ev := <-events:
-			if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
-				t.Logf("subscriber consumed non-message event type=%s", ev.Type)
+		for {
+			select {
+			case ev := <-events:
+				if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
+					t.Logf("subscriber consumed non-message event type=%s", ev.Type)
+					continue
+				}
+				t.Logf("subscriber consumed message id=%d role=%s match_promoted=%t", ev.Message.ID, ev.Message.Role, ev.Message.ID == promoteResult.PromotedMessage.ID)
+				switch ev.Message.Role {
+				case codersdk.ChatMessageRoleTool:
+					syntheticPublishCount++
+				case codersdk.ChatMessageRoleUser:
+					if ev.Message.ID == promoteResult.PromotedMessage.ID {
+						userPublished = true
+					}
+				}
+				if userPublished {
+					return true
+				}
+			default:
 				return false
 			}
-			t.Logf("subscriber consumed message id=%d role=%s match_promoted=%t", ev.Message.ID, ev.Message.Role, ev.Message.ID == promoteResult.PromotedMessage.ID)
-			switch ev.Message.Role {
-			case codersdk.ChatMessageRoleTool:
-				syntheticPublishCount++
-			case codersdk.ChatMessageRoleUser:
-				if ev.Message.ID == promoteResult.PromotedMessage.ID {
-					userPublished = true
-				}
-			}
-			return userPublished
-		default:
-			return false
 		}
 	}, testutil.IntervalFast)
+
 	require.Equal(t, 1, syntheticPublishCount,
 		"only the dynamic tool's synthetic result must be published; the built-in's pre-existing result must not be republished")
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
