@@ -117,13 +117,14 @@ type Config struct {
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
 }
 
-// Git returns a Provider for this config if the provider type
-// is a supported git hosting provider. Returns nil for non-git
-// providers (e.g. Slack, JFrog).
-func (c *Config) Git(client *http.Client) gitprovider.Provider {
+// Git returns a Provider for this config if the provider type is a
+// supported git hosting provider. Returns (nil, nil) for non-git
+// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
+// construction fails.
+func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
-		return nil
+		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
 	return gitprovider.New(norm, c.APIBaseURL, client)
 }
@@ -957,6 +958,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			config.APIBaseURL = "https://api.github.com"
 		case codersdk.EnhancedExternalAuthProviderGitLab:
 			config.APIBaseURL = "https://gitlab.com/api/v4"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && !strings.EqualFold(au.Host, "gitlab.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v4"
+				}
+			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
 		}
@@ -1038,7 +1044,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		DisplayName:                   "GitLab",
 		DisplayIcon:                   "/icon/gitlab.svg",
 		Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:                        []string{"write_repository"},
+		Scopes:                        []string{"write_repository", "read_api"},
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 

@@ -30,7 +30,7 @@ const (
 
 // ProviderResolver maps a git remote origin to the gitprovider
 // that handles it. Returns nil if no provider matches.
-type ProviderResolver func(origin string) gitprovider.Provider
+type ProviderResolver func(ctx context.Context, origin string) gitprovider.Provider
 
 var ErrNoTokenAvailable error = errors.New("no token available")
 
@@ -159,7 +159,7 @@ func (r *Refresher) Refresh(
 	// duplicate resolution for rows in the same group.
 	var resolved []resolvedGroup
 	for key, indices := range groups {
-		provider := r.providers(key.origin)
+		provider := r.providers(ctx, key.origin)
 		if provider == nil {
 			err := xerrors.Errorf("no provider for origin %q", key.origin)
 			for _, i := range indices {
