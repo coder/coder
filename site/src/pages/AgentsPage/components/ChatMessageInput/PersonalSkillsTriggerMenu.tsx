@@ -54,87 +54,90 @@ export const PersonalSkillsTriggerMenu = ({
 		}
 	};
 
-	const shouldRender = open && anchorRect;
+	const anchor = open ? anchorRect : null;
 
 	return (
 		<Popover
-			open={Boolean(shouldRender)}
+			open={Boolean(anchor)}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) {
 					onClose();
 				}
 			}}
 		>
-			{shouldRender && (
-				<PopoverAnchor asChild>
-					<span
-						aria-hidden="true"
-						style={{
-							position: "fixed",
-							top: anchorRect.top,
-							left: anchorRect.left,
-							width: 1,
-							height: Math.max(anchorRect.height, MIN_ANCHOR_HEIGHT_PX),
-							pointerEvents: "none",
-						}}
-					/>
-				</PopoverAnchor>
-			)}
-			<PopoverContent
-				align="start"
-				side="bottom"
-				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
-				onMouseDown={(event) => event.preventDefault()}
-				onOpenAutoFocus={(event) => event.preventDefault()}
-				onCloseAutoFocus={(event) => event.preventDefault()}
-			>
-				<Command
-					shouldFilter={false}
-					loop={false}
-					onValueChange={handleHighlightedValueChange}
-					value={skills[selectedIndex]?.name ?? ""}
-				>
-					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
-						{isLoading ? (
-							<CommandItem value="loading" disabled>
-								Loading personal skills...
-							</CommandItem>
-						) : isError ? (
-							<CommandItem value="error" disabled>
-								Could not load personal skills. Close and type / again to retry.
-							</CommandItem>
-						) : skills.length === 0 ? (
-							<CommandEmpty>
-								{query
-									? "No personal skills match that query."
-									: "No personal skills found."}
-							</CommandEmpty>
-						) : (
-							<CommandGroup heading="Personal skills">
-								{skills.map((skill) => (
-									<CommandItem
-										key={skill.id}
-										value={skill.name}
-										className="items-start"
-										onSelect={() => onSelect(skill)}
-									>
-										<div className="min-w-0 space-y-1">
-											<div className="truncate font-mono text-content-primary text-xs">
-												{personalSkillTriggerText(skill)}
-											</div>
-											{skill.description.trim() && (
-												<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
-													{skill.description}
-												</div>
-											)}
-										</div>
+			{anchor && (
+				<>
+					<PopoverAnchor asChild>
+						<span
+							aria-hidden="true"
+							style={{
+								position: "fixed",
+								top: anchor.top,
+								left: anchor.left,
+								width: 1,
+								height: Math.max(anchor.height, MIN_ANCHOR_HEIGHT_PX),
+								pointerEvents: "none",
+							}}
+						/>
+					</PopoverAnchor>
+					<PopoverContent
+						align="start"
+						side="bottom"
+						className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+						onMouseDown={(event) => event.preventDefault()}
+						onOpenAutoFocus={(event) => event.preventDefault()}
+						onCloseAutoFocus={(event) => event.preventDefault()}
+					>
+						<Command
+							shouldFilter={false}
+							loop={false}
+							onValueChange={handleHighlightedValueChange}
+							value={skills[selectedIndex]?.name ?? ""}
+						>
+							<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+								{isLoading ? (
+									<CommandItem value="loading" disabled>
+										Loading personal skills...
 									</CommandItem>
-								))}
-							</CommandGroup>
-						)}
-					</CommandList>
-				</Command>
-			</PopoverContent>
+								) : isError ? (
+									<CommandItem value="error" disabled>
+										Could not load personal skills. Close and type / again to
+										retry.
+									</CommandItem>
+								) : skills.length === 0 ? (
+									<CommandEmpty>
+										{query
+											? "No personal skills match that query."
+											: "No personal skills found."}
+									</CommandEmpty>
+								) : (
+									<CommandGroup heading="Personal skills">
+										{skills.map((skill) => (
+											<CommandItem
+												key={skill.id}
+												value={skill.name}
+												className="items-start"
+												onSelect={() => onSelect(skill)}
+											>
+												<div className="min-w-0 space-y-1">
+													<div className="truncate font-mono text-content-primary text-xs">
+														{personalSkillTriggerText(skill)}
+													</div>
+													{skill.description.trim() && (
+														<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
+															{skill.description}
+														</div>
+													)}
+												</div>
+											</CommandItem>
+										))}
+									</CommandGroup>
+								)}
+							</CommandList>
+						</Command>
+					</PopoverContent>
+				</>
+			)}
 		</Popover>
 	);
 };
