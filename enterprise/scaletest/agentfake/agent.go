@@ -3,10 +3,11 @@ package agentfake
 import (
 	"context"
 	"encoding/base64"
-	"math/rand"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -140,7 +141,17 @@ func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) er
 			a.logger.Warn(ctx, "get manifest for metadata", slog.Error(err))
 		}
 	} else if descs := manifest.GetMetadata(); len(descs) > 0 {
-		go a.runMetadata(ctx, rpc, descs)
+		// Parse the workspace ID out of the manifest so we can embed it
+		// in the synthetic metadata payload below. If the manifest bytes
+		// are malformed (shouldn't happen in practice), fall back to
+		// uuid.Nil; the payload is still valid, just less identifiable.
+		workspaceID, idErr := uuid.FromBytes(manifest.GetWorkspaceId())
+		if idErr != nil && ctx.Err() == nil {
+			a.logger.Warn(ctx, "parse workspace id from manifest; metadata payload will use uuid.Nil",
+				slog.Error(idErr))
+			workspaceID = uuid.Nil
+		}
+		go a.runMetadata(ctx, rpc, workspaceID, descs)
 	}
 
 	select {
@@ -159,10 +170,16 @@ func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) er
 // declared interval. The goroutine is scoped to the connection's ctx; on
 // disconnect or shutdown it exits cleanly.
 //
+// The payload is a single fixed value, computed once: the workspace ID
+// prepended to a constant padding so each metadata row in scaletest logs
+// and the database is traceable back to the agent that emitted it. We
+// intentionally do not vary the value per key or per tick; if a future
+// scenario requires per-key/per-tick variation we can extend this then.
+//
 // Errors from BatchUpdateMetadata are logged and ignored. Tearing the
 // connection down over a metadata RPC blip would be wasteful; real agents
 // behave the same way (see agent.reportMetadata).
-func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, descs []*proto.WorkspaceAgentMetadata_Description) {
+func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, workspaceID uuid.UUID, descs []*proto.WorkspaceAgentMetadata_Description) {
 	// Resolve declared intervals once, applying a floor so a malformed
 	// manifest can't spin us. Initialize all keys as immediately due so
 	// the first tick fires every description.
@@ -184,13 +201,22 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, de
 		nextDue[i] = now
 	}
 
-	// Per-agent RNG so we don't contend on the global math/rand mutex
-	// when many fake agents run in the same process. Weak randomness is
-	// fine here since we are generating synthetic scaletest metadata, not
-	// security-sensitive values.
-	//nolint:gosec
-	rng := rand.New(rand.NewSource(a.clock.Now().UnixNano()))
-	buf := make([]byte, metadataValueBytes)
+	// Build the metadata payload once: prepend the workspace ID so
+	// scaletest log lines and DB rows are traceable back to the
+	// emitting agent, then pad out to metadataValueBytes so the wire
+	// shape (base64-encoded ~4096 chars) mirrors the real scaletest
+	// template's `dd if=/dev/urandom bs=3072 count=1 | base64` output.
+	// coderd truncates the stored value to 2048 chars (see
+	// coderd/agentapi/metadata.go maxValueLen), and the workspace ID
+	// lives in the first ~50 chars of the base64 output, so it
+	// survives truncation.
+	const tag = "fake-agent-metadata workspace="
+	prefix := tag + workspaceID.String() + " "
+	padLen := metadataValueBytes - len(prefix)
+	if padLen < 0 {
+		padLen = 0
+	}
+	value := base64.StdEncoding.EncodeToString([]byte(prefix + strings.Repeat("a", padLen)))
 
 	ticker := a.clock.NewTicker(metadataTickInterval, "agentfake", "runMetadata")
 	defer ticker.Stop()
@@ -205,10 +231,6 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, de
 				if now.Before(nextDue[i]) {
 					continue
 				}
-				// Regenerate per entry so each value varies on the wire;
-				// matches what the real `dd | base64` script produces.
-				_, _ = rng.Read(buf)
-				value := base64.StdEncoding.EncodeToString(buf)
 				batch = append(batch, &proto.Metadata{
 					Key: d.GetKey(),
 					Result: &proto.WorkspaceAgentMetadata_Result{
