@@ -77,10 +77,6 @@ type Provider interface {
 	// AuthHeader returns the name of the header which the provider expects to find its authentication
 	// token in.
 	AuthHeader() string
-	// InjectAuthHeader allows [Provider]s to set its authentication header.
-	// TODO(ssncferreira): remove. Auth is now applied per-attempt by
-	// KeyFailoverTransport (see [Provider.KeyFailoverConfig]).
-	InjectAuthHeader(*http.Header)
 	// KeyFailoverConfig returns the per-provider configuration for
 	// automatic key failover on passthrough routes.
 	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig

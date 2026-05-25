@@ -311,13 +311,14 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		successBody     = `{"data":[]}`
 	)
 
-	// providers parameterises the table over the two providers
-	// that support key failover. Each entry encapsulates the
+	// providers parameterises the table over the providers exposed
+	// to the failover transport. Each entry encapsulates the
 	// provider-specific bits the test needs: how the mock upstream
 	// extracts the key from the request, how a BYOK request sets
 	// it, and how the provider is constructed for a given pool.
 	providers := []struct {
 		name        string
+		byokOnly    bool
 		extractKey  func(*http.Request) string
 		setBYOK     func(*http.Request, string)
 		newProvider func(baseURL string, pool *keypool.Pool) provider.Provider
@@ -351,6 +352,21 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 					cfg.KeyPool = pool
 				}
 				return provider.NewOpenAI(cfg)
+			},
+		},
+		// Copilot is BYOK-only: its KeyFailoverConfig is zero-value
+		// so the failover transport short-circuits.
+		{
+			name:     "copilot",
+			byokOnly: true,
+			extractKey: func(r *http.Request) string {
+				return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			},
+			setBYOK: func(r *http.Request, key string) {
+				r.Header.Set("Authorization", "Bearer "+key)
+			},
+			newProvider: func(baseURL string, _ *keypool.Pool) provider.Provider {
+				return provider.NewCopilot(config.Copilot{BaseURL: baseURL})
 			},
 		},
 	}
@@ -516,6 +532,11 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 	for _, prov := range providers {
 		for _, tc := range tests {
+			// BYOK-only providers don't use the pool, so pool-based
+			// cases don't apply.
+			if prov.byokOnly && tc.byokKey == "" {
+				continue
+			}
 			t.Run(prov.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
 

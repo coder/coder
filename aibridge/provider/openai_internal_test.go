@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -325,42 +328,133 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 	}
 }
 
-func TestOpenAI_InjectAuthHeader(t *testing.T) {
+func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 	t.Parallel()
 
-	provider := NewOpenAI(config.OpenAI{Key: "centralized-key"})
+	pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+	require.NoError(t, err)
 
-	tests := []struct {
-		name              string
-		presetHeaders     map[string]string
-		wantAuthorization string
-	}{
-		{
-			name:              "when no Authorization header is provided, inject centralized key",
-			presetHeaders:     map[string]string{},
-			wantAuthorization: "Bearer centralized-key",
-		},
-		{
-			name:              "when Authorization header is provided, do not overwrite it",
-			presetHeaders:     map[string]string{"Authorization": "Bearer user-token"},
-			wantAuthorization: "Bearer user-token",
-		},
-	}
+	p := NewOpenAI(config.OpenAI{KeyPool: pool})
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	cfg := p.KeyFailoverConfig(slog.Make())
 
-			headers := http.Header{}
-			for k, v := range tc.presetHeaders {
-				headers.Set(k, v)
-			}
+	assert.Same(t, pool, cfg.Pool, "Pool must be wired from the provider config")
+	assert.Equal(t, config.ProviderOpenAI, cfg.ProviderName, "ProviderName must match the provider name")
+	require.NotNil(t, cfg.IsBYOK)
+	require.NotNil(t, cfg.InjectAuthKey)
+	require.NotNil(t, cfg.BuildKeyPoolResponse)
 
-			provider.InjectAuthHeader(&headers)
+	t.Run("IsBYOK", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name    string
+			headers map[string]string
+			want    bool
+		}{
+			{
+				name:    "no_auth_headers",
+				headers: nil,
+				want:    false,
+			},
+			{
+				name:    "non_auth_header",
+				headers: map[string]string{"Content-Type": "application/json"},
+				want:    false,
+			},
+			{
+				name:    "authorization_only",
+				headers: map[string]string{"Authorization": "Bearer user-token"},
+				want:    true,
+			},
+			{
+				name:    "x_api_key_only",
+				headers: map[string]string{"X-Api-Key": "user-key"},
+				want:    false,
+			},
+			{
+				name: "both_headers_set",
+				headers: map[string]string{
+					"Authorization": "Bearer user-token",
+					"X-Api-Key":     "user-key",
+				},
+				want: true,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				r := httptest.NewRequest(http.MethodPost, "/", nil)
+				for k, v := range tc.headers {
+					r.Header.Set(k, v)
+				}
+				assert.Equal(t, tc.want, cfg.IsBYOK(r))
+			})
+		}
+	})
 
-			assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
-		})
-	}
+	t.Run("InjectAuthKey", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name           string
+			initialHeaders http.Header
+			key            string
+			wantAPIKey     string
+		}{
+			{
+				name:           "writes_bearer_token_to_authorization",
+				initialHeaders: http.Header{},
+				key:            "centralized-key",
+				wantAPIKey:     "",
+			},
+			{
+				name:           "overwrites_existing_authorization",
+				initialHeaders: http.Header{"Authorization": {"Bearer stale"}, "X-Api-Key": {"stale"}},
+				key:            "next-key",
+				wantAPIKey:     "stale",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				headers := tc.initialHeaders
+				cfg.InjectAuthKey(&headers, tc.key)
+				assert.Equal(t, "Bearer "+tc.key, headers.Get("Authorization"))
+				assert.Equal(t, tc.wantAPIKey, headers.Get("X-Api-Key"))
+			})
+		}
+	})
+
+	t.Run("BuildKeyPoolResponse", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name           string
+			err            *keypool.Error
+			wantStatus     int
+			wantRetryAfter string
+		}{
+			{
+				name:       "permanent_returns_502",
+				err:        &keypool.Error{Kind: keypool.ErrorKindPermanent},
+				wantStatus: http.StatusBadGateway,
+			},
+			{
+				name:           "rate_limited_returns_429_with_retry_after",
+				err:            &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
+				wantStatus:     http.StatusTooManyRequests,
+				wantRetryAfter: "5",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp := cfg.BuildKeyPoolResponse(tc.err)
+				require.NotNil(t, resp)
+				t.Cleanup(func() { _ = resp.Body.Close() })
+				assert.Equal(t, tc.wantStatus, resp.StatusCode)
+				assert.Equal(t, tc.wantRetryAfter, resp.Header.Get("Retry-After"))
+			})
+		}
+	})
 }
 
 func BenchmarkOpenAI_CreateInterceptor_ChatCompletions(b *testing.B) {

@@ -196,29 +196,6 @@ func (*OpenAI) AuthHeader() string {
 	return "Authorization"
 }
 
-func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
-	if headers == nil {
-		headers = &http.Header{}
-	}
-
-	// BYOK: if the request already carries user-supplied credentials,
-	// do not overwrite them with the centralized key.
-	if headers.Get("Authorization") != "" {
-		return
-	}
-
-	// Centralized: pull a single key from the pool. No failover
-	// or exhaustion handling here.
-	// TODO(ssncferreira): replace with RoundTripper-based auth
-	// in the upstack passthrough PR.
-	if p.cfg.KeyPool == nil {
-		return
-	}
-	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
-		headers.Set(p.AuthHeader(), "Bearer "+key.Value())
-	}
-}
-
 func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{
 		Pool:         p.cfg.KeyPool,
