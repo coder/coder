@@ -958,6 +958,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			config.APIBaseURL = "https://api.github.com"
 		case codersdk.EnhancedExternalAuthProviderGitLab:
 			config.APIBaseURL = "https://gitlab.com/api/v4"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && !strings.EqualFold(au.Host, "gitlab.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v4"
+				}
+			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
 		}
