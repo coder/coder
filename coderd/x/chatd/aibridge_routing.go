@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"database/sql"
-	"maps"
 	"net/http"
 
 	"charm.land/fantasy"
@@ -22,8 +21,8 @@ import (
 const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
-	// non-empty API key. Aibridge receives the real provider credential through
-	// provider keys when one is available, or looks up provider credentials by ID.
+	// non-empty API key. Aibridge resolves the real provider credential from
+	// the routed provider and delegated API key context.
 	aibridgePlaceholderAPIKey = "coder-aibridge"
 )
 
@@ -90,7 +89,7 @@ func (p *Server) newModelFromConfig(
 		if factory == nil || *factory == nil {
 			return nil, debugEnabled, xerrors.New("AI Gateway transport factory is not configured")
 		}
-		rt, err := (*factory).TransportFor(route.aiProvider.ID, aibridge.SourceAgents)
+		rt, err := (*factory).TransportFor(route.aiProvider.Name, aibridge.SourceAgents)
 		if err != nil {
 			return nil, debugEnabled, xerrors.Errorf("create AI Gateway transport: %w", err)
 		}
@@ -101,7 +100,7 @@ func (p *Server) newModelFromConfig(
 			httpClient = &http.Client{Transport: delegatedRT}
 		}
 
-		providerHint, providerKeys = aibridgeModelProviderInput(route.aiProvider.Type, route.aiProvider.Name, providerKeys)
+		providerHint, providerKeys = aibridgeModelProviderInput(route.aiProvider.Type)
 	} else if debugEnabled {
 		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
 	}
@@ -131,30 +130,15 @@ func (p *Server) newModelFromConfig(
 	return model, debugEnabled, nil
 }
 
-func aibridgeModelProviderInput(
-	providerType database.AIProviderType,
-	providerName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-) (string, chatprovider.ProviderAPIKeys) {
+func aibridgeModelProviderInput(providerType database.AIProviderType) (string, chatprovider.ProviderAPIKeys) {
 	fantasyProvider := aibridgeFantasyProviderForType(providerType)
-	keys := cloneProviderAPIKeys(providerKeys)
-	originalProvider := chatprovider.NormalizeProvider(string(providerType))
-	if originalProvider != "" {
-		if key := providerKeys.APIKey(originalProvider); key != "" && keys.APIKey(fantasyProvider) == "" {
-			keys.ByProvider[fantasyProvider] = key
-		}
-	}
-	if keys.APIKey(fantasyProvider) == "" {
-		keys.ByProvider[fantasyProvider] = aibridgePlaceholderAPIKey
-	}
-	keys.BaseURLByProvider[fantasyProvider] = aibridgeBaseURLForProviderType(providerType, providerName)
-	if key := keys.ByProvider[fantasyProvider]; key != "" {
-		switch fantasyProvider {
-		case fantasyopenai.Name:
-			keys.OpenAI = key
-		case fantasyanthropic.Name:
-			keys.Anthropic = key
-		}
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider: map[string]string{
+			fantasyProvider: aibridgePlaceholderAPIKey,
+		},
+		BaseURLByProvider: map[string]string{
+			fantasyProvider: aibridgeBaseURLForProviderType(providerType),
+		},
 	}
 	return fantasyProvider, keys
 }
@@ -170,26 +154,13 @@ func aibridgeFantasyProviderForType(providerType database.AIProviderType) string
 	}
 }
 
-func aibridgeBaseURLForProviderType(providerType database.AIProviderType, providerName string) string {
-	baseURL := aibridgeLocalBaseURL + "/" + providerName
+func aibridgeBaseURLForProviderType(providerType database.AIProviderType) string {
 	switch aibridgeFantasyProviderForType(providerType) {
 	case fantasyanthropic.Name:
-		return baseURL
+		return aibridgeLocalBaseURL
 	default:
-		return baseURL + "/v1"
+		return aibridgeLocalBaseURL + "/v1"
 	}
-}
-
-func cloneProviderAPIKeys(keys chatprovider.ProviderAPIKeys) chatprovider.ProviderAPIKeys {
-	cloned := chatprovider.ProviderAPIKeys{
-		OpenAI:            keys.OpenAI,
-		Anthropic:         keys.Anthropic,
-		ByProvider:        make(map[string]string, len(keys.ByProvider)+1),
-		BaseURLByProvider: make(map[string]string, len(keys.BaseURLByProvider)+1),
-	}
-	maps.Copy(cloned.ByProvider, keys.ByProvider)
-	maps.Copy(cloned.BaseURLByProvider, keys.BaseURLByProvider)
-	return cloned
 }
 
 func (p *Server) activeTurnAPIKeyID(ctx context.Context, chatID uuid.UUID) (string, error) {

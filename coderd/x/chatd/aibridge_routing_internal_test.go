@@ -24,14 +24,14 @@ import (
 )
 
 type aibridgeTestFactory struct {
-	providerID uuid.UUID
-	source     aibridge.Source
-	err        error
-	rt         http.RoundTripper
+	providerName string
+	source       aibridge.Source
+	err          error
+	rt           http.RoundTripper
 }
 
-func (f *aibridgeTestFactory) TransportFor(providerID uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
-	f.providerID = providerID
+func (f *aibridgeTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	f.providerName = providerName
 	f.source = source
 	if f.err != nil {
 		return nil, f.err
@@ -78,36 +78,32 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 	tests := []struct {
 		name         string
 		providerType database.AIProviderType
-		providerName string
 		wantProvider string
 		wantBaseURL  string
 	}{
-		{name: "OpenAI", providerType: database.AiProviderTypeOpenai, providerName: "primary-openai", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/primary-openai/v1"},
-		{name: "Anthropic", providerType: database.AiProviderTypeAnthropic, providerName: "claude", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge/claude"},
-		{name: "Bedrock", providerType: database.AiProviderTypeBedrock, providerName: "aws-bedrock", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge/aws-bedrock"},
-		{name: "Google", providerType: database.AiProviderTypeGoogle, providerName: "gemini", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/gemini/v1"},
+		{name: "OpenAI", providerType: database.AiProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Anthropic", providerType: database.AiProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Bedrock", providerType: database.AiProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Google", providerType: database.AiProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			provider, keys := aibridgeModelProviderInput(tt.providerType, tt.providerName, chatprovider.ProviderAPIKeys{})
+			provider, keys := aibridgeModelProviderInput(tt.providerType)
 			require.Equal(t, tt.wantProvider, provider)
 			require.Equal(t, tt.wantBaseURL, keys.BaseURL(provider))
-			require.NotEmpty(t, keys.APIKey(provider))
+			require.Equal(t, aibridgePlaceholderAPIKey, keys.APIKey(provider))
 		})
 	}
 }
 
-func TestAIBridgeModelProviderInputPreservesTopLevelKeys(t *testing.T) {
+func TestAIBridgeModelProviderInputUsesLocalPlaceholderKey(t *testing.T) {
 	t.Parallel()
 
-	provider, keys := aibridgeModelProviderInput(database.AiProviderTypeOpenai, "primary-openai", chatprovider.ProviderAPIKeys{
-		OpenAI: "top-level-key",
-	})
+	provider, keys := aibridgeModelProviderInput(database.AiProviderTypeOpenai)
 	require.Equal(t, "openai", provider)
-	require.Equal(t, "top-level-key", keys.OpenAI)
-	require.Empty(t, keys.ByProvider["openai"])
-	require.Equal(t, "http://coder-aibridge/primary-openai/v1", keys.BaseURL("openai"))
+	require.Equal(t, aibridgePlaceholderAPIKey, keys.APIKey(provider))
+	require.Equal(t, "http://coder-aibridge/v1", keys.BaseURL(provider))
 }
 
 func TestResolveModelConfigProviderHintKeysAndRoutePreservesBaseURL(t *testing.T) {
@@ -369,7 +365,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	require.False(t, debugEnabled)
 	require.Equal(t, chattool.ComputerUseProviderOpenAI, resolvedProvider)
 	require.Equal(t, modelName, resolvedModel)
-	require.Equal(t, providerID, factory.providerID)
+	require.Equal(t, "primary-openai", factory.providerName)
 	require.Equal(t, aibridge.SourceAgents, factory.source)
 }
 
@@ -415,9 +411,9 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	require.NoError(t, err)
 
 	got := <-seen
-	require.Equal(t, providerID, factory.providerID)
+	require.Equal(t, "primary-openai", factory.providerName)
 	require.Equal(t, aibridge.SourceAgents, factory.source)
 	require.True(t, got.ok)
-	require.Equal(t, "/primary-openai/v1/responses", got.path)
+	require.Equal(t, "/v1/responses", got.path)
 	require.Equal(t, apiKeyID, got.apiKeyID)
 }
