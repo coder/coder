@@ -211,7 +211,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					size="sm"
 					disabled={providerConfigsUnavailable || isProviderMutationPending}
 				>
-					<PlusIcon className="h-4 w-4" />
+					<PlusIcon className="size-4" />
 					Add provider
 				</Button>
 			</DropdownMenuTrigger>
@@ -222,7 +222,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						className="gap-2"
 						onSelect={() => openNewProviderView(providerType)}
 					>
-						<ProviderIcon provider={providerType} className="h-5 w-5" />
+						<ProviderIcon provider={providerType} className="size-5" />
 						<span>{label}</span>
 					</DropdownMenuItem>
 				))}
@@ -267,7 +267,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						>
 							<ProviderIcon
 								provider={providerState.provider}
-								className="h-8 w-8 shrink-0"
+								className="size-8 shrink-0"
 							/>
 							<div className="min-w-0 flex-1 space-y-1">
 								<div className="flex flex-wrap items-center gap-2">
@@ -282,11 +282,11 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 								</div>
 							</div>
 							{providerState.hasEffectiveAPIKey ? (
-								<CheckCircleIcon className="h-4 w-4 shrink-0 text-content-success" />
+								<CheckCircleIcon className="size-4 shrink-0 text-content-success" />
 							) : (
-								<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
+								<CircleIcon className="size-4 shrink-0 text-content-secondary opacity-40" />
 							)}
-							<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+							<ChevronRightIcon className="size-5 shrink-0 text-content-secondary" />
 						</button>
 					))}
 				</div>

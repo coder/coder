@@ -283,7 +283,7 @@ export const UserCompactionThresholdSettings: FC<
 										<Badge size="sm" variant="default" className="w-fit">
 											<ProviderIcon
 												provider={modelConfig.provider}
-												className="h-4 w-4"
+												className="size-4"
 											/>
 											{modelName}
 										</Badge>

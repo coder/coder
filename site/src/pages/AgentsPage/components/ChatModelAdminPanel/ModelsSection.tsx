@@ -262,9 +262,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
-					<PlusIcon className="h-4 w-4" />
+					<PlusIcon className="size-4" />
 					Add
-					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
+					<ChevronDownIcon className="size-3.5 text-content-secondary" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
@@ -276,7 +276,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						}}
 						className="gap-2"
 					>
-						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
+						<ProviderIcon provider={ps.provider} className="size-5" />
 						{ps.label}
 					</DropdownMenuItem>
 				))}
@@ -356,7 +356,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								>
 									<ProviderIcon
 										provider={modelConfig.provider}
-										className="h-8 w-8 shrink-0"
+										className="size-8 shrink-0"
 									/>
 									<div className="min-w-0 flex-1">
 										<span
@@ -371,7 +371,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										</span>
 										{showPricingWarning && (
 											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
-												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+												<TriangleAlertIcon className="size-3.5 shrink-0" />
 												Model pricing is not defined
 											</span>
 										)}

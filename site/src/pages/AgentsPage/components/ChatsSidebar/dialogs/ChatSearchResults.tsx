@@ -204,9 +204,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 				isSelected && "bg-surface-tertiary/40 text-content-primary",
 			)}
 		>
-			<StatusIcon
-				className={cn("mt-1 h-3.5 w-3.5 shrink-0", statusClassName)}
-			/>
+			<StatusIcon className={cn("mt-1 size-3.5 shrink-0", statusClassName)} />
 			<div className="min-w-0">
 				<div className="truncate text-sm text-content-primary">
 					{chat.title}
@@ -228,7 +226,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 			<span className="inline-flex shrink-0 items-center gap-1.5 pt-0.5 text-xs text-content-secondary">
 				{chat.has_unread && (
 					<span
-						className="h-1.5 w-1.5 shrink-0 rounded-full bg-content-link"
+						className="size-1.5 shrink-0 rounded-full bg-content-link"
 						aria-hidden="true"
 					/>
 				)}
@@ -245,7 +243,7 @@ const ChatSearchResultsSkeleton: FC = () => (
 				key={`search-skeleton-${index}`}
 				className="flex items-start gap-2 rounded-md px-1.5 py-1"
 			>
-				<Skeleton className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full" />
+				<Skeleton className="mt-1 size-3.5 shrink-0 rounded-full" />
 				<div className="min-w-0 flex-1 space-y-1.5">
 					<Skeleton
 						className="h-3.5"

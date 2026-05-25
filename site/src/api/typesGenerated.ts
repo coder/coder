@@ -463,6 +463,7 @@ export type AIProviderType =
 	| "anthropic"
 	| "azure"
 	| "bedrock"
+	| "copilot"
 	| "google"
 	| "openai"
 	| "openai-compat"
@@ -473,6 +474,7 @@ export const AIProviderTypes: AIProviderType[] = [
 	"anthropic",
 	"azure",
 	"bedrock",
+	"copilot",
 	"google",
 	"openai",
 	"openai-compat",
