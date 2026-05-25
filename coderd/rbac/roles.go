@@ -328,6 +328,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// All users can see OAuth2 provider applications.
 				ResourceOauth2App.Type:      {policy.ActionRead},
 				ResourceWorkspaceProxy.Type: {policy.ActionRead},
+				// Members can create boundary logs on behalf of their workspace
+				// agent. boundary_log has no owner, so this must be site-level.
+				// Read and delete are reserved for owners/auditors.
+				ResourceBoundaryLog.Type: {policy.ActionCreate},
 			}),
 			denyPermissions...,
 		),
@@ -342,9 +346,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Members can create and update AI Bridge interceptions but
 				// cannot read them back.
 				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
-				// Members can create boundary logs on behalf of their workspace
-				// agent. Read and delete are reserved for owners/auditors.
-				ResourceBoundaryLog.Type: {policy.ActionCreate},
 			})...,
 		),
 		ByOrgID: map[string]OrgPermissions{},
