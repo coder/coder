@@ -25,6 +25,26 @@ const (
 	aibridgePlaceholderAPIKey = "coder-aibridge"
 )
 
+type modelBuildRequest struct {
+	Chat         database.Chat
+	ProviderHint string
+	ModelName    string
+	ProviderKeys chatprovider.ProviderAPIKeys
+	UserAgent    string
+	ExtraHeaders map[string]string
+	AIProvider   *database.AIProvider
+}
+
+type modelBuildOptions struct {
+	ActiveAPIKeyID string
+	RecordHTTP     bool
+}
+
+func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOptions {
+	apiKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
+	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+}
+
 type delegatedAPIKeyRoundTripper struct {
 	base     http.RoundTripper
 	apiKeyID string
@@ -35,177 +55,157 @@ func (t *delegatedAPIKeyRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 	return t.base.RoundTrip(req.WithContext(ctx))
 }
 
-type modelRoute struct {
-	aiProvider database.AIProvider
-}
-
-func modelRouteFromAIProvider(provider database.AIProvider) modelRoute {
-	return modelRoute{aiProvider: provider}
-}
-
 func (p *Server) shouldRouteModelsThroughAIBridge() bool {
 	return p.aiGatewayRoutingEnabled
 }
 
-func (r modelRoute) hasProviderID() bool {
-	return r.aiProvider.ID != uuid.Nil
-}
-
-func (p *Server) newModelFromConfig(
-	ctx context.Context,
-	chat database.Chat,
-	providerHint string,
-	modelName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-	userAgent string,
-	extraHeaders map[string]string,
-	route modelRoute,
-) (fantasy.LanguageModel, bool, error) {
-	debugSvc := p.debugService()
-	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
+func (p *Server) newModel(
+	_ context.Context,
+	req modelBuildRequest,
+	opts modelBuildOptions,
+) (fantasy.LanguageModel, error) {
+	providerHint := req.ProviderHint
+	providerKeys := req.ProviderKeys
 
 	var httpClient *http.Client
 	if p.shouldRouteModelsThroughAIBridge() {
-		if !route.hasProviderID() {
-			return nil, debugEnabled, xerrors.New("AI Gateway routing requires a concrete AI provider")
+		if req.AIProvider == nil || req.AIProvider.ID == uuid.Nil {
+			return nil, xerrors.New("AI Gateway routing requires a concrete AI provider")
 		}
-		if route.aiProvider.Name == "" {
-			return nil, debugEnabled, xerrors.New("AI Gateway routing requires an AI provider name")
+		if req.AIProvider.Name == "" {
+			return nil, xerrors.New("AI Gateway routing requires an AI provider name")
 		}
-		apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-		if !ok || apiKeyID == "" {
-			return nil, debugEnabled, xerrors.New("AI Gateway routing requires the active turn API key ID")
+		if opts.ActiveAPIKeyID == "" {
+			return nil, xerrors.New("AI Gateway routing requires the active turn API key ID")
 		}
 
 		factoryPtr := p.aibridgeTransportFactory
 		if factoryPtr == nil {
-			return nil, debugEnabled, xerrors.New("AI Gateway transport factory is not configured")
+			return nil, xerrors.New("AI Gateway transport factory is not configured")
 		}
 		factory := factoryPtr.Load()
 		if factory == nil || *factory == nil {
-			return nil, debugEnabled, xerrors.New("AI Gateway transport factory is not configured")
+			return nil, xerrors.New("AI Gateway transport factory is not configured")
 		}
-		rt, err := (*factory).TransportFor(route.aiProvider.Name, aibridge.SourceAgents)
+		rt, err := (*factory).TransportFor(req.AIProvider.Name, aibridge.SourceAgents)
 		if err != nil {
-			return nil, debugEnabled, xerrors.Errorf("create AI Gateway transport: %w", err)
+			return nil, xerrors.Errorf("create AI Gateway transport: %w", err)
 		}
-		delegatedRT := &delegatedAPIKeyRoundTripper{base: rt, apiKeyID: apiKeyID}
-		if debugEnabled {
-			httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{Base: delegatedRT}}
-		} else {
-			httpClient = &http.Client{Transport: delegatedRT}
+		baseRT := http.RoundTripper(&delegatedAPIKeyRoundTripper{base: rt, apiKeyID: opts.ActiveAPIKeyID})
+		if opts.RecordHTTP {
+			baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 		}
+		httpClient = &http.Client{Transport: baseRT}
 
-		providerHint, providerKeys = aibridgeModelProviderInput(route.aiProvider.Type)
-	} else if debugEnabled {
+		config := fantasyConfigForAIBridge(req.AIProvider.Type)
+		providerHint = config.ProviderHint
+		providerKeys = config.Keys
+	} else if opts.RecordHTTP {
 		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
 	}
 
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
-		modelName,
+		req.ModelName,
 		providerKeys,
-		userAgent,
-		extraHeaders,
+		req.UserAgent,
+		req.ExtraHeaders,
 		httpClient,
 	)
 	if err != nil {
-		return nil, debugEnabled, err
+		return nil, err
 	}
 	if model == nil {
-		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
+		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(req.ModelName, providerHint)
 		if resolveErr != nil {
-			return nil, debugEnabled, resolveErr
+			return nil, resolveErr
 		}
-		return nil, debugEnabled, xerrors.Errorf(
+		return nil, xerrors.Errorf(
 			"create model for %s/%s returned nil",
 			provider,
 			resolvedModel,
 		)
 	}
-	return model, debugEnabled, nil
+	return model, nil
 }
 
-func aibridgeModelProviderInput(providerType database.AIProviderType) (string, chatprovider.ProviderAPIKeys) {
-	fantasyProvider := aibridgeFantasyProviderForType(providerType)
-	keys := chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{
-			fantasyProvider: aibridgePlaceholderAPIKey,
-		},
-		BaseURLByProvider: map[string]string{
-			fantasyProvider: aibridgeBaseURLForProviderType(providerType),
-		},
-	}
-	return fantasyProvider, keys
+type aibridgeFantasyConfig struct {
+	ProviderHint string
+	Keys         chatprovider.ProviderAPIKeys
 }
 
-func aibridgeFantasyProviderForType(providerType database.AIProviderType) string {
+func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFantasyConfig {
+	var fantasyProvider string
+	baseURL := aibridgeLocalBaseURL + "/v1"
 	switch providerType {
-	case database.AiProviderTypeOpenai:
-		return fantasyopenai.Name
 	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
-		return fantasyanthropic.Name
+		fantasyProvider = fantasyanthropic.Name
+		baseURL = aibridgeLocalBaseURL
+	case database.AiProviderTypeOpenai:
+		fantasyProvider = fantasyopenai.Name
 	default:
-		return fantasyopenaicompat.Name
+		fantasyProvider = fantasyopenaicompat.Name
+	}
+	return aibridgeFantasyConfig{
+		ProviderHint: fantasyProvider,
+		Keys: chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasyProvider: aibridgePlaceholderAPIKey,
+			},
+			BaseURLByProvider: map[string]string{
+				fantasyProvider: baseURL,
+			},
+		},
 	}
 }
 
-func aibridgeBaseURLForProviderType(providerType database.AIProviderType) string {
-	switch aibridgeFantasyProviderForType(providerType) {
-	case fantasyanthropic.Name:
-		return aibridgeLocalBaseURL
-	default:
-		return aibridgeLocalBaseURL + "/v1"
-	}
-}
-
-func (p *Server) modelRouteForConfig(
+func (p *Server) aiProviderForConfig(
 	ctx context.Context,
 	modelConfig database.ChatModelConfig,
-) (string, modelRoute, error) {
+) (string, *database.AIProvider, error) {
 	if !modelConfig.AIProviderID.Valid {
 		if p.shouldRouteModelsThroughAIBridge() {
-			return "", modelRoute{}, xerrors.Errorf(
+			return "", nil, xerrors.Errorf(
 				"AI Gateway routing requires AI provider metadata for model config %s (%s)",
 				modelConfig.ID,
 				modelConfig.Model,
 			)
 		}
-		return modelConfig.Provider, modelRoute{}, nil
+		return modelConfig.Provider, nil, nil
 	}
 	provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
 	if err != nil {
-		return "", modelRoute{}, xerrors.Errorf("get AI provider: %w", err)
+		return "", nil, xerrors.Errorf("get AI provider: %w", err)
 	}
 	if !provider.Enabled {
-		return "", modelRoute{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
+		return "", nil, xerrors.Errorf("AI provider %s is disabled", provider.ID)
 	}
-	return string(provider.Type), modelRouteFromAIProvider(provider), nil
+	return string(provider.Type), &provider, nil
 }
 
-func (p *Server) resolveModelConfigProviderHintKeysAndRoute(
+func (p *Server) resolveModelConfigProviderHintKeysAndProvider(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	modelConfig database.ChatModelConfig,
 	fallbackKeys chatprovider.ProviderAPIKeys,
-) (string, chatprovider.ProviderAPIKeys, modelRoute, error) {
-	providerHint, route, err := p.modelRouteForConfig(ctx, modelConfig)
+) (string, chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
+	providerHint, provider, err := p.aiProviderForConfig(ctx, modelConfig)
 	if err != nil {
-		return "", chatprovider.ProviderAPIKeys{}, modelRoute{}, err
+		return "", chatprovider.ProviderAPIKeys{}, nil, err
 	}
-	if !route.hasProviderID() {
+	if provider == nil {
 		if !fallbackKeys.Empty() && userCanUseProviderKeys(fallbackKeys, providerHint) {
-			return providerHint, fallbackKeys, route, nil
+			return providerHint, fallbackKeys, nil, nil
 		}
 		keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
 		if err != nil {
-			return "", chatprovider.ProviderAPIKeys{}, modelRoute{}, xerrors.Errorf("resolve provider API keys: %w", err)
+			return "", chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("resolve provider API keys: %w", err)
 		}
-		return providerHint, keys, route, nil
+		return providerHint, keys, nil, nil
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, route.aiProvider)
+	providerKeys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, *provider)
 	if err != nil {
-		return "", chatprovider.ProviderAPIKeys{}, modelRoute{}, xerrors.Errorf("resolve provider API keys: %w", err)
+		return "", chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("resolve provider API keys: %w", err)
 	}
-	return providerHint, providerKeys, route, nil
+	return providerHint, providerKeys, provider, nil
 }

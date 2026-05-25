@@ -7,7 +7,6 @@ import (
 	"charm.land/fantasy"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
@@ -107,31 +106,23 @@ func (p *Server) scheduleDebugCleanup(
 	}()
 }
 
-func (p *Server) newDebugAwareModelFromConfig(
+func (p *Server) newDebugAwareModel(
 	ctx context.Context,
-	chat database.Chat,
-	providerHint string,
-	modelName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-	userAgent string,
-	extraHeaders map[string]string,
-	route modelRoute,
+	req modelBuildRequest,
+	opts modelBuildOptions,
 ) (fantasy.LanguageModel, bool, error) {
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
+	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, req.ProviderHint)
 	if err != nil {
 		return nil, false, err
 	}
+	req.ProviderHint = provider
+	req.ModelName = resolvedModel
 
-	model, debugEnabled, err := p.newModelFromConfig(
-		ctx,
-		chat,
-		provider,
-		resolvedModel,
-		providerKeys,
-		userAgent,
-		extraHeaders,
-		route,
-	)
+	debugSvc := p.debugService()
+	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, req.Chat.ID, req.Chat.OwnerID)
+	opts.RecordHTTP = debugEnabled
+
+	model, err := p.newModel(ctx, req, opts)
 	if err != nil {
 		return nil, debugEnabled, err
 	}
@@ -139,9 +130,9 @@ func (p *Server) newDebugAwareModelFromConfig(
 		return model, false, nil
 	}
 
-	return chatdebug.WrapModel(model, p.debugService(), chatdebug.RecorderOptions{
-		ChatID:   chat.ID,
-		OwnerID:  chat.OwnerID,
+	return chatdebug.WrapModel(model, debugSvc, chatdebug.RecorderOptions{
+		ChatID:   req.Chat.ID,
+		OwnerID:  req.Chat.OwnerID,
 		Provider: provider,
 		Model:    resolvedModel,
 	}), true, nil

@@ -51,13 +51,13 @@ func aibridgeTestFactoryPointer(factory aibridge.TransportFactory) *atomic.Point
 	return &ptr
 }
 
-func aibridgeTestModelRoute(providerID uuid.UUID, providerName string, providerType database.AIProviderType) modelRoute {
-	return modelRouteFromAIProvider(database.AIProvider{
+func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerType database.AIProviderType) *database.AIProvider {
+	return &database.AIProvider{
 		ID:      providerID,
 		Name:    providerName,
 		Type:    providerType,
 		Enabled: true,
-	})
+	}
 }
 
 func TestAIBridgeProviderFormatMapping(t *testing.T) {
@@ -77,10 +77,10 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			provider, keys := aibridgeModelProviderInput(tt.providerType)
-			require.Equal(t, tt.wantProvider, provider)
-			require.Equal(t, tt.wantBaseURL, keys.BaseURL(provider))
-			require.Equal(t, aibridgePlaceholderAPIKey, keys.APIKey(provider))
+			config := fantasyConfigForAIBridge(tt.providerType)
+			require.Equal(t, tt.wantProvider, config.ProviderHint)
+			require.Equal(t, tt.wantBaseURL, config.Keys.BaseURL(config.ProviderHint))
+			require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))
 		})
 	}
 }
@@ -88,13 +88,13 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 func TestAIBridgeModelProviderInputUsesLocalPlaceholderKey(t *testing.T) {
 	t.Parallel()
 
-	provider, keys := aibridgeModelProviderInput(database.AiProviderTypeOpenai)
-	require.Equal(t, "openai", provider)
-	require.Equal(t, aibridgePlaceholderAPIKey, keys.APIKey(provider))
-	require.Equal(t, "http://coder-aibridge/v1", keys.BaseURL(provider))
+	config := fantasyConfigForAIBridge(database.AiProviderTypeOpenai)
+	require.Equal(t, "openai", config.ProviderHint)
+	require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))
+	require.Equal(t, "http://coder-aibridge/v1", config.Keys.BaseURL(config.ProviderHint))
 }
 
-func TestResolveModelConfigProviderHintKeysAndRoutePreservesBaseURL(t *testing.T) {
+func TestResolveModelConfigProviderHintKeysAndProviderPreservesBaseURL(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -118,15 +118,16 @@ func TestResolveModelConfigProviderHintKeysAndRoutePreservesBaseURL(t *testing.T
 	}}, nil)
 
 	server := &Server{db: db}
-	providerHint, keys, route, err := server.resolveModelConfigProviderHintKeysAndRoute(ctx, ownerID, database.ChatModelConfig{
+	providerHint, keys, aiProvider, err := server.resolveModelConfigProviderHintKeysAndProvider(ctx, ownerID, database.ChatModelConfig{
 		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}, chatprovider.ProviderAPIKeys{})
 	require.NoError(t, err)
 	require.Equal(t, "openai", providerHint)
-	require.Equal(t, providerID, route.aiProvider.ID)
-	require.Equal(t, providerName, route.aiProvider.Name)
-	require.Equal(t, baseURL, route.aiProvider.BaseUrl)
+	require.NotNil(t, aiProvider)
+	require.Equal(t, providerID, aiProvider.ID)
+	require.Equal(t, providerName, aiProvider.Name)
+	require.Equal(t, baseURL, aiProvider.BaseUrl)
 	require.Equal(t, "provider-key", keys.APIKey("openai"))
 	require.Equal(t, baseURL, keys.BaseURL("openai"))
 }
@@ -247,13 +248,13 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 
 	providerID := uuid.New()
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	route := aibridgeTestModelRoute(providerID, "primary-openai", database.AiProviderTypeOpenai)
+	aiProvider := aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)
 
 	t.Run("NilFactory", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
 		ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), uuid.NewString())
-		_, _, err := server.newModelFromConfig(ctx, chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, route)
+		_, err := server.newModel(ctx, modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent(), AIProvider: aiProvider}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "transport factory")
 	})
 
@@ -265,15 +266,15 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 		}
 		ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), uuid.NewString())
-		_, _, err := server.newModelFromConfig(ctx, chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, route)
+		_, err := server.newModel(ctx, modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent(), AIProvider: aiProvider}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "boom")
 	})
 
 	t.Run("MissingProviderName", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		missingNameRoute := aibridgeTestModelRoute(providerID, "", database.AiProviderTypeOpenai)
-		_, _, err := server.newModelFromConfig(t.Context(), chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, missingNameRoute)
+		missingNameProvider := aibridgeTestAIProvider(providerID, "", database.AiProviderTypeOpenai)
+		_, err := server.newModel(t.Context(), modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent(), AIProvider: missingNameProvider}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "AI provider name")
 	})
 
@@ -287,16 +288,31 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 			aiGatewayRoutingEnabled:  true,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 		}
-		_, _, err := server.newModelFromConfig(t.Context(), chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, route)
+		_, err := server.newModel(t.Context(), modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent(), AIProvider: aiProvider}, modelBuildOptions{})
 		require.ErrorContains(t, err, "active turn API key ID")
 	})
 
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		_, _, err := server.newModelFromConfig(t.Context(), chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, modelRoute{})
+		_, err := server.newModel(t.Context(), modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent()}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "concrete AI provider")
 	})
+}
+
+func TestDirectModelBuildDoesNotRequireActiveAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	server := &Server{}
+	model, err := server.newModel(t.Context(), modelBuildRequest{
+		Chat:         database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+		ProviderHint: "openai",
+		ModelName:    "gpt-4",
+		ProviderKeys: chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+		UserAgent:    chatprovider.UserAgent(),
+	}, modelBuildOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, model)
 }
 
 func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
@@ -317,7 +333,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
-	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), apiKeyID)
+	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		ctx,
 		chat,
@@ -325,7 +341,8 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 		provider,
 		modelProvider,
 		modelName,
-		aibridgeTestModelRoute(providerID, "primary-openai", database.AiProviderTypeOpenai),
+		aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai),
+		modelBuildOptions{ActiveAPIKeyID: apiKeyID},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -368,8 +385,8 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
-	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), apiKeyID)
-	model, _, err := server.newModelFromConfig(ctx, chat, "openai", "gpt-4", chatprovider.ProviderAPIKeys{}, chatprovider.UserAgent(), nil, aibridgeTestModelRoute(providerID, "primary-openai", database.AiProviderTypeOpenai))
+	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
+	model, err := server.newModel(ctx, modelBuildRequest{Chat: chat, ProviderHint: "openai", ModelName: "gpt-4", ProviderKeys: chatprovider.ProviderAPIKeys{}, UserAgent: chatprovider.UserAgent(), AIProvider: aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)}, modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 	require.NoError(t, err)
 	_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 		Role:    fantasy.MessageRoleUser,

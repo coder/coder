@@ -108,6 +108,7 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
 	model, cfg, err := p.resolveAdvisorModelOverride(
@@ -117,6 +118,7 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 		fallbackModel,
 		fallbackCallConfig,
 		providerKeys,
+		modelOpts,
 		logger,
 	)
 	if err != nil {
@@ -133,6 +135,7 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) *chatadvisor.Runtime {
 	rt, err := p.newAdvisorRuntime(
@@ -142,6 +145,7 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 		fallbackModel,
 		fallbackCallConfig,
 		providerKeys,
+		modelOpts,
 		logger,
 	)
 	if err != nil {
@@ -175,6 +179,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Equal(t, fallbackModel, gotModel)
@@ -198,6 +203,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Equal(t, fallbackModel, gotModel)
@@ -227,6 +233,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Equal(t, fallbackModel, gotModel)
@@ -260,6 +267,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Equal(t, fallbackModel, gotModel)
@@ -303,6 +311,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Equal(t, fallbackModel, gotModel)
@@ -340,6 +349,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			modelBuildOptions{},
 			logger,
 		)
 		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel,
@@ -395,6 +405,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
@@ -440,6 +451,7 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"},
 		codersdk.ChatModelCallConfig{},
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),
 	)
 	require.ErrorContains(t, err, "AI Gateway transport factory")
@@ -554,6 +566,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.NotNil(t, rt, "zero max uses must default rather than bail out")
@@ -578,6 +591,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.Nil(t, rt, "negative max uses must disable the advisor")
@@ -600,6 +614,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			fallbackModel,
 			fallbackCallConfig,
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			logger,
 		)
 		require.NotNil(t, rt,

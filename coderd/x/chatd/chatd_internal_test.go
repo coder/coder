@@ -156,7 +156,8 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 		provider,
 		modelProvider,
 		modelName,
-		modelRoute{},
+		nil,
+		modelBuildOptions{},
 	)
 	require.Error(t, err)
 	require.Nil(t, model)
@@ -168,7 +169,7 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
 }
 
-func TestResolveUserProviderAPIKeysAndRouteForProviderType_AIBridge(t *testing.T) {
+func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridge(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -187,18 +188,19 @@ func TestResolveUserProviderAPIKeysAndRouteForProviderType_AIBridge(t *testing.T
 	}}, nil)
 
 	server := &Server{db: db, aiGatewayRoutingEnabled: true}
-	keys, route, err := server.resolveUserProviderAPIKeysAndRouteForProviderType(
+	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
 		ctx,
 		ownerID,
 		chattool.ComputerUseProviderOpenAI,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
-	require.Equal(t, providerID, route.aiProvider.ID)
-	require.Equal(t, database.AiProviderTypeOpenai, route.aiProvider.Type)
+	require.NotNil(t, aiProvider)
+	require.Equal(t, providerID, aiProvider.ID)
+	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
 }
 
-func TestResolveUserProviderAPIKeysAndRouteForProviderType_AIBridgeRequiresProvider(t *testing.T) {
+func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridgeRequiresProvider(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -208,14 +210,14 @@ func TestResolveUserProviderAPIKeysAndRouteForProviderType_AIBridgeRequiresProvi
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
 
 	server := &Server{db: db, aiGatewayRoutingEnabled: true}
-	keys, route, err := server.resolveUserProviderAPIKeysAndRouteForProviderType(
+	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
 		ctx,
 		uuid.New(),
 		chattool.ComputerUseProviderOpenAI,
 	)
 	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
 	require.True(t, keys.Empty())
-	require.False(t, route.hasProviderID())
+	require.Nil(t, aiProvider)
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {
@@ -782,6 +784,11 @@ func TestRenameChatTitle(t *testing.T) {
 	})
 }
 
+func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
+	message.APIKeyID = sqlNullString(apiKeyID)
+	return message
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -800,6 +807,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	modelConfigID := uuid.New()
 	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -865,12 +873,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,

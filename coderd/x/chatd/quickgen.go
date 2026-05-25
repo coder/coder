@@ -66,10 +66,10 @@ var preferredTitleModels = []struct {
 }
 
 type shortTextCandidate struct {
-	provider string
-	model    string
-	route    modelRoute
-	lm       fantasy.LanguageModel
+	provider   string
+	model      string
+	aiProvider *database.AIProvider
+	lm         fantasy.LanguageModel
 }
 
 func (p *Server) preferredShortTextCandidates(
@@ -149,8 +149,9 @@ func (p *Server) maybeGenerateChatTitle(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
-	fallbackRoute modelRoute,
+	fallbackAIProvider *database.AIProvider,
 	keys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
@@ -164,10 +165,11 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, overrideKeys, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, overrideKeys, overrideAIProvider, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
 		keys,
+		modelOpts,
 	)
 	if overrideErr != nil {
 		if overrideSet {
@@ -188,18 +190,18 @@ func (p *Server) maybeGenerateChatTitle(
 	var candidates []shortTextCandidate
 	if overrideSet {
 		candidates = []shortTextCandidate{{
-			provider: overrideConfig.Provider,
-			model:    overrideConfig.Model,
-			route:    overrideRoute,
-			lm:       overrideModel,
+			provider:   overrideConfig.Provider,
+			model:      overrideConfig.Model,
+			aiProvider: overrideAIProvider,
+			lm:         overrideModel,
 		}}
 	} else {
 		candidates = p.preferredShortTextCandidates(chat, keys)
 		candidates = append(candidates, shortTextCandidate{
-			provider: fallbackProvider,
-			model:    fallbackModelName,
-			route:    fallbackRoute,
-			lm:       fallbackModel,
+			provider:   fallbackProvider,
+			model:      fallbackModelName,
+			aiProvider: fallbackAIProvider,
+			lm:         fallbackModel,
 		})
 	}
 
@@ -239,6 +241,7 @@ func (p *Server) maybeGenerateChatTitle(
 				candidateKeys,
 				debugSvc,
 				candidate,
+				modelOpts,
 				chatdebug.KindTitleGeneration,
 				triggerMessageID,
 				historyTipMessageID,
@@ -315,18 +318,20 @@ func (p *Server) newQuickgenDebugModel(
 	debugSvc *chatdebug.Service,
 	provider string,
 	model string,
-	route modelRoute,
+	aiProvider *database.AIProvider,
+	modelOpts modelBuildOptions,
 ) (fantasy.LanguageModel, error) {
-	debugModel, _, err := p.newModelFromConfig(
-		ctx,
-		chat,
-		provider,
-		model,
-		keys,
-		chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-		route,
-	)
+	debugOpts := modelOpts
+	debugOpts.RecordHTTP = true
+	debugModel, err := p.newModel(ctx, modelBuildRequest{
+		Chat:         chat,
+		ProviderHint: provider,
+		ModelName:    model,
+		ProviderKeys: keys,
+		UserAgent:    chatprovider.UserAgent(),
+		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		AIProvider:   aiProvider,
+	}, debugOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +350,7 @@ func (p *Server) prepareQuickgenDebugCandidate(
 	keys chatprovider.ProviderAPIKeys,
 	debugSvc *chatdebug.Service,
 	candidate shortTextCandidate,
+	modelOpts modelBuildOptions,
 	kind chatdebug.RunKind,
 	triggerMessageID int64,
 	historyTipMessageID int64,
@@ -363,7 +369,8 @@ func (p *Server) prepareQuickgenDebugCandidate(
 		debugSvc,
 		candidate.provider,
 		candidate.model,
-		candidate.route,
+		candidate.aiProvider,
+		modelOpts,
 	)
 	if err != nil {
 		logger.Warn(ctx, "failed to build short-text debug model",
@@ -835,8 +842,9 @@ func (p *Server) generateTurnStatusLabel(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
-	fallbackRoute modelRoute,
+	fallbackAIProvider *database.AIProvider,
 	keys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -854,10 +862,10 @@ func (p *Server) generateTurnStatusLabel(
 
 	candidates := p.preferredShortTextCandidates(chat, keys)
 	candidates = append(candidates, shortTextCandidate{
-		provider: fallbackProvider,
-		model:    fallbackModelName,
-		route:    fallbackRoute,
-		lm:       fallbackModel,
+		provider:   fallbackProvider,
+		model:      fallbackModelName,
+		aiProvider: fallbackAIProvider,
+		lm:         fallbackModel,
 	})
 
 	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
@@ -873,6 +881,7 @@ func (p *Server) generateTurnStatusLabel(
 				keys,
 				debugSvc,
 				candidate,
+				modelOpts,
 				chatdebug.KindQuickgen,
 				triggerMessageID,
 				historyTipMessageID,
