@@ -83,7 +83,7 @@ export const PersonalSkillsTriggerMenu = ({
 			<PopoverContent
 				align="start"
 				side="bottom"
-				className="w-80 p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
@@ -94,7 +94,7 @@ export const PersonalSkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={skills[selectedIndex]?.name ?? ""}
 				>
-					<CommandList className="max-h-72 border-t-0">
+					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
 						{isLoading ? (
 							<CommandItem value="loading" disabled>
 								Loading personal skills...

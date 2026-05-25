@@ -543,61 +543,129 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	useEffect(() => {
 		if (!composerElement) return;
-		// Read geometry from the visual viewport when available so
-		// popup positions track the actual visible area on mobile.
-		// `window.innerHeight` reports the layout viewport, which
-		// does not shrink when the soft keyboard opens on iOS Safari
-		// and some webviews. `getBoundingClientRect()` returns
-		// coordinates in the visual viewport, so mixing the two
-		// would overestimate the bottom offset and push popups
-		// off-screen above the keyboard.
-		const viewport = window.visualViewport;
+		// Radix popover wrappers are fixed-positioned, so their
+		// inset values need to be in layout-viewport coordinates.
+		// The visual viewport can be offset inside the layout
+		// viewport when the mobile keyboard is open. Treat
+		// `visualViewport.offsetTop` as a clamp only when it yields
+		// a positive height, since mobile WebKit can report mixed
+		// coordinate systems while the keyboard is settling.
+		const viewport = globalThis.visualViewport;
+		const root = document.documentElement;
+		const fixedProbe = document.createElement("div");
+		Object.assign(fixedProbe.style, {
+			position: "fixed",
+			bottom: "0",
+			left: "0",
+			width: "0",
+			height: "0",
+			pointerEvents: "none",
+			visibility: "hidden",
+		});
+		document.body.appendChild(fixedProbe);
+		const composerGap = 8;
+		const viewportPadding = 16;
+		const minimumMenuHeight = 96;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const viewportHeight = viewport?.height ?? window.innerHeight;
-			const bottom = Math.max(0, viewportHeight - rect.bottom);
-			// Distance from the viewport bottom to a point just above
-			// the composer's top edge, with a small gap so dropdowns
-			// anchored "above the composer" sit slightly above the
-			// composer rather than touching it.
-			const aboveComposerBottom = Math.max(0, viewportHeight - rect.top + 8);
-			// Maximum height the above-composer popup can grow to
-			// without extending past the top of the visible viewport.
-			// Computed from the composer's top edge in visual-viewport
-			// coordinates so it stays consistent with
-			// `aboveComposerBottom` regardless of the keyboard state.
-			const aboveComposerMaxHeight = Math.max(0, rect.top - 16);
-			document.documentElement.style.setProperty(
-				"--mobile-dropdown-bottom",
-				`${bottom}px`,
+			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
+			const visibleViewportTop = viewport?.offsetTop ?? 0;
+			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
+			// Distance from the fixed-position viewport bottom to a point
+			// just above the composer's top edge.
+			const aboveComposerBottom = Math.max(
+				0,
+				fixedViewportBottom - rect.top + composerGap,
 			);
-			document.documentElement.style.setProperty(
+			const maxHeightCandidates = [
+				rect.top - visibleViewportTop - composerGap - viewportPadding,
+				rect.top - composerGap - viewportPadding,
+			].filter((height) => height > 0);
+			const aboveComposerMaxHeight = Math.max(
+				minimumMenuHeight,
+				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
+			);
+			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
+			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
+			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-bottom",
 				`${aboveComposerBottom}px`,
 			);
-			document.documentElement.style.setProperty(
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-max-height",
 				`${aboveComposerMaxHeight}px`,
 			);
 		};
-		update();
-		const ro = new ResizeObserver(update);
+		const animationFrameIDs = new Set<number>();
+		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
+		const cancelScheduledUpdates = () => {
+			for (const id of animationFrameIDs) {
+				cancelAnimationFrame(id);
+			}
+			animationFrameIDs.clear();
+			for (const id of timeoutIDs) {
+				clearTimeout(id);
+			}
+			timeoutIDs.clear();
+		};
+		const queueAnimationFrame = (callback: () => void) => {
+			const id = requestAnimationFrame(() => {
+				animationFrameIDs.delete(id);
+				callback();
+			});
+			animationFrameIDs.add(id);
+		};
+		const scheduleUpdate = () => {
+			cancelScheduledUpdates();
+			update();
+			// Mobile WebKit can finish keyboard panning after focus and
+			// input events. Re-read geometry after the viewport settles so
+			// the first slash-menu render is not stuck under the composer.
+			queueAnimationFrame(() => {
+				update();
+				queueAnimationFrame(update);
+			});
+			for (const delay of [50, 150, 300]) {
+				const id = setTimeout(() => {
+					timeoutIDs.delete(id);
+					update();
+				}, delay);
+				timeoutIDs.add(id);
+			}
+		};
+		scheduleUpdate();
+		const ro = new ResizeObserver(scheduleUpdate);
 		ro.observe(composerElement);
-		window.addEventListener("resize", update);
-		viewport?.addEventListener("resize", update);
-		viewport?.addEventListener("scroll", update);
+		addEventListener("resize", scheduleUpdate);
+		addEventListener("scroll", scheduleUpdate, { passive: true });
+		addEventListener("focusin", scheduleUpdate);
+		addEventListener("focusout", scheduleUpdate);
+		composerElement.addEventListener("input", scheduleUpdate);
+		composerElement.addEventListener("keyup", scheduleUpdate);
+		document.addEventListener("selectionchange", scheduleUpdate);
+		viewport?.addEventListener("resize", scheduleUpdate);
+		viewport?.addEventListener("scroll", scheduleUpdate);
+		viewport?.addEventListener("scrollend", scheduleUpdate);
 		return () => {
 			ro.disconnect();
-			window.removeEventListener("resize", update);
-			viewport?.removeEventListener("resize", update);
-			viewport?.removeEventListener("scroll", update);
-			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-bottom",
-			);
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-max-height",
-			);
+			cancelScheduledUpdates();
+			removeEventListener("resize", scheduleUpdate);
+			removeEventListener("scroll", scheduleUpdate);
+			removeEventListener("focusin", scheduleUpdate);
+			removeEventListener("focusout", scheduleUpdate);
+			composerElement.removeEventListener("input", scheduleUpdate);
+			composerElement.removeEventListener("keyup", scheduleUpdate);
+			document.removeEventListener("selectionchange", scheduleUpdate);
+			viewport?.removeEventListener("resize", scheduleUpdate);
+			viewport?.removeEventListener("scroll", scheduleUpdate);
+			viewport?.removeEventListener("scrollend", scheduleUpdate);
+			fixedProbe.remove();
+			root.style.removeProperty("--mobile-dropdown-bottom");
+			root.style.removeProperty("--mobile-dropdown-left");
+			root.style.removeProperty("--mobile-dropdown-width");
+			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
+			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
 	}, [composerElement]);
 
