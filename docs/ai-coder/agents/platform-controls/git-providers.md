@@ -77,6 +77,24 @@ CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
 > You may also set `API_BASE_URL` explicitly if needed (e.g.,
 > `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
 
+## Known limitations
+
+### GitLab
+
+The GitLab provider has some semantic differences compared to the GitHub
+provider:
+
+- **Approved** uses GitLab's threshold-based approval (e.g., "all required
+  approvals met") rather than GitHub's "at least one approval and no changes
+  requested" model.
+- **Changes requested** has no GitLab equivalent. This field is always
+  reported as `false`.
+- **Reviewer count** only counts users who have approved, not all assigned
+  reviewers.
+
+These gaps are tracked internally (CODAGT-440) and may be refined in future
+releases.
+
 ## Troubleshooting
 
 ### Diffs not appearing on GHE
