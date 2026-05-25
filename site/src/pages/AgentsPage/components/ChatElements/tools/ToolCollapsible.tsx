@@ -90,7 +90,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 				{renderedHeader}
 				<ChevronDownIcon
 					className={cn(
-						"h-3 w-3 shrink-0 text-current transition-transform",
+						"size-3 shrink-0 text-current transition-transform",
 						expanded ? "rotate-0" : "-rotate-90",
 					)}
 				/>

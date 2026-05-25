@@ -77,10 +77,10 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 				<Button
 					variant="subtle"
 					size="icon"
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					className="size-7 text-content-secondary hover:text-content-primary"
 					aria-label="Share chat"
 				>
-					<Share2Icon className="h-4 w-4" />
+					<Share2Icon className="size-4" />
 				</Button>
 			</PopoverTrigger>
 			<Fragment key={contentGeneration}>
@@ -127,7 +127,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					asChild
 					variant="subtle"
 					size="icon"
-					className="inline-flex h-7 w-7 min-w-0 shrink-0 sm:hidden"
+					className="inline-flex size-7 min-w-0 shrink-0 sm:hidden"
 				>
 					<Link
 						to={{ pathname: "/agents", search: location.search }}
@@ -144,7 +144,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					size="icon"
 					onClick={onToggleSidebarCollapsed}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
+					className="hidden size-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
@@ -175,7 +175,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										<span className="truncate">{parentChat.title}</span>
 									</Link>
 								</Button>
-								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
+								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
 						<span
@@ -235,10 +235,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							<Button
 								size="icon"
 								variant="subtle"
-								className="h-7 w-7 text-content-secondary hover:text-content-primary"
+								className="size-7 text-content-secondary hover:text-content-primary"
 								aria-label="Open agent actions"
 							>
-								<EllipsisIcon className="h-4 w-4" />
+								<EllipsisIcon className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
@@ -251,7 +251,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										disabled={isRegenerateTitleDisabled}
 										onSelect={onRegenerateTitle}
 									>
-										<WandSparklesIcon className="h-3.5 w-3.5" />
+										<WandSparklesIcon className="size-3.5" />
 										Generate new title
 									</DropdownMenuItem>
 									<DropdownMenuSeparator />
@@ -259,7 +259,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							)}
 							{isArchived ? (
 								<DropdownMenuItem onSelect={onUnarchiveAgent}>
-									<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+									<ArchiveRestoreIcon className="size-3.5" />
 									Unarchive Agent
 								</DropdownMenuItem>
 							) : (
@@ -268,7 +268,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 										className="text-content-destructive focus:text-content-destructive"
 										onSelect={onArchiveAgent}
 									>
-										<ArchiveIcon className="h-3.5 w-3.5" />
+										<ArchiveIcon className="size-3.5" />
 										Archive Agent
 									</DropdownMenuItem>
 									{hasWorkspace && (
@@ -276,7 +276,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 											className="text-content-destructive focus:text-content-destructive"
 											onSelect={onArchiveAndDeleteWorkspace}
 										>
-											<Trash2Icon className="h-3.5 w-3.5" />
+											<Trash2Icon className="size-3.5" />
 											Archive & Delete Workspace
 										</DropdownMenuItem>
 									)}
@@ -290,13 +290,13 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						variant="subtle"
 						size="icon"
 						onClick={panel.onToggleSidebar}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
+						className="size-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle panel"
 					>
 						{panel.showSidebarPanel ? (
-							<PanelRightCloseIcon className="h-4 w-4" />
+							<PanelRightCloseIcon className="size-4" />
 						) : (
-							<PanelRightOpenIcon className="h-4 w-4" />
+							<PanelRightOpenIcon className="size-4" />
 						)}
 					</Button>
 				)}

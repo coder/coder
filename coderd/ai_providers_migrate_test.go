@@ -371,12 +371,15 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		// vercel is a valid ai_provider_type DB value but the aibridge
+		// runtime has no constructor for it, so the seed switch falls
+		// into the default branch and skips the row.
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{
-					Type:    "copilot",
-					Name:    "gh-copilot",
-					BaseURL: "https://api.githubcopilot.com/",
+					Type:    "vercel",
+					Name:    "vercel-instance",
+					BaseURL: "https://example.com",
 				},
 				{
 					Type:    "openai",

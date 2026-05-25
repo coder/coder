@@ -327,9 +327,9 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			dp.Type = database.AiProviderTypeOpenai
 		case aibridge.ProviderAnthropic:
 			dp.Type = database.AiProviderTypeAnthropic
+		case aibridge.ProviderCopilot:
+			dp.Type = database.AiProviderTypeCopilot
 		default:
-			// Skip other types (e.g. copilot) until they are added
-			// to the database enum.
 			logger.Warn(ctx, "skipping indexed AI provider with unsupported type",
 				slog.F("name", name),
 				slog.F("type", p.Type),
@@ -367,11 +367,27 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				dp.BaseURL = p.BedrockBaseURL
 			}
 		}
-		// Non-Bedrock providers carry their bearer keys in
+		// Non-Bedrock, non-Copilot providers carry their bearer keys in
 		// ai_provider_keys. Bedrock providers authenticate via the
-		// settings blob and have no keys; cli/server.go rejects
-		// configs that set both before we get here.
-		if !isBedrock {
+		// settings blob; Copilot providers use request-time GitHub
+		// OAuth tokens. cli/server.go rejects configs that set Bedrock
+		// alongside bearer keys before we get here.
+		switch {
+		case isBedrock:
+			if len(p.Keys) > 0 {
+				logger.Warn(ctx, "ignoring bearer keys configured on Bedrock AI provider; Bedrock authenticates via access keys or credential chain",
+					slog.F("name", name),
+					slog.F("ignored_key_count", len(p.Keys)),
+				)
+			}
+		case dp.Type == database.AiProviderTypeCopilot:
+			if len(p.Keys) > 0 {
+				logger.Warn(ctx, "ignoring bearer keys configured on Copilot AI provider; Copilot authenticates via request-time GitHub OAuth tokens",
+					slog.F("name", name),
+					slog.F("ignored_key_count", len(p.Keys)),
+				)
+			}
+		default:
 			dp.Keys = append(dp.Keys, p.Keys...)
 		}
 

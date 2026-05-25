@@ -3549,6 +3549,243 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteOldBoundaryLogs = `-- name: DeleteOldBoundaryLogs :execrows
+WITH old_logs AS (
+    SELECT id
+    FROM boundary_logs
+    WHERE captured_at < $1::timestamptz
+    ORDER BY captured_at ASC
+    LIMIT $2
+)
+DELETE FROM boundary_logs
+USING old_logs
+WHERE boundary_logs.id = old_logs.id
+`
+
+type DeleteOldBoundaryLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes boundary logs older than the given time, bounded by a row limit
+// to avoid long-running transactions.
+func (q *sqlQuerier) DeleteOldBoundaryLogs(ctx context.Context, arg DeleteOldBoundaryLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldBoundaryLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getBoundaryLogByID = `-- name: GetBoundaryLogByID :one
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule FROM boundary_logs WHERE id = $1
+`
+
+func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error) {
+	row := q.db.QueryRowContext(ctx, getBoundaryLogByID, id)
+	var i BoundaryLog
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SequenceNumber,
+		&i.CapturedAt,
+		&i.CreatedAt,
+		&i.Proto,
+		&i.Method,
+		&i.Detail,
+		&i.MatchedRule,
+	)
+	return i, err
+}
+
+const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
+	row := q.db.QueryRowContext(ctx, getBoundarySessionByID, id)
+	var i BoundarySession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceAgentID,
+		&i.ConfinedProcessName,
+		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertBoundaryLog = `-- name: InsertBoundaryLog :one
+INSERT INTO boundary_logs (
+    id,
+    session_id,
+    sequence_number,
+    captured_at,
+    created_at,
+    proto,
+    method,
+    detail,
+    matched_rule
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+`
+
+type InsertBoundaryLogParams struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
+	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	Proto          string         `db:"proto" json:"proto"`
+	Method         string         `db:"method" json:"method"`
+	Detail         string         `db:"detail" json:"detail"`
+	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+}
+
+func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
+	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
+		arg.ID,
+		arg.SessionID,
+		arg.SequenceNumber,
+		arg.CapturedAt,
+		arg.CreatedAt,
+		arg.Proto,
+		arg.Method,
+		arg.Detail,
+		arg.MatchedRule,
+	)
+	var i BoundaryLog
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SequenceNumber,
+		&i.CapturedAt,
+		&i.CreatedAt,
+		&i.Proto,
+		&i.Method,
+		&i.Detail,
+		&i.MatchedRule,
+	)
+	return i, err
+}
+
+const insertBoundarySession = `-- name: InsertBoundarySession :one
+INSERT INTO boundary_sessions (
+    id,
+    workspace_agent_id,
+    confined_process_name,
+    started_at,
+    updated_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
+`
+
+type InsertBoundarySessionParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
+	row := q.db.QueryRowContext(ctx, insertBoundarySession,
+		arg.ID,
+		arg.WorkspaceAgentID,
+		arg.ConfinedProcessName,
+		arg.StartedAt,
+		arg.UpdatedAt,
+	)
+	var i BoundarySession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceAgentID,
+		&i.ConfinedProcessName,
+		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listBoundaryLogsBySessionID = `-- name: ListBoundaryLogsBySessionID :many
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+FROM boundary_logs
+WHERE
+    session_id = $1
+    AND CASE
+        WHEN $2::int IS NOT NULL THEN sequence_number > $2
+        ELSE true
+    END
+    AND CASE
+        WHEN $3::int IS NOT NULL THEN sequence_number < $3
+        ELSE true
+    END
+ORDER BY sequence_number ASC
+LIMIT COALESCE(NULLIF($4::int, 0), 100)
+`
+
+type ListBoundaryLogsBySessionIDParams struct {
+	SessionID uuid.UUID     `db:"session_id" json:"session_id"`
+	SeqAfter  sql.NullInt32 `db:"seq_after" json:"seq_after"`
+	SeqBefore sql.NullInt32 `db:"seq_before" json:"seq_before"`
+	LimitOpt  int32         `db:"limit_opt" json:"limit_opt"`
+}
+
+// Lists boundary logs for a session, sorted by sequence number ascending.
+// Supports optional exclusive sequence number bounds (seq_after, seq_before)
+// for fetching events between two known interceptions.
+func (q *sqlQuerier) ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, listBoundaryLogsBySessionID,
+		arg.SessionID,
+		arg.SeqAfter,
+		arg.SeqBefore,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
 WITH deleted AS (
     DELETE FROM boundary_usage_stats
@@ -7638,6 +7875,39 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by PR number (exact match on chat's diff status).
+    AND CASE
+        WHEN $11::int != 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pr_number = $11
+        )
+        ELSE true
+    END
+    -- Filter by repository (substring match on remote origin or PR URL).
+    AND CASE
+        WHEN $12::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    cds.git_remote_origin ILIKE '%' || $12 || '%'
+                    OR cds.url ILIKE '%' || $12 || '%'
+                )
+        )
+        ELSE true
+    END
+    -- Filter by pull request title (case-insensitive substring).
+    AND CASE
+        WHEN $13::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pull_request_title ILIKE '%' || $13 || '%'
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7654,11 +7924,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $11
+OFFSET $14
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($12 :: int, 0), 50)
+    COALESCE(NULLIF($15 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -7672,6 +7942,9 @@ type GetChatsParams struct {
 	TitleQuery          string                `db:"title_query" json:"title_query"`
 	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
 	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
+	RepoQuery           string                `db:"repo_query" json:"repo_query"`
+	PrTitleQuery        string                `db:"pr_title_query" json:"pr_title_query"`
 	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
@@ -7693,6 +7966,9 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.TitleQuery,
 		arg.HasUnread,
 		pq.Array(arg.PullRequestStatuses),
+		arg.PrNumber,
+		arg.RepoQuery,
+		arg.PrTitleQuery,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

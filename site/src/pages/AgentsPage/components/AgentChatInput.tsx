@@ -543,27 +543,129 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	useEffect(() => {
 		if (!composerElement) return;
+		// Radix popover wrappers are fixed-positioned, so their
+		// inset values need to be in layout-viewport coordinates.
+		// The visual viewport can be offset inside the layout
+		// viewport when the mobile keyboard is open. Treat
+		// `visualViewport.offsetTop` as a clamp only when it yields
+		// a positive height, since mobile WebKit can report mixed
+		// coordinate systems while the keyboard is settling.
+		const viewport = globalThis.visualViewport;
+		const root = document.documentElement;
+		const fixedProbe = document.createElement("div");
+		Object.assign(fixedProbe.style, {
+			position: "fixed",
+			bottom: "0",
+			left: "0",
+			width: "0",
+			height: "0",
+			pointerEvents: "none",
+			visibility: "hidden",
+		});
+		document.body.appendChild(fixedProbe);
+		const composerGap = 8;
+		const viewportPadding = 16;
+		const minimumMenuHeight = 96;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const bottom = Math.max(0, window.innerHeight - rect.bottom);
-			document.documentElement.style.setProperty(
-				"--mobile-dropdown-bottom",
-				`${bottom}px`,
+			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
+			const visibleViewportTop = viewport?.offsetTop ?? 0;
+			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
+			// Distance from the fixed-position viewport bottom to a point
+			// just above the composer's top edge.
+			const aboveComposerBottom = Math.max(
+				0,
+				fixedViewportBottom - rect.top + composerGap,
+			);
+			const maxHeightCandidates = [
+				rect.top - visibleViewportTop - composerGap - viewportPadding,
+				rect.top - composerGap - viewportPadding,
+			].filter((height) => height > 0);
+			const aboveComposerMaxHeight = Math.max(
+				minimumMenuHeight,
+				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
+			);
+			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
+			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
+			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
+			root.style.setProperty(
+				"--mobile-dropdown-above-composer-bottom",
+				`${aboveComposerBottom}px`,
+			);
+			root.style.setProperty(
+				"--mobile-dropdown-above-composer-max-height",
+				`${aboveComposerMaxHeight}px`,
 			);
 		};
-		update();
-		const ro = new ResizeObserver(update);
+		const animationFrameIDs = new Set<number>();
+		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
+		const cancelScheduledUpdates = () => {
+			for (const id of animationFrameIDs) {
+				cancelAnimationFrame(id);
+			}
+			animationFrameIDs.clear();
+			for (const id of timeoutIDs) {
+				clearTimeout(id);
+			}
+			timeoutIDs.clear();
+		};
+		const queueAnimationFrame = (callback: () => void) => {
+			const id = requestAnimationFrame(() => {
+				animationFrameIDs.delete(id);
+				callback();
+			});
+			animationFrameIDs.add(id);
+		};
+		const scheduleUpdate = () => {
+			cancelScheduledUpdates();
+			update();
+			// Mobile WebKit can finish keyboard panning after focus and
+			// input events. Re-read geometry after the viewport settles so
+			// the first slash-menu render is not stuck under the composer.
+			queueAnimationFrame(() => {
+				update();
+				queueAnimationFrame(update);
+			});
+			for (const delay of [50, 150, 300]) {
+				const id = setTimeout(() => {
+					timeoutIDs.delete(id);
+					update();
+				}, delay);
+				timeoutIDs.add(id);
+			}
+		};
+		scheduleUpdate();
+		const ro = new ResizeObserver(scheduleUpdate);
 		ro.observe(composerElement);
-		window.addEventListener("resize", update);
-		const viewport = window.visualViewport;
-		viewport?.addEventListener("resize", update);
-		viewport?.addEventListener("scroll", update);
+		addEventListener("resize", scheduleUpdate);
+		addEventListener("scroll", scheduleUpdate, { passive: true });
+		addEventListener("focusin", scheduleUpdate);
+		addEventListener("focusout", scheduleUpdate);
+		composerElement.addEventListener("input", scheduleUpdate);
+		composerElement.addEventListener("keyup", scheduleUpdate);
+		document.addEventListener("selectionchange", scheduleUpdate);
+		viewport?.addEventListener("resize", scheduleUpdate);
+		viewport?.addEventListener("scroll", scheduleUpdate);
+		viewport?.addEventListener("scrollend", scheduleUpdate);
 		return () => {
 			ro.disconnect();
-			window.removeEventListener("resize", update);
-			viewport?.removeEventListener("resize", update);
-			viewport?.removeEventListener("scroll", update);
-			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+			cancelScheduledUpdates();
+			removeEventListener("resize", scheduleUpdate);
+			removeEventListener("scroll", scheduleUpdate);
+			removeEventListener("focusin", scheduleUpdate);
+			removeEventListener("focusout", scheduleUpdate);
+			composerElement.removeEventListener("input", scheduleUpdate);
+			composerElement.removeEventListener("keyup", scheduleUpdate);
+			document.removeEventListener("selectionchange", scheduleUpdate);
+			viewport?.removeEventListener("resize", scheduleUpdate);
+			viewport?.removeEventListener("scroll", scheduleUpdate);
+			viewport?.removeEventListener("scrollend", scheduleUpdate);
+			fixedProbe.remove();
+			root.style.removeProperty("--mobile-dropdown-bottom");
+			root.style.removeProperty("--mobile-dropdown-left");
+			root.style.removeProperty("--mobile-dropdown-width");
+			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
+			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
 	}, [composerElement]);
 
@@ -925,7 +1027,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{isEditingHistoryMessage && editingQueuedMessageID === null && (
 					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
-							<PencilIcon className="h-3.5 w-3.5" />
+							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
 							conversation here.
 						</span>
@@ -938,7 +1040,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
-							<XIcon className="h-3.5 w-3.5" />
+							<XIcon className="size-3.5" />
 						</Button>
 					</div>
 				)}
@@ -1178,7 +1280,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	}
 																>
 																	{isConnecting ? (
-																		<Spinner loading className="size-2.5" />
+																		<Spinner loading className="h-2.5 w-2.5" />
 																	) : null}
 																	Auth
 																</Button>

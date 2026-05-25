@@ -51,6 +51,7 @@ import {
 	DIFFS_FONT_STYLE,
 	formatModelIntentLabel,
 	formatResultOutput,
+	formatToolInput,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -822,6 +823,76 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+type ToolFileViewerProps = {
+	label?: string;
+	file: ComponentPropsWithRef<typeof FileViewer>["file"];
+	options: ComponentPropsWithRef<typeof FileViewer>["options"];
+};
+
+const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
+	<>
+		{label && (
+			<div className="mt-2 text-2xs font-medium text-content-secondary">
+				{label}
+			</div>
+		)}
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
+			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
+		</ScrollArea>
+	</>
+);
+
+type GenericToolContentProps = {
+	toolInput: string | null;
+	fileContent: ReturnType<typeof getFileContentForViewer>;
+	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
+	isDark: boolean;
+	resultOutput: string | null;
+};
+
+const GenericToolContent: FC<GenericToolContentProps> = ({
+	toolInput,
+	fileContent,
+	fileContentOptions,
+	isDark,
+	resultOutput,
+}) => {
+	const output = fileContent
+		? {
+				file: { name: fileContent.path, contents: fileContent.content },
+				options: fileContentOptions,
+			}
+		: resultOutput
+			? {
+					file: { name: "output.json", contents: resultOutput },
+					options: getFileViewerOptionsNoHeader(isDark),
+				}
+			: undefined;
+
+	return (
+		<>
+			{toolInput && (
+				<ToolFileViewer
+					label="Input"
+					file={{ name: "input.json", contents: toolInput }}
+					options={getFileViewerOptionsNoHeader(isDark)}
+				/>
+			)}
+			{output && (
+				<ToolFileViewer
+					label={toolInput ? "Output" : undefined}
+					file={output.file}
+					options={output.options}
+				/>
+			)}
+		</>
+	);
+};
+
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -834,6 +905,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
@@ -850,7 +922,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
@@ -879,53 +951,25 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 		</>
 	);
 
 	const toolContent = (
-		<>
-			{fileContent ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={fileContentOptions}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: "output.json",
-								contents: resultOutput,
-							}}
-							options={getFileViewerOptionsNoHeader(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				)
-			)}
-		</>
+		<GenericToolContent
+			toolInput={toolInput}
+			fileContent={fileContent}
+			fileContentOptions={fileContentOptions}
+			isDark={isDark}
+			resultOutput={resultOutput}
+		/>
 	);
 
 	return (

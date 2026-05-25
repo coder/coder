@@ -128,6 +128,17 @@ func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest
 	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
+// findUserMessage returns the first user-role message from a slice of chat
+// messages, failing the test if none is found.
+func findUserMessage(t testing.TB, messages []database.ChatMessage) database.ChatMessage {
+	t.Helper()
+	idx := slices.IndexFunc(messages, func(m database.ChatMessage) bool {
+		return m.Role == database.ChatMessageRoleUser
+	})
+	require.NotEqual(t, -1, idx, "expected to find a user message")
+	return messages[idx]
+}
+
 type failNextChatSystemPromptStore struct {
 	database.Store
 
@@ -6391,9 +6402,10 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.True(t, messages[0].ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+	// The chat daemon may insert an assistant response before this runs.
+	userMsg := findUserMessage(t, messages)
+	require.True(t, userMsg.ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, userMsg.ModelConfigID.UUID)
 }
 
 func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
@@ -6532,9 +6544,10 @@ func TestSubsequentSendWithoutOverrideUsesPersistedModel(t *testing.T) {
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.True(t, messages[0].ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+	// The chat daemon may insert an assistant response before this runs.
+	userMsg := findUserMessage(t, messages)
+	require.True(t, userMsg.ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, userMsg.ModelConfigID.UUID)
 }
 
 func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
@@ -10533,7 +10546,10 @@ func TestChatSystemPrompt(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+	const workspaceAwareness = `No workspace is attached to this chat yet.
+Do not create or start a workspace by default. Many requests can be completed using the conversation, provider tools such as web_search when available, or configured external MCP tools.
+Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
+If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()

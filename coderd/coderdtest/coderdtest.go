@@ -1278,6 +1278,22 @@ func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID 
 	}
 }
 
+// RequireWorkspaceAgentByName avoids weak nil UUID assertions when a fixture requires a specific agent.
+func RequireWorkspaceAgentByName(t testing.TB, resources []codersdk.WorkspaceResource, name string) codersdk.WorkspaceAgent {
+	t.Helper()
+
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			if agent.Name == name {
+				return agent
+			}
+		}
+	}
+
+	require.FailNowf(t, "workspace agent not found", "workspace agent %q not found in resources", name)
+	return codersdk.WorkspaceAgent{}
+}
+
 // AgentNames instructs the waiter to wait for the given, named agents to be connected and will
 // return even if other agents are not connected.
 func (w WorkspaceAgentWaiter) AgentNames(names []string) WorkspaceAgentWaiter {

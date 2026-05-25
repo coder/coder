@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -28,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -70,13 +70,22 @@ const (
 )
 
 func main() {
-	// Load .env before option parsing so that serpent sees the
-	// variables when resolving Env-tagged options.
-	if n, err := loadDotEnv(".env"); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "develop: error loading .env: %v\n", err)
+	// Pre-parse --env-file before serpent runs so that variables from
+	// the file are visible to serpent's Env-tag resolution for other
+	// options. The flag is also registered in the serpent OptionSet
+	// below for --help discoverability.
+	envFile, err := parseEnvFileFlag()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: %v\n", err)
 		os.Exit(1)
-	} else if n > 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from .env\n", n)
+	}
+	if envFile != "" {
+		n, err := loadEnvFile(envFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "develop: error loading env file %s: %v\n", envFile, err)
+			os.Exit(1)
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from %s\n", n, envFile)
 	}
 
 	var cfg devConfig
@@ -192,6 +201,12 @@ func main() {
 				Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
 				Value:       serpent.BoolOf(&cfg.dbContinue),
 			},
+			{
+				Flag:        "env-file",
+				Env:         "CODER_DEV_ENV_FILE",
+				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
+				Value:       serpent.StringOf(&cfg.envFile),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
@@ -208,7 +223,7 @@ func main() {
 		},
 	}
 
-	err := cmd.Invoke(os.Args[1:]...).WithOS().Run()
+	err = cmd.Invoke(os.Args[1:]...).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -233,6 +248,9 @@ type devConfig struct {
 	dbRollback        bool
 	dbReset           bool
 	dbContinue        bool
+	// envFile is populated by serpent for --help output; actual loading
+	// uses parseEnvFileFlag() before serpent runs.
+	envFile           string
 	projectRoot       string
 	binaryPath        string
 	configDir         string
@@ -445,37 +463,34 @@ func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.C
 	return cmd
 }
 
-// loadDotEnv reads a .env file and sets any variables not already
-// present in the process environment. It returns the number of
-// variables loaded. If the file does not exist, it returns (0, nil).
-func loadDotEnv(path string) (int, error) {
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return 0, nil
+// parseEnvFileFlag extracts the --env-file value from os.Args and
+// CODER_DEV_ENV_FILE before serpent runs, so that loaded variables
+// are visible to serpent's Env-tag resolution for other options.
+func parseEnvFileFlag() (string, error) {
+	for i, arg := range os.Args[1:] {
+		if arg == "--env-file" {
+			if i+2 >= len(os.Args) {
+				return "", xerrors.New("--env-file requires a value")
+			}
+			return os.Args[i+2], nil
+		}
+		if v, ok := strings.CutPrefix(arg, "--env-file="); ok {
+			return v, nil
+		}
 	}
+	return os.Getenv("CODER_DEV_ENV_FILE"), nil
+}
+
+// loadEnvFile reads the file at path using godotenv and sets any variables
+// not already present in the process environment. It returns the number of
+// variables set.
+func loadEnvFile(path string) (int, error) {
+	vars, err := godotenv.Read(path)
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
-
 	var n int
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// Strip optional "export " prefix.
-		line = strings.TrimPrefix(line, "export ")
-		key, val, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		val = strings.TrimSpace(val)
-		// Remove surrounding quotes if present.
-		val = strings.Trim(val, "\"'")
-		// Do not override existing environment variables.
+	for key, val := range vars {
 		if _, exists := os.LookupEnv(key); exists {
 			continue
 		}
@@ -484,12 +499,10 @@ func loadDotEnv(path string) (int, error) {
 		}
 		n++
 	}
-	return n, scanner.Err()
+	return n, nil
 }
 
-// filterEnv returns env with any variables whose key matches
-
-// exclude removed.
+// filterEnv returns env with any variables whose key matches exclude removed.
 func filterEnv(env []string, exclude ...string) []string {
 	out := make([]string, 0, len(env))
 	for _, e := range env {

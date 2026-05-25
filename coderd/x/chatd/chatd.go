@@ -1582,11 +1582,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 
 		userPrompt := SanitizePromptText(opts.SystemPrompt)
-		var workspaceAwareness string
+		workspaceAwareness := workspaceDetachedAwareness
 		if opts.WorkspaceID.Valid {
-			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
-		} else {
-			workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+			workspaceAwareness = workspaceAttachedAwareness
 		}
 		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(workspaceAwareness),

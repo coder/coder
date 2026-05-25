@@ -266,7 +266,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							{isGeneratingTitle ? (
 								<Spinner className="h-[18px] w-[18px]" loading />
 							) : (
-								<SparklesIcon className="h-[18px] w-[18px]" />
+								<SparklesIcon className="size-[18px]" />
 							)}
 							Generate
 						</Button>

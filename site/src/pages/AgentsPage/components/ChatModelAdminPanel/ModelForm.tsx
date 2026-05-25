@@ -278,7 +278,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					{providerStates.map((ps) => (
 						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
+								<ProviderIcon provider={ps.provider} className="size-4" />
 								{ps.label}
 							</span>
 						</SelectItem>
@@ -348,7 +348,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				{selectedProviderState && (
 					<ProviderIcon
 						provider={selectedProviderState.provider}
-						className="h-8 w-8"
+						className="size-8"
 					/>
 				)}
 				<div className="inline-flex items-center gap-1">
@@ -368,7 +368,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							placeholder={initialModel?.model ?? "Model name"}
 						/>
 					</div>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+					<PencilIcon className="size-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
 				{initialModel && (
 					<Tooltip>
@@ -425,7 +425,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									</span>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
+											<InfoIcon className="size-3 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent side="top" className="max-w-[240px]">
 											Max tokens in the context window.
@@ -481,9 +481,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showPricing && (
@@ -515,9 +515,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showProviderConfig && (
@@ -549,9 +549,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showAdvanced && (
@@ -570,7 +570,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 										Compression Threshold
 										<Tooltip>
 											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
+												<InfoIcon className="size-3 text-content-secondary" />
 											</TooltipTrigger>
 											<TooltipContent side="top" className="max-w-[240px]">
 												Percentage at which context is compressed.

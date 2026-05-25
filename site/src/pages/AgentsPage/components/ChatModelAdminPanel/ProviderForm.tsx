@@ -218,7 +218,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		<div className="flex min-h-full flex-col">
 			<BackButton onClick={onBack} />
 			<div className="flex items-center gap-3">
-				<ProviderIcon provider={provider} className="h-8 w-8" />
+				<ProviderIcon provider={provider} className="size-8" />
 				<div className="min-w-0 flex-1">
 					<input
 						type="text"
@@ -231,7 +231,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				</div>
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<InfoIcon className="h-4 w-4 shrink-0 cursor-help text-content-secondary" />
+						<InfoIcon className="size-4 shrink-0 cursor-help text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent>
 						Uses the {formatProviderLabel(provider)} API specification
