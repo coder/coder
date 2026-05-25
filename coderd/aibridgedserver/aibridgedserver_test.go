@@ -239,7 +239,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			// rejected to avoid ambiguity about which path was taken.
 			name:        "both fields set",
 			bothFields:  true,
-			expectedErr: aibridgedserver.ErrInvalidKey,
+			expectedErr: aibridgedserver.ErrAmbiguousAuth,
 		},
 		{
 			// A bogus secret has no effect on the delegated path because
@@ -251,6 +251,27 @@ func TestAuthorization_Delegated(t *testing.T) {
 				apiKey.HashedSecret = []byte("not-the-real-hash")
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			// The delegated path must still reject keys whose owner has
+			// been deleted; trust at the transport boundary does not
+			// extend to bypassing user-status checks.
+			name:        "deleted user",
+			expectedErr: aibridgedserver.ErrDeletedUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, Deleted: true}, nil)
+			},
+		},
+		{
+			// Likewise, a system user must never be authenticated through
+			// the delegated path.
+			name:        "system user",
+			expectedErr: aibridgedserver.ErrSystemUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, IsSystem: true}, nil)
 			},
 		},
 	}

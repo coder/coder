@@ -39,14 +39,14 @@ type delegatedAPIKeyIDCtxKey struct{}
 //
 // The caller is responsible for having established that the user owning this
 // key authorized the request: aibridged validates only that the key exists,
-// has not expired, and has not been revoked. It does not verify the key
-// secret, because the caller never has it.
+// has not expired, and belongs to a non-deleted, non-system user. It does not
+// verify the key secret, because the caller never has it.
 func WithDelegatedAPIKeyID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, delegatedAPIKeyIDCtxKey{}, id)
 }
 
 // DelegatedAPIKeyIDFromContext returns the API key ID attached by
-// [WithDelegatedAPIKeyID] and whether one was set.
+// [WithDelegatedAPIKeyID] and whether a non-empty value was set.
 func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(delegatedAPIKeyIDCtxKey{}).(string)
 	return id, ok && id != ""

@@ -66,9 +66,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var (
 		authReq    *proto.IsAuthorizedRequest
 		sessionKey string
+		delegated  bool
 	)
 	if delegatedID, ok := agplaibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+		delegated = true
 		// SessionKey is consumed only by the injected MCP path, which is
 		// not available to delegated callers (they have no secret).
 	} else {
@@ -115,9 +117,19 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Attach auth attributes used by all log lines below. "source" is the
+	// transport origin (e.g., "agents" for in-process callers, empty for
+	// network callers); "auth_delegated" distinguishes header-based from
+	// context-delegated authentication.
+	logger = logger.With(
+		slog.F("source", string(agplaibridge.SourceFromContext(ctx))),
+		slog.F("auth_mode", authMode),
+		slog.F("auth_delegated", delegated),
+	)
+
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err), slog.F("auth_mode", authMode))
+		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}
