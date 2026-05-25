@@ -277,9 +277,12 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 // we can bound memory with io.LimitReader before JSON parsing.
 type compareResponse struct {
 	Diffs []struct {
-		Diff    string `json:"diff"`
-		OldPath string `json:"old_path"`
-		NewPath string `json:"new_path"`
+		Diff        string `json:"diff"`
+		OldPath     string `json:"old_path"`
+		NewPath     string `json:"new_path"`
+		NewFile     bool   `json:"new_file"`
+		DeletedFile bool   `json:"deleted_file"`
+		RenamedFile bool   `json:"renamed_file"`
 	} `json:"diffs"`
 	CompareTimeout bool `json:"compare_timeout"`
 }
@@ -371,6 +374,18 @@ func (g *gitlabProvider) FetchBranchDiff(
 	sb.Grow(estimated)
 	for _, d := range compare.Diffs {
 		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
+		// Add standard unified diff file headers.
+		switch {
+		case d.NewFile:
+			sb.WriteString("--- /dev/null\n")
+			fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
+		case d.DeletedFile:
+			fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
+			sb.WriteString("+++ /dev/null\n")
+		default:
+			fmt.Fprintf(&sb, "--- a/%s\n", d.OldPath)
+			fmt.Fprintf(&sb, "+++ b/%s\n", d.NewPath)
+		}
 		sb.WriteString(d.Diff)
 		// Ensure each file diff ends with a newline.
 		if len(d.Diff) > 0 && d.Diff[len(d.Diff)-1] != '\n' {

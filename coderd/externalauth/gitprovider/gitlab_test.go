@@ -122,7 +122,7 @@ func TestGitLabFetchBranchDiff(t *testing.T) {
 		require.NoError(t, err)
 		// Must end with newline even though the API response did not.
 		assert.True(t, len(diff) > 0 && diff[len(diff)-1] == '\n')
-		assert.Equal(t, "diff --git a/a.txt b/a.txt\n@@ -1 +1 @@\n-old\n+new\n", diff)
+		assert.Equal(t, "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n", diff)
 	})
 
 	t.Run("EmptyDefaultBranch", func(t *testing.T) {
