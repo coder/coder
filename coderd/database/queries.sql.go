@@ -887,15 +887,12 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider
 	AND CASE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
-	-- Filter provider_name. Names are immutable on ai_providers, so the
-	-- per-row snapshot in aibridge_interceptions.provider_name stays in
-	-- sync with the live row and is safe to match against directly.
+	-- Filter provider_name
 	AND CASE
 		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
 		ELSE true
@@ -961,15 +958,12 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider
 	AND CASE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
-	-- Filter provider_name. Names are immutable on ai_providers, so the
-	-- per-row snapshot in aibridge_interceptions.provider_name stays in
-	-- sync with the live row and is safe to match against directly.
+	-- Filter provider_name
 	AND CASE
 		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
 		ELSE true
@@ -1626,15 +1620,12 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider
 	AND CASE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
-	-- Filter provider_name. Names are immutable on ai_providers, so the
-	-- per-row snapshot in aibridge_interceptions.provider_name stays in
-	-- sync with the live row and is safe to match against directly.
+	-- Filter provider_name
 	AND CASE
 		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
 		ELSE true
@@ -2058,15 +2049,12 @@ session_page AS (
 			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
-		-- Filter provider type (openai/anthropic/copilot). Retained for
-		-- backward compatibility with existing callers.
+		-- Filter provider
 		AND CASE
 			WHEN $5::text != '' THEN ai.provider = $5::text
 			ELSE true
 		END
-		-- Filter provider_name. Names are immutable on ai_providers, so the
-		-- per-row snapshot in aibridge_interceptions.provider_name stays in
-		-- sync with the live row and is safe to match against directly.
+		-- Filter provider_name
 		AND CASE
 			WHEN $6::text != '' THEN ai.provider_name = $6::text
 			ELSE true
