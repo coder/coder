@@ -92,8 +92,7 @@ provider:
 - **Reviewer count** only counts users who have approved, not all assigned
   reviewers.
 
-These gaps are tracked internally (CODAGT-440) and may be refined in future
-releases.
+These gaps are tracked internally and may be refined in future releases.
 
 ## Troubleshooting
 
