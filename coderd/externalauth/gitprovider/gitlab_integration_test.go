@@ -519,64 +519,79 @@ func TestGitLabIntegration(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name          string
-			ref           gitprovider.PRRef
-			expectState   gitprovider.PRState
-			expectAuthor  string
-			expectHead    string
-			expectBase    string
-			expectBranch  string
-			expectTitle   string
-			expectDraft   bool
-			expectChanges int32
+			name                string
+			ref                 gitprovider.PRRef
+			expectState         gitprovider.PRState
+			expectAuthor        string
+			expectHead          string
+			expectBase          string
+			expectBranch        string
+			expectTitle         string
+			expectDraft         bool
+			expectChanges       int32
+			expectApproved      bool
+			expectReviewerCount int32
+			expectChangesReq    bool
 		}{
 			{
-				name:          "open_mergeable",
-				ref:           gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 3},
-				expectState:   gitprovider.PRStateOpen,
-				expectAuthor:  "johnstcn",
-				expectHead:    "da57fca657e02c1fbe131402f927d134a34b257b",
-				expectBase:    "main",
-				expectBranch:  "johnstcn-main-patch-98822",
-				expectTitle:   "Open mergeable",
-				expectDraft:   false,
-				expectChanges: 1,
+				name:                "open_mergeable",
+				ref:                 gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 3},
+				expectState:         gitprovider.PRStateOpen,
+				expectAuthor:        "johnstcn",
+				expectHead:          "da57fca657e02c1fbe131402f927d134a34b257b",
+				expectBase:          "main",
+				expectBranch:        "johnstcn-main-patch-98822",
+				expectTitle:         "Open mergeable",
+				expectDraft:         false,
+				expectChanges:       1,
+				expectApproved:      true,
+				expectReviewerCount: 0,
+				expectChangesReq:    false,
 			},
 			{
-				name:          "open_with_conflicts",
-				ref:           gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 2},
-				expectState:   gitprovider.PRStateOpen,
-				expectAuthor:  "johnstcn",
-				expectHead:    "642379758fa148ff24cba5f676226a3f8e560d73",
-				expectBase:    "main",
-				expectBranch:  "johnstcn-main-patch-84369",
-				expectTitle:   "Open with conflicts",
-				expectDraft:   false,
-				expectChanges: 1,
+				name:                "open_with_conflicts",
+				ref:                 gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 2},
+				expectState:         gitprovider.PRStateOpen,
+				expectAuthor:        "johnstcn",
+				expectHead:          "642379758fa148ff24cba5f676226a3f8e560d73",
+				expectBase:          "main",
+				expectBranch:        "johnstcn-main-patch-84369",
+				expectTitle:         "Open with conflicts",
+				expectDraft:         false,
+				expectChanges:       1,
+				expectApproved:      true,
+				expectReviewerCount: 0,
+				expectChangesReq:    false,
 			},
 			{
-				name:          "nested_merged",
-				ref:           gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 1},
-				expectState:   gitprovider.PRStateMerged,
-				expectAuthor:  "johnstcn",
-				expectHead:    "ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b",
-				expectBase:    "main",
-				expectBranch:  "johnstcn-main-patch-54711",
-				expectTitle:   "Nested merged",
-				expectDraft:   false,
-				expectChanges: 1,
+				name:                "nested_merged",
+				ref:                 gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 1},
+				expectState:         gitprovider.PRStateMerged,
+				expectAuthor:        "johnstcn",
+				expectHead:          "ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b",
+				expectBase:          "main",
+				expectBranch:        "johnstcn-main-patch-54711",
+				expectTitle:         "Nested merged",
+				expectDraft:         false,
+				expectChanges:       1,
+				expectApproved:      true,
+				expectReviewerCount: 0,
+				expectChangesReq:    false,
 			},
 			{
-				name:          "nested_closed_from_fork",
-				ref:           gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 3},
-				expectState:   gitprovider.PRStateClosed,
-				expectAuthor:  "johnstcn",
-				expectHead:    "6b743c6728fa248e3654657e0e576eafcf472953",
-				expectBase:    "main",
-				expectBranch:  "forked",
-				expectTitle:   "Nested closed from fork",
-				expectDraft:   false,
-				expectChanges: 1,
+				name:                "nested_closed_from_fork",
+				ref:                 gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 3},
+				expectState:         gitprovider.PRStateClosed,
+				expectAuthor:        "johnstcn",
+				expectHead:          "6b743c6728fa248e3654657e0e576eafcf472953",
+				expectBase:          "main",
+				expectBranch:        "forked",
+				expectTitle:         "Nested closed from fork",
+				expectDraft:         false,
+				expectChanges:       1,
+				expectApproved:      true,
+				expectReviewerCount: 0,
+				expectChangesReq:    false,
 			},
 		}
 
@@ -626,6 +641,11 @@ func TestGitLabIntegration(t *testing.T) {
 				if tt.expectChanges > 0 {
 					assert.Equal(t, tt.expectChanges, status.DiffStats.ChangedFiles)
 				}
+
+				// Approval-related fields populated from GitLab approvals endpoint.
+				assert.Equal(t, tt.expectApproved, status.Approved)
+				assert.Equal(t, tt.expectReviewerCount, status.ReviewerCount)
+				assert.Equal(t, tt.expectChangesReq, status.ChangesRequested)
 			})
 		}
 	})
