@@ -1232,17 +1232,20 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Boundary logs: members (and thus workspace agents) can create;
 			// only the site owner can delete.
+			// All subjects below carry RoleMember(), which grants site-level
+			// ActionCreate on boundary_log, so no subject is in the false set.
 			Name:     "BoundaryLogCreate",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceBoundaryLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, memberMe, agentsAccessUser},
-				false: {
+				true: {
+					owner, memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor, auditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
+				false: {},
 			},
 		},
 		{
