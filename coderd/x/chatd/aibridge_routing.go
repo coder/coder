@@ -360,6 +360,28 @@ func (p *Server) aiProviderForConfig(
 	return string(provider.Type), &provider, nil
 }
 
+func (p *Server) resolveAIGatewayRoute(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	provider database.AIProvider,
+	originalHint string,
+) (resolvedModelRoute, error) {
+	auth, err := p.aiGatewayProviderAuthForUser(
+		ctx,
+		ownerID,
+		provider,
+		aiGatewayRequestFormatForProviderType(provider.Type),
+	)
+	if err != nil {
+		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
+	}
+	return resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
+		Provider:     provider,
+		OriginalHint: originalHint,
+		ProviderAuth: auth,
+	}}, nil
+}
+
 func (p *Server) resolveModelRouteForConfig(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -378,20 +400,7 @@ func (p *Server) resolveModelRouteForConfig(
 				modelConfig.Model,
 			)
 		}
-		auth, err := p.aiGatewayProviderAuthForUser(
-			ctx,
-			ownerID,
-			*provider,
-			aiGatewayRequestFormatForProviderType(provider.Type),
-		)
-		if err != nil {
-			return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
-		}
-		return resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
-			Provider:     *provider,
-			OriginalHint: providerHint,
-			ProviderAuth: auth,
-		}}, nil
+		return p.resolveAIGatewayRoute(ctx, ownerID, *provider, providerHint)
 	}
 	if provider == nil {
 		if !fallbackKeys.Empty() && userCanUseProviderKeys(fallbackKeys, providerHint) {
@@ -421,20 +430,7 @@ func (p *Server) resolveModelRouteForProviderType(
 		if err != nil {
 			return resolvedModelRoute{}, err
 		}
-		auth, err := p.aiGatewayProviderAuthForUser(
-			ctx,
-			ownerID,
-			provider,
-			aiGatewayRequestFormatForProviderType(provider.Type),
-		)
-		if err != nil {
-			return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
-		}
-		return resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
-			Provider:     provider,
-			OriginalHint: normalizedProviderType,
-			ProviderAuth: auth,
-		}}, nil
+		return p.resolveAIGatewayRoute(ctx, ownerID, provider, normalizedProviderType)
 	}
 	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
 	if err != nil {

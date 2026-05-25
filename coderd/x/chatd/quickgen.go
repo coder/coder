@@ -169,7 +169,7 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, overrideKeys, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, _, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
 		keys,
@@ -234,15 +234,10 @@ func (p *Server) maybeGenerateChatTitle(
 		candidateCtx := titleCtx
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
-		candidateKeys := keys
-		if overrideSet {
-			candidateKeys = overrideKeys
-		}
 		if debugEnabled {
 			candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
 				titleCtx,
 				chat,
-				candidateKeys,
 				debugSvc,
 				candidate,
 				modelOpts,
@@ -347,7 +342,6 @@ func (p *Server) newQuickgenDebugModel(
 func (p *Server) prepareQuickgenDebugCandidate(
 	ctx context.Context,
 	chat database.Chat,
-	_ chatprovider.ProviderAPIKeys,
 	debugSvc *chatdebug.Service,
 	candidate shortTextCandidate,
 	modelOpts modelBuildOptions,
@@ -877,7 +871,6 @@ func (p *Server) generateTurnStatusLabel(
 			candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
 				labelCtx,
 				chat,
-				keys,
 				debugSvc,
 				candidate,
 				modelOpts,
