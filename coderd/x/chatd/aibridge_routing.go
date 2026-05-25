@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 
 	"charm.land/fantasy"
@@ -73,11 +72,8 @@ func (p *Server) newModelFromConfig(
 		if route.aiProvider.Name == "" {
 			return nil, debugEnabled, xerrors.New("AI Gateway routing requires an AI provider name")
 		}
-		apiKeyID, err := p.activeTurnAPIKeyID(ctx, chat.ID)
-		if err != nil {
-			return nil, debugEnabled, err
-		}
-		if apiKeyID == "" {
+		apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		if !ok || apiKeyID == "" {
 			return nil, debugEnabled, xerrors.New("AI Gateway routing requires the active turn API key ID")
 		}
 
@@ -161,24 +157,6 @@ func aibridgeBaseURLForProviderType(providerType database.AIProviderType) string
 	default:
 		return aibridgeLocalBaseURL + "/v1"
 	}
-}
-
-func (p *Server) activeTurnAPIKeyID(ctx context.Context, chatID uuid.UUID) (string, error) {
-	return activeTurnAPIKeyIDFromStore(ctx, p.db, chatID)
-}
-
-func activeTurnAPIKeyIDFromStore(ctx context.Context, store database.Store, chatID uuid.UUID) (string, error) {
-	apiKeyID, err := store.GetLatestChatUserMessageAPIKeyID(ctx, chatID)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return "", nil
-		}
-		return "", xerrors.Errorf("get active turn API key ID: %w", err)
-	}
-	if !apiKeyID.Valid {
-		return "", nil
-	}
-	return apiKeyID.String, nil
 }
 
 func (p *Server) modelRouteForConfig(

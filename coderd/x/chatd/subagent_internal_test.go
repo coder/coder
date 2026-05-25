@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -246,42 +247,8 @@ func TestCreateChildSubagentChatPropagatesActiveTurnAPIKeyID(t *testing.T) {
 		LastModelConfigID: model.ID,
 	})
 
-	oldKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	latestKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	modelOnlyKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	oldKeyID := oldKey.ID
-	latestKeyID := latestKey.ID
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        parent.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		APIKeyID:      sql.NullString{String: oldKeyID, Valid: true},
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        parent.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		Visibility:    database.ChatMessageVisibilityBoth,
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        parent.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		APIKeyID:      sql.NullString{String: latestKeyID, Valid: true},
-	})
-	dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        parent.ID,
-		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          database.ChatMessageRoleUser,
-		Visibility:    database.ChatMessageVisibilityModel,
-		APIKeyID:      sql.NullString{String: modelOnlyKey.ID, Valid: true},
-	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 
 	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
 	child, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
@@ -298,7 +265,7 @@ func TestCreateChildSubagentChatPropagatesActiveTurnAPIKeyID(t *testing.T) {
 	}
 	require.NotZero(t, childUserMessage.ID)
 	require.True(t, childUserMessage.APIKeyID.Valid)
-	require.Equal(t, latestKeyID, childUserMessage.APIKeyID.String)
+	require.Equal(t, apiKey.ID, childUserMessage.APIKeyID.String)
 }
 
 func TestSendSubagentMessagePropagatesActiveTurnAPIKeyID(t *testing.T) {
@@ -334,6 +301,7 @@ func TestSendSubagentMessagePropagatesActiveTurnAPIKeyID(t *testing.T) {
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 	_, err = server.sendSubagentMessage(
 		ctx,
 		parent.ID,

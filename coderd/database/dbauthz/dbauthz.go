@@ -3561,14 +3561,6 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
-func (q *querier) GetLatestChatUserMessageAPIKeyID(ctx context.Context, chatID uuid.UUID) (sql.NullString, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return sql.NullString{}, err
-	}
-	return q.db.GetLatestChatUserMessageAPIKeyID(ctx, chatID)
-}
-
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

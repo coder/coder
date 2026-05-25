@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -502,7 +501,6 @@ type sqlcQuerier interface {
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
-	GetLatestChatUserMessageAPIKeyID(ctx context.Context, chatID uuid.UUID) (sql.NullString, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)

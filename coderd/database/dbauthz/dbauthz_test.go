@@ -738,13 +738,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(chat)
 	}))
-	s.Run("GetLatestChatUserMessageAPIKeyID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		apiKeyID := sql.NullString{String: "test-key-id", Valid: true}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetLatestChatUserMessageAPIKeyID(gomock.Any(), chat.ID).Return(apiKeyID, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(apiKeyID)
-	}))
 	s.Run("GetChatByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByIDForUpdate(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()

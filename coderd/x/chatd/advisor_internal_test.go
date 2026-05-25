@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -30,12 +31,11 @@ import (
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getEnabledChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getAIProviderByID                func(context.Context, uuid.UUID) (database.AIProvider, error)
-	getAIProviders                   func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
-	getAIProviderKeysByProviderID    func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
-	getAIProviderKeysByProviderIDs   func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
-	getLatestChatUserMessageAPIKeyID func(context.Context, uuid.UUID) (sql.NullString, error)
+	getEnabledChatModelConfigByID  func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getAIProviderByID              func(context.Context, uuid.UUID) (database.AIProvider, error)
+	getAIProviders                 func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
+	getAIProviderKeysByProviderID  func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
+	getAIProviderKeysByProviderIDs func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
 }
 
 func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
@@ -86,16 +86,6 @@ func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderIDs(
 		return nil, xerrors.New("unexpected GetAIProviderKeysByProviderIDs call")
 	}
 	return s.getAIProviderKeysByProviderIDs(ctx, providerIDs)
-}
-
-func (s *advisorOverrideStubStore) GetLatestChatUserMessageAPIKeyID(
-	ctx context.Context,
-	chatID uuid.UUID,
-) (sql.NullString, error) {
-	if s.getLatestChatUserMessageAPIKeyID == nil {
-		return sql.NullString{}, xerrors.New("unexpected GetLatestChatUserMessageAPIKeyID call")
-	}
-	return s.getLatestChatUserMessageAPIKeyID(ctx, chatID)
 }
 
 func newAdvisorTestServer(
@@ -438,13 +428,11 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
 			return []database.AIProviderKey{{ProviderID: providerID, APIKey: "sk-selected"}}, nil
 		},
-		getLatestChatUserMessageAPIKeyID: func(context.Context, uuid.UUID) (sql.NullString, error) {
-			return sql.NullString{String: uuid.NewString(), Valid: true}, nil
-		},
 	}
 	p := newAdvisorTestServer(ctx, t, store)
 	p.aiGatewayRoutingEnabled = true
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
 	model, _, err := p.resolveAdvisorModelOverride(
 		ctx,
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},

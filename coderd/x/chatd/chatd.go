@@ -6396,6 +6396,32 @@ type runChatResult struct {
 	HistoryTipMessageID     int64
 }
 
+func contextWithActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
+	apiKeyID, ok := activeTurnAPIKeyIDFromMessages(messages)
+	if !ok {
+		return ctx
+	}
+	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
+}
+
+func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if message.Visibility != database.ChatMessageVisibilityBoth &&
+			message.Visibility != database.ChatMessageVisibilityUser {
+			continue
+		}
+		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
+			return "", false
+		}
+		return message.APIKeyID.String, true
+	}
+	return "", false
+}
+
 func allToolNames(allTools []fantasy.AgentTool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
@@ -7021,9 +7047,15 @@ func (p *Server) runChat(
 		debugModel    string
 	)
 
-	// Load MCP server configs and user tokens in parallel with
-	// model resolution and message loading. These queries have
-	// no dependencies on each other and all hit different tables.
+	messages, err = p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	if err != nil {
+		return result, xerrors.Errorf("get chat messages: %w", err)
+	}
+	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+
+	// Load MCP server configs and user tokens in parallel with model
+	// resolution. These queries have no dependencies on each other and all
+	// hit different tables.
 	var (
 		mcpConfigs []database.MCPServerConfig
 		mcpTokens  []database.MCPServerUserToken
@@ -7039,14 +7071,6 @@ func (p *Server) runChat(
 			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
 				return xerrors.Errorf("parse model call config: %w", err)
 			}
-		}
-		return nil
-	})
-	g.Go(func() error {
-		var err error
-		messages, err = p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("get chat messages: %w", err)
 		}
 		return nil
 	})

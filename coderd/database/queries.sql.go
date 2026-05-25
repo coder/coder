@@ -8408,62 +8408,6 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 	return i, err
 }
 
-const getLatestChatUserMessageAPIKeyID = `-- name: GetLatestChatUserMessageAPIKeyID :one
-WITH latest_compressed_summary AS (
-    SELECT
-        id
-    FROM
-        chat_messages
-    WHERE
-        chat_id = $1::uuid
-        AND role = 'system'
-        AND compressed = TRUE
-        AND deleted = false
-        AND visibility = 'model'
-    ORDER BY
-        created_at DESC,
-        id DESC
-    LIMIT
-        1
-)
-SELECT
-    api_key_id
-FROM
-    chat_messages
-WHERE
-    chat_id = $1::uuid
-    AND role = 'user'
-    AND visibility IN ('user', 'both')
-    AND deleted = false
-    AND api_key_id IS NOT NULL
-    AND (
-        NOT EXISTS (
-            SELECT
-                1
-            FROM
-                latest_compressed_summary
-        )
-        OR id > (
-            SELECT
-                id
-            FROM
-                latest_compressed_summary
-        )
-    )
-ORDER BY
-    created_at DESC,
-    id DESC
-LIMIT
-    1
-`
-
-func (q *sqlQuerier) GetLatestChatUserMessageAPIKeyID(ctx context.Context, chatID uuid.UUID) (sql.NullString, error) {
-	row := q.db.QueryRowContext(ctx, getLatestChatUserMessageAPIKeyID, chatID)
-	var api_key_id sql.NullString
-	err := row.Scan(&api_key_id)
-	return api_key_id, err
-}
-
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, owner_username, owner_name

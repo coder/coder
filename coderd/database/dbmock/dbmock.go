@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	json "encoding/json"
 	reflect "reflect"
 	time "time"
@@ -3734,21 +3733,6 @@ func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
-}
-
-// GetLatestChatUserMessageAPIKeyID mocks base method.
-func (m *MockStore) GetLatestChatUserMessageAPIKeyID(ctx context.Context, chatID uuid.UUID) (sql.NullString, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLatestChatUserMessageAPIKeyID", ctx, chatID)
-	ret0, _ := ret[0].(sql.NullString)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetLatestChatUserMessageAPIKeyID indicates an expected call of GetLatestChatUserMessageAPIKeyID.
-func (mr *MockStoreMockRecorder) GetLatestChatUserMessageAPIKeyID(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestChatUserMessageAPIKeyID", reflect.TypeOf((*MockStore)(nil).GetLatestChatUserMessageAPIKeyID), ctx, chatID)
 }
 
 // GetLatestCryptoKeyByFeature mocks base method.

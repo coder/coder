@@ -460,54 +460,6 @@ ORDER BY
     created_at ASC,
     id ASC;
 
--- name: GetLatestChatUserMessageAPIKeyID :one
-WITH latest_compressed_summary AS (
-    SELECT
-        id
-    FROM
-        chat_messages
-    WHERE
-        chat_id = @chat_id::uuid
-        AND role = 'system'
-        AND compressed = TRUE
-        AND deleted = false
-        AND visibility = 'model'
-    ORDER BY
-        created_at DESC,
-        id DESC
-    LIMIT
-        1
-)
-SELECT
-    api_key_id
-FROM
-    chat_messages
-WHERE
-    chat_id = @chat_id::uuid
-    AND role = 'user'
-    AND visibility IN ('user', 'both')
-    AND deleted = false
-    AND api_key_id IS NOT NULL
-    AND (
-        NOT EXISTS (
-            SELECT
-                1
-            FROM
-                latest_compressed_summary
-        )
-        OR id > (
-            SELECT
-                id
-            FROM
-                latest_compressed_summary
-        )
-    )
-ORDER BY
-    created_at DESC,
-    id DESC
-LIMIT
-    1;
-
 -- name: GetChats :many
 WITH cursor_chat AS (
     SELECT

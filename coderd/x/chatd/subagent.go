@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -1077,10 +1078,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
-		childAPIKeyID, err := activeTurnAPIKeyIDFromStore(ctx, tx, parent.ID)
-		if err != nil {
-			return xerrors.Errorf("get parent active turn API key ID: %w", err)
-		}
+		childAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 
 		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: insertedChat.ID,
@@ -1241,10 +1239,7 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	apiKeyID, err := p.activeTurnAPIKeyID(ctx, parentChatID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get parent active turn API key ID: %w", err)
-	}
+	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,

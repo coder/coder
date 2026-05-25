@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"slices"
 	"time"
@@ -2007,14 +2006,6 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUpdateCheck").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetLatestChatUserMessageAPIKeyID(ctx context.Context, chatID uuid.UUID) (sql.NullString, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetLatestChatUserMessageAPIKeyID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetLatestChatUserMessageAPIKeyID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestChatUserMessageAPIKeyID").Inc()
 	return r0, r1
 }
 
