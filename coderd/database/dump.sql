@@ -4112,8 +4112,6 @@ CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
-CREATE INDEX idx_chat_messages_api_key_id ON chat_messages USING btree (api_key_id) WHERE (api_key_id IS NOT NULL);
-
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -4135,8 +4133,6 @@ CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (
 CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
-
-CREATE INDEX idx_chat_queued_messages_api_key_id ON chat_queued_messages USING btree (api_key_id) WHERE (api_key_id IS NOT NULL);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
