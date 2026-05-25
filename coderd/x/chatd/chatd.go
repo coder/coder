@@ -5782,8 +5782,17 @@ func shouldCancelChatFromControlNotification(
 ) bool {
 	status := database.ChatStatus(strings.TrimSpace(notify.Status))
 	switch status {
-	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusError:
+	case database.ChatStatusWaiting, database.ChatStatusError:
 		return true
+	case database.ChatStatusPending:
+		// Pending is not a cancel signal. SendMessage and auto-promote
+		// produce stale echoes (the notification that triggered this
+		// run, or one published after processing finishes). EditMessage
+		// produces a live signal, but cancellation for that case is
+		// handled by the persistStep ownership guard at the next step
+		// boundary, not by the control subscriber.
+		// See CODAGT-383.
+		return false
 	case database.ChatStatusRunning:
 		worker := strings.TrimSpace(notify.WorkerID)
 		if worker == "" {

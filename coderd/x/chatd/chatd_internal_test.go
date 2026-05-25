@@ -6690,3 +6690,29 @@ func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
 	}
 	require.True(t, foundUserSummary, "expected to find compressed user summary message")
 }
+
+func TestShouldCancelChatFromControlNotification(t *testing.T) {
+	t.Parallel()
+	myWorker := uuid.New()
+	otherWorker := uuid.New()
+	tests := []struct {
+		name   string
+		notify coderdpubsub.ChatStreamNotifyMessage
+		want   bool
+	}{
+		{"waiting cancels", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusWaiting)}, true},
+		{"error cancels", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusError)}, true},
+		{"pending does not cancel", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusPending)}, false},
+		{"running different worker cancels", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: otherWorker.String()}, true},
+		{"running same worker does not cancel", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: myWorker.String()}, false},
+		{"running empty worker does not cancel", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning)}, false},
+		{"running malformed worker does not cancel", coderdpubsub.ChatStreamNotifyMessage{Status: string(database.ChatStatusRunning), WorkerID: "not-a-uuid"}, false},
+		{"unknown status does not cancel", coderdpubsub.ChatStreamNotifyMessage{Status: "completed"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldCancelChatFromControlNotification(tt.notify, myWorker))
+		})
+	}
+}
