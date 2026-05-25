@@ -145,8 +145,8 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		// Centralized: use the first key as a placeholder hint.
 		// TODO(ssncferreira): record the actually-used key in
 		// the interception record to reflect failover.
-		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
-			credSecret = k.Value()
+		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
+			credSecret = key.Value()
 		}
 	}
 	cred := intercept.NewCredentialInfo(credKind, credSecret)

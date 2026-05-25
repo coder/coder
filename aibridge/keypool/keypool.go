@@ -1,6 +1,7 @@
 package keypool
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -23,12 +24,12 @@ var (
 type ErrorKind int
 
 const (
-	// ErrorKindPermanent means every key is permanently marked
-	// and no key can satisfy the request.
-	ErrorKindPermanent ErrorKind = iota
 	// ErrorKindRateLimited means no key is currently available
 	// but at least one key will recover after a cooldown.
-	ErrorKindRateLimited
+	ErrorKindRateLimited ErrorKind = iota
+	// ErrorKindPermanent means every key is permanently marked
+	// and no key can satisfy the request.
+	ErrorKindPermanent
 )
 
 // Error is returned when no key is available for the
@@ -44,7 +45,7 @@ func (e *Error) Error() string {
 	case ErrorKindPermanent:
 		return "all configured keys failed authentication"
 	case ErrorKindRateLimited:
-		return "all configured keys are rate-limited"
+		return fmt.Sprintf("all configured keys are rate-limited (retry after %s)", e.RetryAfter)
 	default:
 		return "key pool error"
 	}
@@ -202,7 +203,9 @@ func (p *Pool) keyPoolError() *Error {
 	for i := range p.keys {
 		state, cooldown := p.keys[i].stateAndCooldown()
 		switch state {
-		// Recoverable now: signal rate-limited with zero retry-after.
+		// Recoverable now: a key's cooldown expired between the walker's
+		// check and this scan. Return Retry-After: 0 to indicate that
+		// an immediate retry will succeed.
 		case KeyStateValid:
 			return &Error{Kind: ErrorKindRateLimited}
 		// Recoverable later: track soonest remaining cooldown.

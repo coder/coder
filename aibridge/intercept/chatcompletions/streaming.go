@@ -471,7 +471,7 @@ func (i *StreamingInterception) newStream(ctx context.Context, svc openai.ChatCo
 }
 
 // mapStreamError converts a mid-stream upstream error or
-// processing error into a relayable responseError. Returns nil
+// processing error into a relayable ResponseError. Returns nil
 // when the error is unrecoverable, in which case nothing can be
 // relayed back.
 func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *intercept.ResponseError {

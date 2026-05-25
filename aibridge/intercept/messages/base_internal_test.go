@@ -1071,12 +1071,6 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 		expectedRetryAfter time.Duration
 	}{
 		{
-			// Permanent: 502 api_error.
-			name:           "permanent_returns_502",
-			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
-			expectedStatus: http.StatusBadGateway,
-		},
-		{
 			// Rate-limited with no cooldown: 429, no Retry-After.
 			name:               "rate_limited_zero_retry_after",
 			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited},
@@ -1089,6 +1083,12 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
 			expectedStatus:     http.StatusTooManyRequests,
 			expectedRetryAfter: 5 * time.Second,
+		},
+		{
+			// Permanent: 502 api_error.
+			name:           "permanent_returns_502",
+			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
+			expectedStatus: http.StatusBadGateway,
 		},
 	}
 

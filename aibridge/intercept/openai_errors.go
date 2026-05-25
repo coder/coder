@@ -38,6 +38,9 @@ type ResponseError struct {
 	RetryAfter  time.Duration       `json:"-"`
 }
 
+// NewResponseError builds a ResponseError with the OpenAI-shaped
+// envelope. errType and code should be one of the OpenAIErrType*
+// and OpenAIErrCode* constants defined above.
 func NewResponseError(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
 	return &ResponseError{
 		ErrorObject: &shared.ErrorObject{

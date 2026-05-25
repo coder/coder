@@ -172,8 +172,8 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		// Centralized: use the first key as a placeholder hint.
 		// TODO(ssncferreira): record the actually-used key in
 		// the interception record to reflect failover.
-		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
-			credSecret = k.Value()
+		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
+			credSecret = key.Value()
 		}
 	}
 
