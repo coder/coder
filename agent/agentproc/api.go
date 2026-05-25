@@ -200,8 +200,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// Fall through to read snapshot below.
 	}
 
-	output, truncated := proc.output()
-	info := proc.info()
+	output, truncated, info := proc.snapshot()
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ProcessOutputResponse{
 		Output:    output,

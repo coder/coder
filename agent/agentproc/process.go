@@ -63,10 +63,24 @@ func (p *process) info() workspacesdk.ProcessInfo {
 	}
 }
 
-// output returns the truncated output from the process buffer
-// along with optional truncation metadata.
-func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
-	return p.buf.Output()
+// snapshot returns a consistent pair of output and process info.
+// Holding proc.mu prevents the exit goroutine from updating process
+// state between the output read and the info read.
+func (p *process) snapshot() (string, *workspacesdk.ProcessTruncation, workspacesdk.ProcessInfo) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	output, truncated := p.buf.Output()
+	return output, truncated, workspacesdk.ProcessInfo{
+		ID:         p.id,
+		Command:    p.command,
+		WorkDir:    p.workDir,
+		Background: p.background,
+		Running:    p.running,
+		ExitCode:   p.exitCode,
+		StartedAt:  p.startedAt,
+		ExitedAt:   p.exitedAt,
+	}
 }
 
 // manager tracks processes spawned by the agent.
