@@ -1044,7 +1044,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		DisplayName:                   "GitLab",
 		DisplayIcon:                   "/icon/gitlab.svg",
 		Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:                        []string{"write_repository"},
+		Scopes:                        []string{"write_repository", "read_api"},
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 

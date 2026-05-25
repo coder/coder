@@ -3,6 +3,7 @@ package gitprovider
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -271,6 +272,18 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	return string(buf), nil
 }
 
+// compareResponse is the subset of GitLab's compare endpoint response
+// that we need. We decode manually (instead of using the library) so
+// we can bound memory with io.LimitReader before JSON parsing.
+type compareResponse struct {
+	Diffs []struct {
+		Diff    string `json:"diff"`
+		OldPath string `json:"old_path"`
+		NewPath string `json:"new_path"`
+	} `json:"diffs"`
+	CompareTimeout bool `json:"compare_timeout"`
+}
+
 func (g *gitlabProvider) FetchBranchDiff(
 	ctx context.Context,
 	token string,
@@ -293,14 +306,54 @@ func (g *gitlabProvider) FetchBranchDiff(
 		return "", xerrors.New("gitlab project default branch is empty")
 	}
 
-	// Use the compare endpoint.
-	compare, _, err := g.client.Repositories.Compare(pid, &gitlab.CompareOptions{
-		From:    gitlab.Ptr(defaultBranch),
-		To:      gitlab.Ptr(ref.Branch),
-		Unidiff: gitlab.Ptr(true),
-	}, opts...)
+	// Use raw HTTP with io.LimitReader to bound memory. The library's
+	// Compare() decodes the full response before returning, which
+	// would allow a maliciously large diff to OOM the process.
+	compareURL := fmt.Sprintf("%sprojects/%s/repository/compare?from=%s&to=%s&unidiff=true",
+		g.client.BaseURL().String(),
+		url.PathEscape(pid),
+		url.QueryEscape(defaultBranch),
+		url.QueryEscape(ref.Branch),
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, compareURL, nil)
+	if err != nil {
+		return "", g.wrapError(err, "create compare request")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := g.client.HTTPClient().Do(req)
 	if err != nil {
 		return "", g.wrapError(err, "compare branches")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+			return "", rlErr
+		}
+		return "", g.wrapError(
+			xerrors.Errorf("unexpected status %d", resp.StatusCode),
+			"compare branches",
+		)
+	}
+
+	// Bound the read to MaxDiffSize + overhead for JSON structure.
+	// The JSON envelope (commits, metadata) adds some overhead beyond
+	// the raw diff content, so we allow ~10% extra for framing.
+	maxRead := int64(MaxDiffSize) + int64(MaxDiffSize/10) + 4096
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxRead+1))
+	if err != nil {
+		return "", g.wrapError(err, "read compare response")
+	}
+	if int64(len(body)) > maxRead {
+		return "", ErrDiffTooLarge
+	}
+
+	var compare compareResponse
+	if err := json.Unmarshal(body, &compare); err != nil {
+		return "", g.wrapError(err, "decode compare response")
 	}
 	if compare.CompareTimeout {
 		return "", xerrors.New("gitlab compare timed out; diff may be incomplete")

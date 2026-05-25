@@ -30,7 +30,7 @@ func TestGitlabDefaults(t *testing.T) {
 			DisplayIcon:                   "/icon/gitlab.svg",
 			Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
 			APIBaseURL:                    "https://gitlab.com/api/v4",
-			Scopes:                        []string{"write_repository"},
+			Scopes:                        []string{"write_repository", "read_api"},
 			CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 		}
 	}
