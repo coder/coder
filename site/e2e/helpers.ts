@@ -432,7 +432,9 @@ export const startWorkspaceWithEphemeralParameters = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await clickWhenSubmitEnabled(page, /update and start/i);
+	await page
+		.getByRole("button", { name: /update and start/i })
+		.click({ timeout: 15_000 });
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1107,23 +1109,6 @@ const fillParameters = async (
 	}
 };
 
-// clickWhenSubmitEnabled clicks a submit button by accessible name after
-// waiting for it to become enabled. The workspace parameters settings page
-// disables its submit button until a WebSocket round-trip syncs the form
-// values with the backend (see `hasUnsyncedParameters` in
-// `WorkspaceParametersPageViewExperimental`). Under load the round-trip can
-// take longer than the default 5s action timeout, causing flaky failures
-// where the submit click times out on a still-disabled button.
-const clickWhenSubmitEnabled = async (
-	page: Page,
-	name: RegExp | string,
-	timeout = 15_000,
-) => {
-	const button = page.getByRole("button", { name });
-	await expect(button).toBeEnabled({ timeout });
-	await button.click();
-};
-
 export const updateTemplate = async (
 	page: Page,
 	organization: string,
@@ -1222,11 +1207,20 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await clickWhenSubmitEnabled(page, /update and restart/i);
+		// The submit button on the workspace parameters settings page stays
+		// disabled until a WebSocket round-trip syncs the form values with
+		// the backend (see `hasUnsyncedParameters` in
+		// `WorkspaceParametersPageViewExperimental`). Under CI load this can
+		// exceed the default 5s action timeout, so wait longer here.
+		await page
+			.getByRole("button", { name: /update and restart/i })
+			.click({ timeout: 15_000 });
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await clickWhenSubmitEnabled(page, /update and start/i);
+		await page
+			.getByRole("button", { name: /update and start/i })
+			.click({ timeout: 15_000 });
 	}
 };
 
@@ -1245,11 +1239,17 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await clickWhenSubmitEnabled(page, /update and restart/i);
+		// See the note in `updateWorkspace` for why this needs a longer
+		// timeout than the default 5s action timeout.
+		await page
+			.getByRole("button", { name: /update and restart/i })
+			.click({ timeout: 15_000 });
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await clickWhenSubmitEnabled(page, /update and start/i);
+		await page
+			.getByRole("button", { name: /update and start/i })
+			.click({ timeout: 15_000 });
 	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
