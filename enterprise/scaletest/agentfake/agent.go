@@ -218,39 +218,41 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, wo
 	}
 	value := base64.StdEncoding.EncodeToString([]byte(prefix + strings.Repeat("a", padLen)))
 
-	ticker := a.clock.NewTicker(metadataTickInterval, "agentfake", "runMetadata")
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case now := <-ticker.C:
-			var batch []*proto.Metadata
-			for i, d := range descs {
-				if now.Before(nextDue[i]) {
-					continue
-				}
-				batch = append(batch, &proto.Metadata{
-					Key: d.GetKey(),
-					Result: &proto.WorkspaceAgentMetadata_Result{
-						CollectedAt: timestamppb.New(now),
-						Value:       value,
-					},
-				})
-				nextDue[i] = now.Add(intervals[i])
-			}
-			if len(batch) == 0 {
+	// TickerFunc spawns its own goroutine that ticks until ctx is
+	// done and then stops the underlying ticker. We Wait on the
+	// returned Waiter so that runMetadata (itself running in the
+	// goroutine spawned by connectAndServe) stays alive for the
+	// connection's lifetime, matching the pre-refactor for/select
+	// shape. The Wait error is discarded: ticker exits are expected
+	// (ctx cancellation), and our tick func never returns a non-nil
+	// error of its own.
+	_ = a.clock.TickerFunc(ctx, metadataTickInterval, func() error {
+		now := a.clock.Now()
+		var batch []*proto.Metadata
+		for i, d := range descs {
+			if now.Before(nextDue[i]) {
 				continue
 			}
-			if _, err := rpc.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{
-				Metadata: batch,
-			}); err != nil && ctx.Err() == nil {
-				a.logger.Debug(ctx, "batch update metadata failed",
-					slog.Error(err))
-			}
+			batch = append(batch, &proto.Metadata{
+				Key: d.GetKey(),
+				Result: &proto.WorkspaceAgentMetadata_Result{
+					CollectedAt: timestamppb.New(now),
+					Value:       value,
+				},
+			})
+			nextDue[i] = now.Add(intervals[i])
 		}
-	}
+		if len(batch) == 0 {
+			return nil
+		}
+		if _, err := rpc.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{
+			Metadata: batch,
+		}); err != nil && ctx.Err() == nil {
+			a.logger.Debug(ctx, "batch update metadata failed",
+				slog.Error(err))
+		}
+		return nil
+	}, "agentfake", "runMetadata").Wait()
 }
 
 // Close stops the agent. Safe to call multiple times.
