@@ -432,7 +432,7 @@ export const startWorkspaceWithEphemeralParameters = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and start/i }).click();
+	await clickWhenSubmitEnabled(page, /update and start/i);
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1107,6 +1107,23 @@ const fillParameters = async (
 	}
 };
 
+// clickWhenSubmitEnabled clicks a submit button by accessible name after
+// waiting for it to become enabled. The workspace parameters settings page
+// disables its submit button until a WebSocket round-trip syncs the form
+// values with the backend (see `hasUnsyncedParameters` in
+// `WorkspaceParametersPageViewExperimental`). Under load the round-trip can
+// take longer than the default 5s action timeout, causing flaky failures
+// where the submit click times out on a still-disabled button.
+const clickWhenSubmitEnabled = async (
+	page: Page,
+	name: RegExp | string,
+	timeout = 15_000,
+) => {
+	const button = page.getByRole("button", { name });
+	await expect(button).toBeEnabled({ timeout });
+	await button.click();
+};
+
 export const updateTemplate = async (
 	page: Page,
 	organization: string,
@@ -1205,11 +1222,11 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await page.getByRole("button", { name: /update and restart/i }).click();
+		await clickWhenSubmitEnabled(page, /update and restart/i);
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await page.getByRole("button", { name: /update and start/i }).click();
+		await clickWhenSubmitEnabled(page, /update and start/i);
 	}
 };
 
@@ -1228,11 +1245,11 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await page.getByRole("button", { name: /update and restart/i }).click();
+		await clickWhenSubmitEnabled(page, /update and restart/i);
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await page.getByRole("button", { name: /update and start/i }).click();
+		await clickWhenSubmitEnabled(page, /update and start/i);
 	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
