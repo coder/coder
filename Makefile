@@ -992,7 +992,10 @@ GEN_FILES := \
 	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db gen/golden-files $(GEN_FILES)
+# Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
+# start PostgreSQL via testcontainers).
+GEN_SKIP_GOLDEN ?=
+gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)

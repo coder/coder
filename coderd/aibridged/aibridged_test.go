@@ -321,7 +321,7 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
 
 	factory := aibridged.NewTransportFactory(srv)
-	rt, err := factory.TransportFor(uuid.New(), agplaibridge.SourceAgents)
+	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
@@ -373,7 +373,7 @@ func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
 
 	factory := aibridged.NewTransportFactory(srv)
-	rt, err := factory.TransportFor(uuid.New(), agplaibridge.SourceAgents)
+	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)

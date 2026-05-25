@@ -4,13 +4,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
 )
+
+// aibridgeRootPath is the URL prefix the in-memory aibridged handler
+// registers all of its routes under. The in-process round-tripper
+// prepends this plus the provider name to every request before
+// dispatch so callers can hand it upstream-shaped requests without
+// knowing the daemon's mount layout.
+const aibridgeRootPath = "/api/v2/aibridge"
 
 // NewTransportFactory returns an [aibridge.TransportFactory] whose RoundTripper
 // dispatches requests to handler in-process, streaming the response body
@@ -28,20 +35,28 @@ type transportFactory struct {
 }
 
 // TransportFor returns an in-process [http.RoundTripper] that dispatches
-// requests through the aibridged handler. The source is attached to the
-// request context for downstream logging; routing does not depend on it.
-func (f *transportFactory) TransportFor(_ uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
+// requests through the aibridged handler. The provider name is the routing
+// key the daemon mounts on; the round-tripper rewrites each request's URL
+// path to "/api/v2/aibridge/<providerName>/..." before dispatching so
+// callers can build upstream-shaped requests and stay agnostic of the
+// daemon's mount layout. The source is attached to the request context for
+// downstream logging; routing does not depend on it.
+func (f *transportFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
 	if f.handler == nil {
 		return nil, xerrors.New("aibridged handler not registered")
 	}
-	return &inMemoryRoundTripper{handler: f.handler, source: source}, nil
+	if providerName == "" {
+		return nil, xerrors.New("provider name is required")
+	}
+	return &inMemoryRoundTripper{handler: f.handler, providerName: providerName, source: source}, nil
 }
 
 // inMemoryRoundTripper implements [http.RoundTripper] by invoking handler
 // in a goroutine and streaming its response back through an [io.Pipe].
 type inMemoryRoundTripper struct {
-	handler http.Handler
-	source  aibridge.Source
+	handler      http.Handler
+	providerName string
+	source       aibridge.Source
 }
 
 func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -52,6 +67,17 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	if _, ok := aibridge.DelegatedAPIKeyIDFromContext(req.Context()); !ok {
 		return nil, xerrors.New("aibridged in-memory transport requires WithDelegatedAPIKeyID on the request context")
 	}
+
+	// Adapt the caller's upstream-shaped URL to the daemon's mount layout:
+	// "/api/v2/aibridge/<providerName>/<original-path>". Done here so
+	// callers do not need to encode the mount prefix or the provider
+	// routing key into the requests they hand to the transport.
+	newPath, err := url.JoinPath(aibridgeRootPath, t.providerName, req.URL.Path)
+	if err != nil {
+		return nil, xerrors.Errorf("rewrite request URL for provider %q: %w", t.providerName, err)
+	}
+	req = req.Clone(req.Context())
+	req.URL.Path = newPath
 
 	pr, pw := io.Pipe()
 	rw := &pipeResponseWriter{
