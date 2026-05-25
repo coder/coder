@@ -986,7 +986,6 @@ func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
 	require.JSONEq(t, string(cachedContext), string(updated.LastInjectedContext.RawMessage))
 
 	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
-	require.Len(t, messages, 3)
 	require.ElementsMatch(t, chatMessageIDs(insertedMessages), chatMessageIDs(messages))
 }
 
