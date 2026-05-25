@@ -1230,9 +1230,25 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Boundary logs: only owner gets create and delete.
-			Name:     "BoundaryLogCreateDelete",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete},
+			// Boundary logs: members (and thus workspace agents) can create;
+			// only the site owner can delete.
+			Name:     "BoundaryLogCreate",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceBoundaryLog,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe, agentsAccessUser},
+				false: {
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor, auditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			// Boundary logs: only the site owner can delete (retention purge).
+			Name:     "BoundaryLogDelete",
+			Actions:  []policy.Action{policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},

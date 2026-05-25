@@ -65,6 +65,9 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
 			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
 			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
+			// Boundary logs have no pre-existing ID; wildcard allows the agent
+			// to create new records on behalf of the workspace owner.
+			{Type: ResourceBoundaryLog.Type, ID: policy.WildcardSymbol},
 		}, extraAllowList...),
 	}
 }

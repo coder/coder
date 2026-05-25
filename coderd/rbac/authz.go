@@ -83,7 +83,6 @@ const (
 	SubjectTypeDBPurge                      SubjectType = "dbpurge"
 	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
 	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
-	SubjectTypeAgentAPIHandler              SubjectType = "agent_api_handler"
 	SubjectTypeChatd                        SubjectType = "chatd"
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
