@@ -204,7 +204,7 @@ func main() {
 			{
 				Flag:        "env-file",
 				Env:         "CODER_DEV_ENV_FILE",
-				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion; use single quotes for literal dollar signs.",
+				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
 				Value:       serpent.StringOf(&cfg.envFile),
 			},
 		},
