@@ -33,6 +33,8 @@ func newGitLabVCR(t *testing.T, cassetteName string) *recorder.Recorder {
 		recorder.WithSkipRequestLatency(true),
 		// Match only on method + URL; the default matcher is too strict
 		// (compares proto, all headers, etc.) and breaks replay.
+		// TODO: consider verifying that an Authorization header is present
+		// during replay to catch auth-wiring regressions.
 		recorder.WithMatcher(func(r *http.Request, i cassette.Request) bool {
 			return r.Method == i.Method && r.URL.String() == i.URL
 		}),
@@ -782,6 +784,8 @@ func TestGitLabIntegration(t *testing.T) {
 
 				diff, err := vcrProvider.FetchBranchDiff(ctx, token, tt.ref)
 				if tt.expectErr {
+					// TODO: assert on error content (not just presence) to
+					// distinguish real API errors from stale-cassette mismatches.
 					require.Error(t, err)
 					return
 				}

@@ -402,6 +402,10 @@ func (g *gitlabProvider) FetchBranchDiff(
 
 // ParseRepositoryOrigin preserves slashes in owner because GitLab supports
 // subgroup paths such as group/subgroup/repo.
+//
+// TODO: this does not handle GitLab instances installed under a relative URL
+// prefix (e.g. https://example.com/gitlab/). See
+// https://docs.gitlab.com/install/relative_url/ for details.
 func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normalizedOrigin string, ok bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
