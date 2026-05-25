@@ -217,6 +217,57 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	return asRecord(args);
 };
 
+const getToolInputPayload = (args: unknown): unknown => {
+	const rec = asRecord(args);
+	if (!rec || typeof rec.model_intent !== "string") {
+		return args;
+	}
+	if ("properties" in rec) {
+		return rec.properties;
+	}
+	return Object.fromEntries(
+		Object.entries(rec).filter(([key]) => key !== "model_intent"),
+	);
+};
+
+const isEmptyObjectOrArray = (value: unknown): boolean => {
+	if (Array.isArray(value)) {
+		return value.length === 0;
+	}
+	const rec = asRecord(value);
+	return rec ? Object.keys(rec).length === 0 : false;
+};
+
+const formatValue = (value: unknown): string => {
+	if (typeof value === "object") {
+		try {
+			return JSON.stringify(value, null, 2) ?? String(value);
+		} catch {
+			return String(value);
+		}
+	}
+	return String(value);
+};
+
+export const formatToolInput = (args: unknown): string | null => {
+	const input = getToolInputPayload(args);
+	if (input === undefined || input === null) {
+		return null;
+	}
+	if (typeof input === "string") {
+		const trimmed = input.trim();
+		if (!trimmed) {
+			return null;
+		}
+		try {
+			return formatToolInput(JSON.parse(trimmed));
+		} catch {
+			return trimmed;
+		}
+	}
+	return isEmptyObjectOrArray(input) ? null : formatValue(input);
+};
+
 export const formatResultOutput = (result: unknown): string | null => {
 	if (result === undefined || result === null) {
 		return null;
@@ -238,14 +289,7 @@ export const formatResultOutput = (result: unknown): string | null => {
 			return content;
 		}
 	}
-	if (typeof result === "object") {
-		try {
-			return JSON.stringify(result, null, 2);
-		} catch {
-			return String(result);
-		}
-	}
-	return String(result);
+	return formatValue(result);
 };
 
 export const fileViewerCSS =
