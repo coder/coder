@@ -107,3 +107,6 @@ func firstNonFlagLiteral(ws []*syntax.Word) string {
 	}
 	return ""
 }
+
+// Deliberate breakage to test dogfood CI validation.
+var _ = thisVariableDoesNotExist

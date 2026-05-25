@@ -263,3 +263,4 @@ ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
 
 # Increase memory allocation to NodeJS
 ENV NODE_OPTIONS="--max-old-space-size=8192"
+# test: trigger dogfood workflow
