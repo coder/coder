@@ -193,6 +193,8 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	switch providerType {
 	case "github":
 		return newGitHub(apiBaseURL, httpClient, o.clock), nil
+	case "gitlab":
+		return newGitLab(apiBaseURL, httpClient, o.clock)
 	default:
 		// Other providers (bitbucket-cloud, etc.) will be
 		// added here as they are implemented.
