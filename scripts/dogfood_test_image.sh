@@ -36,10 +36,6 @@ fi
 IMAGE="$1"
 STEPS="${STEPS:-gen fmt lint build check-unstaged}"
 
-GITCONFIG=$(mktemp /tmp/coder-dogfood-gitconfig.XXXXXX)
-cleanup() { rm -f "$GITCONFIG"; }
-trap cleanup EXIT
-
 log() {
 	echo "==> $*" >&2
 }
@@ -53,18 +49,15 @@ else
 	log "NOTE: if the container cannot write to the checkout, run: chmod -R a+rwX ."
 fi
 
-# Without this, git rev-parse fails inside scripts/lib.sh when resolving
-# PROJECT_ROOT (the volume-mounted checkout is owned by the runner UID).
-printf '[safe]\n\tdirectory = /home/coder/coder\n' >"$GITCONFIG"
-
 # Helper: run a make target inside the image.
 # Caches are persisted in named Docker volumes so that subsequent steps (and
 # repeated local runs) reuse downloaded modules and compiled artifacts.
 run_make() {
 	docker run --rm \
 		--volume "$(pwd)":/home/coder/coder \
-		--volume "${GITCONFIG}":/tmp/coder-gitconfig:ro \
-		--env GIT_CONFIG_GLOBAL=/tmp/coder-gitconfig \
+		--env GIT_CONFIG_COUNT=1 \
+		--env GIT_CONFIG_KEY_0=safe.directory \
+		--env GIT_CONFIG_VALUE_0=/home/coder/coder \
 		--volume coder-dogfood-gomod:/home/coder/go/pkg/mod \
 		--volume coder-dogfood-gobuild:/home/coder/.cache/go-build \
 		--volume coder-dogfood-pnpm:/home/coder/.local/share/pnpm/store \
