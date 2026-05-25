@@ -128,14 +128,15 @@ export const createWorkspace = async (
 			? template
 			: `${template.organization}/${template.name}`;
 
-	const socketPromise = page.waitForEvent("websocket", {
-		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
-	});
-	await page.goto(`/templates/${templatePath}/workspace`, {
-		waitUntil: "domcontentloaded",
-	});
+	const [paramsSocket] = await Promise.all([
+		page.waitForEvent("websocket", {
+			predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+		}),
+		page.goto(`/templates/${templatePath}/workspace`, {
+			waitUntil: "domcontentloaded",
+		}),
+	]);
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
-	const paramsSocket = await socketPromise;
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
@@ -439,12 +440,13 @@ export const startWorkspaceWithEphemeralParameters = async (
 		waitUntil: "domcontentloaded",
 	});
 
-	const socketPromise = page.waitForEvent("websocket", {
-		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
-	});
 	await page.getByTestId("workspace-start").click();
-	await page.getByTestId("workspace-parameters").click();
-	const paramsSocket = await socketPromise;
+	const [paramsSocket] = await Promise.all([
+		page.waitForEvent("websocket", {
+			predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+		}),
+		page.getByTestId("workspace-parameters").click(),
+	]);
 
 	await fillParameters(page, richParameters, buildParameters, {
 		paramsSocket,
@@ -1232,13 +1234,12 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
-	const socketPromise = page.waitForEvent("websocket", {
-		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
-	});
-	await page
-		.getByRole("button", { name: /go to workspace parameters/i })
-		.click();
-	const paramsSocket = await socketPromise;
+	const [paramsSocket] = await Promise.all([
+		page.waitForEvent("websocket", {
+			predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+		}),
+		page.getByRole("button", { name: /go to workspace parameters/i }).click(),
+	]);
 
 	await fillParameters(page, richParameters, buildParameters, {
 		paramsSocket,
@@ -1262,13 +1263,14 @@ export const updateWorkspaceParameters = async (
 ) => {
 	const user = currentUser(page);
 
-	const socketPromise = page.waitForEvent("websocket", {
-		predicate: (ws) => ws.url().includes("/dynamic-parameters"),
-	});
-	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
-		waitUntil: "domcontentloaded",
-	});
-	const paramsSocket = await socketPromise;
+	const [paramsSocket] = await Promise.all([
+		page.waitForEvent("websocket", {
+			predicate: (ws) => ws.url().includes("/dynamic-parameters"),
+		}),
+		page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
+			waitUntil: "domcontentloaded",
+		}),
+	]);
 
 	await fillParameters(page, richParameters, buildParameters, {
 		paramsSocket,
