@@ -987,15 +987,15 @@ func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
 
 	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
 	require.Len(t, messages, 3)
-	require.ElementsMatch(t, []int64{
-		insertedMessages[0].ID,
-		insertedMessages[1].ID,
-		insertedMessages[2].ID,
-	}, []int64{
-		messages[0].ID,
-		messages[1].ID,
-		messages[2].ID,
-	})
+	require.ElementsMatch(t, chatMessageIDs(insertedMessages), chatMessageIDs(messages))
+}
+
+func chatMessageIDs(messages []database.ChatMessage) []int64 {
+	ids := make([]int64, 0, len(messages))
+	for _, message := range messages {
+		ids = append(ids, message.ID)
+	}
+	return ids
 }
 
 func insertAgentChatWorkspaceBindingMessages(t testing.TB, db database.Store, chatID uuid.UUID, userID uuid.UUID, modelID uuid.UUID, agentID uuid.UUID) []database.ChatMessage {

@@ -1103,7 +1103,6 @@ WHERE chat_id = @id::uuid
         content::jsonb @> '[{"type": "context-file"}]'
         OR content::jsonb @> '[{"type": "skill"}]'
     )
-RETURNING id
 ),
 changed_chat AS (
 UPDATE chats SET
