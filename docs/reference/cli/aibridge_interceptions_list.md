@@ -41,7 +41,7 @@ Only return interceptions started after this time. Must be before 'started-befor
 |------|---------------------|
 | Type | <code>string</code> |
 
-Only return interceptions from this provider type (openai, anthropic, copilot). Retained for backward compatibility; prefer --provider-name to scope by configured provider row.
+Only return interceptions from this provider.
 
 ### --provider-name
 
@@ -49,7 +49,7 @@ Only return interceptions from this provider type (openai, anthropic, copilot). 
 |------|---------------------|
 | Type | <code>string</code> |
 
-Only return interceptions from the named provider (matches ai_providers.name).
+Only return interceptions from the named provider.
 
 ### --model
 
