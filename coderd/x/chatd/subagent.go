@@ -909,6 +909,14 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
+func (p *Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	if !ok && p.shouldRouteModelsThroughAIBridge() {
+		return "", xerrors.New("AI Gateway routing requires the active turn API key ID for subagent messages")
+	}
+	return apiKeyID, nil
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
@@ -950,6 +958,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
+	}
+	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
 	}
 
 	childPlanMode := parent.PlanMode
@@ -1077,8 +1089,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 		if err := updateChildLastInjectedContext(ctx, p.logger, tx, child.ID, copiedContextParts); err != nil {
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
-
-		childAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 
 		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: insertedChat.ID,
@@ -1239,7 +1249,10 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,

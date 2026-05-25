@@ -324,6 +324,71 @@ func TestSendSubagentMessagePropagatesActiveTurnAPIKeyID(t *testing.T) {
 	require.Equal(t, apiKey.ID, latestUserMessage.APIKeyID.String)
 }
 
+func TestCreateChildSubagentChatRequiresActiveTurnAPIKeyIDForAIGateway(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	server := &Server{
+		db:                      db,
+		logger:                  slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		aiGatewayRoutingEnabled: true,
+	}
+	_, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
+	require.ErrorContains(t, err, "AI Gateway routing requires the active turn API key ID for subagent messages")
+}
+
+func TestSendSubagentMessageRequiresActiveTurnAPIKeyIDForAIGateway(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	server.aiGatewayRoutingEnabled = true
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-send-subagent-missing-key",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
+		Title:          "child-send-subagent-missing-key",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("do work"),
+		},
+	})
+	require.NoError(t, err)
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+	_, err = server.sendSubagentMessage(
+		ctx,
+		parent.ID,
+		child.ID,
+		"follow up",
+		SendMessageBusyBehaviorInterrupt,
+	)
+	require.ErrorContains(t, err, "AI Gateway routing requires the active turn API key ID for subagent messages")
+}
+
 func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 	t.Parallel()
 
