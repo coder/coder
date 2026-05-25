@@ -2161,6 +2161,14 @@ func (q *querier) DeleteOldAuditLogs(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldAuditLogs(ctx, arg)
 }
 
+// TODO (PR #24810): Replace rbac.ResourceSystem with dedicated boundary_log resource type.
+func (q *querier) DeleteOldBoundaryLogs(ctx context.Context, arg database.DeleteOldBoundaryLogsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldBoundaryLogs(ctx, arg)
+}
+
 func (q *querier) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -2740,6 +2748,22 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+// TODO (PR #24810): Replace rbac.ResourceAuditLog with dedicated boundary_log resource type.
+func (q *querier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return database.BoundaryLog{}, err
+	}
+	return q.db.GetBoundaryLogByID(ctx, id)
+}
+
+// TODO (PR #24810): Replace rbac.ResourceAuditLog with dedicated boundary_log resource type.
+func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return database.BoundarySession{}, err
+	}
+	return q.db.GetBoundarySessionByID(ctx, id)
 }
 
 func (q *querier) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
@@ -5413,6 +5437,16 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+// TODO (PR #24810): Replace rbac.ResourceAuditLog with dedicated boundary_log resource type.
+func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
+	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertBoundaryLog)(ctx, arg)
+}
+
+// TODO (PR #24810): Replace rbac.ResourceAuditLog with dedicated boundary_log resource type.
+func (q *querier) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
+	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertBoundarySession)(ctx, arg)
+}
+
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
@@ -6124,6 +6158,14 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	}
 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
+}
+
+// TODO (PR #24810): Replace rbac.ResourceAuditLog with dedicated boundary_log resource type.
+func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+		return nil, err
+	}
+	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
 }
 
 func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {

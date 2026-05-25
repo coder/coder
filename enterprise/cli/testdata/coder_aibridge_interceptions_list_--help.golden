@@ -26,6 +26,9 @@ OPTIONS:
       --provider string
           Only return interceptions from this provider.
 
+      --provider-name string
+          Only return interceptions from the named provider.
+
       --started-after string
           Only return interceptions started after this time. Must be before
           'started-before' if set. Accepts a time in the RFC 3339 format, e.g.

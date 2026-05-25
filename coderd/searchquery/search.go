@@ -387,6 +387,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
+	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 
@@ -429,6 +430,7 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
+	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 	filter.SessionID = parser.String(values, "", "session_id")
@@ -698,6 +700,24 @@ func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.Q
 		}
 		return organization.ID, nil
 	})
+}
+
+// parseAIProviderName resolves a "provider_name" filter param against
+// ai_providers.name. Unknown names produce a validation error so typos
+// surface immediately rather than returning a silently-empty result set.
+func parseAIProviderName(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values) string {
+	name := parser.String(vals, "", "provider_name")
+	if name == "" {
+		return ""
+	}
+	if _, err := db.GetAIProviderByName(ctx, name); err != nil {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "provider_name",
+			Detail: `Query param "provider_name" has invalid value: provider not found or unauthorized`,
+		})
+		return ""
+	}
+	return name
 }
 
 func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) uuid.UUID {

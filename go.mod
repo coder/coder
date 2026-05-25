@@ -595,6 +595,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
+	github.com/joho/godotenv v1.5.1
 	github.com/kaptinlin/go-i18n v0.2.4 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.10 // indirect
 	github.com/kaptinlin/jsonschema v0.6.10 // indirect

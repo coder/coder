@@ -892,14 +892,19 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -911,6 +916,7 @@ type CountAIBridgeInterceptionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 }
@@ -921,6 +927,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 	)
@@ -956,19 +963,24 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $7::text != '' THEN aibridge_interceptions.session_id = $7::text
+		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -980,6 +992,7 @@ type CountAIBridgeSessionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	SessionID     string    `db:"session_id" json:"session_id"`
@@ -991,6 +1004,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -1611,19 +1625,24 @@ WHERE
 		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
 		ELSE true
 	END
 	-- Cursor pagination
 	AND CASE
-		WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
@@ -1631,8 +1650,8 @@ WHERE
 			-- "after_id" terminology comes from our pagination parser in
 			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
-				(SELECT started_at FROM aibridge_interceptions WHERE id = $7),
-				$7::uuid
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $8),
+				$8::uuid
 			)
 		)
 		ELSE true
@@ -1642,8 +1661,8 @@ WHERE
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF($9::integer, 0), 100)
-OFFSET $8
+LIMIT COALESCE(NULLIF($10::integer, 0), 100)
+OFFSET $9
 `
 
 type ListAIBridgeInterceptionsParams struct {
@@ -1651,6 +1670,7 @@ type ListAIBridgeInterceptionsParams struct {
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider      string    `db:"provider" json:"provider"`
+	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
@@ -1669,6 +1689,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.AfterID,
@@ -2033,19 +2054,24 @@ session_page AS (
 			WHEN $5::text != '' THEN ai.provider = $5::text
 			ELSE true
 		END
+		-- Filter provider_name
+		AND CASE
+			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			ELSE true
+		END
 		-- Filter model
 		AND CASE
-			WHEN $6::text != '' THEN ai.model = $6::text
+			WHEN $7::text != '' THEN ai.model = $7::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $7::text != '' THEN COALESCE(ai.client, 'Unknown') = $7::text
+			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $8::text != '' THEN ai.session_id = $8::text
+			WHEN $9::text != '' THEN ai.session_id = $9::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -2069,8 +2095,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($10::integer, 0), 100)
-	OFFSET $9
+	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
+	OFFSET $10
 )
 SELECT
 	sp.session_id,
@@ -2137,6 +2163,7 @@ type ListAIBridgeSessionsParams struct {
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
 	Provider       string    `db:"provider" json:"provider"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
@@ -2179,6 +2206,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -3547,6 +3575,243 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 		&i.ResourceIcon,
 	)
 	return i, err
+}
+
+const deleteOldBoundaryLogs = `-- name: DeleteOldBoundaryLogs :execrows
+WITH old_logs AS (
+    SELECT id
+    FROM boundary_logs
+    WHERE captured_at < $1::timestamptz
+    ORDER BY captured_at ASC
+    LIMIT $2
+)
+DELETE FROM boundary_logs
+USING old_logs
+WHERE boundary_logs.id = old_logs.id
+`
+
+type DeleteOldBoundaryLogsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Deletes boundary logs older than the given time, bounded by a row limit
+// to avoid long-running transactions.
+func (q *sqlQuerier) DeleteOldBoundaryLogs(ctx context.Context, arg DeleteOldBoundaryLogsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldBoundaryLogs, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getBoundaryLogByID = `-- name: GetBoundaryLogByID :one
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule FROM boundary_logs WHERE id = $1
+`
+
+func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error) {
+	row := q.db.QueryRowContext(ctx, getBoundaryLogByID, id)
+	var i BoundaryLog
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SequenceNumber,
+		&i.CapturedAt,
+		&i.CreatedAt,
+		&i.Proto,
+		&i.Method,
+		&i.Detail,
+		&i.MatchedRule,
+	)
+	return i, err
+}
+
+const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
+	row := q.db.QueryRowContext(ctx, getBoundarySessionByID, id)
+	var i BoundarySession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceAgentID,
+		&i.ConfinedProcessName,
+		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertBoundaryLog = `-- name: InsertBoundaryLog :one
+INSERT INTO boundary_logs (
+    id,
+    session_id,
+    sequence_number,
+    captured_at,
+    created_at,
+    proto,
+    method,
+    detail,
+    matched_rule
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+`
+
+type InsertBoundaryLogParams struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
+	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	Proto          string         `db:"proto" json:"proto"`
+	Method         string         `db:"method" json:"method"`
+	Detail         string         `db:"detail" json:"detail"`
+	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+}
+
+func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
+	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
+		arg.ID,
+		arg.SessionID,
+		arg.SequenceNumber,
+		arg.CapturedAt,
+		arg.CreatedAt,
+		arg.Proto,
+		arg.Method,
+		arg.Detail,
+		arg.MatchedRule,
+	)
+	var i BoundaryLog
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SequenceNumber,
+		&i.CapturedAt,
+		&i.CreatedAt,
+		&i.Proto,
+		&i.Method,
+		&i.Detail,
+		&i.MatchedRule,
+	)
+	return i, err
+}
+
+const insertBoundarySession = `-- name: InsertBoundarySession :one
+INSERT INTO boundary_sessions (
+    id,
+    workspace_agent_id,
+    confined_process_name,
+    started_at,
+    updated_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
+`
+
+type InsertBoundarySessionParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
+	row := q.db.QueryRowContext(ctx, insertBoundarySession,
+		arg.ID,
+		arg.WorkspaceAgentID,
+		arg.ConfinedProcessName,
+		arg.StartedAt,
+		arg.UpdatedAt,
+	)
+	var i BoundarySession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceAgentID,
+		&i.ConfinedProcessName,
+		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listBoundaryLogsBySessionID = `-- name: ListBoundaryLogsBySessionID :many
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+FROM boundary_logs
+WHERE
+    session_id = $1
+    AND CASE
+        WHEN $2::int IS NOT NULL THEN sequence_number > $2
+        ELSE true
+    END
+    AND CASE
+        WHEN $3::int IS NOT NULL THEN sequence_number < $3
+        ELSE true
+    END
+ORDER BY sequence_number ASC
+LIMIT COALESCE(NULLIF($4::int, 0), 100)
+`
+
+type ListBoundaryLogsBySessionIDParams struct {
+	SessionID uuid.UUID     `db:"session_id" json:"session_id"`
+	SeqAfter  sql.NullInt32 `db:"seq_after" json:"seq_after"`
+	SeqBefore sql.NullInt32 `db:"seq_before" json:"seq_before"`
+	LimitOpt  int32         `db:"limit_opt" json:"limit_opt"`
+}
+
+// Lists boundary logs for a session, sorted by sequence number ascending.
+// Supports optional exclusive sequence number bounds (seq_after, seq_before)
+// for fetching events between two known interceptions.
+func (q *sqlQuerier) ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, listBoundaryLogsBySessionID,
+		arg.SessionID,
+		arg.SeqAfter,
+		arg.SeqBefore,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAndResetBoundaryUsageSummary = `-- name: GetAndResetBoundaryUsageSummary :one
