@@ -249,18 +249,6 @@ const formatValue = (value: unknown): string => {
 	return String(value);
 };
 
-export const hasToolInput = (args: unknown): boolean => {
-	const input = getToolInputPayload(args);
-	if (input === undefined || input === null) {
-		return false;
-	}
-	if (typeof input === "string") {
-		const trimmed = input.trim();
-		return Boolean(trimmed && trimmed !== "{}" && trimmed !== "[]");
-	}
-	return !isEmptyObjectOrArray(input);
-};
-
 export const formatToolInput = (args: unknown): string | null => {
 	const input = getToolInputPayload(args);
 	if (input === undefined || input === null) {

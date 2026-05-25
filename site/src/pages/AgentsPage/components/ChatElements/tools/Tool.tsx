@@ -56,7 +56,6 @@ import {
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
-	hasToolInput,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -848,7 +847,7 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 );
 
 type GenericToolContentProps = {
-	args: unknown;
+	toolInput: string | null;
 	fileContent: ReturnType<typeof getFileContentForViewer>;
 	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
 	isDark: boolean;
@@ -856,13 +855,12 @@ type GenericToolContentProps = {
 };
 
 const GenericToolContent: FC<GenericToolContentProps> = ({
-	args,
+	toolInput,
 	fileContent,
 	fileContentOptions,
 	isDark,
 	resultOutput,
 }) => {
-	const toolInput = formatToolInput(args);
 	const output = fileContent
 		? {
 				file: { name: fileContent.path, contents: fileContent.content },
@@ -907,6 +905,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
@@ -923,7 +922,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(hasToolInput(args) || fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
@@ -965,7 +964,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 	const toolContent = (
 		<GenericToolContent
-			args={args}
+			toolInput={toolInput}
 			fileContent={fileContent}
 			fileContentOptions={fileContentOptions}
 			isDark={isDark}
