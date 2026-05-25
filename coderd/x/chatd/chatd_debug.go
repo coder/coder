@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -113,6 +114,7 @@ func (p *Server) newDebugAwareModelFromConfig(
 	ctx context.Context,
 	chat database.Chat,
 	providerHint string,
+	providerName string,
 	modelName string,
 	providerKeys chatprovider.ProviderAPIKeys,
 	userAgent string,
@@ -126,10 +128,22 @@ func (p *Server) newDebugAwareModelFromConfig(
 	debugSvc := p.debugService()
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
-	var httpClient *http.Client
-	if debugEnabled {
-		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
+	fucktory := p.aibridgeTransportFactory.Load()
+	if fucktory == nil {
+		panic("nope")
 	}
+
+	trans, err := (*fucktory).TransportFor(providerName, aibridge.SourceAgents)
+	if err != nil {
+		panic("oops")
+	}
+
+	// var httpClient *http.Client
+	// if debugEnabled {
+	// 	httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
+	// }
+
+	httpClient := &http.Client{Transport: trans}
 
 	model, err := chatprovider.ModelFromConfig(
 		provider,

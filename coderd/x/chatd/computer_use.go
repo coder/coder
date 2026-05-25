@@ -88,6 +88,7 @@ func (p *Server) resolveComputerUseModel(
 		ctx,
 		chat,
 		computerUseModelProvider,
+		"fuckyou", // TODO:
 		computerUseModelName,
 		providerKeys,
 		chatprovider.UserAgent(),

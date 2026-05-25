@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -30,21 +30,29 @@ type transportFactory struct {
 // TransportFor returns an in-process [http.RoundTripper] that dispatches
 // requests through the aibridged handler. The source is attached to the
 // request context for downstream logging; routing does not depend on it.
-func (f *transportFactory) TransportFor(_ uuid.UUID, source aibridge.Source) (http.RoundTripper, error) {
+func (f *transportFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
 	if f.handler == nil {
 		return nil, xerrors.New("aibridged handler not registered")
 	}
-	return &inMemoryRoundTripper{handler: f.handler, source: source}, nil
+	return &inMemoryRoundTripper{providerName: providerName, handler: f.handler, source: source}, nil
 }
 
 // inMemoryRoundTripper implements [http.RoundTripper] by invoking handler
 // in a goroutine and streaming its response back through an [io.Pipe].
 type inMemoryRoundTripper struct {
-	handler http.Handler
-	source  aibridge.Source
+	providerName string
+	handler      http.Handler
+	source       aibridge.Source
 }
 
 func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	newPath, err := url.JoinPath("/api/v2/aibridge/", t.providerName, req.URL.Path)
+	if err != nil {
+		return nil, xerrors.Errorf("rewrite transport URL with provider %q: %w", t.providerName, err)
+	}
+
+	req.URL.Path = newPath
+
 	// The in-process transport requires the caller to have placed the
 	// delegated API key ID on the context. Without it, aibridged has no
 	// identity to act under. Fail fast at the transport boundary so the

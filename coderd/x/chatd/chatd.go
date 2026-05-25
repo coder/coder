@@ -29,6 +29,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -270,6 +271,8 @@ type Server struct {
 	// pending so the run loop calls processOnce immediately
 	// instead of waiting for the next ticker.
 	wakeCh chan struct{}
+
+	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 }
 
 // chatTemplateAllowlist returns the deployment-wide template
@@ -1429,6 +1432,7 @@ type CreateOptions struct {
 	AgentID            uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
+	APIKeyId           string
 	Title              string
 	ModelConfigID      uuid.UUID
 	ChatMode           database.NullChatMode
@@ -4059,6 +4063,8 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+
+	AIBridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -4148,6 +4154,7 @@ func New(cfg Config) *Server {
 		recordingSem:               make(chan struct{}, maxConcurrentRecordingUploads),
 		wakeCh:                     make(chan struct{}, 1),
 		heartbeatRegistry:          make(map[uuid.UUID]*heartbeatEntry),
+		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
 	}
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
@@ -8448,6 +8455,7 @@ func (p *Server) resolveChatModel(
 	}
 
 	providerHint := dbConfig.Provider
+	providerName := ""
 	var keyErr error
 	if dbConfig.AIProviderID.Valid {
 		provider, err := p.db.GetAIProviderByID(ctx, dbConfig.AIProviderID.UUID)
@@ -8458,6 +8466,7 @@ func (p *Server) resolveChatModel(
 			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("AI provider %s is disabled", provider.ID)
 		}
 		providerHint = string(provider.Type)
+		providerName = provider.Name
 		keys, keyErr = p.resolveUserProviderAPIKeysForProvider(ctx, chat.OwnerID, provider)
 	} else {
 		keys, keyErr = p.resolveUserProviderAPIKeys(ctx, chat.OwnerID, uuid.Nil)
@@ -8480,6 +8489,7 @@ func (p *Server) resolveChatModel(
 		ctx,
 		chat,
 		providerHint,
+		providerName,
 		dbConfig.Model,
 		keys,
 		chatprovider.UserAgent(),

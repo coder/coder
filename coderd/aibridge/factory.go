@@ -3,8 +3,6 @@ package aibridge
 import (
 	"context"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 // Source identifies the call site that asked aibridge for a transport. It is
@@ -62,5 +60,5 @@ func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
 // Source is informational: implementations must not gate on it. It is attached
 // to the request context so handlers can include it in logs and metrics.
 type TransportFactory interface {
-	TransportFor(providerID uuid.UUID, source Source) (http.RoundTripper, error)
+	TransportFor(providerName string, source Source) (http.RoundTripper, error)
 }
