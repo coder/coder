@@ -1118,7 +1118,7 @@ WHERE chat_id = @id::uuid
     )
 RETURNING id
 ),
-updated_chat AS (
+changed_chat AS (
 UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     build_id = sqlc.narg('build_id')::uuid,
@@ -1129,9 +1129,9 @@ WHERE id = @id::uuid
     AND EXISTS (SELECT 1 FROM binding_changed WHERE changed)
 RETURNING *
 ),
-returned_chat AS (
+updated_chat AS (
     SELECT *
-    FROM updated_chat
+    FROM changed_chat
     UNION ALL
     SELECT *
     FROM current_chat
@@ -1139,42 +1139,42 @@ returned_chat AS (
 ),
 chats_expanded AS (
     SELECT
-        returned_chat.id,
-        returned_chat.owner_id,
-        returned_chat.workspace_id,
-        returned_chat.title,
-        returned_chat.status,
-        returned_chat.worker_id,
-        returned_chat.started_at,
-        returned_chat.heartbeat_at,
-        returned_chat.created_at,
-        returned_chat.updated_at,
-        returned_chat.parent_chat_id,
-        returned_chat.root_chat_id,
-        returned_chat.last_model_config_id,
-        returned_chat.archived,
-        returned_chat.last_error,
-        returned_chat.mode,
-        returned_chat.mcp_server_ids,
-        returned_chat.labels,
-        returned_chat.build_id,
-        returned_chat.agent_id,
-        returned_chat.pin_order,
-        returned_chat.last_read_message_id,
-        returned_chat.last_injected_context,
-        returned_chat.dynamic_tools,
-        returned_chat.organization_id,
-        returned_chat.plan_mode,
-        returned_chat.client_type,
-        returned_chat.last_turn_summary,
-        COALESCE(root.user_acl, returned_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, returned_chat.group_acl) AS group_acl,
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name
     FROM
-        returned_chat
-    LEFT JOIN chats root ON root.id = COALESCE(returned_chat.root_chat_id, returned_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = returned_chat.owner_id
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
 FROM chats_expanded;
