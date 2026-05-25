@@ -348,6 +348,11 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 				want:    false,
 			},
 			{
+				name:    "non_auth_header",
+				headers: map[string]string{"Content-Type": "application/json"},
+				want:    false,
+			},
+			{
 				name:    "x_api_key_only",
 				headers: map[string]string{"X-Api-Key": "user-key"},
 				want:    true,
@@ -383,20 +388,32 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			name string
-			key  string
+			name              string
+			initialHeaders    http.Header
+			key               string
+			wantAuthorization string
 		}{
-			{name: "writes_key_to_x_api_key", key: "centralized-key"},
-			{name: "overwrites_existing_x_api_key", key: "next-key"},
+			{
+				name:              "writes_key_to_x_api_key",
+				initialHeaders:    http.Header{},
+				key:               "centralized-key",
+				wantAuthorization: "",
+			},
+			{
+				name:              "overwrites_existing_x_api_key",
+				initialHeaders:    http.Header{"X-Api-Key": {"stale"}, "Authorization": {"Bearer stale"}},
+				key:               "next-key",
+				wantAuthorization: "Bearer stale",
+			},
 		}
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				h := http.Header{"X-Api-Key": {"stale"}, "Authorization": {"Bearer stale"}}
-				cfg.InjectAuthKey(&h, tc.key)
-				assert.Equal(t, tc.key, h.Get("X-Api-Key"))
-				assert.Equal(t, "Bearer stale", h.Get("Authorization"))
+				headers := tc.initialHeaders
+				cfg.InjectAuthKey(&headers, tc.key)
+				assert.Equal(t, tc.key, headers.Get("X-Api-Key"))
+				assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
 			})
 		}
 	})

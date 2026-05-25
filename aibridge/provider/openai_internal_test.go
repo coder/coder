@@ -351,10 +351,34 @@ func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 			headers map[string]string
 			want    bool
 		}{
-			{name: "no_auth_headers", headers: nil, want: false},
-			{name: "authorization_only", headers: map[string]string{"Authorization": "Bearer user-token"}, want: true},
-			{name: "x_api_key_only", headers: map[string]string{"X-Api-Key": "user-key"}, want: false},
-			{name: "both_headers_set", headers: map[string]string{"Authorization": "Bearer user-token", "X-Api-Key": "user-key"}, want: true},
+			{
+				name:    "no_auth_headers",
+				headers: nil,
+				want:    false,
+			},
+			{
+				name:    "non_auth_header",
+				headers: map[string]string{"Content-Type": "application/json"},
+				want:    false,
+			},
+			{
+				name:    "authorization_only",
+				headers: map[string]string{"Authorization": "Bearer user-token"},
+				want:    true,
+			},
+			{
+				name:    "x_api_key_only",
+				headers: map[string]string{"X-Api-Key": "user-key"},
+				want:    false,
+			},
+			{
+				name: "both_headers_set",
+				headers: map[string]string{
+					"Authorization": "Bearer user-token",
+					"X-Api-Key":     "user-key",
+				},
+				want: true,
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -371,19 +395,31 @@ func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 	t.Run("InjectAuthKey", func(t *testing.T) {
 		t.Parallel()
 		cases := []struct {
-			name string
-			key  string
+			name           string
+			initialHeaders http.Header
+			key            string
+			wantAPIKey     string
 		}{
-			{name: "writes_bearer_token_to_authorization", key: "centralized-key"},
-			{name: "overwrites_existing_authorization", key: "next-key"},
+			{
+				name:           "writes_bearer_token_to_authorization",
+				initialHeaders: http.Header{},
+				key:            "centralized-key",
+				wantAPIKey:     "",
+			},
+			{
+				name:           "overwrites_existing_authorization",
+				initialHeaders: http.Header{"Authorization": {"Bearer stale"}, "X-Api-Key": {"stale"}},
+				key:            "next-key",
+				wantAPIKey:     "stale",
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				h := http.Header{"Authorization": {"Bearer stale"}, "X-Api-Key": {"stale"}}
-				cfg.InjectAuthKey(&h, tc.key)
-				assert.Equal(t, "Bearer "+tc.key, h.Get("Authorization"))
-				assert.Equal(t, "stale", h.Get("X-Api-Key"))
+				headers := tc.initialHeaders
+				cfg.InjectAuthKey(&headers, tc.key)
+				assert.Equal(t, "Bearer "+tc.key, headers.Get("Authorization"))
+				assert.Equal(t, tc.wantAPIKey, headers.Get("X-Api-Key"))
 			})
 		}
 	})
@@ -396,8 +432,17 @@ func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 			wantStatus     int
 			wantRetryAfter string
 		}{
-			{name: "permanent_returns_502", err: &keypool.Error{Kind: keypool.ErrorKindPermanent}, wantStatus: http.StatusBadGateway},
-			{name: "rate_limited_returns_429_with_retry_after", err: &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second}, wantStatus: http.StatusTooManyRequests, wantRetryAfter: "5"},
+			{
+				name:       "permanent_returns_502",
+				err:        &keypool.Error{Kind: keypool.ErrorKindPermanent},
+				wantStatus: http.StatusBadGateway,
+			},
+			{
+				name:           "rate_limited_returns_429_with_retry_after",
+				err:            &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
+				wantStatus:     http.StatusTooManyRequests,
+				wantRetryAfter: "5",
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
