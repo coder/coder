@@ -1,4 +1,4 @@
-import { type FC, Fragment } from "react";
+import type { FC } from "react";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
@@ -6,6 +6,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
+import { LinkifiedText } from "./LinkifiedText";
 import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
@@ -13,7 +14,7 @@ import type {
 
 const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
 	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
+		return <LinkifiedText key={index} text={block.text} />;
 	}
 
 	return (
@@ -60,11 +61,13 @@ export const UserMessageContent: FC<{
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? displayState.userInlineContent.map((block, index) =>
-												renderUserInlineBlock(block, index),
-											)
-										: markdown || ""}
+									{displayState.userInlineContent.length > 0 ? (
+										displayState.userInlineContent.map((block, index) =>
+											renderUserInlineBlock(block, index),
+										)
+									) : (
+										<LinkifiedText text={markdown || ""} />
+									)}
 								</span>
 							)}
 						</div>

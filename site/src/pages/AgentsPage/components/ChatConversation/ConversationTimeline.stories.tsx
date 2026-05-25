@@ -345,6 +345,50 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+export const UserAndAssistantLinks: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: "Please review https://github.com/coder/coder/pull/1234 and [docs](https://coder.com/docs).",
+		}),
+		{
+			...baseMessage,
+			id: 2,
+			role: "assistant",
+			content: [
+				buildTextPart(
+					"I found https://linear.app/codercom/issue/CODAGT-478 and [release notes](https://coder.com/changelog).",
+				),
+			],
+		},
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const userURL = await canvas.findByRole("link", {
+			name: "https://github.com/coder/coder/pull/1234",
+		});
+		expect(userURL).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/1234",
+		);
+		expect(userURL).toHaveAttribute("target", "_blank");
+
+		expect(canvas.getByRole("link", { name: "docs" })).toHaveAttribute(
+			"href",
+			"https://coder.com/docs",
+		);
+		expect(
+			canvas.getByRole("link", {
+				name: "https://linear.app/codercom/issue/CODAGT-478",
+			}),
+		).toHaveAttribute("href", "https://linear.app/codercom/issue/CODAGT-478");
+		expect(canvas.getByRole("link", { name: "release notes" })).toHaveAttribute(
+			"href",
+			"https://coder.com/changelog",
+		);
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
