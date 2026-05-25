@@ -30,7 +30,12 @@ import (
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getEnabledChatModelConfigByID func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getEnabledChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getAIProviderByID                func(context.Context, uuid.UUID) (database.AIProvider, error)
+	getAIProviders                   func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
+	getAIProviderKeysByProviderID    func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
+	getAIProviderKeysByProviderIDs   func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
+	getLatestChatUserMessageAPIKeyID func(context.Context, uuid.UUID) (sql.NullString, error)
 }
 
 func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
@@ -41,6 +46,56 @@ func (s *advisorOverrideStubStore) GetEnabledChatModelConfigByID(
 		return database.ChatModelConfig{}, xerrors.New("unexpected GetEnabledChatModelConfigByID call")
 	}
 	return s.getEnabledChatModelConfigByID(ctx, id)
+}
+
+func (s *advisorOverrideStubStore) GetAIProviderByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (database.AIProvider, error) {
+	if s.getAIProviderByID == nil {
+		return database.AIProvider{}, xerrors.New("unexpected GetAIProviderByID call")
+	}
+	return s.getAIProviderByID(ctx, id)
+}
+
+func (s *advisorOverrideStubStore) GetAIProviders(
+	ctx context.Context,
+	params database.GetAIProvidersParams,
+) ([]database.AIProvider, error) {
+	if s.getAIProviders == nil {
+		return nil, xerrors.New("unexpected GetAIProviders call")
+	}
+	return s.getAIProviders(ctx, params)
+}
+
+func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderID(
+	ctx context.Context,
+	providerID uuid.UUID,
+) ([]database.AIProviderKey, error) {
+	if s.getAIProviderKeysByProviderID == nil {
+		return nil, xerrors.New("unexpected GetAIProviderKeysByProviderID call")
+	}
+	return s.getAIProviderKeysByProviderID(ctx, providerID)
+}
+
+func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderIDs(
+	ctx context.Context,
+	providerIDs []uuid.UUID,
+) ([]database.AIProviderKey, error) {
+	if s.getAIProviderKeysByProviderIDs == nil {
+		return nil, xerrors.New("unexpected GetAIProviderKeysByProviderIDs call")
+	}
+	return s.getAIProviderKeysByProviderIDs(ctx, providerIDs)
+}
+
+func (s *advisorOverrideStubStore) GetLatestChatUserMessageAPIKeyID(
+	ctx context.Context,
+	chatID uuid.UUID,
+) (sql.NullString, error) {
+	if s.getLatestChatUserMessageAPIKeyID == nil {
+		return sql.NullString{}, xerrors.New("unexpected GetLatestChatUserMessageAPIKeyID call")
+	}
+	return s.getLatestChatUserMessageAPIKeyID(ctx, chatID)
 }
 
 func newAdvisorTestServer(
@@ -54,6 +109,56 @@ func newAdvisorTestServer(
 		db:          store,
 		configCache: newChatConfigCache(ctx, store, clock),
 	}
+}
+
+func (p *Server) resolveAdvisorModelOverrideOrFallback(
+	ctx context.Context,
+	chat database.Chat,
+	advisorCfg codersdk.AdvisorConfig,
+	fallbackModel fantasy.LanguageModel,
+	fallbackCallConfig codersdk.ChatModelCallConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+	logger slog.Logger,
+) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
+	model, cfg, err := p.resolveAdvisorModelOverride(
+		ctx,
+		chat,
+		advisorCfg,
+		fallbackModel,
+		fallbackCallConfig,
+		providerKeys,
+		logger,
+	)
+	if err != nil {
+		logger.Warn(ctx, "failed to resolve advisor model override, continuing with chat model", slog.Error(err))
+		return fallbackModel, fallbackCallConfig
+	}
+	return model, cfg
+}
+
+func (p *Server) newAdvisorRuntimeOrFallback(
+	ctx context.Context,
+	chat database.Chat,
+	advisorCfg codersdk.AdvisorConfig,
+	fallbackModel fantasy.LanguageModel,
+	fallbackCallConfig codersdk.ChatModelCallConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+	logger slog.Logger,
+) *chatadvisor.Runtime {
+	rt, err := p.newAdvisorRuntime(
+		ctx,
+		chat,
+		advisorCfg,
+		fallbackModel,
+		fallbackCallConfig,
+		providerKeys,
+		logger,
+	)
+	if err != nil {
+		logger.Warn(ctx, "failed to create advisor runtime, continuing without advisor", slog.Error(err))
+		return nil
+	}
+	return rt
 }
 
 // TestResolveAdvisorModelOverride covers the early-return, each fallback
@@ -73,7 +178,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{},
@@ -96,7 +201,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
@@ -125,7 +230,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
@@ -158,7 +263,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: configID},
@@ -175,6 +280,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
+		providerID := uuid.New()
 		store := &advisorOverrideStubStore{
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
@@ -187,10 +293,20 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 					DisplayName: "gpt-5.2",
 				}, nil
 			},
+			getAIProviders: func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error) {
+				return []database.AIProvider{{
+					ID:      providerID,
+					Type:    database.AiProviderTypeOpenai,
+					Enabled: true,
+				}}, nil
+			},
+			getAIProviderKeysByProviderIDs: func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error) {
+				return nil, nil
+			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: configID},
@@ -227,7 +343,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		gotModel, gotCfg := p.resolveAdvisorModelOverride(
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{ModelConfigID: configID},
@@ -247,6 +363,99 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
 	})
+
+	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		configID := uuid.New()
+		providerID := uuid.New()
+		store := &advisorOverrideStubStore{
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				return database.ChatModelConfig{
+					ID:           configID,
+					Provider:     "openai",
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					CreatedAt:    time.Unix(0, 0).UTC(),
+					UpdatedAt:    time.Unix(0, 0).UTC(),
+					DisplayName:  "gpt-5.2",
+					AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+				}, nil
+			},
+			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
+				return database.AIProvider{
+					ID:      providerID,
+					Type:    database.AiProviderTypeOpenai,
+					Enabled: true,
+				}, nil
+			},
+			getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
+				return []database.AIProviderKey{{
+					ProviderID: providerID,
+					APIKey:     "sk-selected",
+				}}, nil
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{ModelConfigID: configID},
+			fallbackModel,
+			fallbackCallConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
+		require.NotNil(t, gotModel)
+		require.Equal(t, "openai", gotModel.Provider())
+		require.Equal(t, "gpt-5.2", gotModel.Model())
+		require.Equal(t, fallbackCallConfig, gotCfg)
+	})
+}
+
+func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	configID := uuid.New()
+	providerID := uuid.New()
+	store := &advisorOverrideStubStore{
+		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			return database.ChatModelConfig{
+				ID:           configID,
+				Provider:     "openai",
+				Model:        "gpt-5.2",
+				Enabled:      true,
+				DisplayName:  "gpt-5.2",
+				AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+			}, nil
+		},
+		getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
+			return database.AIProvider{ID: providerID, Type: database.AiProviderTypeOpenai, Name: "primary-openai", Enabled: true}, nil
+		},
+		getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
+			return []database.AIProviderKey{{ProviderID: providerID, APIKey: "sk-selected"}}, nil
+		},
+		getLatestChatUserMessageAPIKeyID: func(context.Context, uuid.UUID) (sql.NullString, error) {
+			return sql.NullString{String: uuid.NewString(), Valid: true}, nil
+		},
+	}
+	p := newAdvisorTestServer(ctx, t, store)
+	p.aiGatewayRoutingEnabled = true
+
+	model, _, err := p.resolveAdvisorModelOverride(
+		ctx,
+		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+		codersdk.AdvisorConfig{ModelConfigID: configID},
+		&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"},
+		codersdk.ChatModelCallConfig{},
+		chatprovider.ProviderAPIKeys{},
+		slog.Make(),
+	)
+	require.ErrorContains(t, err, "AI Gateway transport factory")
+	require.Nil(t, model)
 }
 
 // TestStripAdvisorGuidanceBlock exercises the filter that keeps the advisor
@@ -346,7 +555,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		store := &advisorOverrideStubStore{}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		rt := p.newAdvisorRuntime(
+		rt := p.newAdvisorRuntimeOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{
@@ -370,7 +579,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		store := &advisorOverrideStubStore{}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		rt := p.newAdvisorRuntime(
+		rt := p.newAdvisorRuntimeOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{
@@ -392,7 +601,7 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		store := &advisorOverrideStubStore{}
 		p := newAdvisorTestServer(ctx, t, store)
 
-		rt := p.newAdvisorRuntime(
+		rt := p.newAdvisorRuntimeOrFallback(
 			ctx,
 			database.Chat{},
 			codersdk.AdvisorConfig{

@@ -816,6 +816,8 @@ func New(options *Options) *API {
 			ProviderAPIKeys:                providerAPIKeys,
 			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 			AllowBYOKSet:                   true,
+			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+			AIGatewayRoutingEnabled:        options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value(),
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

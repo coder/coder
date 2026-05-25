@@ -2,11 +2,9 @@ package chatd
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"charm.land/fantasy"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -117,43 +115,31 @@ func (p *Server) newDebugAwareModelFromConfig(
 	providerKeys chatprovider.ProviderAPIKeys,
 	userAgent string,
 	extraHeaders map[string]string,
+	route modelRoute,
 ) (fantasy.LanguageModel, bool, error) {
 	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
 		return nil, false, err
 	}
 
-	debugSvc := p.debugService()
-	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
-
-	var httpClient *http.Client
-	if debugEnabled {
-		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
-	}
-
-	model, err := chatprovider.ModelFromConfig(
+	model, debugEnabled, err := p.newModelFromConfig(
+		ctx,
+		chat,
 		provider,
 		resolvedModel,
 		providerKeys,
 		userAgent,
 		extraHeaders,
-		httpClient,
+		route,
 	)
 	if err != nil {
 		return nil, debugEnabled, err
-	}
-	if model == nil {
-		return nil, debugEnabled, xerrors.Errorf(
-			"create model for %s/%s returned nil",
-			provider,
-			resolvedModel,
-		)
 	}
 	if !debugEnabled {
 		return model, false, nil
 	}
 
-	return chatdebug.WrapModel(model, debugSvc, chatdebug.RecorderOptions{
+	return chatdebug.WrapModel(model, p.debugService(), chatdebug.RecorderOptions{
 		ChatID:   chat.ID,
 		OwnerID:  chat.OwnerID,
 		Provider: provider,

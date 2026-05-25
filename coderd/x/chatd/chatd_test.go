@@ -67,6 +67,14 @@ type recordedOpenAIRequest struct {
 	ContentLength      int64
 }
 
+func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	t.Helper()
+
+	values := coderdtest.DeploymentValues(t)
+	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+	return values
+}
+
 func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
 }
@@ -231,7 +239,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -388,7 +396,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -555,7 +563,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -1796,6 +1804,73 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	require.Equal(t, chat.ID, ids[0])
 }
 
+func TestCreateChatPersistsAPIKeyIDOnInitialUserMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "create-chat-api-key-id",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		APIKeyID:           apiKey.ID,
+	})
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+	require.True(t, messages[0].APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, messages[0].APIKeyID.String)
+}
+
+func TestSendMessagePersistsAPIKeyIDOnUserMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "send-message-api-key-id",
+	})
+
+	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("message with api key id"),
+		},
+		APIKeyID: apiKey.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, result.Queued)
+	require.True(t, result.Message.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, result.Message.APIKeyID.String)
+
+	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
+	require.NoError(t, err)
+	require.True(t, stored.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, stored.APIKeyID.String)
+}
+
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	t.Parallel()
 
@@ -2143,15 +2218,20 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	apiKeyID := apiKey.ID
 	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		EditedMessageID: editedMessageID,
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		APIKeyID:        apiKeyID,
 	})
 	require.NoError(t, err)
 	// The edited message is soft-deleted and a new message is inserted,
 	// so the returned message ID will differ from the original.
 	require.NotEqual(t, editedMessageID, editResult.Message.ID)
+	require.True(t, editResult.Message.APIKeyID.Valid)
+	require.Equal(t, apiKeyID, editResult.Message.APIKeyID.String)
 	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
 	require.False(t, editResult.Chat.WorkerID.Valid)
 
@@ -2166,6 +2246,8 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, editResult.Message.ID, messages[0].ID)
+	require.True(t, messages[0].APIKeyID.Valid)
+	require.Equal(t, apiKeyID, messages[0].APIKeyID.String)
 	onlyMessage := db2sdk.ChatMessage(messages[0])
 	require.Len(t, onlyMessage.Content, 1)
 	require.Equal(t, "edited", onlyMessage.Content[0].Text)
@@ -2366,6 +2448,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
 		Enabled:            true,
@@ -2400,11 +2483,14 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		APIKeyID:     apiKey.ID,
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
+	require.True(t, queuedResult.QueuedMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, queuedResult.QueuedMessage.APIKeyID.String)
 
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("assistant"),
@@ -2437,6 +2523,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
+	require.True(t, result.PromotedMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, result.PromotedMessage.APIKeyID.String)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -4864,7 +4952,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -5029,7 +5117,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -8493,7 +8581,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:              deploymentValues,
 		IncludeProvisionerDaemon:      true,

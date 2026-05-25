@@ -1077,6 +1077,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
+		childAPIKeyID, err := activeTurnAPIKeyIDFromStore(ctx, tx, parent.ID)
+		if err != nil {
+			return xerrors.Errorf("get parent active turn API key ID: %w", err)
+		}
+
 		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: insertedChat.ID,
 		}
@@ -1086,7 +1091,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID))
+		).withCreatedBy(parent.OwnerID).withAPIKeyID(childAPIKeyID))
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
 			return xerrors.Errorf("insert initial child user message: %w", err)
 		}
@@ -1236,10 +1241,16 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
+	apiKeyID, err := p.activeTurnAPIKeyID(ctx, parentChatID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get parent active turn API key ID: %w", err)
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {

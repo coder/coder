@@ -231,6 +231,131 @@ func insertInternalAIProvider(
 	})
 }
 
+func TestCreateChildSubagentChatPropagatesActiveTurnAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	oldKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	latestKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	modelOnlyKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	oldKeyID := oldKey.ID
+	latestKeyID := latestKey.ID
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        parent.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		APIKeyID:      sql.NullString{String: oldKeyID, Valid: true},
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        parent.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        parent.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		APIKeyID:      sql.NullString{String: latestKeyID, Valid: true},
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        parent.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityModel,
+		APIKeyID:      sql.NullString{String: modelOnlyKey.ID, Valid: true},
+	})
+
+	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	child, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: child.ID})
+	require.NoError(t, err)
+	var childUserMessage database.ChatMessage
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleUser {
+			childUserMessage = message
+			break
+		}
+	}
+	require.NotZero(t, childUserMessage.ID)
+	require.True(t, childUserMessage.APIKeyID.Valid)
+	require.Equal(t, latestKeyID, childUserMessage.APIKeyID.String)
+}
+
+func TestSendSubagentMessagePropagatesActiveTurnAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-send-subagent-key",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		APIKeyID:           apiKey.ID,
+	})
+	require.NoError(t, err)
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
+		Title:          "child-send-subagent-key",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("do work"),
+		},
+	})
+	require.NoError(t, err)
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	_, err = server.sendSubagentMessage(
+		ctx,
+		parent.ID,
+		child.ID,
+		"follow up",
+		SendMessageBusyBehaviorInterrupt,
+	)
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: child.ID})
+	require.NoError(t, err)
+	var latestUserMessage database.ChatMessage
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleUser && message.ID > latestUserMessage.ID {
+			latestUserMessage = message
+		}
+	}
+	require.NotZero(t, latestUserMessage.ID)
+	require.True(t, latestUserMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, latestUserMessage.APIKeyID.String)
+}
+
 func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 	t.Parallel()
 
@@ -351,7 +476,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 	})
 
-	model, config, keys, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat)
+	model, config, keys, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat)
 	require.ErrorContains(t, err, "is disabled")
 	require.Nil(t, model)
 	require.Equal(t, database.ChatModelConfig{}, config)

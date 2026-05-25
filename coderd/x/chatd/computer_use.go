@@ -64,6 +64,7 @@ func (p *Server) resolveComputerUseModel(
 	computerUseProvider string,
 	computerUseModelProvider string,
 	computerUseModelName string,
+	route modelRoute,
 ) (
 	model fantasy.LanguageModel,
 	debugEnabled bool,
@@ -92,6 +93,7 @@ func (p *Server) resolveComputerUseModel(
 		providerKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
+		route,
 	)
 	if err != nil {
 		return nil, false, "", "", xerrors.Errorf(

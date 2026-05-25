@@ -29,6 +29,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -254,6 +255,9 @@ type Server struct {
 	metrics      *chatloop.Metrics
 	recordingSem chan struct{}
 
+	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
+	aiGatewayRoutingEnabled  bool
+
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	maxChatsPerAcquire         int32
@@ -345,9 +349,9 @@ func (p *Server) resolveAdvisorModelOverride(
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
 	logger slog.Logger,
-) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
+) (fantasy.LanguageModel, codersdk.ChatModelCallConfig, error) {
 	if advisorCfg.ModelConfigID == uuid.Nil {
-		return fallbackModel, fallbackCallConfig
+		return fallbackModel, fallbackCallConfig, nil
 	}
 
 	// Re-read the override instead of using the cache so disabled models
@@ -363,7 +367,7 @@ func (p *Server) resolveAdvisorModelOverride(
 				"advisor model config is disabled or unavailable, continuing with chat model",
 				slog.F("model_config_id", advisorCfg.ModelConfigID),
 			)
-			return fallbackModel, fallbackCallConfig
+			return fallbackModel, fallbackCallConfig, nil
 		}
 		logger.Warn(
 			ctx,
@@ -371,7 +375,7 @@ func (p *Server) resolveAdvisorModelOverride(
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackCallConfig
+		return fallbackModel, fallbackCallConfig, nil
 	}
 
 	overrideCallConfig := codersdk.ChatModelCallConfig{}
@@ -383,29 +387,52 @@ func (p *Server) resolveAdvisorModelOverride(
 				slog.F("model_config_id", advisorCfg.ModelConfigID),
 				slog.Error(err),
 			)
-			return fallbackModel, fallbackCallConfig
+			return fallbackModel, fallbackCallConfig, nil
 		}
 	}
 
-	overrideModel, err := chatprovider.ModelFromConfig(
-		overrideConfig.Provider,
-		overrideConfig.Model,
+	providerHint, overrideKeys, route, err := p.resolveModelConfigProviderHintKeysAndRoute(
+		ctx,
+		chat.OwnerID,
+		overrideConfig,
 		providerKeys,
-		chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-		nil,
 	)
 	if err != nil {
+		if p.shouldRouteModelsThroughAIBridge() && overrideConfig.AIProviderID.Valid {
+			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
+		}
+		logger.Warn(
+			ctx,
+			"failed to resolve advisor override route, continuing with chat model",
+			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.Error(err),
+		)
+		return fallbackModel, fallbackCallConfig, nil
+	}
+	overrideModel, _, err := p.newModelFromConfig(
+		ctx,
+		chat,
+		providerHint,
+		overrideConfig.Model,
+		overrideKeys,
+		chatprovider.UserAgent(),
+		chatprovider.CoderHeaders(chat),
+		route,
+	)
+	if err != nil {
+		if p.shouldRouteModelsThroughAIBridge() && overrideConfig.AIProviderID.Valid {
+			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
+		}
 		logger.Warn(
 			ctx,
 			"failed to create advisor override model, continuing with chat model",
 			slog.F("model_config_id", advisorCfg.ModelConfigID),
 			slog.Error(err),
 		)
-		return fallbackModel, fallbackCallConfig
+		return fallbackModel, fallbackCallConfig, nil
 	}
 
-	return overrideModel, overrideCallConfig
+	return overrideModel, overrideCallConfig, nil
 }
 
 func (p *Server) newAdvisorRuntime(
@@ -416,8 +443,8 @@ func (p *Server) newAdvisorRuntime(
 	fallbackCallConfig codersdk.ChatModelCallConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
 	logger slog.Logger,
-) *chatadvisor.Runtime {
-	advisorModel, advisorCallConfig := p.resolveAdvisorModelOverride(
+) (*chatadvisor.Runtime, error) {
+	advisorModel, advisorCallConfig, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
 		advisorCfg,
@@ -426,6 +453,9 @@ func (p *Server) newAdvisorRuntime(
 		providerKeys,
 		logger,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	maxUsesPerRun := advisorCfg.MaxUsesPerRun
 	switch {
@@ -441,7 +471,7 @@ func (p *Server) newAdvisorRuntime(
 			"invalid advisor max uses per run, continuing without advisor",
 			slog.F("max_uses_per_run", maxUsesPerRun),
 		)
-		return nil
+		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
 
 	maxOutputTokens := advisorCfg.MaxOutputTokens
@@ -468,9 +498,9 @@ func (p *Server) newAdvisorRuntime(
 			"failed to create advisor runtime, continuing without advisor",
 			slog.Error(err),
 		)
-		return nil
+		return nil, nil //nolint:nilnil // Nil runtime with nil error means advisor is skipped for this turn.
 	}
-	return rt
+	return rt, nil
 }
 
 // cachedWorkspaceMCPTools stores workspace MCP tools discovered
@@ -1436,6 +1466,7 @@ type CreateOptions struct {
 	ClientType         database.ChatClientType
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
+	APIKeyID           string
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
@@ -1460,6 +1491,7 @@ type SendMessageOptions struct {
 	CreatedBy     uuid.UUID
 	Content       []codersdk.ChatMessagePart
 	ModelConfigID uuid.UUID
+	APIKeyID      string
 	BusyBehavior  SendMessageBusyBehavior
 	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
@@ -1479,6 +1511,7 @@ type EditMessageOptions struct {
 	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []codersdk.ChatMessagePart
+	APIKeyID        string
 	// ModelConfigID, when non-zero, overrides the model used for
 	// the replacement user message. When set to uuid.Nil the
 	// original message's model is preserved.
@@ -1647,7 +1680,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			database.ChatMessageVisibilityBoth,
 			opts.ModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.OwnerID))
+		).withCreatedBy(opts.OwnerID).withAPIKeyID(opts.APIKeyID))
 
 		_, err = tx.InsertChatMessages(ctx, msgParams)
 		if err != nil {
@@ -1786,6 +1819,10 @@ func (p *Server) SendMessage(
 					UUID:  modelConfigID,
 					Valid: modelConfigID != uuid.Nil,
 				},
+				APIKeyID: sql.NullString{
+					String: opts.APIKeyID,
+					Valid:  opts.APIKeyID != "",
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert queued message: %w", err)
@@ -1810,6 +1847,7 @@ func (p *Server) SendMessage(
 			modelConfigID,
 			content,
 			opts.CreatedBy,
+			opts.APIKeyID,
 		)
 		if err != nil {
 			return err
@@ -2083,7 +2121,7 @@ func (p *Server) EditMessage(
 			editedMsg.Visibility,
 			messageModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.CreatedBy))
+		).withCreatedBy(opts.CreatedBy).withAPIKeyID(opts.APIKeyID))
 		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
 		if err != nil {
 			return xerrors.Errorf("insert replacement message: %w", err)
@@ -2416,12 +2454,14 @@ func (p *Server) PromoteQueued(
 		var (
 			targetContent       json.RawMessage
 			targetModelConfigID uuid.NullUUID
+			targetAPIKeyID      sql.NullString
 			found               bool
 		)
 		for _, qm := range queuedMessages {
 			if qm.ID == opts.QueuedMessageID {
 				targetContent = qm.Content
 				targetModelConfigID = qm.ModelConfigID
+				targetAPIKeyID = qm.APIKeyID
 				found = true
 				break
 			}
@@ -2511,6 +2551,7 @@ func (p *Server) PromoteQueued(
 				Valid:      len(targetContent) > 0,
 			},
 			opts.CreatedBy,
+			targetAPIKeyID.String,
 		)
 		if err != nil {
 			return err
@@ -2754,6 +2795,7 @@ func (p *Server) SubmitToolResults(
 		params := database.InsertChatMessagesParams{
 			ChatID:              opts.ChatID,
 			CreatedBy:           make([]uuid.UUID, n),
+			APIKeyID:            make([]string, n),
 			ModelConfigID:       make([]uuid.UUID, n),
 			Role:                make([]database.ChatMessageRole, n),
 			Content:             make([]string, n),
@@ -3279,15 +3321,23 @@ func (p *Server) prepareManualTitleDebugRun(
 	titleModel := fallbackModel
 	finishDebugRun := func(error) {}
 
-	httpClient := &http.Client{Transport: &chatdebug.RecordingTransport{}}
-	debugModel, debugModelErr := chatprovider.ModelFromConfig(
-		modelConfig.Provider,
+	providerHint, route, routeErr := p.modelRouteForConfig(ctx, modelConfig)
+	if routeErr != nil {
+		providerHint = modelConfig.Provider
+	}
+	debugModel, _, debugModelErr := p.newModelFromConfig(
+		ctx,
+		chat,
+		providerHint,
 		modelConfig.Model,
 		keys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
-		httpClient,
+		route,
 	)
+	if routeErr != nil && debugModelErr == nil && p.shouldRouteModelsThroughAIBridge() {
+		debugModelErr = routeErr
+	}
 	switch {
 	case debugModelErr != nil:
 		p.logger.Warn(ctx, "failed to create debug-aware manual title model",
@@ -3536,7 +3586,7 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	overrideConfig, overrideModel, overrideKeys, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, overrideKeys, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
 		keys,
@@ -3570,7 +3620,7 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
 
-	providerHint, modelKeys, err := p.resolveModelConfigProviderHintAndKeys(ctx, chat.OwnerID, config, keys)
+	providerHint, modelKeys, route, err := p.resolveModelConfigProviderHintKeysAndRoute(ctx, chat.OwnerID, config, keys)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
@@ -3580,13 +3630,15 @@ func (p *Server) resolveManualTitleModel(
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	}
-	model, err := chatprovider.ModelFromConfig(
+	model, _, err := p.newModelFromConfig(
+		ctx,
+		chat,
 		providerHint,
 		config.Model,
 		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
-		nil,
+		route,
 	)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
@@ -3613,17 +3665,19 @@ func (p *Server) resolveFallbackManualTitleModel(
 			err,
 		)
 	}
-	providerHint, modelKeys, err := p.resolveModelConfigProviderHintAndKeys(ctx, chat.OwnerID, config, keys)
+	providerHint, modelKeys, route, err := p.resolveModelConfigProviderHintKeysAndRoute(ctx, chat.OwnerID, config, keys)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
-	model, err := chatprovider.ModelFromConfig(
+	model, _, err := p.newModelFromConfig(
+		ctx,
+		chat,
 		providerHint,
 		config.Model,
 		modelKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
-		nil,
+		route,
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
@@ -3720,6 +3774,7 @@ func recordManualTitleUsage(
 			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 				ChatID:              chat.ID,
 				CreatedBy:           []uuid.UUID{chat.OwnerID},
+				APIKeyID:            []string{""},
 				ModelConfigID:       []uuid.UUID{modelConfig.ID},
 				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
 				Content:             []string{content},
@@ -3845,6 +3900,7 @@ type chatMessage struct {
 	visibility          database.ChatMessageVisibility
 	modelConfigID       uuid.UUID
 	createdBy           uuid.UUID
+	apiKeyID            string
 	contentVersion      int16
 	compressed          bool
 	inputTokens         int64
@@ -3877,6 +3933,11 @@ func newChatMessage(
 
 func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
 	m.createdBy = id
+	return m
+}
+
+func (m chatMessage) withAPIKeyID(id string) chatMessage {
+	m.apiKeyID = id
 	return m
 }
 
@@ -3924,6 +3985,7 @@ func appendChatMessage(
 	msg chatMessage,
 ) {
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
+	params.APIKeyID = append(params.APIKeyID, msg.apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
 	params.Role = append(params.Role, msg.role)
 	params.Content = append(params.Content, string(msg.content.RawMessage))
@@ -3973,6 +4035,7 @@ func insertUserMessageAndSetPending(
 	modelConfigID uuid.UUID,
 	content pqtype.NullRawMessage,
 	createdBy uuid.UUID,
+	apiKeyID string,
 ) (database.ChatMessage, database.Chat, error) {
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 		ChatID: lockedChat.ID,
@@ -3983,7 +4046,7 @@ func insertUserMessageAndSetPending(
 		database.ChatMessageVisibilityBoth,
 		modelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(createdBy))
+	).withCreatedBy(createdBy).withAPIKeyID(apiKeyID))
 	messages, err := insertChatMessageWithStore(ctx, store, msgParams)
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
@@ -4052,7 +4115,10 @@ type Config struct {
 	WebpushDispatcher              webpush.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
-	PrometheusRegistry             prometheus.Registerer
+	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
+	AIGatewayRoutingEnabled        bool
+
+	PrometheusRegistry prometheus.Registerer
 
 	// OIDCTokenSource resolves the calling user's OIDC access
 	// token for MCP servers configured with auth_type=user_oidc.
@@ -4139,6 +4205,8 @@ func New(cfg Config) *Server {
 			debugSvc.SetStaleAfter(inFlightChatStaleAfter * 3)
 			return debugSvc
 		},
+		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
+		aiGatewayRoutingEnabled:    cfg.AIGatewayRoutingEnabled,
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
@@ -5803,7 +5871,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		database.ChatMessageVisibilityBoth,
 		effectiveModelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(chat.OwnerID))
+	).withCreatedBy(chat.OwnerID).withAPIKeyID(nextQueued.APIKeyID.String))
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
 		return nil, nil, false, xerrors.Errorf("insert promoted message: %w", err)
@@ -6322,6 +6390,7 @@ type runChatResult struct {
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 	FallbackProvider        string
+	FallbackRoute           modelRoute
 	FallbackModel           string
 	TriggerMessageID        int64
 	HistoryTipMessageID     int64
@@ -6948,6 +7017,7 @@ func (p *Server) runChat(
 		err           error
 		debugEnabled  bool
 		debugProvider string
+		route         modelRoute
 		debugModel    string
 	)
 
@@ -6961,7 +7031,7 @@ func (p *Server) runChat(
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
-		model, modelConfig, providerKeys, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat)
+		model, modelConfig, providerKeys, route, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat)
 		if err != nil {
 			return err
 		}
@@ -7055,7 +7125,8 @@ func (p *Server) runChat(
 	// registering the runtime there would inject guidance for a tool
 	// that is never exposed to the model.
 	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
-		advisorRuntime = p.newAdvisorRuntime(
+		var advisorErr error
+		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
@@ -7064,6 +7135,9 @@ func (p *Server) runChat(
 			providerKeys,
 			logger,
 		)
+		if advisorErr != nil {
+			return result, advisorErr
+		}
 	}
 
 	var advisorPromptSnapshot []fantasy.Message
@@ -7090,6 +7164,7 @@ func (p *Server) runChat(
 	result.StatusLabelModel = model
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
+	result.FallbackRoute = route
 	result.FallbackModel = modelConfig.Model
 	debugSvc := p.existingDebugService()
 	// Fire title generation asynchronously so it doesn't block the
@@ -7111,6 +7186,7 @@ func (p *Server) runChat(
 			modelConfig.Provider,
 			modelConfig.Model,
 			titleModel,
+			route,
 			titleProviderKeys,
 			generatedTitle,
 			titleLogger,
@@ -7681,7 +7757,7 @@ func (p *Server) runChat(
 	}
 
 	if isComputerUse {
-		computerUseProviderKeys, keyErr := p.resolveUserProviderAPIKeysForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
+		computerUseProviderKeys, computerUseRoute, keyErr := p.resolveUserProviderAPIKeysAndRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
 		if keyErr != nil {
 			return result, xerrors.Errorf("resolve computer use provider API keys: %w", keyErr)
 		}
@@ -7695,6 +7771,7 @@ func (p *Server) runChat(
 			computerUseProvider,
 			computerUseModelProvider,
 			computerUseModelName,
+			computerUseRoute,
 		)
 		if cuErr != nil {
 			return result, cuErr
@@ -8394,38 +8471,6 @@ func (p *Server) persistChatContextSummary(
 	return nil
 }
 
-func (p *Server) resolveModelConfigProviderHintAndKeys(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	modelConfig database.ChatModelConfig,
-	fallbackKeys chatprovider.ProviderAPIKeys,
-) (string, chatprovider.ProviderAPIKeys, error) {
-	providerHint := modelConfig.Provider
-	if !modelConfig.AIProviderID.Valid {
-		if !fallbackKeys.Empty() && userCanUseProviderKeys(fallbackKeys, providerHint) {
-			return providerHint, fallbackKeys, nil
-		}
-		keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-		if err != nil {
-			return "", chatprovider.ProviderAPIKeys{}, xerrors.Errorf("resolve provider API keys: %w", err)
-		}
-		return providerHint, keys, nil
-	}
-	//nolint:gocritic // Manual title generation needs chatd-scoped provider reads for user-owned chats.
-	provider, err := p.db.GetAIProviderByID(dbauthz.AsChatd(ctx), modelConfig.AIProviderID.UUID)
-	if err != nil {
-		return "", chatprovider.ProviderAPIKeys{}, xerrors.Errorf("get AI provider: %w", err)
-	}
-	if !provider.Enabled {
-		return "", chatprovider.ProviderAPIKeys{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
-	}
-	providerKeys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
-	if err != nil {
-		return "", chatprovider.ProviderAPIKeys{}, xerrors.Errorf("resolve provider API keys: %w", err)
-	}
-	return string(provider.Type), providerKeys, nil
-}
-
 func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
@@ -8433,6 +8478,7 @@ func (p *Server) resolveChatModel(
 	model fantasy.LanguageModel,
 	dbConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
+	route modelRoute,
 	debugEnabled bool,
 	resolvedProvider string,
 	resolvedModel string,
@@ -8440,30 +8486,16 @@ func (p *Server) resolveChatModel(
 ) {
 	dbConfig, err = p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, modelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
 	}
 
 	if !dbConfig.Enabled {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, modelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
 	}
 
-	providerHint := dbConfig.Provider
-	var keyErr error
-	if dbConfig.AIProviderID.Valid {
-		provider, err := p.db.GetAIProviderByID(ctx, dbConfig.AIProviderID.UUID)
-		if err != nil {
-			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("get AI provider: %w", err)
-		}
-		if !provider.Enabled {
-			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("AI provider %s is disabled", provider.ID)
-		}
-		providerHint = string(provider.Type)
-		keys, keyErr = p.resolveUserProviderAPIKeysForProvider(ctx, chat.OwnerID, provider)
-	} else {
-		keys, keyErr = p.resolveUserProviderAPIKeys(ctx, chat.OwnerID, uuid.Nil)
-	}
-	if keyErr != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf("resolve provider API keys: %w", keyErr)
+	providerHint, keys, route, err := p.resolveModelConfigProviderHintKeysAndRoute(ctx, chat.OwnerID, dbConfig, chatprovider.ProviderAPIKeys{})
+	if err != nil {
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, modelRoute{}, false, "", "", err
 	}
 
 	resolvedProvider, resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
@@ -8471,7 +8503,7 @@ func (p *Server) resolveChatModel(
 		providerHint,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, modelRoute{}, false, "", "", xerrors.Errorf(
 			"resolve model metadata: %w", err,
 		)
 	}
@@ -8484,13 +8516,14 @@ func (p *Server) resolveChatModel(
 		keys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
+		route,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, modelRoute{}, false, "", "", xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, debugEnabled, resolvedProvider, resolvedModel, nil
+	return model, dbConfig, keys, route, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
 func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvider) (chatprovider.ConfiguredProvider, error) {
@@ -8605,9 +8638,18 @@ func (p *Server) resolveUserProviderAPIKeysForProviderType(
 	ownerID uuid.UUID,
 	providerType string,
 ) (chatprovider.ProviderAPIKeys, error) {
+	keys, _, err := p.resolveUserProviderAPIKeysAndRouteForProviderType(ctx, ownerID, providerType)
+	return keys, err
+}
+
+func (p *Server) resolveUserProviderAPIKeysAndRouteForProviderType(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	providerType string,
+) (chatprovider.ProviderAPIKeys, modelRoute, error) {
 	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, xerrors.Errorf("get enabled AI providers: %w", err)
+		return chatprovider.ProviderAPIKeys{}, modelRoute{}, xerrors.Errorf("get enabled AI providers: %w", err)
 	}
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
 	for _, provider := range providers {
@@ -8616,13 +8658,23 @@ func (p *Server) resolveUserProviderAPIKeysForProviderType(
 		}
 		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
 		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, err
+			return chatprovider.ProviderAPIKeys{}, modelRoute{}, err
 		}
 		if userCanUseProviderKeys(keys, normalizedProviderType) {
-			return keys, nil
+			return keys, modelRouteFromAIProvider(provider), nil
 		}
 	}
-	return p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
+	if p.shouldRouteModelsThroughAIBridge() {
+		return chatprovider.ProviderAPIKeys{}, modelRoute{}, xerrors.Errorf(
+			"AI Gateway routing requires a usable AI provider for provider type %q",
+			providerType,
+		)
+	}
+	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, modelRoute{}, err
+	}
+	return keys, modelRoute{}, nil
 }
 
 func (p *Server) resolveUserProviderAPIKeys(
@@ -9391,6 +9443,7 @@ func insertSyntheticToolResultsTx(
 	params := database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
 		CreatedBy:           make([]uuid.UUID, n),
+		APIKeyID:            make([]string, n),
 		ModelConfigID:       make([]uuid.UUID, n),
 		Role:                make([]database.ChatMessageRole, n),
 		Content:             make([]string, n),
@@ -9537,7 +9590,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		return fallbackTurnStatusLabel(status)
 	}
 
-	statusLabel := generateTurnStatusLabel(
+	statusLabel := p.generateTurnStatusLabel(
 		ctx,
 		chat,
 		status,
@@ -9545,6 +9598,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		runResult.FallbackProvider,
 		runResult.FallbackModel,
 		runResult.StatusLabelModel,
+		runResult.FallbackRoute,
 		runResult.ProviderKeys,
 		logger,
 		p.existingDebugService(),

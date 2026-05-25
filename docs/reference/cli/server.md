@@ -1723,6 +1723,17 @@ Hide AI tasks from the dashboard.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-ai-gateway-routing-enabled
+
+|             |                                                     |
+|-------------|-----------------------------------------------------|
+| Type        | <code>bool</code>                                   |
+| Environment | <code>$CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED</code> |
+| YAML        | <code>chat.aiGatewayRoutingEnabled</code>           |
+| Default     | <code>true</code>                                   |
+
+Route chat model requests through AI Gateway. When disabled, chat calls AI providers directly. Pending chats that lack API key metadata may need retrying or temporary direct routing.
+
 ### --ai-gateway-enabled
 
 |             |                                        |
