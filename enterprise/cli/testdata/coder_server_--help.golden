@@ -244,11 +244,6 @@ AI GATEWAY PROXY OPTIONS:
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
 
-      --chat-ai-gateway-routing-enabled bool, $CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED (default: true)
-          Route chat model requests through AI Gateway. When disabled, chat
-          calls AI providers directly. Pending chats that lack API key metadata
-          may need retrying or temporary direct routing.
-
       --chat-debug-logging-enabled bool, $CODER_CHAT_DEBUG_LOGGING_ENABLED (default: false)
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.

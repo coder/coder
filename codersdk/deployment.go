@@ -4067,6 +4067,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "true",
 			Group:       &deploymentGroupChat,
 			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
 		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
