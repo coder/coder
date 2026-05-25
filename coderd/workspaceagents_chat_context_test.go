@@ -941,7 +941,6 @@ func TestUpdateChatWorkspaceBindingClearsLastInjectedContext(t *testing.T) {
 	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
 	require.Len(t, messages, 1)
 	require.Equal(t, normalMessage.ID, messages[0].ID)
-	require.False(t, messages[0].ProviderResponseID.Valid)
 }
 
 func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
@@ -974,10 +973,6 @@ func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
 	require.NoError(t, err)
 
 	insertedMessages := insertAgentChatWorkspaceBindingMessages(t, setup.db, chat.ID, setup.user.UserID, model.ID, agentID)
-	expectedProviderResponseIDs := map[int64]string{}
-	for _, message := range insertedMessages {
-		expectedProviderResponseIDs[message.ID] = message.ProviderResponseID.String
-	}
 
 	updated, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceBindingParams{
 		WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
@@ -992,12 +987,15 @@ func TestUpdateChatWorkspaceBindingPreservesContextWhenUnchanged(t *testing.T) {
 
 	messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
 	require.Len(t, messages, 3)
-	for _, message := range messages {
-		expected, ok := expectedProviderResponseIDs[message.ID]
-		require.True(t, ok)
-		require.True(t, message.ProviderResponseID.Valid)
-		require.Equal(t, expected, message.ProviderResponseID.String)
-	}
+	require.ElementsMatch(t, []int64{
+		insertedMessages[0].ID,
+		insertedMessages[1].ID,
+		insertedMessages[2].ID,
+	}, []int64{
+		messages[0].ID,
+		messages[1].ID,
+		messages[2].ID,
+	})
 }
 
 func insertAgentChatWorkspaceBindingMessages(t testing.TB, db database.Store, chatID uuid.UUID, userID uuid.UUID, modelID uuid.UUID, agentID uuid.UUID) []database.ChatMessage {
@@ -1028,30 +1026,18 @@ func insertAgentChatWorkspaceBindingMessages(t testing.TB, db database.Store, ch
 		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
 		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Content:       pqtype.NullRawMessage{RawMessage: contextRaw, Valid: true},
-		ProviderResponseID: sql.NullString{
-			String: "ctx-response",
-			Valid:  true,
-		},
 	})
 	skillMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:        chatID,
 		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
 		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Content:       pqtype.NullRawMessage{RawMessage: skillRaw, Valid: true},
-		ProviderResponseID: sql.NullString{
-			String: "skill-response",
-			Valid:  true,
-		},
 	})
 	normalMessage := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:        chatID,
 		CreatedBy:     uuid.NullUUID{UUID: userID, Valid: true},
 		ModelConfigID: uuid.NullUUID{UUID: modelID, Valid: true},
 		Content:       pqtype.NullRawMessage{RawMessage: normalRaw, Valid: true},
-		ProviderResponseID: sql.NullString{
-			String: "normal-response",
-			Valid:  true,
-		},
 	})
 	return []database.ChatMessage{contextMessage, skillMessage, normalMessage}
 }

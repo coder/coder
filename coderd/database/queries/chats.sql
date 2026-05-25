@@ -1105,19 +1105,6 @@ WHERE chat_id = @id::uuid
     )
 RETURNING id
 ),
-cleared_provider_response_ids AS (
-UPDATE chat_messages
-SET provider_response_id = NULL
-WHERE chat_id = @id::uuid
-    AND deleted = false
-    AND provider_response_id IS NOT NULL
-    AND EXISTS (SELECT 1 FROM binding_changed WHERE changed)
-    AND NOT (
-        content::jsonb @> '[{"type": "context-file"}]'
-        OR content::jsonb @> '[{"type": "skill"}]'
-    )
-RETURNING id
-),
 changed_chat AS (
 UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
