@@ -687,10 +687,41 @@ resource "coder_script" "install-deps" {
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
 
+    # Seed a user-owned mise trust config on the persistent home
+    # volume. The image ships /etc/mise/conf.d/00-coder-trust.toml as
+    # a fallback, but mise's `trusted_config_paths` setting doesn't
+    # merge across config layers, so anything the user adds to their
+    # own file would otherwise replace the system fallback. Writing
+    # this file once (if-absent) seeds the defaults under
+    # ~/.config/mise/conf.d/ where the user can edit it and the edits
+    # survive workspace restart.
+    TRUST_FILE="$HOME/.config/mise/conf.d/00-coder-trust.toml"
+    if [ ! -f "$TRUST_FILE" ]; then
+      mkdir -p "$(dirname "$TRUST_FILE")"
+      cat > "$TRUST_FILE" <<'TRUST'
+    # mise trust paths for the dogfood workspace. Edit to add your own
+    # paths; this file lives on the persistent home volume so changes
+    # survive workspace restart. The install-deps coder_script only
+    # writes this file when it's absent.
+    [settings]
+    trusted_config_paths = [
+      "/home/coder/coder",
+      "/etc/mise",
+    ]
+    TRUST
+    fi
+
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+
+    # Two playwright installs: site/'s @playwright/test and
+    # @playwright/mcp@0.0.75 bundle different playwright-core versions
+    # with different chromium revisions, and both are used at runtime
+    # (site tests + the claude-code/codex MCP servers below).
+    cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
+    npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
   EOT
 }
 
@@ -823,13 +854,10 @@ data "docker_registry_image" "dogfood" {
 
 resource "docker_image" "dogfood" {
   name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
+  # CI rebuilds and pushes when any baked-in input changes, so the
+  # digest captures every effective change on its own.
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("ubuntu-22.04/Dockerfile"),
-    filesha1("ubuntu-26.04/Dockerfile"),
-    filesha1("nix.hash"),
-    filesha1("mise.hash"),
   ]
   keep_locally = true
 }
@@ -969,7 +997,7 @@ module "claude-code" {
       "mcpServers": {
         "playwright": {
           "command": "npx",
-          "args": ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+          "args": ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
         }
       }
     }
@@ -1000,7 +1028,7 @@ module "codex" {
   mcp               = <<-EOT
     [mcp_servers.playwright]
     command = "npx"
-    args = ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+    args = ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
     type = "stdio"
   EOT
 }
