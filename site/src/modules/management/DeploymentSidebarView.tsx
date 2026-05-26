@@ -77,7 +77,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/deployment/ai-governance">
-						AI Gateway
+						AI Governance
 					</SidebarNavItem>
 				)}
 				{permissions.viewAllUsers && (
