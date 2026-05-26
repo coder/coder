@@ -170,39 +170,92 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	);
 };
 
+// SVG ring constants for the circular progress indicator.
+const RING_SIZE = 32;
+const RING_STROKE = 3;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	return (
-		<div className="flex shrink-0 flex-col gap-1">
+		<div className="flex shrink-0 items-center gap-2">
 			{sections.map((section) => (
-				<div key={section.id} className="flex items-center gap-2">
-					<span
-						aria-hidden="true"
-						className={cn(
-							"flex shrink-0 items-center justify-center",
-							getTextClassName(section.severity),
-						)}
-					>
-						{section.icon}
-					</span>
-					<UsageProgress
-						ariaLabel={section.progressLabel}
-						percent={section.percent}
-						severity={section.severity}
-						size="compact"
-						className="w-20 shrink-0 [@container_(min-width:300px)]:w-24 [@container_(min-width:420px)]:w-32 [@container_(min-width:560px)]:w-40"
-					/>
-					<span
-						className={cn(
-							"hidden shrink-0 whitespace-nowrap text-xs tabular-nums [@container_(min-width:300px)]:inline",
-							getTextClassName(section.severity),
-						)}
-					>
-						{section.summaryValue}
-					</span>
-				</div>
+				<UsageRingProgress
+					key={section.id}
+					ariaLabel={section.progressLabel}
+					percent={section.percent}
+					severity={section.severity}
+					icon={section.icon}
+				/>
 			))}
+		</div>
+	);
+};
+
+const UsageRingProgress: FC<{
+	ariaLabel: string;
+	percent: number;
+	severity?: UsageSeverity;
+	icon: ReactNode;
+}> = ({ ariaLabel, percent, severity = "normal", icon }) => {
+	const clampedPercent = clampPercent(percent);
+	const offset = RING_CIRCUMFERENCE * (1 - clampedPercent / 100);
+
+	return (
+		<div
+			role="progressbar"
+			aria-label={ariaLabel}
+			aria-valuemin={0}
+			aria-valuemax={100}
+			aria-valuenow={Math.round(clampedPercent)}
+			className="relative flex shrink-0 items-center justify-center"
+			style={{ width: RING_SIZE, height: RING_SIZE }}
+		>
+			<svg
+				width={RING_SIZE}
+				height={RING_SIZE}
+				className="-rotate-90"
+				aria-hidden="true"
+			>
+				{/* Background track */}
+				<circle
+					cx={RING_SIZE / 2}
+					cy={RING_SIZE / 2}
+					r={RING_RADIUS}
+					fill="none"
+					strokeWidth={RING_STROKE}
+					className="stroke-surface-tertiary"
+				/>
+				{/* Progress arc */}
+				<circle
+					cx={RING_SIZE / 2}
+					cy={RING_SIZE / 2}
+					r={RING_RADIUS}
+					fill="none"
+					strokeWidth={RING_STROKE}
+					strokeLinecap="round"
+					className={cn(
+						"transition-[stroke-dashoffset] duration-300 ease-out",
+						getRingStrokeClassName(severity),
+					)}
+					style={{
+						strokeDasharray: RING_CIRCUMFERENCE,
+						strokeDashoffset: offset,
+					}}
+				/>
+			</svg>
+			{/* Centered icon */}
+			<span
+				aria-hidden="true"
+				className={cn(
+					"absolute inset-0 flex items-center justify-center",
+					getTextClassName(severity),
+				)}
+			>
+				{icon}
+			</span>
 		</div>
 	);
 };
@@ -350,6 +403,17 @@ function getProgressClassName(severity: UsageSeverity): string {
 			return "bg-content-warning";
 		case "normal":
 			return "bg-content-secondary";
+	}
+}
+
+function getRingStrokeClassName(severity: UsageSeverity): string {
+	switch (severity) {
+		case "exceeded":
+			return "stroke-content-destructive";
+		case "warning":
+			return "stroke-content-warning";
+		case "normal":
+			return "stroke-content-secondary";
 	}
 }
 

@@ -180,7 +180,9 @@ export const WorkspaceQuotaOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		expect(canvas.getByText("30/100")).toBeVisible();
+		expect(
+			canvas.getByRole("progressbar", { name: "Workspace quota usage" }),
+		).toBeVisible();
 		await openUsageMenu(canvasElement);
 	},
 };
@@ -196,8 +198,6 @@ export const UsageAndWorkspaceQuota: Story = {
 		const progressBars = canvas.getAllByRole("progressbar");
 
 		expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
-		expect(canvas.getByText("$12.50")).toBeVisible();
-		expect(canvas.getByText("30/100")).toBeVisible();
 		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
 			"Monthly spend usage",
 			"Workspace quota usage",
@@ -206,21 +206,13 @@ export const UsageAndWorkspaceQuota: Story = {
 	},
 };
 
-// The tiny story covers the responsive edge case where the trigger keeps
-// the bars visible and drops the numeric details.
+// The ring-based trigger is fixed-size so it always fits even in narrow containers.
 const expectTriggerContentFits = (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const frame = canvas.getByTestId("usage-indicator-frame");
 
 	expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
 	expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
-};
-
-const expectTriggerDetailsHidden = (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-
-	expect(canvas.getByText("$12.50")).not.toBeVisible();
-	expect(canvas.getByText("30/100")).not.toBeVisible();
 };
 
 export const TriggerTiny: Story = {
@@ -232,7 +224,6 @@ export const TriggerTiny: Story = {
 	],
 	play: ({ canvasElement }) => {
 		expectTriggerContentFits(canvasElement);
-		expectTriggerDetailsHidden(canvasElement);
 	},
 };
 
@@ -266,7 +257,6 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 			name: "Workspace quota usage",
 		});
 
-		expect(canvas.getByText("20")).toBeInTheDocument();
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
 
 		await openUsageMenu(canvasElement);
