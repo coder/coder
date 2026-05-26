@@ -90,7 +90,7 @@ export const LiveStreamTailContent = ({
 					mcpServers={mcpServers}
 				/>
 			)}
-			{usageLimitStatus ? (
+			{usageLimitStatus && !usageLimitStatus.provider ? (
 				<Alert
 					severity="info"
 					actions={

@@ -232,13 +232,6 @@ func Classify(err error) ClassifiedError {
 			retryable: true,
 		},
 		{
-			// TODO(CODAGT-484): The frontend renders a "View Usage" button
-			// linking to /agents/analytics (Coder's spend limits page) for
-			// usage_limit errors. Provider quota errors should not show that
-			// button since the issue is on the provider's billing page, not
-			// Coder's. The frontend should distinguish provider-originated
-			// usage_limit (stream classification) from Coder-originated
-			// usage_limit (HTTP 409 path).
 			match:     usageLimitMatch,
 			kind:      codersdk.ChatErrorKindUsageLimit,
 			retryable: false,
