@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"database/sql"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -51,8 +52,8 @@ func aibridgeTestFactoryPointer(factory aibridge.TransportFactory) *atomic.Point
 	return &ptr
 }
 
-func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerType database.AIProviderType) *database.AIProvider {
-	return &database.AIProvider{
+func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerType database.AIProviderType) database.AIProvider {
+	return database.AIProvider{
 		ID:      providerID,
 		Name:    providerName,
 		Type:    providerType,
@@ -60,8 +61,8 @@ func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerT
 	}
 }
 
-func aibridgeTestRoute(aiProvider *database.AIProvider) resolvedModelRoute {
-	return newAIGatewayModelRoute(*aiProvider, string(aiProvider.Type), aiGatewayProviderAuth{})
+func aibridgeTestRoute(aiProvider database.AIProvider) resolvedModelRoute {
+	return newAIGatewayModelRoute(aiProvider, string(aiProvider.Type), aiGatewayProviderAuth{})
 }
 
 func aibridgeTestRequest(chat database.Chat, model string) modelClientRequest {
@@ -95,15 +96,6 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 			require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))
 		})
 	}
-}
-
-func TestAIBridgeModelProviderInputUsesLocalPlaceholderKey(t *testing.T) {
-	t.Parallel()
-
-	config := fantasyConfigForAIBridge(database.AiProviderTypeOpenai)
-	require.Equal(t, "openai", config.ProviderHint)
-	require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))
-	require.Equal(t, "http://coder-aibridge/v1", config.Keys.BaseURL(config.ProviderHint))
 }
 
 func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
@@ -210,6 +202,24 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 	})
 }
 
+func TestAIGatewayProviderAuthRedactsFormatting(t *testing.T) {
+	t.Parallel()
+
+	auth := aiGatewayProviderAuth{Headers: map[string]string{
+		"Authorization": "Bearer sk-user",
+		"X-Api-Key":     "sk-user",
+	}}
+	for _, formatted := range []string{
+		fmt.Sprint(auth),
+		fmt.Sprintf("%+v", auth),
+		fmt.Sprintf("%#v", auth),
+	} {
+		require.NotContains(t, formatted, "sk-user")
+		require.NotContains(t, formatted, "Bearer sk-user")
+		require.Contains(t, formatted, "redacted")
+	}
+}
+
 func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 	t.Parallel()
 
@@ -305,7 +315,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := *aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"Authorization": "Bearer sk-user"},
 		}, seen)
@@ -327,7 +337,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := *aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"X-Api-Key": "sk-user"},
 		}, seen)
@@ -348,7 +358,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := *aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})

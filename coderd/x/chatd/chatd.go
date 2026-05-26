@@ -6394,7 +6394,6 @@ type runChatResult struct {
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 	FallbackProvider        string
 	FallbackRoute           resolvedModelRoute
-	FallbackAIProvider      *database.AIProvider
 	FallbackModel           string
 	ModelBuildOptions       modelBuildOptions
 	TriggerMessageID        int64
@@ -7048,7 +7047,6 @@ func (p *Server) runChat(
 		err           error
 		debugEnabled  bool
 		debugProvider string
-		aiProvider    *database.AIProvider
 		modelRoute    resolvedModelRoute
 		debugModel    string
 	)
@@ -7070,7 +7068,7 @@ func (p *Server) runChat(
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
-		model, modelConfig, providerKeys, modelRoute, aiProvider, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat, modelOpts)
+		model, modelConfig, providerKeys, modelRoute, debugEnabled, debugProvider, debugModel, err = p.resolveChatModel(ctx, chat, modelOpts)
 		if err != nil {
 			return err
 		}
@@ -7197,7 +7195,6 @@ func (p *Server) runChat(
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
 	result.FallbackRoute = modelRoute
-	result.FallbackAIProvider = aiProvider
 	result.FallbackModel = modelConfig.Model
 	result.ModelBuildOptions = modelOpts
 	debugSvc := p.existingDebugService()
@@ -8515,7 +8512,6 @@ func (p *Server) resolveChatModel(
 	dbConfig database.ChatModelConfig,
 	keys chatprovider.ProviderAPIKeys,
 	route resolvedModelRoute,
-	aiProvider *database.AIProvider,
 	debugEnabled bool,
 	resolvedProvider string,
 	resolvedModel string,
@@ -8523,30 +8519,29 @@ func (p *Server) resolveChatModel(
 ) {
 	dbConfig, err = p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf("resolve model config: %w", err)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
 	}
 
 	if !dbConfig.Enabled {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
 	}
 
 	route, err = p.resolveModelRouteForConfig(ctx, chat.OwnerID, dbConfig, chatprovider.ProviderAPIKeys{})
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", err
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", err
 	}
 	keys = route.directProviderKeys()
-	aiProvider = route.aiProvider()
 
 	providerHint, err := route.providerHint()
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", err
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", err
 	}
 	resolvedProvider, resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
 		dbConfig.Model,
 		providerHint,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf(
 			"resolve model metadata: %w", err,
 		)
 	}
@@ -8558,11 +8553,11 @@ func (p *Server) resolveChatModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, nil, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, route, aiProvider, debugEnabled, resolvedProvider, resolvedModel, nil
+	return model, dbConfig, keys, route, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
 func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvider) (chatprovider.ConfiguredProvider, error) {

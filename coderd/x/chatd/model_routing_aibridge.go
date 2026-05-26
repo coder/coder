@@ -51,6 +51,14 @@ type aiGatewayProviderAuth struct {
 	Headers map[string]string
 }
 
+func (aiGatewayProviderAuth) String() string {
+	return "aiGatewayProviderAuth{Headers:<redacted>}"
+}
+
+func (a aiGatewayProviderAuth) GoString() string {
+	return a.String()
+}
+
 type aiGatewayRequestFormat int
 
 const (

@@ -807,6 +807,9 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
+		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
+			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
+
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
@@ -817,7 +820,7 @@ func New(options *Options) *API {
 			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 			AllowBYOKSet:                   true,
 			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-			AIGatewayRoutingEnabled:        options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value(),
+			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

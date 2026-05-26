@@ -4060,7 +4060,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
-			Description: "Route chat model requests through AI Gateway. When disabled, chat calls AI providers directly. Pending chats that lack API key metadata may need retrying or temporary direct routing.",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
 			Flag:        "chat-ai-gateway-routing-enabled",
 			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
 			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,

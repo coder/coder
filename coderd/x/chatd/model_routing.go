@@ -80,14 +80,6 @@ func (r resolvedModelRoute) directProviderKeys() chatprovider.ProviderAPIKeys {
 	return r.direct.Keys
 }
 
-func (r resolvedModelRoute) aiProvider() *database.AIProvider {
-	if r.kind != modelRouteKindAIGateway {
-		return nil
-	}
-	provider := r.aiGateway.Provider
-	return &provider
-}
-
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
 	provider, err := p.db.GetAIProviderByID(ctx, providerID)
 	if err != nil {

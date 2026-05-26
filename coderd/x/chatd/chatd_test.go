@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,6 +33,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -65,6 +67,78 @@ type recordedOpenAIRequest struct {
 	Store              *bool
 	PreviousResponseID *string
 	ContentLength      int64
+}
+
+type chatAIGatewayRecordedRequest struct {
+	ProviderName  string
+	Source        aibridge.Source
+	APIKeyID      string
+	Path          string
+	Authorization string
+	XAPIKey       string
+}
+
+type chatAIGatewayTestFactory struct {
+	target    *url.URL
+	transport http.RoundTripper
+	mu        sync.Mutex
+	requests  []chatAIGatewayRecordedRequest
+}
+
+func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
+	t.Helper()
+
+	target, err := url.Parse(targetBaseURL)
+	require.NoError(t, err)
+	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
+}
+
+func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
+}
+
+func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.requests)
+}
+
+type chatAIGatewayRoundTripper struct {
+	factory      *chatAIGatewayTestFactory
+	providerName string
+	source       aibridge.Source
+}
+
+func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+	t.factory.mu.Lock()
+	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
+		ProviderName:  t.providerName,
+		Source:        t.source,
+		APIKeyID:      apiKeyID,
+		Path:          req.URL.Path,
+		Authorization: req.Header.Get("Authorization"),
+		XAPIKey:       req.Header.Get("X-Api-Key"),
+	})
+	t.factory.mu.Unlock()
+
+	targetURL := *t.factory.target
+	targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
+	if targetURL.Path == "" {
+		targetURL.Path = "/"
+	}
+	targetURL.RawQuery = req.URL.RawQuery
+
+	cloned := req.Clone(req.Context())
+	cloned.URL = &targetURL
+	cloned.Host = t.factory.target.Host
+	return t.factory.transport.RoundTrip(cloned)
+}
+
+func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
+	var ptr atomic.Pointer[aibridge.TransportFactory]
+	ptr.Store(&factory)
+	return &ptr
 }
 
 func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
@@ -7338,6 +7412,98 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 	recordedAuthHeaders := append([]string(nil), authHeaders...)
 	authHeadersMu.Unlock()
 	require.Contains(t, recordedAuthHeaders, "Bearer "+userAPIKey)
+}
+
+func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("hello through AI Gateway")...,
+			)
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
+	})
+	factory := newChatAIGatewayTestFactory(t, openAIURL)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AiProviderTypeOpenai,
+		Name:    "primary-openai-" + uuid.NewString(),
+		BaseUrl: openAIURL,
+	})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     string(database.AiProviderTypeOpenai),
+		Model:        "gpt-4o-mini",
+		IsDefault:    true,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: provider.ID,
+		APIKey:       "sk-user-aibridge",
+	})
+	require.NoError(t, err)
+
+	creator := newTestServer(t, db, ps, uuid.New())
+	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "aigateway-routing",
+		ModelConfigID:  model.ID,
+		APIKeyID:       apiKey.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AIGatewayRoutingEnabled = true
+		cfg.AllowBYOK = true
+		cfg.AllowBYOKSet = true
+	})
+
+	terminalStatus := waitForTerminalChatStatusEvent(ctx, t, events)
+	require.Equal(t, codersdk.ChatStatusWaiting, terminalStatus)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.False(t, chatResult.LastError.Valid)
+
+	requests := factory.requestsSnapshot()
+	require.NotEmpty(t, requests)
+	require.Contains(t, requests, chatAIGatewayRecordedRequest{
+		ProviderName:  provider.Name,
+		Source:        aibridge.SourceAgents,
+		APIKeyID:      apiKey.ID,
+		Path:          "/v1/responses",
+		Authorization: "Bearer sk-user-aibridge",
+	})
+	for _, req := range requests {
+		require.Equal(t, provider.Name, req.ProviderName)
+		require.Equal(t, aibridge.SourceAgents, req.Source)
+		require.Equal(t, apiKey.ID, req.APIKeyID)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
+		require.Empty(t, req.XAPIKey)
+		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+	}
 }
 
 func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
