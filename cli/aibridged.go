@@ -145,10 +145,11 @@ func buildAIProviderFromRow(
 		}
 		var pool *keypool.Pool
 		if len(keys) > 0 {
+			var err error
 			pool, err = buildAIProviderKeyPool(keys)
-		}
-		if err != nil {
-			return nil, xerrors.Errorf("openai key pool: %w", err)
+			if err != nil {
+				return nil, xerrors.Errorf("openai key pool: %w", err)
+			}
 		}
 		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			Name:             row.Name,
@@ -211,12 +212,15 @@ func buildAIProviderKeyPool(keys []database.AIProviderKey) (*keypool.Pool, error
 
 // bedrockConfigFromRow returns nil when the settings have no Bedrock
 // discriminator or when the Bedrock fields are not actually configured.
+// The provider row's BaseUrl is the generic upstream endpoint and is
+// always non-empty, so it cannot serve as a Bedrock detection signal;
+// gate on the settings blob alone via [codersdk.AIProviderBedrockSettings.IsConfigured].
 func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderSettings) *aibridge.AWSBedrockConfig {
 	if settings.Bedrock == nil {
 		return nil
 	}
 	bedrockSettings := *settings.Bedrock
-	if !codersdk.IsBedrockConfigured(row.BaseUrl, bedrockSettings) {
+	if !bedrockSettings.IsConfigured() {
 		return nil
 	}
 	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)

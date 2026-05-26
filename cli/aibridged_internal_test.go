@@ -3,7 +3,7 @@
 package cli
 
 import (
-	"path/filepath"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -62,12 +63,9 @@ func TestBuildProviders(t *testing.T) {
 		assert.Len(t, names, 2)
 	})
 
-	const dumpBase = "/tmp/aibridge-dump"
-
 	t.Run("IndexedOnly", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
-			APIDumpDir: serpent.String(dumpBase),
 			Providers: []codersdk.AIProviderConfig{
 				{
 					Type: aibridge.ProviderAnthropic,
@@ -93,8 +91,6 @@ func TestBuildProviders(t *testing.T) {
 		}
 		require.Contains(t, byName, "anthropic-zdr")
 		require.Contains(t, byName, "openai-azure")
-		assert.Equal(t, filepath.Join(dumpBase, "anthropic-zdr"), byName["anthropic-zdr"].APIDumpDir())
-		assert.Equal(t, filepath.Join(dumpBase, "openai-azure"), byName["openai-azure"].APIDumpDir())
 	})
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
@@ -196,10 +192,8 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("CopilotVariants", func(t *testing.T) {
 		t.Parallel()
 		// Copilot providers can target any of the three GitHub
-		// Copilot API hosts via an explicit BASE_URL. The dump
-		// directory comes from the top-level base + provider name.
+		// Copilot API hosts via an explicit BASE_URL.
 		cfg := codersdk.AIBridgeConfig{
-			APIDumpDir: serpent.String(dumpBase),
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
@@ -218,7 +212,6 @@ func TestBuildProviders(t *testing.T) {
 		require.Contains(t, byName, aibridge.ProviderCopilot)
 		require.Contains(t, byName, agplaibridge.ProviderCopilotBusiness)
 		require.Contains(t, byName, agplaibridge.ProviderCopilotEnterprise)
-		assert.Equal(t, filepath.Join(dumpBase, aibridge.ProviderCopilot), byName[aibridge.ProviderCopilot].APIDumpDir())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, byName[agplaibridge.ProviderCopilotBusiness].BaseURL())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotEnterprise, byName[agplaibridge.ProviderCopilotEnterprise].BaseURL())
 	})
@@ -289,6 +282,97 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, secret, got.AccessKeySecret)
 		assert.Equal(t, model, got.Model)
 		assert.Equal(t, smallModel, got.SmallFastModel)
+	})
+
+	t.Run("BedrockSettingsEmpty", func(t *testing.T) {
+		t.Parallel()
+		// A non-nil but zero-valued Bedrock settings blob should not
+		// produce a Bedrock config; the provider's generic BaseUrl is
+		// not a Bedrock detection signal.
+		row := database.AIProvider{
+			Type:    database.AiProviderTypeAnthropic,
+			Name:    "anthropic-empty-bedrock",
+			BaseUrl: "https://api.anthropic.com/",
+		}
+		settings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{},
+		}
+		assert.Nil(t, bedrockConfigFromRow(row, settings))
+	})
+}
+
+// TestBuildProvidersSkipsBadRows exercises the skip-and-continue path
+// directly: rows whose settings blob is malformed or whose type is not
+// supported by the runtime builder are logged and excluded from the
+// returned snapshot without surfacing a top-level error. The seed path
+// filters most of these out before insert, so we bypass it and insert
+// rows straight into the database via dbgen.
+func TestBuildProvidersSkipsBadRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CorruptSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AiProviderTypeAnthropic,
+			Name:     "anthropic-broken",
+			BaseUrl:  "https://api.anthropic.com/",
+			Settings: sql.NullString{String: "not-json", Valid: true},
+		})
+
+		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		require.NoError(t, err)
+		assert.Empty(t, providers)
+	})
+
+	t.Run("UnsupportedType", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		// Azure is a valid DB-level provider type but has no runtime
+		// builder yet; it must hit the default branch and be skipped.
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:    database.AiProviderTypeAzure,
+			Name:    "azure-openai",
+			BaseUrl: "https://example.openai.azure.com/",
+		})
+
+		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		require.NoError(t, err)
+		assert.Empty(t, providers)
+	})
+
+	t.Run("BadRowDoesNotBlockGoodRow", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AiProviderTypeAnthropic,
+			Name:     "anthropic-broken",
+			BaseUrl:  "https://api.anthropic.com/",
+			Settings: sql.NullString{String: "{not valid json", Valid: true},
+		})
+		good := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:    database.AiProviderTypeOpenai,
+			Name:    "openai-good",
+			BaseUrl: "https://api.openai.com/",
+		})
+		dbgen.AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID: good.ID,
+			APIKey:     "sk-good",
+		})
+
+		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		assert.Equal(t, "openai-good", providers[0].Name())
 	})
 }
 
