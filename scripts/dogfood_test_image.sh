@@ -50,17 +50,30 @@ else
 fi
 
 # Helper: run a make target inside the image.
-# Caches are persisted in named Docker volumes so that subsequent steps (and
-# repeated local runs) reuse downloaded modules and compiled artifacts.
+#
+# Mounts /home/coder/ as a single named volume to mirror the dogfood
+# workspace template (dogfood/coder/main.tf), which also persists the
+# entire home dir as one volume. Two consequences:
+#
+#   1. Caches (Go modules, Go build, pnpm store, mise data, etc.) all
+#      persist across runs from a single volume, matching real-workspace
+#      behavior.
+#   2. Docker copies /home/coder's image ownership (coder:coder, from
+#      `useradd --create-home`) into the new volume on first mount, so
+#      the coder user can write to it. Per-cache subpath volumes don't
+#      get this for free because Docker creates non-existent subpaths
+#      root-owned.
+#
+# The bind mount of the checkout at /home/coder/coder layers on top of
+# the home volume — Docker mounts the volume first, then the bind mount
+# shadows that subpath. Both work simultaneously.
 run_make() {
 	docker run --rm \
+		--volume coder-dogfood-home:/home/coder \
 		--volume "$(pwd)":/home/coder/coder \
 		--env GIT_CONFIG_COUNT=1 \
 		--env GIT_CONFIG_KEY_0=safe.directory \
 		--env GIT_CONFIG_VALUE_0=/home/coder/coder \
-		--volume coder-dogfood-gomod:/home/coder/go/pkg/mod \
-		--volume coder-dogfood-gobuild:/home/coder/.cache/go-build \
-		--volume coder-dogfood-pnpm:/home/coder/.local/share/pnpm/store \
 		--workdir /home/coder/coder \
 		--network=host \
 		--env GITHUB_TOKEN \

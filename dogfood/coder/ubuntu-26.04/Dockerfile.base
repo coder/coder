@@ -222,21 +222,6 @@ EOF
 # changes, update all three plus mise.toml.
 RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
 
-# Pre-create the cache directories scripts/dogfood_test_image.sh
-# mounts as named Docker volumes. Docker copies the image's path
-# ownership into the named volume on first mount; without these the
-# volumes come up root-owned and the coder user can't write to them.
-RUN install --directory --owner=coder --group=coder --mode=0755 \
-	/home/coder/go \
-	/home/coder/go/pkg \
-	/home/coder/go/pkg/mod \
-	/home/coder/.cache \
-	/home/coder/.cache/go-build \
-	/home/coder/.local \
-	/home/coder/.local/share \
-	/home/coder/.local/share/pnpm \
-	/home/coder/.local/share/pnpm/store
-
 # Install Homebrew as the coder user so the supported Linux prefix remains
 # writable after the image build.
 RUN sudo --login --user=coder env NONINTERACTIVE=1 CI=1 /bin/bash -lc 'set -euo pipefail && curl --silent --show-error --location --fail https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash' && \
