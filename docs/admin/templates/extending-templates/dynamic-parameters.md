@@ -124,7 +124,7 @@ where each option has a `name` (displayed to the user) and a `value` (used in yo
 |----------------|--------------------------------------------|---------|------------------------------------------------------------------------------------------------------------------------|
 | `radio`        | `string`, `number`, `bool`, `list(string)` | Yes     | Radio buttons for selecting a single option with all choices visible at once. </br>The classic parameter option.       |
 | `dropdown`     | `string`, `number`                         | Yes     | Choose a single option from a searchable dropdown list. </br>Default for `string` or `number` parameters with options. |
-| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a list with checkboxes.                                                                     |
+| `multi-select` | `list(string)`                             | Yes     | Select multiple items from a searchable dropdown list. </br>Selected items are shown as removable chips.               |
 | `tag-select`   | `list(string)`                             | No      | Default for `list(string)` parameters without options.                                                                 |
 | `input`        | `string`, `number`                         | No      | Standard single-line text input field. </br>Default for `string/number` parameters without options.                    |
 | `textarea`     | `string`                                   | No      | Multi-line text input field for longer content.                                                                        |
