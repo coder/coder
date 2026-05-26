@@ -189,13 +189,23 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 	test -x /usr/local/bin/mise && \
 	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
 
-# Trusted paths skip mise's per-config trust prompt for the coder
-# repo cloned at /home/coder/coder and for /etc/mise (which mise oci
-# populates with its synthesized config.toml in the final image; the
-# base image's /etc/mise dir is empty). Other repos a user clones
-# still get the one-time `mise trust` prompt.
-ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
-	MISE_TRUSTED_CONFIG_PATHS=/home/coder/coder:/etc/mise
+ENV MISE_DATA_DIR=/home/coder/.local/share/mise
+
+# Bake a system fallback for trusted_config_paths so the canonical
+# /home/coder/coder repo and the mise-oci-synthesized /etc/mise/config.toml
+# are trusted without a per-config prompt. The workspace template
+# (dogfood/coder/main.tf install-deps coder_script) seeds a matching
+# user-owned ~/.config/mise/conf.d/00-coder-trust.toml on workspace
+# start, which the user can edit to add their own paths; that file
+# lives on the persistent home volume and overrides this fallback.
+RUN install --directory --mode=0755 /etc/mise /etc/mise/conf.d
+COPY --chmod=0644 <<'EOF' /etc/mise/conf.d/00-coder-trust.toml
+[settings]
+trusted_config_paths = [
+  "/home/coder/coder",
+  "/etc/mise",
+]
+EOF
 
 # Reserve the mount_point declared in mise.toml [oci]. The path is
 # duplicated below in MISE_SHARED_INSTALL_DIRS and PATH; if it ever

@@ -687,6 +687,30 @@ resource "coder_script" "install-deps" {
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
 
+    # Seed a user-owned mise trust config on the persistent home
+    # volume. The image ships /etc/mise/conf.d/00-coder-trust.toml as
+    # a fallback, but mise's `trusted_config_paths` setting doesn't
+    # merge across config layers, so anything the user adds to their
+    # own file would otherwise replace the system fallback. Writing
+    # this file once (if-absent) seeds the defaults under
+    # ~/.config/mise/conf.d/ where the user can edit it and the edits
+    # survive workspace restart.
+    TRUST_FILE="$HOME/.config/mise/conf.d/00-coder-trust.toml"
+    if [ ! -f "$TRUST_FILE" ]; then
+      mkdir -p "$(dirname "$TRUST_FILE")"
+      cat > "$TRUST_FILE" <<'TRUST'
+    # mise trust paths for the dogfood workspace. Edit to add your own
+    # paths; this file lives on the persistent home volume so changes
+    # survive workspace restart. The install-deps coder_script only
+    # writes this file when it's absent.
+    [settings]
+    trusted_config_paths = [
+      "/home/coder/coder",
+      "/etc/mise",
+    ]
+    TRUST
+    fi
+
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean

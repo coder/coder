@@ -32,8 +32,12 @@ set -euo pipefail
 # A `min_version` check in mise.toml catches downgrades.
 MISE_VERSION="v2026.5.12"
 MISE_SHA256="a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48"
+# Bump the -rN suffix when the Dockerfile heredoc below changes
+# (mise version, apt packages, trust config, etc.) so cached wrapper
+# images get rebuilt automatically.
+WRAPPER_REVISION="r2"
 RUNTIME="${CONTAINER_RUNTIME:-docker}"
-WRAPPER_IMAGE="coderdev/mise-oci-wrapper:$MISE_VERSION"
+WRAPPER_IMAGE="coderdev/mise-oci-wrapper:$MISE_VERSION-$WRAPPER_REVISION"
 
 # Mount the repo root rather than $PWD: `make -C dogfood/coder` invokes
 # the wrapper from dogfood/coder/, but the project mise.toml/mise.lock
@@ -63,7 +67,9 @@ RUN apt-get update -qq && \\
     rm -rf /var/lib/apt/lists/* && \\
     curl -sSLf "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" -o /usr/local/bin/mise && \\
     echo "${MISE_SHA256}  /usr/local/bin/mise" | sha256sum -c && \\
-    chmod +x /usr/local/bin/mise
+    chmod +x /usr/local/bin/mise && \\
+    install --directory --mode=0755 /etc/mise /etc/mise/conf.d && \\
+    printf '[settings]\\ntrusted_config_paths = ["/src"]\\n' > /etc/mise/conf.d/00-trust.toml
 DOCKERFILE
 	"$RUNTIME" build ${platform_arg[@]+"${platform_arg[@]}"} -t "$WRAPPER_IMAGE" "$build_dir"
 	rm -rf "$build_dir"
@@ -107,7 +113,6 @@ exec "$RUNTIME" run --rm ${platform_arg[@]+"${platform_arg[@]}"} \
 	-v "$REPO_ROOT":/src -w /src \
 	${docker_config_arg[@]+"${docker_config_arg[@]}"} \
 	-e MISE_EXPERIMENTAL=1 \
-	-e MISE_TRUSTED_CONFIG_PATHS=/src \
 	${token_arg[@]+"${token_arg[@]}"} \
 	--entrypoint /bin/sh \
 	"$WRAPPER_IMAGE" \
