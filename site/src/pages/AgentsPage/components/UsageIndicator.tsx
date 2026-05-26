@@ -180,7 +180,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 
 // SVG ring constants for the circular progress indicator.
 const RING_SIZE = 32;
-const RING_STROKE = 3;
+const RING_STROKE = 1;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
