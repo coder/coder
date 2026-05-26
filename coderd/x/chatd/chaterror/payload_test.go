@@ -91,3 +91,20 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	require.Equal(t, 503, payload.StatusCode)
 	require.WithinDuration(t, startedAt.Add(delay), payload.RetryingAt, time.Second)
 }
+
+func TestStreamRetryPayloadUsageLimitMessage(t *testing.T) {
+	t.Parallel()
+
+	delay := 5 * time.Second
+	payload := chaterror.StreamRetryPayload(1, delay, chaterror.ClassifiedError{
+		Message:   "The usage quota for OpenAI has been exceeded.",
+		Kind:      codersdk.ChatErrorKindUsageLimit,
+		Provider:  "openai",
+		Retryable: true,
+	})
+
+	require.NotNil(t, payload)
+	require.Equal(t, "The usage quota for OpenAI has been exceeded.", payload.Error)
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, payload.Kind)
+	require.Equal(t, "openai", payload.Provider)
+}
