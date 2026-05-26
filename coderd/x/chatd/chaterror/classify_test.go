@@ -732,12 +732,12 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		err        string
-		wantKind   codersdk.ChatErrorKind
-		wantRetry  bool
-		wantStatus int
-		wantProv   string
+		name         string
+		err          string
+		wantKind     codersdk.ChatErrorKind
+		wantRetry    bool
+		wantStatus   int
+		wantProvider string
 	}{
 		{
 			name:      "QuotaBeatsAuth",
@@ -772,9 +772,9 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 				`"code":"insufficient_quota","message":"You exceeded your current quota, please check ` +
 				`your plan and billing details. For more information on this error, read the docs: ` +
 				`https://platform.openai.com/docs/guides/error-codes/api-errors.","param":null}`,
-			wantKind:  codersdk.ChatErrorKindUsageLimit,
-			wantRetry: false,
-			wantProv:  "openai",
+			wantKind:     codersdk.ChatErrorKindUsageLimit,
+			wantRetry:    false,
+			wantProvider: "openai",
 		},
 	}
 
@@ -787,8 +787,8 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 			if tt.wantStatus != 0 {
 				require.Equal(t, tt.wantStatus, classified.StatusCode)
 			}
-			if tt.wantProv != "" {
-				require.Equal(t, tt.wantProv, classified.Provider)
+			if tt.wantProvider != "" {
+				require.Equal(t, tt.wantProvider, classified.Provider)
 			}
 		})
 	}
