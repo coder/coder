@@ -292,6 +292,11 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			Type: database.AiProviderTypeAnthropic,
 		}
 		if hasLegacyBedrock {
+			if hasAnthropicKey {
+				logger.Warn(ctx, "ignoring legacy Anthropic API key because Bedrock credentials are configured; Bedrock authenticates via access keys or credential chain",
+					slog.F("provider", aibridge.ProviderAnthropic),
+				)
+			}
 			// Bedrock-only deployments use CODER_AIBRIDGE_BEDROCK_BASE_URL
 			// for custom VPC, FIPS, or proxy endpoints.
 			dp.BaseURL = cfg.LegacyBedrock.BaseURL.String()

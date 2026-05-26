@@ -4,7 +4,6 @@ package cli
 
 import (
 	"context"
-	"path"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -63,28 +63,48 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
 	authCtx := dbauthz.AsAIBridged(ctx)
 
-	rows, err := db.GetAIProviders(authCtx, database.GetAIProvidersParams{
-		IncludeDisabled: false,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("load ai providers: %w", err)
-	}
+	var rows []database.AIProvider
+	keysByProvider := make(map[uuid.UUID][]database.AIProviderKey)
 
-	// Group keys by provider in a single query to avoid N+1.
-	keyRows, err := db.GetAIProviderKeys(authCtx, false)
+	// Wrap both queries in a read-only transaction so the provider list
+	// and the key list are consistent with each other.
+	err := db.InTx(func(tx database.Store) error {
+		var err error
+		rows, err = tx.GetAIProviders(authCtx, database.GetAIProvidersParams{
+			IncludeDisabled: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("load ai providers: %w", err)
+		}
+
+		if len(rows) == 0 {
+			return nil
+		}
+
+		// Load keys only for the enabled providers to avoid materializing
+		// secrets for disabled rows.
+		ids := make([]uuid.UUID, len(rows))
+		for i, r := range rows {
+			ids[i] = r.ID
+		}
+		keyRows, err := tx.GetAIProviderKeysByProviderIDs(authCtx, ids)
+		if err != nil {
+			return xerrors.Errorf("load ai provider keys: %w", err)
+		}
+		for _, k := range keyRows {
+			keysByProvider[k.ProviderID] = append(keysByProvider[k.ProviderID], k)
+		}
+		return nil
+	}, &database.TxOptions{ReadOnly: true, TxIdentifier: "build_ai_providers"})
 	if err != nil {
-		return nil, xerrors.Errorf("load ai provider keys: %w", err)
-	}
-	keysByProvider := make(map[uuid.UUID][]database.AIProviderKey, len(keyRows))
-	for _, k := range keyRows {
-		keysByProvider[k.ProviderID] = append(keysByProvider[k.ProviderID], k)
+		return nil, err
 	}
 
 	out := make([]aibridge.Provider, 0, len(rows))
 	for _, row := range rows {
 		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg)
 		if err != nil {
-			logger.Error(ctx, "skip ai provider, failed to build",
+			logger.Error(ctx, "skipping misconfigured ai provider",
 				slog.F("provider_id", row.ID),
 				slog.F("provider_name", row.Name),
 				slog.F("provider_type", string(row.Type)),
@@ -92,18 +112,18 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 			)
 			continue
 		}
-		if prov == nil {
-			continue
-		}
 		out = append(out, prov)
 	}
+
+	if len(rows) > 0 && len(out) == 0 {
+		logger.Warn(ctx, "all enabled ai providers failed to build; daemon will start with zero providers")
+	}
+
 	return out, nil
 }
 
-// buildAIProviderFromRow constructs the appropriate [aibridge.Provider]
-// for a single ai_providers row. The row's settings blob is already
-// decrypted by the dbcrypt-wrapped store; this function only decodes
-// the JSON shape on top of it.
+// buildAIProviderFromRow decodes the settings blob and constructs the
+// appropriate [aibridge.Provider] for a single ai_providers row.
 func buildAIProviderFromRow(
 	row database.AIProvider,
 	keys []database.AIProviderKey,
@@ -117,16 +137,16 @@ func buildAIProviderFromRow(
 	cbCfg := circuitBreakerConfig(cfg)
 	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
-	if dumpDir != "" {
-		dumpDir = path.Join(dumpDir, row.Name)
-	}
 
 	switch row.Type {
 	case database.AiProviderTypeOpenai:
-		if len(keys) == 0 {
-			return nil, xerrors.New("openai provider has no api keys configured")
+		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("openai provider has no api keys configured and BYOK is not enabled")
 		}
-		pool, err := buildAIProviderKeyPool(keys)
+		var pool *keypool.Pool
+		if len(keys) > 0 {
+			pool, err = buildAIProviderKeyPool(keys)
+		}
 		if err != nil {
 			return nil, xerrors.Errorf("openai key pool: %w", err)
 		}
@@ -144,8 +164,8 @@ func buildAIProviderFromRow(
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
 		// the settings blob, not the api_keys table. A bearer-token
 		// Anthropic without any key cannot make upstream calls.
-		if bedrock == nil && len(keys) == 0 {
-			return nil, xerrors.New("anthropic provider has no api keys and no bedrock credentials")
+		if bedrock == nil && len(keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(keys) > 0 {
@@ -179,9 +199,8 @@ func buildAIProviderFromRow(
 	}
 }
 
-// buildAIProviderKeyPool constructs a [keypool.Pool] from the keys
-// attached to a provider row. Callers must check len(keys) before
-// invoking: keypool.New rejects an empty input.
+// buildAIProviderKeyPool builds a [keypool.Pool]. Callers must check
+// len(keys) > 0 first; keypool.New rejects empty input.
 func buildAIProviderKeyPool(keys []database.AIProviderKey) (*keypool.Pool, error) {
 	raw := make([]string, 0, len(keys))
 	for _, k := range keys {
@@ -190,20 +209,18 @@ func buildAIProviderKeyPool(keys []database.AIProviderKey) (*keypool.Pool, error
 	return keypool.New(raw, quartz.NewReal())
 }
 
-// bedrockConfigFromRow returns the Bedrock config for an Anthropic
-// row, or nil for a native Anthropic row.
+// bedrockConfigFromRow returns nil when the settings have no Bedrock
+// discriminator or when the Bedrock fields are not actually configured.
 func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderSettings) *aibridge.AWSBedrockConfig {
 	if settings.Bedrock == nil {
 		return nil
 	}
 	bedrockSettings := *settings.Bedrock
-	var accessKey, accessKeySecret string
-	if bedrockSettings.AccessKey != nil {
-		accessKey = *bedrockSettings.AccessKey
+	if !codersdk.IsBedrockConfigured(row.BaseUrl, bedrockSettings) {
+		return nil
 	}
-	if bedrockSettings.AccessKeySecret != nil {
-		accessKeySecret = *bedrockSettings.AccessKeySecret
-	}
+	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
+	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
 	return &aibridge.AWSBedrockConfig{
 		BaseURL:         row.BaseUrl,
 		Region:          bedrockSettings.Region,
@@ -214,10 +231,7 @@ func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderS
 	}
 }
 
-// circuitBreakerConfig translates the deployment-level circuit-breaker
-// settings into the [config.CircuitBreaker] consumed by providers.
-// Returns nil when the breaker is disabled so callers can pass the
-// result straight through without branching on Enabled.
+// circuitBreakerConfig returns nil when the breaker is disabled.
 func circuitBreakerConfig(cfg codersdk.AIBridgeConfig) *config.CircuitBreaker {
 	if !cfg.CircuitBreakerEnabled.Value() {
 		return nil

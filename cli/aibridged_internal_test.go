@@ -3,7 +3,7 @@
 package cli
 
 import (
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,12 +62,12 @@ func TestBuildProviders(t *testing.T) {
 		assert.Len(t, names, 2)
 	})
 
-	const logBase = "/tmp/aibridge-dump"
+	const dumpBase = "/tmp/aibridge-dump"
 
 	t.Run("IndexedOnly", func(t *testing.T) {
 		t.Parallel()
 		cfg := codersdk.AIBridgeConfig{
-			APIDumpDir: serpent.String(logBase),
+			APIDumpDir: serpent.String(dumpBase),
 			Providers: []codersdk.AIProviderConfig{
 				{
 					Type: aibridge.ProviderAnthropic,
@@ -93,8 +93,8 @@ func TestBuildProviders(t *testing.T) {
 		}
 		require.Contains(t, byName, "anthropic-zdr")
 		require.Contains(t, byName, "openai-azure")
-		assert.Equal(t, path.Join(logBase, "anthropic-zdr"), byName["anthropic-zdr"].APIDumpDir())
-		assert.Equal(t, path.Join(logBase, "openai-azure"), byName["openai-azure"].APIDumpDir())
+		assert.Equal(t, filepath.Join(dumpBase, "anthropic-zdr"), byName["anthropic-zdr"].APIDumpDir())
+		assert.Equal(t, filepath.Join(dumpBase, "openai-azure"), byName["openai-azure"].APIDumpDir())
 	})
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestBuildProviders(t *testing.T) {
 		// Copilot API hosts via an explicit BASE_URL. The dump
 		// directory comes from the top-level base + provider name.
 		cfg := codersdk.AIBridgeConfig{
-			APIDumpDir: serpent.String("/tmp/aibridge-dump"),
+			APIDumpDir: serpent.String(dumpBase),
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
@@ -218,7 +218,7 @@ func TestBuildProviders(t *testing.T) {
 		require.Contains(t, byName, aibridge.ProviderCopilot)
 		require.Contains(t, byName, agplaibridge.ProviderCopilotBusiness)
 		require.Contains(t, byName, agplaibridge.ProviderCopilotEnterprise)
-		assert.Equal(t, path.Join(logBase, ""+aibridge.ProviderCopilot), byName[aibridge.ProviderCopilot].APIDumpDir())
+		assert.Equal(t, filepath.Join(dumpBase, aibridge.ProviderCopilot), byName[aibridge.ProviderCopilot].APIDumpDir())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotBusiness, byName[agplaibridge.ProviderCopilotBusiness].BaseURL())
 		assert.Equal(t, "https://"+agplaibridge.HostCopilotEnterprise, byName[agplaibridge.ProviderCopilotEnterprise].BaseURL())
 	})
@@ -265,6 +265,8 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		accessKey := "AKID"
 		secret := "secret"
+		model := "anthropic.claude-3-5-sonnet-20241022-v2:0"
+		smallModel := "anthropic.claude-3-5-haiku-20241022-v1:0"
 		row := database.AIProvider{
 			Type:    database.AiProviderTypeAnthropic,
 			Name:    "anthropic-bedrock",
@@ -275,6 +277,8 @@ func TestBuildProviders(t *testing.T) {
 				Region:          "us-west-2",
 				AccessKey:       &accessKey,
 				AccessKeySecret: &secret,
+				Model:           model,
+				SmallFastModel:  smallModel,
 			},
 		}
 		got := bedrockConfigFromRow(row, settings)
@@ -283,6 +287,8 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, "us-west-2", got.Region)
 		assert.Equal(t, accessKey, got.AccessKey)
 		assert.Equal(t, secret, got.AccessKeySecret)
+		assert.Equal(t, model, got.Model)
+		assert.Equal(t, smallModel, got.SmallFastModel)
 	})
 }
 
