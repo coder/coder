@@ -123,6 +123,15 @@ data "coder_parameter" "use_ai_bridge" {
   mutable     = true
 }
 
+# Fallback when AI Bridge is disabled. Injected by dogfood/main.tf
+# from the CODER_DOGFOOD_ANTHROPIC_API_KEY secret.
+variable "anthropic_api_key" {
+  type        = string
+  description = "Anthropic API key, used when AI Bridge is disabled."
+  default     = ""
+  sensitive   = true
+}
+
 data "coder_parameter" "ide_choices" {
   type        = "list(string)"
   name        = "Select IDEs"
@@ -318,7 +327,9 @@ resource "coder_agent" "dev" {
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-    } : {}
+    } : {
+      ANTHROPIC_API_KEY : var.anthropic_api_key,
+    }
   )
   startup_script_behavior = "blocking"
 
