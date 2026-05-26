@@ -1046,7 +1046,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
-				aibridgeDaemon, err = newAIBridgeDaemon(coderAPI, aibridgeProviders)
+				var unsubscribeProviderReload func()
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1055,6 +1056,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// daemon does not affect in-flight requests but is needed to
 				// release pool/recorder resources at shutdown.
 				defer aibridgeDaemon.Close()
+				defer unsubscribeProviderReload()
 			}
 
 			if vals.Prometheus.Enable {
