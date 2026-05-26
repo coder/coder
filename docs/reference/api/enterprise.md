@@ -3433,9 +3433,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description              |
-|--------|------|--------------|----------|--------------------------|
-| `user` | path | string(uuid) | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
 
 ### Example responses
 
@@ -3486,7 +3486,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget \
 
 | Name   | In   | Type                                                                                               | Required | Description                            |
 |--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------------------------|
-| `user` | path | string(uuid)                                                                                       | true     | User ID, username, or me               |
+| `user` | path | string                                                                                             | true     | User ID, username, or me               |
 | `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | Upsert user AI budget override request |
 
 ### Example responses
@@ -3525,9 +3525,9 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description              |
-|--------|------|--------------|----------|--------------------------|
-| `user` | path | string(uuid) | true     | User ID, username, or me |
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
 
 ### Responses
 

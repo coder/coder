@@ -8141,7 +8141,6 @@
 				"parameters": [
 					{
 						"type": "string",
-						"format": "uuid",
 						"description": "User ID, username, or me",
 						"name": "user",
 						"in": "path",
@@ -8171,7 +8170,6 @@
 				"parameters": [
 					{
 						"type": "string",
-						"format": "uuid",
 						"description": "User ID, username, or me",
 						"name": "user",
 						"in": "path",
@@ -8208,7 +8206,6 @@
 				"parameters": [
 					{
 						"type": "string",
-						"format": "uuid",
 						"description": "User ID, username, or me",
 						"name": "user",
 						"in": "path",

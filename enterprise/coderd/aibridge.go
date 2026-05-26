@@ -825,7 +825,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me" format(uuid)
+// @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.UserAIBudgetOverride
 // @Router /api/v2/users/{user}/ai/budget [get]
 func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
@@ -852,7 +852,7 @@ func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me" format(uuid)
+// @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
 // @Success 200 {object} codersdk.UserAIBudgetOverride
 // @Router /api/v2/users/{user}/ai/budget [put]
@@ -912,7 +912,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 // @ID delete-user-ai-budget-override
 // @Security CoderSessionToken
 // @Tags Enterprise
-// @Param user path string true "User ID, username, or me" format(uuid)
+// @Param user path string true "User ID, username, or me"
 // @Success 204
 // @Router /api/v2/users/{user}/ai/budget [delete]
 func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
