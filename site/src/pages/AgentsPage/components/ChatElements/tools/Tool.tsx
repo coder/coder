@@ -27,7 +27,7 @@ import {
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { ReadFileTool } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -315,22 +315,12 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
-}) => {
-	const parsedArgs = parseArgs(args);
-	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(result);
-	const content = rec ? asString(rec.content).trim() : "";
-
-	return (
-		<ReadFileTool
-			path={path || "file"}
-			content={content}
-			status={status}
-			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-		/>
-	);
-};
+}) => (
+	<ReadFileTool
+		{...getReadFileToolData({ args, result, isError })}
+		status={status}
+	/>
+);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
