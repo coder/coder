@@ -1,6 +1,6 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
 
-const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"]);
 
 /**
  * Parse a port string from a URL, falling back to the protocol default
@@ -31,6 +31,7 @@ export const portForwardURL = (
 	protocol: WorkspaceAgentPortShareProtocol,
 	pathname?: string,
 	search?: string,
+	hash?: string,
 ): string => {
 	const { location } = window;
 	const suffix = protocol === "https" ? "s" : "";
@@ -45,6 +46,9 @@ export const portForwardURL = (
 		}
 		if (search) {
 			url.search = search;
+		}
+		if (hash) {
+			url.hash = hash;
 		}
 		return url.toString();
 	} catch {
@@ -84,6 +88,7 @@ export const rewriteLocalhostURL = (
 			protocol,
 			parsed.pathname,
 			parsed.search,
+			parsed.hash,
 		);
 	} catch {
 		return url;

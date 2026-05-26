@@ -68,6 +68,23 @@ describe("port forward URL", () => {
 			"http://12345--my-agent--my-workspace--my-username.proxy-host.tld/path1/path2?key1=value1&key2=value2",
 		);
 	});
+
+	it("http, host, port, path, query params and hash", () => {
+		const forwarded = portForwardURL(
+			proxyHostWildcard,
+			samplePort,
+			sampleAgent,
+			sampleWorkspace,
+			sampleUsername,
+			"http",
+			"/path1/path2",
+			"?key=value",
+			"#section-2",
+		);
+		expect(forwarded).toEqual(
+			"http://12345--my-agent--my-workspace--my-username.proxy-host.tld/path1/path2?key=value#section-2",
+		);
+	});
 });
 
 describe("resolveLocalhostPort", () => {
@@ -178,6 +195,32 @@ describe("rewriteLocalhostURL", () => {
 		);
 		expect(result).toEqual(
 			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path?key=value",
+		);
+	});
+
+	it("preserves hash fragments", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/path?key=value#section-2",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path?key=value#section-2",
+		);
+	});
+
+	it("rewrites IPv6 loopback", () => {
+		const result = rewriteLocalhostURL(
+			"http://[::1]:3000/path",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path",
 		);
 	});
 
