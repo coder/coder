@@ -23,7 +23,8 @@ const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
 	// non-empty API key before aibridged resolves the real credential.
-	aibridgePlaceholderAPIKey = "coder-aibridge"
+	aibridgePlaceholderAPIKey   = "coder-aibridge"
+	aibridgeDelegatedBYOKMarker = "delegated"
 )
 
 type aiGatewayModelRoute struct {
@@ -77,6 +78,9 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	cloned := req.Clone(ctx)
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)
+	}
+	if len(t.providerAuth.Headers) > 0 {
+		cloned.Header.Set(aibridge.HeaderCoderToken, aibridgeDelegatedBYOKMarker)
 	}
 	return t.base.RoundTrip(cloned)
 }

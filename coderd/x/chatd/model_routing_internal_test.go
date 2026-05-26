@@ -328,7 +328,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		got := <-seen
 		require.Equal(t, "Bearer sk-user", got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.Empty(t, got.coderToken)
+		require.Equal(t, aibridgeDelegatedBYOKMarker, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/responses", got.path)
 	})
@@ -349,7 +349,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 
 		got := <-seen
 		require.Equal(t, "sk-user", got.xAPIKey)
-		require.Empty(t, got.coderToken)
+		require.Equal(t, aibridgeDelegatedBYOKMarker, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/messages", got.path)
 	})

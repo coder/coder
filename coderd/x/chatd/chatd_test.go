@@ -76,6 +76,7 @@ type chatAIGatewayRecordedRequest struct {
 	Path          string
 	Authorization string
 	XAPIKey       string
+	CoderToken    string
 }
 
 type chatAIGatewayTestFactory struct {
@@ -119,6 +120,7 @@ func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		Path:          req.URL.Path,
 		Authorization: req.Header.Get("Authorization"),
 		XAPIKey:       req.Header.Get("X-Api-Key"),
+		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
 	})
 	t.factory.mu.Unlock()
 
@@ -7495,6 +7497,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		APIKeyID:      apiKey.ID,
 		Path:          "/v1/responses",
 		Authorization: "Bearer sk-user-aibridge",
+		CoderToken:    "delegated",
 	})
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
@@ -7502,6 +7505,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		require.Equal(t, apiKey.ID, req.APIKeyID)
 		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
 		require.Empty(t, req.XAPIKey)
+		require.Equal(t, "delegated", req.CoderToken)
 		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
 	}
 }

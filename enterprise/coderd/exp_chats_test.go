@@ -24,14 +24,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-func directChatRoutingDeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *codersdk.DeploymentValues {
-	t.Helper()
-
-	values := coderdtest.DeploymentValues(t, mut...)
-	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-	return values
-}
-
 func createOpenAIProviderForTest(
 	ctx context.Context,
 	t testing.TB,
@@ -83,9 +75,11 @@ func TestChatStreamRelay(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -96,9 +90,11 @@ func TestChatStreamRelay(t *testing.T) {
 
 		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -226,10 +222,12 @@ func TestChatStreamRelay(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				TLSCertificates:  certificates,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database:        db,
+				Pubsub:          pubsub,
+				TLSCertificates: certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -240,10 +238,12 @@ func TestChatStreamRelay(t *testing.T) {
 
 		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				TLSCertificates:  certificates,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database:        db,
+				Pubsub:          pubsub,
+				TLSCertificates: certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -408,9 +408,11 @@ func TestChatStreamRelay(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -421,9 +423,11 @@ func TestChatStreamRelay(t *testing.T) {
 
 		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -557,7 +561,8 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		hostPrefixValues := directChatRoutingDeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		hostPrefixValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
 			dv.HTTPCookies.EnableHostPrefix = true
 			dv.HTTPCookies.Secure = true
 		})
@@ -708,9 +713,11 @@ func TestChatStreamRelay(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -721,9 +728,11 @@ func TestChatStreamRelay(t *testing.T) {
 
 		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: directChatRoutingDeploymentValues(t),
+				Database: db,
+				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
