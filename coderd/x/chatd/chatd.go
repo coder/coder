@@ -8703,12 +8703,6 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 			return keys, &provider, nil
 		}
 	}
-	if p.shouldUseAIGatewayRouting() {
-		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf(
-			"AI Gateway routing requires a usable AI provider for provider type %q",
-			providerType,
-		)
-	}
 	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
 	if err != nil {
 		return chatprovider.ProviderAPIKeys{}, nil, err

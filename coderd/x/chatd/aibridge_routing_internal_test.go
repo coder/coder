@@ -61,10 +61,7 @@ func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerT
 }
 
 func aibridgeTestRoute(aiProvider *database.AIProvider) resolvedModelRoute {
-	return resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
-		Provider:     *aiProvider,
-		OriginalHint: string(aiProvider.Type),
-	}}
+	return newAIGatewayModelRoute(*aiProvider, string(aiProvider.Type), aiGatewayProviderAuth{})
 }
 
 func aibridgeTestRequest(chat database.Chat, model string) modelClientRequest {
@@ -137,11 +134,10 @@ func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}, chatprovider.ProviderAPIKeys{})
 	require.NoError(t, err)
-	require.NotNil(t, route.Direct)
-	require.Nil(t, route.AIGateway)
-	require.Equal(t, "openai", route.Direct.ProviderHint)
-	require.Equal(t, "provider-key", route.Direct.Keys.APIKey("openai"))
-	require.Equal(t, baseURL, route.Direct.Keys.BaseURL("openai"))
+	require.Equal(t, modelRouteKindDirect, route.kind)
+	require.Equal(t, "openai", route.direct.ProviderHint)
+	require.Equal(t, "provider-key", route.direct.Keys.APIKey("openai"))
+	require.Equal(t, baseURL, route.direct.Keys.BaseURL("openai"))
 }
 
 func TestAIGatewayProviderAuthForUser(t *testing.T) {
@@ -251,10 +247,9 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		server := &Server{db: db, aiGatewayRoutingEnabled: true, allowBYOK: true}
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
-		require.Nil(t, route.Direct)
-		require.NotNil(t, route.AIGateway)
-		require.True(t, route.AIGateway.ProviderAuth.PreserveProviderAuth)
-		require.Equal(t, "Bearer sk-user", route.AIGateway.ProviderAuth.Headers["Authorization"])
+		require.Equal(t, modelRouteKindAIGateway, route.kind)
+		require.True(t, route.aiGateway.ProviderAuth.PreserveProviderAuth)
+		require.Equal(t, "Bearer sk-user", route.aiGateway.ProviderAuth.Headers["Authorization"])
 	})
 
 	t.Run("CentralProviderCredentialsNotForwarded", func(t *testing.T) {
@@ -267,10 +262,9 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		server := &Server{db: db, aiGatewayRoutingEnabled: true, allowBYOK: false}
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
-		require.Nil(t, route.Direct)
-		require.NotNil(t, route.AIGateway)
-		require.False(t, route.AIGateway.ProviderAuth.PreserveProviderAuth)
-		require.Empty(t, route.AIGateway.ProviderAuth.Headers)
+		require.Equal(t, modelRouteKindAIGateway, route.kind)
+		require.False(t, route.aiGateway.ProviderAuth.PreserveProviderAuth)
+		require.Empty(t, route.aiGateway.ProviderAuth.Headers)
 	})
 }
 
@@ -309,11 +303,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 			aiGatewayRoutingEnabled:  true,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 		}
-		route := resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
-			Provider:     provider,
-			OriginalHint: string(provider.Type),
-			ProviderAuth: auth,
-		}}
+		route := newAIGatewayModelRoute(provider, string(provider.Type), auth)
 		return server, route
 	}
 
@@ -544,7 +534,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), resolvedModelRoute{AIGateway: &aiGatewayModelRoute{}}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), newAIGatewayModelRoute(database.AIProvider{}, "", aiGatewayProviderAuth{}), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "concrete AI provider")
 	})
 }
@@ -557,10 +547,7 @@ func TestDirectModelBuildDoesNotRequireActiveAPIKeyID(t *testing.T) {
 		Chat:      database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
 		ModelName: "gpt-4",
 		UserAgent: chatprovider.UserAgent(),
-	}, resolvedModelRoute{Direct: &directModelRoute{
-		ProviderHint: "openai",
-		Keys:         chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
-	}}, modelBuildOptions{})
+	}, newDirectModelRoute("openai", chatprovider.ProviderAPIKeys{OpenAI: "sk-test"}), modelBuildOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, model)
 }

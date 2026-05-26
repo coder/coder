@@ -152,7 +152,7 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		context.Background(),
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		resolvedModelRoute{Direct: &directModelRoute{ProviderHint: modelProvider}},
+		newDirectModelRoute(modelProvider, chatprovider.ProviderAPIKeys{}),
 		provider,
 		modelProvider,
 		modelName,
@@ -168,7 +168,7 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
 }
 
-func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridge(t *testing.T) {
+func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -186,7 +186,7 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridge(t *testin
 		APIKey:     "test-key",
 	}}, nil)
 
-	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	server := &Server{db: db}
 	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
 		ctx,
 		ownerID,
@@ -199,7 +199,7 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridge(t *testin
 	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
 }
 
-func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridgeRequiresProvider(t *testing.T) {
+func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -209,14 +209,12 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderType_AIBridgeRequiresPr
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
 
 	server := &Server{db: db, aiGatewayRoutingEnabled: true}
-	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
+	_, err := server.resolveModelRouteForProviderType(
 		ctx,
 		uuid.New(),
 		chattool.ComputerUseProviderOpenAI,
 	)
 	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
-	require.True(t, keys.Empty())
-	require.Nil(t, aiProvider)
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {

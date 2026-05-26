@@ -93,11 +93,8 @@ func (p *Server) preferredShortTextCandidates(
 			candidates = append(candidates, shortTextCandidate{
 				provider: candidate.provider,
 				model:    candidate.model,
-				route: resolvedModelRoute{Direct: &directModelRoute{
-					ProviderHint: candidate.provider,
-					Keys:         keys,
-				}},
-				lm: model,
+				route:    newDirectModelRoute(candidate.provider, keys),
+				lm:       model,
 			})
 		}
 	}

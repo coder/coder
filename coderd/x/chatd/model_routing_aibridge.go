@@ -27,37 +27,25 @@ const (
 	aibridgePlaceholderAPIKey = "coder-aibridge"
 )
 
-type modelClientRequest struct {
-	Chat         database.Chat
-	ModelName    string
-	UserAgent    string
-	ExtraHeaders map[string]string
-}
-
-type modelBuildOptions struct {
-	ActiveAPIKeyID string
-	RecordHTTP     bool
-}
-
-func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOptions {
-	apiKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
-	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-}
-
-type resolvedModelRoute struct {
-	Direct    *directModelRoute
-	AIGateway *aiGatewayModelRoute
-}
-
-type directModelRoute struct {
-	ProviderHint string
-	Keys         chatprovider.ProviderAPIKeys
-}
-
 type aiGatewayModelRoute struct {
-	Provider     database.AIProvider
-	OriginalHint string
-	ProviderAuth aiGatewayProviderAuth
+	Provider          database.AIProvider
+	ModelProviderHint string
+	ProviderAuth      aiGatewayProviderAuth
+}
+
+func newAIGatewayModelRoute(
+	provider database.AIProvider,
+	modelProviderHint string,
+	auth aiGatewayProviderAuth,
+) resolvedModelRoute {
+	return resolvedModelRoute{
+		kind: modelRouteKindAIGateway,
+		aiGateway: aiGatewayModelRoute{
+			Provider:          provider,
+			ModelProviderHint: modelProviderHint,
+			ProviderAuth:      auth,
+		},
+	}
 }
 
 type aiGatewayProviderAuth struct {
@@ -71,48 +59,6 @@ const (
 	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
 	aiGatewayRequestFormatAnthropic
 )
-
-func (r resolvedModelRoute) providerHint() (string, error) {
-	switch {
-	case r.Direct != nil && r.AIGateway != nil:
-		return "", xerrors.New("model route cannot be both direct and AI Gateway")
-	case r.Direct != nil:
-		return r.Direct.ProviderHint, nil
-	case r.AIGateway != nil:
-		return r.AIGateway.OriginalHint, nil
-	default:
-		return "", xerrors.New("model route is not configured")
-	}
-}
-
-func (r resolvedModelRoute) withProviderHint(providerHint string) resolvedModelRoute {
-	if r.Direct != nil {
-		direct := *r.Direct
-		direct.ProviderHint = providerHint
-		r.Direct = &direct
-	}
-	if r.AIGateway != nil {
-		aiGateway := *r.AIGateway
-		aiGateway.OriginalHint = providerHint
-		r.AIGateway = &aiGateway
-	}
-	return r
-}
-
-func (r resolvedModelRoute) directProviderKeys() chatprovider.ProviderAPIKeys {
-	if r.Direct == nil {
-		return chatprovider.ProviderAPIKeys{}
-	}
-	return r.Direct.Keys
-}
-
-func (r resolvedModelRoute) aiProvider() *database.AIProvider {
-	if r.AIGateway == nil {
-		return nil
-	}
-	provider := r.AIGateway.Provider
-	return &provider
-}
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -135,48 +81,6 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 		cloned.Header.Set(name, value)
 	}
 	return t.base.RoundTrip(cloned)
-}
-
-func (p *Server) shouldUseAIGatewayRouting() bool {
-	return p.aiGatewayRoutingEnabled
-}
-
-func (p *Server) newModel(
-	ctx context.Context,
-	req modelClientRequest,
-	route resolvedModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
-	switch {
-	case route.Direct != nil && route.AIGateway != nil:
-		return nil, xerrors.New("model route cannot be both direct and AI Gateway")
-	case route.Direct != nil:
-		return p.newDirectModel(ctx, req, *route.Direct, opts)
-	case route.AIGateway != nil:
-		return p.newAIGatewayModel(ctx, req, *route.AIGateway, opts)
-	default:
-		return nil, xerrors.New("model route is not configured")
-	}
-}
-
-func (*Server) newDirectModel(
-	_ context.Context,
-	req modelClientRequest,
-	route directModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
-	var httpClient *http.Client
-	if opts.RecordHTTP {
-		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
-	}
-	return newLanguageModel(
-		route.ProviderHint,
-		req.ModelName,
-		route.Keys,
-		req.UserAgent,
-		req.ExtraHeaders,
-		httpClient,
-	)
 }
 
 func (p *Server) newAIGatewayModel(
@@ -225,39 +129,6 @@ func (p *Server) newAIGatewayModel(
 		req.ExtraHeaders,
 		&http.Client{Transport: baseRT},
 	)
-}
-
-func newLanguageModel(
-	providerHint string,
-	modelName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-	userAgent string,
-	extraHeaders map[string]string,
-	httpClient *http.Client,
-) (fantasy.LanguageModel, error) {
-	model, err := chatprovider.ModelFromConfig(
-		providerHint,
-		modelName,
-		providerKeys,
-		userAgent,
-		extraHeaders,
-		httpClient,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if model == nil {
-		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		return nil, xerrors.Errorf(
-			"create model for %s/%s returned nil",
-			provider,
-			resolvedModel,
-		)
-	}
-	return model, nil
 }
 
 type aibridgeFantasyConfig struct {
@@ -336,35 +207,11 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	}, nil
 }
 
-func (p *Server) aiProviderForConfig(
-	ctx context.Context,
-	modelConfig database.ChatModelConfig,
-) (string, *database.AIProvider, error) {
-	if !modelConfig.AIProviderID.Valid {
-		if p.shouldUseAIGatewayRouting() {
-			return "", nil, xerrors.Errorf(
-				"AI Gateway routing requires AI provider metadata for model config %s (%s)",
-				modelConfig.ID,
-				modelConfig.Model,
-			)
-		}
-		return modelConfig.Provider, nil, nil
-	}
-	provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
-	if err != nil {
-		return "", nil, xerrors.Errorf("get AI provider: %w", err)
-	}
-	if !provider.Enabled {
-		return "", nil, xerrors.Errorf("AI provider %s is disabled", provider.ID)
-	}
-	return string(provider.Type), &provider, nil
-}
-
 func (p *Server) resolveAIGatewayRoute(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	provider database.AIProvider,
-	originalHint string,
+	modelProviderHint string,
 ) (resolvedModelRoute, error) {
 	auth, err := p.aiGatewayProviderAuthForUser(
 		ctx,
@@ -375,68 +222,50 @@ func (p *Server) resolveAIGatewayRoute(
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
 	}
-	return resolvedModelRoute{AIGateway: &aiGatewayModelRoute{
-		Provider:     provider,
-		OriginalHint: originalHint,
-		ProviderAuth: auth,
-	}}, nil
+	return newAIGatewayModelRoute(provider, modelProviderHint, auth), nil
 }
 
-func (p *Server) resolveModelRouteForConfig(
+func (p *Server) resolveAIGatewayModelRouteForConfig(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	modelConfig database.ChatModelConfig,
-	fallbackKeys chatprovider.ProviderAPIKeys,
 ) (resolvedModelRoute, error) {
-	providerHint, provider, err := p.aiProviderForConfig(ctx, modelConfig)
+	provider, err := p.gatewayProviderForConfig(ctx, modelConfig)
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	if p.shouldUseAIGatewayRouting() {
-		if provider == nil || provider.ID == uuid.Nil {
-			return resolvedModelRoute{}, xerrors.Errorf(
-				"AI Gateway routing requires AI provider metadata for model config %s (%s)",
-				modelConfig.ID,
-				modelConfig.Model,
-			)
-		}
-		return p.resolveAIGatewayRoute(ctx, ownerID, *provider, providerHint)
-	}
-	if provider == nil {
-		if !fallbackKeys.Empty() && userCanUseProviderKeys(fallbackKeys, providerHint) {
-			return resolvedModelRoute{Direct: &directModelRoute{ProviderHint: providerHint, Keys: fallbackKeys}}, nil
-		}
-		keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-		if err != nil {
-			return resolvedModelRoute{}, xerrors.Errorf("resolve provider API keys: %w", err)
-		}
-		return resolvedModelRoute{Direct: &directModelRoute{ProviderHint: providerHint, Keys: keys}}, nil
-	}
-	providerKeys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, *provider)
-	if err != nil {
-		return resolvedModelRoute{}, xerrors.Errorf("resolve provider API keys: %w", err)
-	}
-	return resolvedModelRoute{Direct: &directModelRoute{ProviderHint: providerHint, Keys: providerKeys}}, nil
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
 }
 
-func (p *Server) resolveModelRouteForProviderType(
+func (p *Server) resolveAIGatewayModelRouteForProviderType(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	providerType string,
 ) (resolvedModelRoute, error) {
-	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	if p.shouldUseAIGatewayRouting() {
-		provider, err := p.aiProviderForProviderType(ctx, providerType)
-		if err != nil {
-			return resolvedModelRoute{}, err
-		}
-		return p.resolveAIGatewayRoute(ctx, ownerID, provider, normalizedProviderType)
-	}
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
+	provider, err := p.aiProviderForProviderType(ctx, providerType)
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return resolvedModelRoute{Direct: &directModelRoute{ProviderHint: normalizedProviderType, Keys: keys}}, nil
+	return p.resolveAIGatewayRoute(
+		ctx,
+		ownerID,
+		provider,
+		chatprovider.NormalizeProvider(providerType),
+	)
+}
+
+func (p *Server) gatewayProviderForConfig(
+	ctx context.Context,
+	modelConfig database.ChatModelConfig,
+) (database.AIProvider, error) {
+	if !modelConfig.AIProviderID.Valid {
+		return database.AIProvider{}, xerrors.Errorf(
+			"AI Gateway routing requires AI provider metadata for model config %s (%s)",
+			modelConfig.ID,
+			modelConfig.Model,
+		)
+	}
+	return p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
 }
 
 func (p *Server) aiProviderForProviderType(
