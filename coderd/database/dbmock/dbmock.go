@@ -308,6 +308,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ChatHasQueuedMessages mocks base method.
+func (m *MockStore) ChatHasQueuedMessages(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChatHasQueuedMessages", ctx, chatID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ChatHasQueuedMessages indicates an expected call of ChatHasQueuedMessages.
+func (mr *MockStoreMockRecorder) ChatHasQueuedMessages(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatHasQueuedMessages", reflect.TypeOf((*MockStore)(nil).ChatHasQueuedMessages), ctx, chatID)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -2443,6 +2458,21 @@ func (m *MockStore) GetChatComputerUseProvider(ctx context.Context) (string, err
 func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
+}
+
+// GetChatContextBoundariesByChatID mocks base method.
+func (m *MockStore) GetChatContextBoundariesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatContextBoundariesByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatContextBoundariesByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.GetChatContextBoundariesByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatContextBoundariesByChatID indicates an expected call of GetChatContextBoundariesByChatID.
+func (mr *MockStoreMockRecorder) GetChatContextBoundariesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatContextBoundariesByChatID", reflect.TypeOf((*MockStore)(nil).GetChatContextBoundariesByChatID), ctx, chatID)
 }
 
 // GetChatCostPerChat mocks base method.

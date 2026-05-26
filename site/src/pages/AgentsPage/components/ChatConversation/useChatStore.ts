@@ -253,6 +253,7 @@ export const useChatStore = (
 		// them on chat change so a stale promote suppression doesn't
 		// hide queued messages in another chat.
 		store.clearSuppressedQueuedMessageIDs();
+		store.setContextBoundaries([]);
 		if (!chatID) {
 			return;
 		}
@@ -276,6 +277,13 @@ export const useChatStore = (
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
+
+	useEffect(() => {
+		if (!chatID || !chatMessagesData) {
+			return;
+		}
+		store.setContextBoundaries(chatMessagesData.boundaries);
+	}, [chatMessagesData, chatID, store]);
 
 	useEffect(() => {
 		const updateSidebarChat = (

@@ -14761,6 +14761,20 @@
 			"enum": ["ui", "api"],
 			"x-enum-varnames": ["ChatClientTypeUI", "ChatClientTypeAPI"]
 		},
+		"codersdk.ChatCommandResult": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"type": "string"
+				},
+				"message": {
+					"type": "string"
+				},
+				"success": {
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.ChatConfig": {
 			"type": "object",
 			"properties": {
@@ -14769,6 +14783,22 @@
 				},
 				"debug_logging_enabled": {
 					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.ChatContextBoundary": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "integer"
 				}
 			}
 		},
@@ -15308,6 +15338,12 @@
 		"codersdk.ChatMessagesResponse": {
 			"type": "object",
 			"properties": {
+				"boundaries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatContextBoundary"
+					}
+				},
 				"has_more": {
 					"type": "boolean"
 				},
@@ -15910,6 +15946,14 @@
 		"codersdk.CreateChatMessageResponse": {
 			"type": "object",
 			"properties": {
+				"command_result": {
+					"description": "CommandResult is set when the request ran a command.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatCommandResult"
+						}
+					]
+				},
 				"message": {
 					"$ref": "#/definitions/codersdk.ChatMessage"
 				},

@@ -32,6 +32,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withToaster,
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
@@ -189,6 +190,7 @@ const extractPromptsFromMessages = (
 	}
 	return prompts;
 };
+
 type ChatAuthorizationFixture = {
 	action: "share" | "update";
 	allowed: boolean;
@@ -225,10 +227,17 @@ const buildChatAuthorizationQuery = (
 	};
 };
 
+type ChatMessagesResponseFixture = Omit<
+	TypesGen.ChatMessagesResponse,
+	"boundaries"
+> & {
+	boundaries?: TypesGen.ChatMessagesResponse["boundaries"];
+};
+
 /** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
 	chat: TypesGen.Chat,
-	messagesData: TypesGen.ChatMessagesResponse,
+	messagesData: ChatMessagesResponseFixture,
 	opts?: { diffUrl?: string },
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
@@ -249,7 +258,10 @@ const buildQueries = (
 		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
 		{
 			key: chatMessagesKey(CHAT_ID),
-			data: { pages: [messagesData], pageParams: [undefined] },
+			data: {
+				pages: [{ ...messagesData, boundaries: messagesData.boundaries ?? [] }],
+				pageParams: [undefined],
+			},
 		},
 		{
 			key: chatPromptsKey(CHAT_ID),
@@ -1394,6 +1406,299 @@ export const PersistedStructuredError: Story = {
 		).toBeVisible();
 		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
+	},
+};
+
+export const ClearCommandResult: Story = {
+	decorators: [withToaster],
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Visible history" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+		const refreshedChat = {
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Clear command",
+			status: "completed",
+		} satisfies TypesGen.Chat;
+		const refreshedMessage: TypesGen.ChatMessage = {
+			id: 1,
+			chat_id: CHAT_ID,
+			created_at: "2026-02-18T00:00:00.000Z",
+			role: "user",
+			content: [{ type: "text", text: "Visible history" }],
+		};
+		const refreshedMessages = {
+			messages: [refreshedMessage],
+			queued_messages: [],
+			boundaries: [
+				{
+					id: 2,
+					chat_id: CHAT_ID,
+					created_at: "2026-02-18T00:01:00.000Z",
+				},
+			],
+			has_more: false,
+		} satisfies TypesGen.ChatMessagesResponse;
+		const createMessageSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			command_result: { command: "clear", success: true },
+		});
+		const getChatSpy = spyOn(API.experimental, "getChat").mockResolvedValue(
+			refreshedChat,
+		);
+		const getChatMessagesSpy = spyOn(
+			API.experimental,
+			"getChatMessages",
+		).mockResolvedValue(refreshedMessages);
+
+		const editor = await canvas.findByRole("textbox");
+		await user.click(editor);
+		await user.type(editor, "/clear");
+		await user.click(canvas.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => {
+			expect(createMessageSpy).toHaveBeenCalledWith(CHAT_ID, {
+				content: [{ type: "text", text: "/clear" }],
+			});
+		});
+		await body.findByText("Context cleared.");
+		await waitFor(() => {
+			expect(getChatSpy).toHaveBeenCalledWith(CHAT_ID);
+		});
+		await waitFor(() => {
+			expect(getChatMessagesSpy).toHaveBeenCalledWith(
+				CHAT_ID,
+				expect.objectContaining({ limit: 50 }),
+			);
+		});
+		expect(await canvas.findByTestId("context-boundary-divider")).toBeVisible();
+		expect(canvas.queryByText("/clear")).not.toBeInTheDocument();
+	},
+};
+
+export const ContextBoundaryHistory: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Context boundary history",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Before boundary" }],
+					},
+					{
+						id: 3,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:02:00.000Z",
+						role: "assistant",
+						content: [{ type: "text", text: "After boundary" }],
+					},
+				],
+				queued_messages: [],
+				boundaries: [
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:00.000Z",
+					},
+				],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const divider = await canvas.findByTestId("context-boundary-divider");
+		expect(divider).toBeVisible();
+		// Divider must sit between the two messages. compareDocumentPosition
+		// verifies render order so a misplaced divider is caught.
+		const before = await canvas.findByText("Before boundary");
+		const after = await canvas.findByText("After boundary");
+		expect(
+			before.compareDocumentPosition(divider) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+		expect(
+			divider.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	},
+};
+
+// Paginated case: only the recent slice of messages is loaded, but the
+// boundary id falls before the first loaded message. The divider must
+// still render at the top of the timeline so the marker stays visible.
+export const ContextBoundaryBeforeFirstMessage: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Paginated context boundary",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 5,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:05:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "After boundary" }],
+					},
+				],
+				queued_messages: [],
+				boundaries: [
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:00.000Z",
+					},
+				],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const divider = await canvas.findByTestId("context-boundary-divider");
+		expect(divider).toBeVisible();
+		// Divider must render before the only message, since the boundary id
+		// is below the first loaded message id.
+		const afterMessage = await canvas.findByText("After boundary");
+		expect(
+			divider.compareDocumentPosition(afterMessage) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+	},
+};
+
+// A chat that has only hidden boundary markers but no visible messages
+// must still render the divider so the UI matches the fetched data.
+export const EmptyTranscriptWithBoundary: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Empty transcript with boundary",
+				status: "completed",
+			},
+			{
+				messages: [],
+				queued_messages: [],
+				boundaries: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:00.000Z",
+					},
+				],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("context-boundary-divider")).toBeVisible();
+	},
+};
+
+export const ClearCommandError: Story = {
+	decorators: [withToaster],
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command error",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Visible history" }],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+		const createMessageSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockRejectedValue({
+			isAxiosError: true,
+			response: {
+				data: {
+					message:
+						"Wait for the chat to finish, respond to a pending tool call, or interrupt it before clearing context.",
+					command: "clear",
+				},
+			},
+		});
+
+		const editor = await canvas.findByRole("textbox");
+		await user.click(editor);
+		await user.type(editor, "/clear");
+		await user.click(canvas.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => {
+			expect(createMessageSpy).toHaveBeenCalledWith(CHAT_ID, {
+				content: [{ type: "text", text: "/clear" }],
+			});
+		});
+		await body.findByText(
+			"Wait for the chat to finish, respond to a pending tool call, or interrupt it before clearing context.",
+		);
 	},
 };
 

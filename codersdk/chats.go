@@ -546,12 +546,22 @@ type EditChatMessageRequest struct {
 	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
+// ChatCommandResult is returned when a chat message request is consumed as
+// a slash command instead of creating a message.
+type ChatCommandResult struct {
+	Command string `json:"command"`
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 	Warnings      []string           `json:"warnings,omitempty"`
+	// CommandResult is set when the request ran a command.
+	CommandResult *ChatCommandResult `json:"command_result,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
@@ -567,11 +577,20 @@ type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
-// ChatMessagesResponse contains the messages and queued messages for a chat.
+// ChatContextBoundary marks where prior chat context was compressed or cleared.
+type ChatContextBoundary struct {
+	ID        int64     `json:"id"`
+	ChatID    uuid.UUID `json:"chat_id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+}
+
+// ChatMessagesResponse contains the messages, queued messages, and
+// context boundaries for a chat.
 type ChatMessagesResponse struct {
-	Messages       []ChatMessage       `json:"messages"`
-	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
-	HasMore        bool                `json:"has_more"`
+	Messages       []ChatMessage         `json:"messages"`
+	QueuedMessages []ChatQueuedMessage   `json:"queued_messages"`
+	Boundaries     []ChatContextBoundary `json:"boundaries"`
+	HasMore        bool                  `json:"has_more"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by

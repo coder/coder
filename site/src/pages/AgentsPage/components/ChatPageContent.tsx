@@ -23,6 +23,7 @@ import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
+	selectContextBoundaries,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
@@ -75,6 +76,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const contextBoundaries = useChatSelector(store, selectContextBoundaries);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
@@ -116,6 +118,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
+					boundaries={contextBoundaries}
 					parsedMessages={parsedMessages}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}

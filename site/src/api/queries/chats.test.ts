@@ -926,7 +926,9 @@ describe("mutation invalidation scope", () => {
 		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -936,7 +938,9 @@ describe("mutation invalidation scope", () => {
 			{ messageId: 2, req: editReq },
 			{
 				previousData: {
-					pages: [{ messages, queued_messages: [], has_more: false }],
+					pages: [
+						{ messages, queued_messages: [], boundaries: [], has_more: false },
+					],
 					pageParams: [undefined],
 				},
 			},
@@ -1006,7 +1010,9 @@ describe("mutation invalidation scope", () => {
 		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -1041,6 +1047,7 @@ describe("mutation invalidation scope", () => {
 				{
 					messages,
 					queued_messages: queuedMessages,
+					boundaries: [],
 					has_more: false,
 				},
 			],
@@ -1067,7 +1074,9 @@ describe("mutation invalidation scope", () => {
 		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -1113,7 +1122,9 @@ describe("mutation invalidation scope", () => {
 		};
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -1175,7 +1186,9 @@ describe("mutation invalidation scope", () => {
 		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -1212,8 +1225,18 @@ describe("mutation invalidation scope", () => {
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
 			pages: [
-				{ messages: page0, queued_messages: [], has_more: true },
-				{ messages: page1, queued_messages: [], has_more: false },
+				{
+					messages: page0,
+					queued_messages: [],
+					boundaries: [],
+					has_more: true,
+				},
+				{
+					messages: page1,
+					queued_messages: [],
+					boundaries: [],
+					has_more: false,
+				},
 			],
 			pageParams: [undefined, 6],
 		});
@@ -1243,7 +1266,9 @@ describe("mutation invalidation scope", () => {
 		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 
@@ -1269,7 +1294,9 @@ describe("mutation invalidation scope", () => {
 		);
 
 		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
+			pages: [
+				{ messages, queued_messages: [], boundaries: [], has_more: false },
+			],
 			pageParams: [undefined],
 		});
 

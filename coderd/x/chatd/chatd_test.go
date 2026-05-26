@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -8640,6 +8641,454 @@ func TestSendMessageRejectsArchivedChat(t *testing.T) {
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
+}
+
+type clearContextMessageRow struct {
+	ID            int64
+	Role          string
+	Visibility    string
+	Compressed    bool
+	Content       string
+	ModelConfigID sql.NullString
+}
+
+func clearContextMessageRows(
+	ctx context.Context,
+	t *testing.T,
+	sqlDB *sql.DB,
+	chatID uuid.UUID,
+) []clearContextMessageRow {
+	t.Helper()
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT
+			id,
+			role::text,
+			visibility::text,
+			compressed,
+			content::text,
+			model_config_id::text
+		FROM chat_messages
+		WHERE chat_id = $1
+		ORDER BY id ASC
+		`, chatID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var messages []clearContextMessageRow
+	for rows.Next() {
+		var row clearContextMessageRow
+		err := rows.Scan(
+			&row.ID,
+			&row.Role,
+			&row.Visibility,
+			&row.Compressed,
+			&row.Content,
+			&row.ModelConfigID,
+		)
+		require.NoError(t, err)
+		messages = append(messages, row)
+	}
+	require.NoError(t, rows.Err())
+	return messages
+}
+
+func compressedModelMessageRows(rows []clearContextMessageRow) []clearContextMessageRow {
+	messages := make([]clearContextMessageRow, 0, len(rows))
+	for _, row := range rows {
+		if row.Role == "user" && row.Visibility == "model" && row.Compressed {
+			messages = append(messages, row)
+		}
+	}
+	return messages
+}
+
+func createClearContextTestChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user database.User,
+	org database.Organization,
+	model database.ChatModelConfig,
+	title string,
+	visibleText string,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             title,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	require.NoError(t, err)
+
+	if visibleText != "" {
+		_ = insertClearContextTestMessage(
+			ctx,
+			t,
+			db,
+			chat.ID,
+			user.ID,
+			model.ID,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			visibleText,
+			false,
+		)
+	}
+	return chat
+}
+
+func insertClearContextTestMessage(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	createdBy uuid.UUID,
+	modelConfigID uuid.UUID,
+	role database.ChatMessageRole,
+	visibility database.ChatMessageVisibility,
+	text string,
+	compressed bool,
+) database.ChatMessage {
+	t.Helper()
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(text),
+	})
+	require.NoError(t, err)
+	params := chatd.BuildSingleChatMessageInsertParams(
+		chatID,
+		role,
+		content,
+		visibility,
+		modelConfigID,
+		chatprompt.CurrentContentVersion,
+		createdBy,
+	)
+	params.Compressed[0] = compressed
+	messages, err := db.InsertChatMessages(ctx, params)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	return messages[0]
+}
+
+func visibleClearContextMessages(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+) []database.ChatMessage {
+	t.Helper()
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	return messages
+}
+
+func clearContextPromptMessageIDs(messages []database.ChatMessage) map[int64]struct{} {
+	ids := make(map[int64]struct{}, len(messages))
+	for _, message := range messages {
+		ids[message.ID] = struct{}{}
+	}
+	return ids
+}
+
+func clearContextPromptContainsText(messages []database.ChatMessage, text string) bool {
+	for _, message := range messages {
+		if message.Content.Valid && strings.Contains(string(message.Content.RawMessage), text) {
+			return true
+		}
+	}
+	return false
+}
+
+func updateClearContextChatStatus(
+	ctx context.Context,
+	t *testing.T, db database.Store,
+	chatID uuid.UUID,
+	status database.ChatStatus,
+	lastError pqtype.NullRawMessage,
+) database.Chat {
+	t.Helper()
+
+	params := database.UpdateChatStatusParams{
+		ID:        chatID,
+		Status:    status,
+		LastError: lastError,
+	}
+	if status == database.ChatStatusRunning {
+		params.WorkerID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		params.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		params.HeartbeatAt = sql.NullTime{Time: time.Now(), Valid: true}
+	}
+	chat, err := db.UpdateChatStatus(ctx, params)
+	require.NoError(t, err)
+	return chat
+}
+
+func TestClearChatContextWritesMarker(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-marker", "before clear")
+	before, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	err = replica.ClearChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+
+	rows := clearContextMessageRows(ctx, t, sqlDB, chat.ID)
+	markers := compressedModelMessageRows(rows)
+	require.Len(t, markers, 1)
+	marker := markers[0]
+	require.Equal(t, model.ID.String(), marker.ModelConfigID.String)
+	require.Contains(t, marker.Content, "The user cleared the prior conversation context")
+
+	after, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, before.Status, after.Status)
+	require.Equal(t, before.WorkerID, after.WorkerID)
+	require.Equal(t, before.StartedAt, after.StartedAt)
+	require.Equal(t, before.HeartbeatAt, after.HeartbeatAt)
+	require.False(t, chatd.ConsumeWakeIfPendingForTest(replica))
+}
+
+func TestClearChatContextDoesNotPublishStreamEvent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	clearReplica := newTestServer(t, db, ps, uuid.New())
+	subscribeReplica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-no-event", "")
+	_, events, cancel, ok := subscribeReplica.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	err := clearReplica.ClearChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+
+	require.Never(t, func() bool {
+		select {
+		case <-events:
+			return true
+		default:
+			return false
+		}
+	}, 200*time.Millisecond, testutil.IntervalFast)
+}
+
+func TestClearChatContextRejectsUnavailableChats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-archived", "")
+		err := replica.ArchiveChat(ctx, chat)
+		require.NoError(t, err)
+
+		err = replica.ClearChatContext(ctx, chat.ID)
+		require.ErrorIs(t, err, chatd.ErrChatArchived)
+	})
+
+	statuses := []database.ChatStatus{
+		database.ChatStatusPending,
+		database.ChatStatusRunning,
+		database.ChatStatusRequiresAction,
+		database.ChatStatusPaused,
+	}
+	for _, status := range statuses {
+		t.Run(string(status), func(t *testing.T) {
+			t.Parallel()
+
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			replica := newTestServer(t, db, ps, uuid.New())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+			chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-busy", "")
+			_ = updateClearContextChatStatus(ctx, t, db, chat.ID, status, pqtype.NullRawMessage{})
+
+			err := replica.ClearChatContext(ctx, chat.ID)
+			require.ErrorIs(t, err, chatd.ErrChatNotIdle)
+			require.Empty(t, compressedModelMessageRows(clearContextMessageRows(ctx, t, sqlDB, chat.ID)))
+		})
+	}
+
+	t.Run("Queued", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-queued", "")
+		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+			ChatID:  chat.ID,
+			Content: queuedContent.RawMessage,
+			ModelConfigID: uuid.NullUUID{
+				UUID:  model.ID,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		err = replica.ClearChatContext(ctx, chat.ID)
+		require.ErrorIs(t, err, chatd.ErrChatHasQueuedMessages)
+		require.Empty(t, compressedModelMessageRows(clearContextMessageRows(ctx, t, sqlDB, chat.ID)))
+	})
+}
+
+func TestClearChatContextAcceptsIdleStatuses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		status    database.ChatStatus
+		lastError pqtype.NullRawMessage
+	}{
+		{
+			name:   "Waiting",
+			status: database.ChatStatusWaiting,
+		},
+		{
+			name:   "Completed",
+			status: database.ChatStatusCompleted,
+		},
+		{
+			name:   "Error",
+			status: database.ChatStatusError,
+			lastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
+				Kind:    codersdk.ChatErrorKindGeneric,
+				Message: "failed",
+			}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			replica := newTestServer(t, db, ps, uuid.New())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+			chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-idle", "")
+			_ = updateClearContextChatStatus(ctx, t, db, chat.ID, tt.status, tt.lastError)
+
+			err := replica.ClearChatContext(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Len(t, compressedModelMessageRows(clearContextMessageRows(ctx, t, sqlDB, chat.ID)), 1)
+		})
+	}
+}
+
+func TestClearChatContextPromptCutoff(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-prompt", "before clear")
+	system := insertClearContextTestMessage(ctx, t, db, chat.ID, uuid.Nil, model.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, "system prompt", false)
+
+	err := replica.ClearChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+	after := insertClearContextTestMessage(ctx, t, db, chat.ID, user.ID, model.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "after clear", false)
+
+	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	promptIDs := clearContextPromptMessageIDs(promptMessages)
+	require.Contains(t, promptIDs, system.ID)
+	require.Contains(t, promptIDs, after.ID)
+	require.False(t, clearContextPromptContainsText(promptMessages, "before clear"))
+	require.True(t, clearContextPromptContainsText(promptMessages, "after clear"))
+	require.True(t, clearContextPromptContainsText(promptMessages, "The user cleared"))
+}
+
+func TestClearChatContextMarkerHiddenFromUserListing(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := createClearContextTestChat(ctx, t, db, user, org, model, "clear-hidden", "before clear")
+	visibleBefore := visibleClearContextMessages(ctx, t, db, chat.ID)
+
+	err := replica.ClearChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+
+	visibleAfter := visibleClearContextMessages(ctx, t, db, chat.ID)
+	require.Equal(t, visibleBefore, visibleAfter)
+	require.Len(t, compressedModelMessageRows(clearContextMessageRows(ctx, t, sqlDB, chat.ID)), 1)
+}
+
+func TestPersistChatContextSummaryWritesMessagesOnly(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := createClearContextTestChat(ctx, t, db, user, org, model, "compact-summary", "")
+
+	err := chatd.PersistChatContextSummaryForTest(ctx, replica, chat.ID, model.ID, "call-1", chatloop.CompactionResult{
+		SystemSummary:    "summary for the model",
+		SummaryReport:    "summary for the user",
+		ThresholdPercent: 80,
+		UsagePercent:     90,
+		ContextTokens:    900,
+		ContextLimit:     1000,
+	})
+	require.NoError(t, err)
+
+	rows := clearContextMessageRows(ctx, t, sqlDB, chat.ID)
+	require.Len(t, rows, 3)
+	compressedRows := compressedModelMessageRows(rows)
+	require.Len(t, compressedRows, 1)
+	require.Contains(t, compressedRows[0].Content, "summary for the model")
+
+	visible := visibleClearContextMessages(ctx, t, db, chat.ID)
+	require.Len(t, visible, 2)
+	actualRoles := []database.ChatMessageRole{visible[0].Role, visible[1].Role}
+	require.ElementsMatch(t, []database.ChatMessageRole{
+		database.ChatMessageRoleAssistant,
+		database.ChatMessageRoleTool,
+	}, actualRoles)
+
+	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, promptMessages, 1)
+	require.Equal(t, compressedRows[0].ID, promptMessages[0].ID)
 }
 
 func TestEditMessageRejectsArchivedChat(t *testing.T) {

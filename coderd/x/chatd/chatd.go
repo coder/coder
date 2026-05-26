@@ -1391,6 +1391,12 @@ var (
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
+	// ErrChatNotIdle indicates the chat cannot be cleared until its
+	// current work has finished.
+	ErrChatNotIdle = xerrors.New("chat is not idle")
+	// ErrChatHasQueuedMessages indicates the chat has queued user messages
+	// that must be processed before clearing context.
+	ErrChatHasQueuedMessages = xerrors.New("chat has queued messages")
 
 	// errChatTakenByOtherWorker is a sentinel used inside the
 	// processChat cleanup transaction to signal that another
@@ -1863,6 +1869,81 @@ func (p *Server) SendMessage(
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	p.signalWake()
 	return result, nil
+}
+
+// ClearChatContext inserts a hidden prompt cutoff marker so future prompt
+// assembly ignores non-system model-visible messages before the marker.
+func (p *Server) ClearChatContext(ctx context.Context, chatID uuid.UUID) error {
+	if chatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("The user cleared the prior conversation context. Do not rely on any messages before this point. Continue using only messages after this point."),
+	})
+	if err != nil {
+		return xerrors.Errorf("encode clear marker content: %w", err)
+	}
+
+	txErr := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+
+		// Check queued messages before the status check so a chat that is
+		// running because the worker is draining its queue surfaces the
+		// queued-specific conflict instead of the generic busy one. Idle
+		// status with non-empty queue is also possible in the transient
+		// window between insert and worker pickup; the more specific
+		// conflict wins there too.
+		hasQueuedMessages, err := tx.ChatHasQueuedMessages(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("check queued messages: %w", err)
+		}
+		if hasQueuedMessages {
+			return ErrChatHasQueuedMessages
+		}
+
+		if !canClearChatContext(lockedChat.Status) {
+			return ErrChatNotIdle
+		}
+
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: chatID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			database.ChatMessageVisibilityModel,
+			lockedChat.LastModelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCompressed())
+		if _, err := tx.InsertChatMessages(ctx, msgParams); err != nil {
+			return xerrors.Errorf("insert clear marker: %w", err)
+		}
+		return nil
+	}, nil)
+	if txErr != nil {
+		return txErr
+	}
+
+	return nil
+}
+
+func canClearChatContext(status database.ChatStatus) bool {
+	switch status {
+	case database.ChatStatusWaiting,
+		database.ChatStatusCompleted,
+		database.ChatStatusError:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID, organizationID uuid.NullUUID) error {
@@ -8376,7 +8457,7 @@ func (p *Server) persistChatContextSummary(
 			return xerrors.Errorf("insert summary messages: %w", txErr)
 		}
 		// Skip the first message (hidden summary user msg) when
-		// publishing — only the assistant and tool messages are
+		// publishing, only the assistant and tool messages are
 		// visible to subscribers.
 		insertedMessages = allInserted[1:]
 

@@ -6106,6 +6106,530 @@ func TestChatPinOrder(t *testing.T) {
 	})
 }
 
+func createClearCommandTestChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user codersdk.CreateFirstUserResponse,
+	model codersdk.ChatModelConfig,
+	title string,
+	visibleText string,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OrganizationID:    user.OrganizationID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.UserID,
+		LastModelConfigID: model.ID,
+		Title:             title,
+	})
+	require.NoError(t, err)
+
+	if visibleText != "" {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(visibleText),
+		})
+		require.NoError(t, err)
+		params := chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleUser,
+			content,
+			database.ChatMessageVisibilityBoth,
+			model.ID,
+			chatprompt.CurrentContentVersion,
+			user.UserID,
+		)
+		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), params)
+		require.NoError(t, err)
+	}
+	return chat
+}
+
+func clearCommandMessageHasText(parts []codersdk.ChatMessagePart, want string) bool {
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeText && part.Text == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPostChatMessages_ClearCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModelConfig(t, client)
+		chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear command", "visible history")
+
+		summaryContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("automatic context summary"),
+		})
+		require.NoError(t, err)
+		summaryParams := chatd.BuildSingleChatMessageInsertParams(
+			chat.ID,
+			database.ChatMessageRoleUser,
+			summaryContent,
+			database.ChatMessageVisibilityModel,
+			model.ID,
+			chatprompt.CurrentContentVersion,
+			uuid.Nil,
+		)
+		summaryParams.Compressed[0] = true
+		_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), summaryParams)
+		require.NoError(t, err)
+
+		before, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "/clear",
+			}},
+		})
+		require.NoError(t, err)
+		require.Nil(t, resp.Message)
+		require.Nil(t, resp.QueuedMessage)
+		require.False(t, resp.Queued)
+		require.Empty(t, resp.Warnings)
+		require.NotNil(t, resp.CommandResult)
+		require.Equal(t, "clear", resp.CommandResult.Command)
+		require.True(t, resp.CommandResult.Success)
+		require.Empty(t, resp.CommandResult.Message)
+
+		after, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, before.Messages, after.Messages)
+		require.Equal(t, before.QueuedMessages, after.QueuedMessages)
+		// Manual /clear must surface as a context boundary alongside the
+		// pre-seeded automatic compaction summary, so the UI can render a
+		// persistent divider for both.
+		require.Len(t, before.Boundaries, 1)
+		require.Len(t, after.Boundaries, 2)
+		require.Equal(t, before.Boundaries[0].ID, after.Boundaries[0].ID)
+		require.Greater(t, after.Boundaries[1].ID, after.Boundaries[0].ID)
+
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Len(t, promptMessages, 1)
+		marker := promptMessages[0]
+		require.Equal(t, database.ChatMessageRoleUser, marker.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, marker.Visibility)
+		require.True(t, marker.Compressed)
+		require.True(t, marker.ModelConfigID.Valid)
+		require.Equal(t, model.ID, marker.ModelConfigID.UUID)
+		require.Contains(t, string(marker.Content.RawMessage), "The user cleared the prior conversation context")
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			content       []codersdk.ChatInputPart
+			assertCommand bool
+		}{
+			{
+				name: "TrailingText",
+				content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear now",
+				}},
+				assertCommand: true,
+			},
+			{
+				name: "MultipleParts",
+				content: []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					{Type: codersdk.ChatInputPartTypeText, Text: "extra"},
+				},
+			},
+			{
+				name: "TextPartWithFileID",
+				content: []codersdk.ChatInputPart{{
+					Type:   codersdk.ChatInputPartTypeText,
+					Text:   "/clear",
+					FileID: uuid.New(),
+				}},
+			},
+			{
+				name: "Attachment",
+				content: []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					{Type: codersdk.ChatInputPartTypeFile, FileID: uuid.New()},
+				},
+			},
+			{
+				name: "FileReference",
+				content: []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					{
+						Type:      codersdk.ChatInputPartTypeFileReference,
+						FileName:  "main.go",
+						StartLine: 1,
+						EndLine:   1,
+						Content:   "package main",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, db := newChatClientWithDatabase(t)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModelConfig(t, client)
+				chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear validation", "")
+
+				if tt.assertCommand {
+					res, err := client.Request(
+						ctx,
+						http.MethodPost,
+						fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+						codersdk.CreateChatMessageRequest{
+							Content: tt.content,
+						},
+					)
+					require.NoError(t, err)
+					defer res.Body.Close()
+					require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+					var body struct {
+						codersdk.Response
+						Command string `json:"command"`
+					}
+					require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+					require.Contains(t, body.Message, "The /clear command does not accept")
+					require.Equal(t, "clear", body.Command)
+					return
+				}
+
+				_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+					Content: tt.content,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Contains(t, sdkErr.Message, "The /clear command does not accept")
+			})
+		}
+	})
+
+	t.Run("RejectsNonContentOptions", func(t *testing.T) {
+		t.Parallel()
+
+		// /clear takes no arguments. Clients that reuse a normal send
+		// payload with /clear must not silently drop options like
+		// mcp_server_ids, model_config_id, busy_behavior, or plan_mode.
+		cases := []struct {
+			name string
+			req  codersdk.CreateChatMessageRequest
+		}{
+			{
+				name: "ModelConfigID",
+				req: codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					},
+					ModelConfigID: ptr.Ref(uuid.New()),
+				},
+			},
+			{
+				name: "MCPServerIDs",
+				req: codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					},
+					MCPServerIDs: ptr.Ref([]uuid.UUID{uuid.New()}),
+				},
+			},
+			{
+				name: "BusyBehavior",
+				req: codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					},
+					BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
+				},
+			},
+			{
+				name: "PlanMode",
+				req: codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "/clear"},
+					},
+					PlanMode: ptr.Ref(codersdk.ChatPlanModePlan),
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, db := newChatClientWithDatabase(t)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModelConfig(t, client)
+				chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear extra options "+tc.name, "")
+
+				res, err := client.Request(
+					ctx,
+					http.MethodPost,
+					fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+					tc.req,
+				)
+				require.NoError(t, err)
+				defer res.Body.Close()
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+				var body struct {
+					codersdk.Response
+					Command string `json:"command"`
+				}
+				require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+				require.Contains(t, body.Message, "The /clear command does not accept")
+				require.Equal(t, "clear", body.Command)
+			})
+		}
+	})
+
+	t.Run("Busy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModelConfig(t, client)
+		chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear busy", "")
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+			codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear",
+				}},
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var body struct {
+			codersdk.Response
+			Command string `json:"command"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Contains(t, body.Message, "interrupt it before clearing context")
+		require.Equal(t, "clear", body.Command)
+	})
+
+	t.Run("Queued", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModelConfig(t, client)
+		chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear queued", "")
+		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageParams{
+			ChatID:  chat.ID,
+			Content: queuedContent.RawMessage,
+			ModelConfigID: uuid.NullUUID{
+				UUID:  model.ID,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+			codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear",
+				}},
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var body struct {
+			codersdk.Response
+			Command string `json:"command"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, "A message is queued. Wait for it to be processed before clearing context.", body.Message)
+		require.Equal(t, "clear", body.Command)
+	})
+
+	t.Run("RunningWithQueuedMessages", func(t *testing.T) {
+		t.Parallel()
+
+		// Chats are typically Running while the worker drains their
+		// queue. The queued-specific conflict must win over the generic
+		// busy conflict so clients can surface the more actionable error.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModelConfig(t, client)
+		chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear running queued", "")
+		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageParams{
+			ChatID:  chat.ID,
+			Content: queuedContent.RawMessage,
+			ModelConfigID: uuid.NullUUID{
+				UUID:  model.ID,
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+			codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear",
+				}},
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		var body struct {
+			codersdk.Response
+			Command string `json:"command"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Equal(t, "A message is queued. Wait for it to be processed before clearing context.", body.Message)
+		require.Equal(t, "clear", body.Command)
+	})
+
+	t.Run("SubstringFallsThrough", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		model := createChatModelConfig(t, client)
+		chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear substring", "")
+		messageText := "please show me /clear examples"
+
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: messageText,
+			}},
+		})
+		require.NoError(t, err)
+		require.Nil(t, resp.CommandResult)
+		require.False(t, resp.Queued)
+		require.NotNil(t, resp.Message)
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
+		require.True(t, clearCommandMessageHasText(resp.Message.Content, messageText))
+	})
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+
+		// Both bare /clear (Valid) and malformed /clear inputs (Invalid)
+		// must reach the archived branch and receive a command-tagged
+		// error so clients can route slash-command failures by command.
+		tests := []struct {
+			name    string
+			content []codersdk.ChatInputPart
+		}{
+			{
+				name: "Valid",
+				content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear",
+				}},
+			},
+			{
+				name: "Invalid",
+				content: []codersdk.ChatInputPart{{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "/clear extra",
+				}},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, db := newChatClientWithDatabase(t)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				model := createChatModelConfig(t, client)
+				chat := createClearCommandTestChat(ctx, t, db, firstUser, model, "clear archived "+tt.name, "")
+				err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+				require.NoError(t, err)
+
+				res, err := client.Request(
+					ctx,
+					http.MethodPost,
+					fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
+					codersdk.CreateChatMessageRequest{
+						Content: tt.content,
+					},
+				)
+				require.NoError(t, err)
+				defer res.Body.Close()
+				require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+				var body struct {
+					codersdk.Response
+					Command string `json:"command"`
+				}
+				require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+				require.Contains(t, body.Message, "archived")
+				require.Equal(t, "clear", body.Command)
+			})
+		}
+	})
+}
+
 func TestPostChatMessages(t *testing.T) {
 	t.Parallel()
 
@@ -14120,6 +14644,29 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	seedBoundary := func(
+		t *testing.T,
+		db database.Store,
+		chatID uuid.UUID,
+		ownerID uuid.UUID,
+		role database.ChatMessageRole,
+	) database.ChatMessage {
+		t.Helper()
+
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("context boundary"),
+		})
+		require.NoError(t, err)
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:     chatID,
+			CreatedBy:  uuid.NullUUID{UUID: ownerID, Valid: true},
+			Role:       role,
+			Content:    content,
+			Visibility: database.ChatMessageVisibilityModel,
+			Compressed: true,
+		})
+	}
+
 	t.Run("NoCursorReturnsAllDESCPlusQueued", func(t *testing.T) {
 		t.Parallel()
 
@@ -14143,6 +14690,42 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 			got[i] = m.ID
 		}
 		require.Equal(t, want, got)
+	})
+
+	t.Run("ContextBoundariesReturnedOnEachPage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, ids := seedChat(t, db, user.UserID, user.OrganizationID, modelConfig.ID, 3)
+		manualBoundary := seedBoundary(t, db, chat.ID, user.UserID, database.ChatMessageRoleUser)
+		automaticBoundary := seedBoundary(t, db, chat.ID, user.UserID, database.ChatMessageRoleAssistant)
+
+		resp, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			Limit: 2,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.HasMore)
+		require.Equal(t, []int64{ids[2], ids[1]}, chatMessageIDs(resp.Messages))
+		require.Equal(t,
+			[]int64{manualBoundary.ID, automaticBoundary.ID},
+			chatContextBoundaryIDs(resp.Boundaries),
+		)
+
+		secondPage, err := client.GetChatMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: ids[1],
+			Limit:    2,
+		})
+		require.NoError(t, err)
+		require.False(t, secondPage.HasMore)
+		require.Equal(t, []int64{ids[0]}, chatMessageIDs(secondPage.Messages))
+		require.Equal(t,
+			[]int64{manualBoundary.ID, automaticBoundary.ID},
+			chatContextBoundaryIDs(secondPage.Boundaries),
+		)
 	})
 
 	t.Run("BeforeIDReturnsOlderAndSuppressesQueued", func(t *testing.T) {
@@ -14425,6 +15008,22 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		require.Equal(t, ids[1:], seen,
 			"polling walk must return every burst row exactly once in ascending order")
 	})
+}
+
+func chatMessageIDs(messages []codersdk.ChatMessage) []int64 {
+	ids := make([]int64, len(messages))
+	for i, message := range messages {
+		ids[i] = message.ID
+	}
+	return ids
+}
+
+func chatContextBoundaryIDs(boundaries []codersdk.ChatContextBoundary) []int64 {
+	ids := make([]int64, len(boundaries))
+	for i, boundary := range boundaries {
+		ids[i] = boundary.ID
+	}
+	return ids
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

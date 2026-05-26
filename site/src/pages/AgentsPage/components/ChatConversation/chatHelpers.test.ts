@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../ChatElements";
 import {
+	compareBoundaryPosition,
 	extractContextUsageFromMessage,
 	getLatestContextUsage,
 	getParentChatID,
@@ -13,7 +14,7 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory – only required fields. */
+/** Minimal ChatMessage factory, only required fields. */
 const makeMessage = (
 	overrides: Partial<TypesGen.ChatMessage> = {},
 ): TypesGen.ChatMessage =>
@@ -315,5 +316,37 @@ describe("getWorkspaceAgent", () => {
 		expect(getWorkspaceAgent(ws, "a1")).toEqual(
 			expect.objectContaining({ id: "a1" }),
 		);
+	});
+});
+
+describe("compareBoundaryPosition", () => {
+	it("orders by created_at when timestamps differ", () => {
+		const earlier = { id: 99, created_at: "2026-02-18T00:00:01.000Z" };
+		const later = { id: 1, created_at: "2026-02-18T00:00:02.000Z" };
+		expect(compareBoundaryPosition(earlier, later)).toBeLessThan(0);
+		expect(compareBoundaryPosition(later, earlier)).toBeGreaterThan(0);
+	});
+
+	it("falls back to id when timestamps are equal", () => {
+		const lower = { id: 1, created_at: "2026-02-18T00:00:01.000Z" };
+		const higher = { id: 2, created_at: "2026-02-18T00:00:01.000Z" };
+		expect(compareBoundaryPosition(lower, higher)).toBeLessThan(0);
+		expect(compareBoundaryPosition(higher, lower)).toBeGreaterThan(0);
+	});
+
+	it("returns 0 for identical entries", () => {
+		const entry = { id: 5, created_at: "2026-02-18T00:00:01.000Z" };
+		expect(compareBoundaryPosition(entry, entry)).toBe(0);
+	});
+
+	it("sorts a mixed list correctly", () => {
+		const entries = [
+			{ id: 5, created_at: "2026-02-18T00:00:03.000Z" },
+			{ id: 2, created_at: "2026-02-18T00:00:01.000Z" },
+			{ id: 4, created_at: "2026-02-18T00:00:02.000Z" },
+			{ id: 1, created_at: "2026-02-18T00:00:01.000Z" },
+		];
+		const sorted = [...entries].sort(compareBoundaryPosition);
+		expect(sorted.map((e) => e.id)).toEqual([1, 2, 4, 5]);
 	});
 });

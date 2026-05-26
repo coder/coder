@@ -2160,9 +2160,19 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	boundaryRows, err := api.Database.GetChatContextBoundariesByChatID(ctx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat context boundaries.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
+		Boundaries:     db2sdk.ChatContextBoundaries(boundaryRows),
 		HasMore:        hasMore,
 	})
 }
@@ -2950,6 +2960,83 @@ func (api *API) writeChildUnarchiveGuard(
 	return false
 }
 
+const (
+	clearChatCommandName              = "clear"
+	clearChatCommandToken             = "/" + clearChatCommandName
+	clearChatCommandValidationMessage = "The /clear command does not accept arguments or attachments."
+	clearChatBusyMessage              = "Wait for the chat to finish, respond to a pending tool call, or interrupt it before clearing context."
+	clearChatQueuedMessage            = "A message is queued. Wait for it to be processed before clearing context."
+)
+
+// clearChatCommandErrorResponse gives the web UI command context for toasts.
+// Go SDK callers still receive the embedded Response fields through
+// codersdk.Error because command error metadata is experimental UI behavior.
+type clearChatCommandErrorResponse struct {
+	codersdk.Response
+	Command string `json:"command,omitempty"`
+}
+
+type clearChatCommandMatch int
+
+const (
+	clearChatCommandNone clearChatCommandMatch = iota
+	clearChatCommandValid
+	clearChatCommandInvalid
+)
+
+func classifyClearChatCommand(parts []codersdk.ChatInputPart) clearChatCommandMatch {
+	if len(parts) == 0 {
+		return clearChatCommandNone
+	}
+
+	first := parts[0]
+	if !isTextInputPart(first) {
+		return clearChatCommandNone
+	}
+
+	trimmed := strings.TrimSpace(first.Text)
+	fields := strings.Fields(trimmed)
+	if len(fields) == 0 || fields[0] != clearChatCommandToken {
+		return clearChatCommandNone
+	}
+	if len(parts) == 1 && trimmed == clearChatCommandToken && isTextOnlyInputPart(first) {
+		return clearChatCommandValid
+	}
+	return clearChatCommandInvalid
+}
+
+func normalizedChatInputPartType(part codersdk.ChatInputPart) string {
+	return strings.ToLower(strings.TrimSpace(string(part.Type)))
+}
+
+func isTextInputPart(part codersdk.ChatInputPart) bool {
+	return normalizedChatInputPartType(part) == string(codersdk.ChatInputPartTypeText)
+}
+
+func isTextOnlyInputPart(part codersdk.ChatInputPart) bool {
+	if !isTextInputPart(part) {
+		return false
+	}
+	canonical := codersdk.ChatInputPart{Type: part.Type, Text: part.Text}
+	return part == canonical
+}
+
+func createChatMessageRequestHasNonContentOptions(req codersdk.CreateChatMessageRequest) bool {
+	if req.ModelConfigID != nil {
+		return true
+	}
+	if req.MCPServerIDs != nil {
+		return true
+	}
+	if req.BusyBehavior != "" {
+		return true
+	}
+	if req.PlanMode != nil {
+		return true
+	}
+	return false
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Send chat message
@@ -2989,9 +3076,36 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req codersdk.CreateChatMessageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Classify first so /clear archived-chat errors keep command metadata.
+	clearMatch := classifyClearChatCommand(req.Content)
+	// Reject extra options because /clear only accepts the content token.
+	if clearMatch == clearChatCommandValid && createChatMessageRequestHasNonContentOptions(req) {
+		clearMatch = clearChatCommandInvalid
+	}
+
 	if chat.Archived {
+		if clearMatch != clearChatCommandNone {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, clearChatCommandErrorResponse{
+				Response: codersdk.Response{Message: "Cannot send messages to an archived chat."},
+				Command:  clearChatCommandName,
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot send messages to an archived chat.",
+		})
+		return
+	}
+
+	if clearMatch == clearChatCommandInvalid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, clearChatCommandErrorResponse{
+			Response: codersdk.Response{Message: clearChatCommandValidationMessage},
+			Command:  clearChatCommandName,
 		})
 		return
 	}
@@ -3004,8 +3118,42 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req codersdk.CreateChatMessageRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if clearMatch == clearChatCommandValid {
+		clearErr := api.chatDaemon.ClearChatContext(ctx, chatID)
+		if clearErr != nil {
+			switch {
+			case xerrors.Is(clearErr, chatd.ErrChatArchived):
+				httpapi.Write(ctx, rw, http.StatusBadRequest, clearChatCommandErrorResponse{
+					Response: codersdk.Response{Message: "Cannot send messages to an archived chat."},
+					Command:  clearChatCommandName,
+				})
+			case xerrors.Is(clearErr, chatd.ErrChatNotIdle):
+				httpapi.Write(ctx, rw, http.StatusConflict, clearChatCommandErrorResponse{
+					Response: codersdk.Response{Message: clearChatBusyMessage},
+					Command:  clearChatCommandName,
+				})
+			case xerrors.Is(clearErr, chatd.ErrChatHasQueuedMessages):
+				httpapi.Write(ctx, rw, http.StatusConflict, clearChatCommandErrorResponse{
+					Response: codersdk.Response{Message: clearChatQueuedMessage},
+					Command:  clearChatCommandName,
+				})
+			default:
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, clearChatCommandErrorResponse{
+					Response: codersdk.Response{
+						Message: "Failed to clear chat context.",
+						Detail:  clearErr.Error(),
+					},
+					Command: clearChatCommandName,
+				})
+			}
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.CreateChatMessageResponse{
+			CommandResult: &codersdk.ChatCommandResult{
+				Command: clearChatCommandName,
+				Success: true,
+			},
+		})
 		return
 	}
 
@@ -6222,7 +6370,7 @@ func createChatInputFromParts(
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	textParts := make([]string, 0, len(parts))
 	for i, part := range parts {
-		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
+		switch normalizedChatInputPartType(part) {
 		case string(codersdk.ChatInputPartTypeText):
 			text := strings.TrimSpace(part.Text)
 			if text == "" {

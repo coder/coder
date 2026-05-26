@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import {
 	draftInputStorageKeyPrefix,
+	getChatInputCommandName,
 	getPersistedDraftInputValue,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
@@ -92,6 +93,41 @@ const createDeferred = <T>(): Deferred<T> => {
 	});
 	return { promise, resolve, reject };
 };
+
+describe("getChatInputCommandName", () => {
+	it("identifies text whose first token is /clear", () => {
+		expect(getChatInputCommandName([{ type: "text", text: "/clear" }])).toBe(
+			"clear",
+		);
+		expect(
+			getChatInputCommandName([
+				{ type: "text", text: "  /clear  " },
+				{ type: "file", file_id: "file-1" },
+			]),
+		).toBe("clear");
+		expect(
+			getChatInputCommandName([{ type: "text", text: "/clear now" }]),
+		).toBe("clear");
+	});
+
+	it("ignores text parts without text", () => {
+		expect(getChatInputCommandName([{ type: "text" }])).toBeUndefined();
+	});
+
+	it("ignores ordinary messages that only mention clear", () => {
+		expect(
+			getChatInputCommandName([
+				{ type: "text", text: "Please explain /clear." },
+			]),
+		).toBeUndefined();
+		expect(
+			getChatInputCommandName([{ type: "text", text: "/clearance" }]),
+		).toBeUndefined();
+		expect(
+			getChatInputCommandName([{ type: "file", file_id: "file-1" }]),
+		).toBeUndefined();
+	});
+});
 
 describe("waitForPendingChatSettingsSyncs", () => {
 	it("waits for plan-mode and workspace updates before resolving", async () => {

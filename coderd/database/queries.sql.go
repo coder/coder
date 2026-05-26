@@ -6290,6 +6290,21 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
+const chatHasQueuedMessages = `-- name: ChatHasQueuedMessages :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chat_queued_messages
+    WHERE chat_id = $1
+)
+`
+
+func (q *sqlQuerier) ChatHasQueuedMessages(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, chatHasQueuedMessages, chatID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
 UPDATE chat_messages
 SET provider_response_id = NULL
@@ -6625,6 +6640,52 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.OwnerName,
 	)
 	return i, err
+}
+
+const getChatContextBoundariesByChatID = `-- name: GetChatContextBoundariesByChatID :many
+SELECT
+    id,
+    chat_id,
+    created_at
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND compressed = TRUE
+    AND deleted = FALSE
+    AND visibility = 'model'
+ORDER BY
+    created_at ASC,
+    id ASC
+`
+
+type GetChatContextBoundariesByChatIDRow struct {
+	ID        int64     `db:"id" json:"id"`
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetChatContextBoundariesByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatContextBoundariesByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatContextBoundariesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatContextBoundariesByChatIDRow
+	for rows.Next() {
+		var i GetChatContextBoundariesByChatIDRow
+		if err := rows.Scan(&i.ID, &i.ChatID, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatCostPerChat = `-- name: GetChatCostPerChat :many
@@ -7547,6 +7608,9 @@ ORDER BY
     id ASC
 `
 
+// The latest compressed model-visible message, whether inserted by
+// automatic compaction or a manual /clear marker, acts as the cutoff
+// for prompt assembly. Older non-system model-visible messages are excluded.
 func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
 	if err != nil {

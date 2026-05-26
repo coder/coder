@@ -65,6 +65,21 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
+const arraysEqualByID = <T extends { id: number }>(
+	left: readonly T[],
+	right: readonly T[],
+): boolean => {
+	if (left.length !== right.length) {
+		return false;
+	}
+	for (const [index, item] of left.entries()) {
+		if (item.id !== right[index]?.id) {
+			return false;
+		}
+	}
+	return true;
+};
+
 const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
 	if (left === right) {
 		return true;
@@ -91,17 +106,12 @@ export const chatMessagesEqualByValue = (
 export const chatQueuedMessagesEqualByID = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean => {
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index]?.id !== right[index]?.id) {
-			return false;
-		}
-	}
-	return true;
-};
+): boolean => arraysEqualByID(left, right);
+
+const chatContextBoundariesEqualByID = (
+	left: readonly TypesGen.ChatContextBoundary[],
+	right: readonly TypesGen.ChatContextBoundary[],
+): boolean => arraysEqualByID(left, right);
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -158,6 +168,7 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
+	contextBoundaries: readonly TypesGen.ChatContextBoundary[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
@@ -188,6 +199,9 @@ export type ChatStore = {
 	suppressQueuedMessageID: (id: number) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
+	setContextBoundaries: (
+		contextBoundaries: readonly TypesGen.ChatContextBoundary[] | undefined,
+	) => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
@@ -215,6 +229,7 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	suppressedQueuedMessageIDs: new Set(),
+	contextBoundaries: [],
 	subagentStatusOverrides: new Map(),
 });
 
@@ -487,6 +502,20 @@ export const createChatStore = (): ChatStore => {
 				return { ...current, suppressedQueuedMessageIDs: new Set() };
 			});
 		},
+		setContextBoundaries: (contextBoundaries) => {
+			const nextContextBoundaries = contextBoundaries ?? [];
+			setState((current) => {
+				if (
+					chatContextBoundariesEqualByID(
+						current.contextBoundaries,
+						nextContextBoundaries,
+					)
+				) {
+					return current;
+				}
+				return { ...current, contextBoundaries: nextContextBoundaries };
+			});
+		},
 		setChatStatus: (status) => {
 			if (state.chatStatus === status) {
 				return;
@@ -639,6 +668,8 @@ export const selectChatStatus = (state: ChatStoreState) => state.chatStatus;
 export const selectStreamError = (state: ChatStoreState) => state.streamError;
 export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
+export const selectContextBoundaries = (state: ChatStoreState) =>
+	state.contextBoundaries;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;

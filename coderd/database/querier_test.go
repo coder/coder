@@ -10873,7 +10873,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// This test exercises a complex CTE query for prompt
 	// reconstruction after compaction. It requires Postgres.
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	ctx := context.Background()
 
 	// Helper: create a chat model config (required FK for chats).
@@ -11034,6 +11034,105 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		require.Equal(t, []int64{sys.ID, summary.ID, postUser.ID, postAsst.ID}, gotIDs)
 	})
 
+	t.Run("ManualClearMarker", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "old question")
+		preAsst := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "old answer")
+		marker := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "clear marker")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Equal(t, []int64{sys.ID, marker.ID, postUser.ID}, gotIDs)
+		require.NotContains(t, gotIDs, preUser.ID)
+		require.NotContains(t, gotIDs, preAsst.ID)
+	})
+
+	t.Run("ClearAfterCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "old question")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "compaction summary")
+		between := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "between")
+		clearMarker := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "clear marker")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Equal(t, []int64{sys.ID, clearMarker.ID, postUser.ID}, gotIDs)
+		require.NotContains(t, gotIDs, preUser.ID)
+		require.NotContains(t, gotIDs, summary.ID)
+		require.NotContains(t, gotIDs, between.ID)
+	})
+
+	t.Run("ClearAfterClear", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false, "old question")
+		clear1 := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "first clear marker")
+		between := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false, "between")
+		clear2 := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "second clear marker")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false, "new question")
+
+		baseCreatedAt := dbtime.Now()
+		for _, tt := range []struct {
+			msg       database.ChatMessage
+			createdAt time.Time
+		}{
+			{msg: sys, createdAt: baseCreatedAt},
+			{msg: preUser, createdAt: baseCreatedAt.Add(time.Second)},
+			{msg: clear1, createdAt: baseCreatedAt.Add(2 * time.Second)},
+			{msg: between, createdAt: baseCreatedAt.Add(3 * time.Second)},
+			{msg: clear2, createdAt: baseCreatedAt.Add(4 * time.Second)},
+			{msg: postUser, createdAt: baseCreatedAt.Add(5 * time.Second)},
+		} {
+			_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1 WHERE id = $2", tt.createdAt, tt.msg.ID)
+			require.NoError(t, err)
+		}
+		require.Greater(t, clear2.ID, clear1.ID)
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Equal(t, []int64{sys.ID, clear2.ID, postUser.ID}, gotIDs)
+		require.NotContains(t, gotIDs, preUser.ID)
+		require.NotContains(t, gotIDs, clear1.ID)
+		require.NotContains(t, gotIDs, between.ID)
+	})
+
+	t.Run("CompactionAfterClear", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "old question")
+		clearMarker := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "clear marker")
+		between := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "between")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "compaction summary")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Equal(t, []int64{sys.ID, summary.ID, postUser.ID}, gotIDs)
+		require.NotContains(t, gotIDs, preUser.ID)
+		require.NotContains(t, gotIDs, clearMarker.ID)
+		require.NotContains(t, gotIDs, between.ID)
+	})
+
 	t.Run("AfterCompactionSummaryIsUserRole", func(t *testing.T) {
 		t.Parallel()
 		chat := newChat(t)
@@ -11083,6 +11182,71 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			"compressed tool result must not be included")
 		require.Contains(t, gotIDs, postUser.ID)
 	})
+}
+
+func TestGetChatContextBoundariesByChatID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.ChatProvider(t, db, database.ChatProvider{})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	otherChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	insertMsg := func(
+		t *testing.T,
+		chatID uuid.UUID,
+		role database.ChatMessageRole,
+		visibility database.ChatMessageVisibility,
+		compressed bool,
+		text string,
+	) database.ChatMessage {
+		t.Helper()
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(text),
+		})
+		require.NoError(t, err)
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:     chatID,
+			CreatedBy:  uuid.NullUUID{UUID: user.ID, Valid: true},
+			Role:       role,
+			Content:    content,
+			Visibility: visibility,
+			Compressed: compressed,
+		})
+	}
+
+	insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "visible user")
+	manualBoundary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "manual clear")
+	insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, false, "not compressed")
+	deletedBoundary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "deleted")
+	require.NoError(t, db.SoftDeleteChatMessageByID(ctx, deletedBoundary.ID))
+	insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityUser, true, "user visible")
+	insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, true, "tool result")
+	automaticBoundary := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityModel, true, "automatic compaction")
+	insertMsg(t, otherChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "other chat")
+
+	boundaries, err := db.GetChatContextBoundariesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, boundaries, 2)
+	require.Equal(t, manualBoundary.ID, boundaries[0].ID)
+	require.Equal(t, chat.ID, boundaries[0].ChatID)
+	require.Equal(t, manualBoundary.CreatedAt, boundaries[0].CreatedAt)
+	require.Equal(t, automaticBoundary.ID, boundaries[1].ID)
+	require.Equal(t, chat.ID, boundaries[1].ChatID)
+	require.Equal(t, automaticBoundary.CreatedAt, boundaries[1].CreatedAt)
+	require.Less(t, boundaries[0].ID, boundaries[1].ID)
 }
 
 func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
