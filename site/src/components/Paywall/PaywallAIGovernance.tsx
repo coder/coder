@@ -19,12 +19,12 @@ const PaywallAIGovernance = () => {
 		<Paywall>
 			<PaywallContent>
 				<PaywallHeading>
-					<PaywallTitle>AI Bridge</PaywallTitle>
+					<PaywallTitle>AI Gateway</PaywallTitle>
 					<PremiumBadge>AI Governance</PremiumBadge>
 				</PaywallHeading>
 				<PaywallDescription>
-					AI Bridge provides auditable visibility into user prompts and LLM tool
-					calls from developer tools within Coder Workspaces. AI Bridge requires
+					AI Gateway provides auditable visibility into user prompts and LLM tool
+					calls from developer tools within Coder Workspaces. AI Gateway requires
 					a Premium license with AI Governance add-on.
 				</PaywallDescription>
 				<PaywallDocumentationLink href={docs("/ai-coder/ai-governance")}>
@@ -49,7 +49,7 @@ const PaywallAIGovernance = () => {
 								rel="noreferrer"
 								className="text-content-link"
 							>
-								AI Bridge Docs
+								AI Gateway Docs
 							</a>
 						</span>
 					</PaywallFeature>
