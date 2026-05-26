@@ -35,3 +35,4 @@ export const getProviderIconName = (provider: string) => {
 	}
 	return provider;
 };
+
