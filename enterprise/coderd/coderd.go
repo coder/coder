@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -46,6 +45,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -67,22 +67,22 @@ import (
 	"github.com/coder/quartz"
 )
 
-func natsRouteAddressFromRelayAddress(s string) (string, bool) {
-	if s == "" {
-		return "", false
-	}
-	relayURL, err := url.Parse(s)
-	if err != nil {
-		return "", false
-	}
-	host := relayURL.Hostname()
-	if host == "" {
-		return "", false
-	}
-	return (&url.URL{
-		Scheme: "nats",
-		Host:   net.JoinHostPort(host, "6222"),
-	}).String(), true
+func registerReplicaNATSPeerCallback(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
+	rm.AddCallback(func() {
+		addresses := make([]string, 0)
+		for _, replica := range rm.AllPrimary() {
+			if replica.ID == rm.ID() {
+				continue
+			}
+			if replica.RelayAddress == "" {
+				continue
+			}
+			addresses = append(addresses, replica.RelayAddress)
+		}
+		if err := ps.SetPeerAddresses(addresses); err != nil {
+			logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
+		}
+	})
 }
 
 // New constructs an Enterprise coderd API instance.
@@ -674,30 +674,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
 	replicaManagerPtr.Store(api.replicaManager)
-	type natsPeerAddressSetter interface {
-		SetPeerAddresses([]string) error
-	}
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-		setter, ok := api.Pubsub.(natsPeerAddressSetter)
+		natsPubsub, ok := api.Pubsub.(*natspubsub.Pubsub)
 		if !ok {
-			api.Logger.Warn(ctx, "nats pubsub experiment enabled but pubsub does not support peer addresses")
+			api.Logger.Warn(ctx, "nats pubsub experiment enabled but pubsub is not *nats.Pubsub")
 		} else {
-			api.replicaManager.AddCallback(func() {
-				addresses := make([]string, 0)
-				for _, replica := range api.replicaManager.AllPrimary() {
-					if replica.ID == api.replicaManager.ID() {
-						continue
-					}
-					address, ok := natsRouteAddressFromRelayAddress(replica.RelayAddress)
-					if !ok {
-						continue
-					}
-					addresses = append(addresses, address)
-				}
-				if err := setter.SetPeerAddresses(addresses); err != nil {
-					api.Logger.Warn(api.ctx, "set nats peer addresses", slog.Error(err))
-				}
-			})
+			registerReplicaNATSPeerCallback(api.ctx, api.Logger, api.replicaManager, natsPubsub)
 		}
 	}
 	if api.DERPServer != nil {
