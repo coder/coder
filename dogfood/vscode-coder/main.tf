@@ -327,7 +327,7 @@ resource "coder_agent" "dev" {
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-    } : {
+      } : {
       ANTHROPIC_API_KEY : var.anthropic_api_key,
     }
   )
