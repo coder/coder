@@ -103,11 +103,25 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		Username: username,
 	})
 	if err == nil {
-		return scim.Resource{}, scimErrors.ScimError{
-			ScimType: scimErrors.ScimTypeUniqueness,
-			Detail:   fmt.Sprintf("user with email (%q) or username (%q)", email, username),
-			Status:   http.StatusConflict,
+		// SCIM spec says to return a StatusConflict if the user already exists.
+		// However, Coder never deletes a user. So suspended ~= deleted.
+		// If the user is not suspended, we return a conflict.
+		if dbUser.Status != database.UserStatusSuspended {
+			return scim.Resource{}, scimErrors.ScimError{
+				ScimType: scimErrors.ScimTypeUniqueness,
+				Detail:   fmt.Sprintf("user with email (%q) or username (%q)", email, username),
+				Status:   http.StatusConflict,
+			}
 		}
+
+		// If the user is suspended, then they might be deleted on the SCIM side.
+		// We can just update their status and return the user as they exist.
+		status := scimUserStatus(dbUser, &active)
+		_, err := ru.updateUserStatus(ctx, r, dbUser, status)
+		if err != nil {
+			return scim.Resource{}, err
+		}
+		return userResource(dbUser), nil
 	}
 
 	if !xerrors.Is(err, sql.ErrNoRows) {
