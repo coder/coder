@@ -830,6 +830,26 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.group_id;
+	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -4343,6 +4363,10 @@ CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EA
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 

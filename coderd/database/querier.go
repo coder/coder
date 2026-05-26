@@ -1390,10 +1390,8 @@ type sqlcQuerier interface {
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
 	// The SELECT gates the write on the user being a member of the attributed
-	// group, checked via group_members_expanded so the "Everyone" group (whose
-	// membership lives in organization_members) is correctly handled. If the
-	// user isn't a member, no row is written and RETURNING yields nothing,
-	// which the caller maps to a 400.
+	// group, checked against group_members_expanded so the "Everyone" group
+	// (whose membership lives in organization_members) is correctly handled.
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error

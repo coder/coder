@@ -14,3 +14,38 @@ CREATE TABLE user_ai_budget_overrides (
 );
 
 COMMENT ON TABLE user_ai_budget_overrides IS 'Per-user AI spend override that supersedes group budget resolution.';
+
+-- When a user is removed from a regular group, delete any override
+-- attributed to that group.
+CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS TRIGGER
+	LANGUAGE plpgsql
+AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.group_id;
+	RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete
+	BEFORE DELETE ON group_members
+	FOR EACH ROW
+EXECUTE PROCEDURE delete_user_ai_budget_overrides_on_group_member_delete();
+
+-- When a user is removed from an organization, delete any override
+-- attributed to that organization's "Everyone" group (which has
+-- id == organization_id).
+CREATE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete() RETURNS TRIGGER
+	LANGUAGE plpgsql
+AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
+	RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete
+	BEFORE DELETE ON organization_members
+	FOR EACH ROW
+EXECUTE PROCEDURE delete_user_ai_budget_overrides_on_org_member_delete();

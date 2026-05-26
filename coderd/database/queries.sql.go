@@ -2455,10 +2455,8 @@ type UpsertUserAIBudgetOverrideParams struct {
 }
 
 // The SELECT gates the write on the user being a member of the attributed
-// group, checked via group_members_expanded so the "Everyone" group (whose
-// membership lives in organization_members) is correctly handled. If the
-// user isn't a member, no row is written and RETURNING yields nothing,
-// which the caller maps to a 400.
+// group, checked against group_members_expanded so the "Everyone" group
+// (whose membership lives in organization_members) is correctly handled.
 func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
 	var i UserAiBudgetOverride
