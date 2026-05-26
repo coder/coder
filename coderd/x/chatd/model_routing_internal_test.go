@@ -151,10 +151,9 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider)
 		require.NoError(t, err)
-		require.Equal(t, "Bearer sk-user", auth.Headers["Authorization"])
-		require.Empty(t, auth.Headers["X-Api-Key"])
+		require.Equal(t, "sk-user", auth.ProviderKey)
 	})
 
 	t.Run("AnthropicUserKey", func(t *testing.T) {
@@ -168,10 +167,13 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatAnthropic)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, database.AIProvider{
+			ID:      providerID,
+			Type:    database.AiProviderTypeAnthropic,
+			Enabled: true,
+		})
 		require.NoError(t, err)
-		require.Equal(t, "sk-user", auth.Headers["X-Api-Key"])
-		require.Empty(t, auth.Headers["Authorization"])
+		require.Equal(t, "sk-user", auth.ProviderKey)
 	})
 
 	t.Run("NoUserKey", func(t *testing.T) {
@@ -185,9 +187,9 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAiProviderKey{}, sql.ErrNoRows)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider)
 		require.NoError(t, err)
-		require.Empty(t, auth.Headers)
+		require.Empty(t, auth.ProviderKey)
 	})
 
 	t.Run("BYOKDisabled", func(t *testing.T) {
@@ -196,26 +198,22 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		server := &Server{db: db, allowBYOK: false}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider)
 		require.NoError(t, err)
-		require.Empty(t, auth.Headers)
+		require.Empty(t, auth.ProviderKey)
 	})
 }
 
 func TestAIGatewayProviderAuthRedactsFormatting(t *testing.T) {
 	t.Parallel()
 
-	auth := aiGatewayProviderAuth{Headers: map[string]string{
-		"Authorization": "Bearer sk-user",
-		"X-Api-Key":     "sk-user",
-	}}
+	auth := aiGatewayProviderAuth{ProviderKey: "sk-user"}
 	for _, formatted := range []string{
 		fmt.Sprint(auth),
 		fmt.Sprintf("%+v", auth),
 		fmt.Sprintf("%#v", auth),
 	} {
 		require.NotContains(t, formatted, "sk-user")
-		require.NotContains(t, formatted, "Bearer sk-user")
 		require.Contains(t, formatted, "redacted")
 	}
 }
@@ -254,7 +252,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
 		require.Equal(t, modelRouteKindAIGateway, route.kind)
-		require.Equal(t, "Bearer sk-user", route.aiGateway.ProviderAuth.Headers["Authorization"])
+		require.Equal(t, "sk-user", route.aiGateway.ProviderAuth.ProviderKey)
 	})
 
 	t.Run("CentralProviderCredentialsNotForwarded", func(t *testing.T) {
@@ -268,7 +266,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
 		require.Equal(t, modelRouteKindAIGateway, route.kind)
-		require.Empty(t, route.aiGateway.ProviderAuth.Headers)
+		require.Empty(t, route.aiGateway.ProviderAuth.ProviderKey)
 	})
 }
 
@@ -316,9 +314,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 
 		seen := make(chan seenRequest, 1)
 		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
-		server, route := newServer(t, provider, aiGatewayProviderAuth{
-			Headers: map[string]string{"Authorization": "Bearer sk-user"},
-		}, seen)
+		server, route := newServer(t, provider, aiGatewayProviderAuth{ProviderKey: "sk-user"}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 		require.NoError(t, err)
@@ -326,9 +322,9 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		got := <-seen
-		require.Equal(t, "Bearer sk-user", got.authorization)
+		require.Empty(t, got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.Equal(t, aibridgeDelegatedBYOKMarker, got.coderToken)
+		require.Equal(t, "sk-user", got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/responses", got.path)
 	})
@@ -338,9 +334,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 
 		seen := make(chan seenRequest, 1)
 		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
-		server, route := newServer(t, provider, aiGatewayProviderAuth{
-			Headers: map[string]string{"X-Api-Key": "sk-user"},
-		}, seen)
+		server, route := newServer(t, provider, aiGatewayProviderAuth{ProviderKey: "sk-user"}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "claude-haiku-4-5"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
 		require.NoError(t, err)
@@ -348,8 +342,9 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		got := <-seen
-		require.Equal(t, "sk-user", got.xAPIKey)
-		require.Equal(t, aibridgeDelegatedBYOKMarker, got.coderToken)
+		require.Empty(t, got.authorization)
+		require.Empty(t, got.xAPIKey)
+		require.Equal(t, "sk-user", got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/messages", got.path)
 	})

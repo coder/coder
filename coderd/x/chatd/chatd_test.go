@@ -7492,20 +7492,19 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	requests := factory.requestsSnapshot()
 	require.NotEmpty(t, requests)
 	require.Contains(t, requests, chatAIGatewayRecordedRequest{
-		ProviderName:  provider.Name,
-		Source:        aibridge.SourceAgents,
-		APIKeyID:      apiKey.ID,
-		Path:          "/v1/responses",
-		Authorization: "Bearer sk-user-aibridge",
-		CoderToken:    "delegated",
+		ProviderName: provider.Name,
+		Source:       aibridge.SourceAgents,
+		APIKeyID:     apiKey.ID,
+		Path:         "/v1/responses",
+		CoderToken:   "sk-user-aibridge",
 	})
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
+		require.Empty(t, req.Authorization)
 		require.Empty(t, req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "sk-user-aibridge", req.CoderToken)
 		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
 	}
 }

@@ -23,8 +23,7 @@ const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
 	// non-empty API key before aibridged resolves the real credential.
-	aibridgePlaceholderAPIKey   = "coder-aibridge"
-	aibridgeDelegatedBYOKMarker = "delegated"
+	aibridgePlaceholderAPIKey = "coder-aibridge"
 )
 
 type aiGatewayModelRoute struct {
@@ -49,23 +48,16 @@ func newAIGatewayModelRoute(
 }
 
 type aiGatewayProviderAuth struct {
-	Headers map[string]string
+	ProviderKey string
 }
 
 func (aiGatewayProviderAuth) String() string {
-	return "aiGatewayProviderAuth{Headers:<redacted>}"
+	return "aiGatewayProviderAuth{ProviderKey:<redacted>}"
 }
 
 func (a aiGatewayProviderAuth) GoString() string {
 	return a.String()
 }
-
-type aiGatewayRequestFormat int
-
-const (
-	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
-	aiGatewayRequestFormatAnthropic
-)
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -76,11 +68,10 @@ type aiGatewayRoundTripper struct {
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
 	cloned := req.Clone(ctx)
-	for name, value := range t.providerAuth.Headers {
-		cloned.Header.Set(name, value)
-	}
-	if len(t.providerAuth.Headers) > 0 {
-		cloned.Header.Set(aibridge.HeaderCoderToken, aibridgeDelegatedBYOKMarker)
+	if t.providerAuth.ProviderKey != "" {
+		cloned.Header.Del("Authorization")
+		cloned.Header.Del("X-Api-Key")
+		cloned.Header.Set(aibridge.HeaderCoderToken, t.providerAuth.ProviderKey)
 	}
 	return t.base.RoundTrip(cloned)
 }
@@ -163,20 +154,10 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
-	switch providerType {
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
-		return aiGatewayRequestFormatAnthropic
-	default:
-		return aiGatewayRequestFormatOpenAI
-	}
-}
-
 func (p *Server) aiGatewayProviderAuthForUser(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	provider database.AIProvider,
-	format aiGatewayRequestFormat,
 ) (aiGatewayProviderAuth, error) {
 	if !p.allowBYOK {
 		return aiGatewayProviderAuth{}, nil
@@ -195,15 +176,7 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	if apiKey == "" {
 		return aiGatewayProviderAuth{}, nil
 	}
-
-	headers := map[string]string{}
-	switch format {
-	case aiGatewayRequestFormatAnthropic:
-		headers["X-Api-Key"] = apiKey
-	default:
-		headers["Authorization"] = "Bearer " + apiKey
-	}
-	return aiGatewayProviderAuth{Headers: headers}, nil
+	return aiGatewayProviderAuth{ProviderKey: apiKey}, nil
 }
 
 func (p *Server) resolveAIGatewayRoute(
@@ -212,12 +185,7 @@ func (p *Server) resolveAIGatewayRoute(
 	provider database.AIProvider,
 	modelProviderHint string,
 ) (resolvedModelRoute, error) {
-	auth, err := p.aiGatewayProviderAuthForUser(
-		ctx,
-		ownerID,
-		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type),
-	)
+	auth, err := p.aiGatewayProviderAuthForUser(ctx, ownerID, provider)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
 	}
