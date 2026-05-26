@@ -327,9 +327,7 @@ resource "coder_agent" "dev" {
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-      } : {
-      ANTHROPIC_API_KEY : var.anthropic_api_key,
-    }
+    } : {}
   )
   startup_script_behavior = "blocking"
 
@@ -542,4 +540,28 @@ resource "coder_metadata" "container_info" {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
+}
+
+module "claude-code" {
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/claude-code/coder"
+  version           = "5.1.0"
+  enable_ai_gateway = data.coder_parameter.use_ai_bridge.value
+  anthropic_api_key = data.coder_parameter.use_ai_bridge.value ? "" : var.anthropic_api_key
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+}
+
+resource "coder_app" "claude" {
+  agent_id     = coder_agent.dev.id
+  slug         = "claude"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s claude claude
+  EOT
 }
