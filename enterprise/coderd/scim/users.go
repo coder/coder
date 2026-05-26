@@ -117,7 +117,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		// If the user is suspended, then they might be deleted on the SCIM side.
 		// We can just update their status and return the user as they exist.
 		status := scimUserStatus(dbUser, &active)
-		_, err := ru.updateUserStatus(ctx, r, dbUser, status)
+		dbUser, err = ru.updateUserStatus(ctx, r, dbUser, status)
 		if err != nil {
 			return scim.Resource{}, err
 		}

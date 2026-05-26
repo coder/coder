@@ -418,6 +418,97 @@ func TestResourceUser_CaseInsensitive(t *testing.T) {
 	assert.Equal(t, true, res.Attributes["active"])
 }
 
+func TestResourceUser_Create(t *testing.T) {
+	t.Parallel()
+
+	// Coder does not hard-delete users. A SCIM Delete suspends the user, so
+	// when an IdP later re-creates the same user, the handler should match
+	// them by email/username and reactivate the existing row instead of
+	// returning 409 Conflict. See commit b3e6e0aa06.
+
+	t.Run("duplicate-active-conflict", func(t *testing.T) {
+		t.Parallel()
+		ru, db, _ := setupSCIM(t)
+
+		existing := seedUser(t, db, database.User{
+			Status:    database.UserStatusActive,
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		_, err := ru.Create(scimRequest(t), scim.ResourceAttributes{
+			"userName": existing.Username,
+			"emails": []interface{}{
+				map[string]interface{}{"value": existing.Email, "primary": true},
+			},
+			"active": true,
+		})
+		require.Error(t, err)
+		var scimErr scimErrors.ScimError
+		require.ErrorAs(t, err, &scimErr)
+		assert.Equal(t, http.StatusConflict, scimErr.Status)
+	})
+
+	t.Run("suspended-user-reactivates", func(t *testing.T) {
+		t.Parallel()
+		ru, db, mockAudit := setupSCIM(t)
+
+		existing := seedUser(t, db, database.User{
+			Status:    database.UserStatusSuspended,
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		res, err := ru.Create(scimRequest(t), scim.ResourceAttributes{
+			"userName": existing.Username,
+			"emails": []interface{}{
+				map[string]interface{}{"value": existing.Email, "primary": true},
+			},
+			"active": true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, existing.ID.String(), res.ID, "response should reference the existing user, not a new one")
+
+		// The SCIM response must reflect the post-update state so the IdP
+		// sees active=true after the recreate.
+		assert.Equal(t, true, res.Attributes["active"], "response should report the reactivated state")
+
+		// Suspended + active=true reactivates to Dormant (not Active) per scimUserStatus.
+		got, err := db.GetUserByID(dbauthz.AsSCIMProvisioner(context.Background()), existing.ID)
+		require.NoError(t, err)
+		assert.Equal(t, database.UserStatusDormant, got.Status, "suspended user should be marked dormant on recreate")
+
+		// Reactivation should emit one audit log for the status change.
+		assert.Len(t, mockAudit.AuditLogs(), 1)
+	})
+
+	t.Run("suspended-user-stays-suspended-when-active-false", func(t *testing.T) {
+		t.Parallel()
+		ru, db, mockAudit := setupSCIM(t)
+
+		existing := seedUser(t, db, database.User{
+			Status:    database.UserStatusSuspended,
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		res, err := ru.Create(scimRequest(t), scim.ResourceAttributes{
+			"userName": existing.Username,
+			"emails": []interface{}{
+				map[string]interface{}{"value": existing.Email, "primary": true},
+			},
+			"active": false,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, existing.ID.String(), res.ID)
+		assert.Equal(t, false, res.Attributes["active"])
+
+		got, err := db.GetUserByID(dbauthz.AsSCIMProvisioner(context.Background()), existing.ID)
+		require.NoError(t, err)
+		assert.Equal(t, database.UserStatusSuspended, got.Status)
+
+		// No status change → no audit log.
+		assert.Empty(t, mockAudit.AuditLogs())
+	})
+}
+
 func TestResourceUser_Lifecycle(t *testing.T) {
 	t.Parallel()
 
