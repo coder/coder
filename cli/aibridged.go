@@ -5,15 +5,21 @@ package cli
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -44,183 +50,200 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	return srv, nil
 }
 
-// BuildProviders constructs the list of AI providers from config.
-// It merges legacy single-provider env vars and indexed provider configs:
-//  1. Legacy providers (from CODER_AI_GATEWAY_OPENAI_KEY, etc.) are added first.
-//     If a legacy name conflicts with an indexed provider, startup fails with
-//     a clear error asking the admin to remove one or the other.
-//  2. Indexed providers (from CODER_AI_GATEWAY_PROVIDER_<N>_*) are added next.
-func BuildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
-	var cbConfig *config.CircuitBreaker
-	if cfg.CircuitBreakerEnabled.Value() {
-		cbConfig = &config.CircuitBreaker{
-			FailureThreshold: uint32(cfg.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
-			Interval:         cfg.CircuitBreakerInterval.Value(),
-			Timeout:          cfg.CircuitBreakerTimeout.Value(),
-			MaxRequests:      uint32(cfg.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+// BuildProviders loads every enabled ai_providers row, attaches its
+// keys, and constructs the equivalent [aibridge.Provider] instances.
+// The database is the single source of truth for runtime provider
+// configuration.
+//
+// Per-provider construction errors are logged and the offending row is
+// excluded from the returned snapshot; only a failure of the DB query
+// itself is propagated. This keeps a single misconfigured row from
+// taking the whole daemon down.
+func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, error) {
+	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
+	authCtx := dbauthz.AsAIBridged(ctx)
+
+	var rows []database.AIProvider
+	keysByProvider := make(map[uuid.UUID][]database.AIProviderKey)
+
+	// Wrap both queries in a read-only transaction so the provider list
+	// and the key list are consistent with each other.
+	err := db.InTx(func(tx database.Store) error {
+		var err error
+		rows, err = tx.GetAIProviders(authCtx, database.GetAIProvidersParams{
+			IncludeDisabled: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("load ai providers: %w", err)
 		}
+
+		if len(rows) == 0 {
+			return nil
+		}
+
+		// Load keys only for the enabled providers to avoid materializing
+		// secrets for disabled rows.
+		ids := make([]uuid.UUID, len(rows))
+		for i, r := range rows {
+			ids[i] = r.ID
+		}
+		keyRows, err := tx.GetAIProviderKeysByProviderIDs(authCtx, ids)
+		if err != nil {
+			return xerrors.Errorf("load ai provider keys: %w", err)
+		}
+		for _, k := range keyRows {
+			keysByProvider[k.ProviderID] = append(keysByProvider[k.ProviderID], k)
+		}
+		return nil
+	}, &database.TxOptions{ReadOnly: true, TxIdentifier: "build_ai_providers"})
+	if err != nil {
+		return nil, err
 	}
 
-	var providers []aibridge.Provider
-	usedNames := make(map[string]struct{})
-
-	// Collect names from indexed providers so we can detect conflicts
-	// with legacy providers.
-	for _, p := range cfg.Providers {
-		name := p.Name
-		if name == "" {
-			name = p.Type
+	out := make([]aibridge.Provider, 0, len(rows))
+	for _, row := range rows {
+		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg)
+		if err != nil {
+			logger.Error(ctx, "skipping misconfigured ai provider",
+				slog.F("provider_id", row.ID),
+				slog.F("provider_name", row.Name),
+				slog.F("provider_type", string(row.Type)),
+				slog.Error(err),
+			)
+			continue
 		}
-		usedNames[name] = struct{}{}
+		out = append(out, prov)
 	}
 
-	// Add legacy OpenAI provider if configured.
-	if cfg.LegacyOpenAI.Key.String() != "" {
-		if _, conflict := usedNames[aibridge.ProviderOpenAI]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_OPENAI_KEY (or CODER_AIBRIDGE_OPENAI_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
-		}
-		providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-			Name:             aibridge.ProviderOpenAI,
-			BaseURL:          cfg.LegacyOpenAI.BaseURL.String(),
-			Key:              cfg.LegacyOpenAI.Key.String(),
-			CircuitBreaker:   cbConfig,
-			SendActorHeaders: cfg.SendActorHeaders.Value(),
-		}))
-		usedNames[aibridge.ProviderOpenAI] = struct{}{}
+	if len(rows) > 0 && len(out) == 0 {
+		logger.Warn(ctx, "all enabled ai providers failed to build; daemon will start with zero providers")
 	}
 
-	// Add legacy Anthropic provider if configured. Bedrock credentials
-	// alone are sufficient, an Anthropic API key is not required when
-	// using AWS Bedrock.
-	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
-		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_ANTHROPIC_KEY (or CODER_AIBRIDGE_ANTHROPIC_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
+	return out, nil
+}
+
+// buildAIProviderFromRow decodes the settings blob and constructs the
+// appropriate [aibridge.Provider] for a single ai_providers row.
+func buildAIProviderFromRow(
+	row database.AIProvider,
+	keys []database.AIProviderKey,
+	cfg codersdk.AIBridgeConfig,
+) (aibridge.Provider, error) {
+	settings, err := db2sdk.AIProviderSettings(row.Settings)
+	if err != nil {
+		return nil, xerrors.Errorf("decode settings: %w", err)
+	}
+
+	cbCfg := circuitBreakerConfig(cfg)
+	sendActorHeaders := cfg.SendActorHeaders.Value()
+	dumpDir := cfg.APIDumpDir.Value()
+
+	switch row.Type {
+	case database.AiProviderTypeOpenai:
+		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("openai provider has no api keys configured and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
-		if key := cfg.LegacyAnthropic.Key.String(); key != "" {
+		if len(keys) > 0 {
 			var err error
-			pool, err = keypool.New([]string{key}, quartz.NewReal())
+			pool, err = buildAIProviderKeyPool(keys)
 			if err != nil {
-				return nil, xerrors.Errorf("create legacy anthropic key pool: %w", err)
+				return nil, xerrors.Errorf("openai key pool: %w", err)
 			}
 		}
-		providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-			Name:             aibridge.ProviderAnthropic,
-			BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
+		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
+			Name:             row.Name,
+			BaseURL:          row.BaseUrl,
 			KeyPool:          pool,
-			CircuitBreaker:   cbConfig,
-			SendActorHeaders: cfg.SendActorHeaders.Value(),
-		}, getBedrockConfig(cfg.LegacyBedrock)))
-		usedNames[aibridge.ProviderAnthropic] = struct{}{}
-	}
+			APIDumpDir:       dumpDir,
+			CircuitBreaker:   cbCfg,
+			SendActorHeaders: sendActorHeaders,
+		}), nil
 
-	// Add indexed providers.
-	for _, p := range cfg.Providers {
-		name := p.Name
-		if name == "" {
-			name = p.Type
+	case database.AiProviderTypeAnthropic:
+		bedrock := bedrockConfigFromRow(row, settings)
+		// Bedrock-backed Anthropic authenticates via AWS credentials in
+		// the settings blob, not the api_keys table. A bearer-token
+		// Anthropic without any key cannot make upstream calls.
+		if bedrock == nil && len(keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
 		}
-		switch p.Type {
-		case aibridge.ProviderOpenAI:
-			var pool *keypool.Pool
-			if len(p.Keys) > 0 {
-				var err error
-				pool, err = keypool.New(p.Keys, quartz.NewReal())
-				if err != nil {
-					return nil, xerrors.Errorf("create openai key pool for provider %q: %w", name, err)
-				}
+		var pool *keypool.Pool
+		if len(keys) > 0 {
+			var err error
+			pool, err = buildAIProviderKeyPool(keys)
+			if err != nil {
+				return nil, xerrors.Errorf("anthropic key pool: %w", err)
 			}
-			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-				Name:             name,
-				BaseURL:          p.BaseURL,
-				KeyPool:          pool,
-				APIDumpDir:       p.DumpDir,
-				CircuitBreaker:   cbConfig,
-				SendActorHeaders: cfg.SendActorHeaders.Value(),
-			}))
-		case aibridge.ProviderAnthropic:
-			var pool *keypool.Pool
-			if len(p.Keys) > 0 {
-				var err error
-				pool, err = keypool.New(p.Keys, quartz.NewReal())
-				if err != nil {
-					return nil, xerrors.Errorf("create anthropic key pool for provider %q: %w", name, err)
-				}
-			}
-			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
-				Name:             name,
-				BaseURL:          p.BaseURL,
-				KeyPool:          pool,
-				APIDumpDir:       p.DumpDir,
-				CircuitBreaker:   cbConfig,
-				SendActorHeaders: cfg.SendActorHeaders.Value(),
-			}, bedrockConfigFromProvider(p)))
-		case aibridge.ProviderCopilot:
-			providers = append(providers, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-				Name:           name,
-				BaseURL:        p.BaseURL,
-				APIDumpDir:     p.DumpDir,
-				CircuitBreaker: cbConfig,
-			}))
-		default:
-			return nil, xerrors.Errorf("unknown provider type %q for provider %q", p.Type, name)
 		}
-	}
+		return aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+			Name:             row.Name,
+			BaseURL:          row.BaseUrl,
+			KeyPool:          pool,
+			APIDumpDir:       dumpDir,
+			CircuitBreaker:   cbCfg,
+			SendActorHeaders: sendActorHeaders,
+		}, bedrock), nil
 
-	return providers, nil
+	case database.AiProviderTypeCopilot:
+		// Copilot is always BYOK; the per-user token is supplied on each
+		// request via the Authorization header, so no keypool is built.
+		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
+			Name:           row.Name,
+			BaseURL:        row.BaseUrl,
+			APIDumpDir:     dumpDir,
+			CircuitBreaker: cbCfg,
+		}), nil
+
+	default:
+		return nil, xerrors.Errorf("unsupported provider type: %q", row.Type)
+	}
 }
 
-// bedrockConfigFromProvider converts Bedrock fields from an indexed
-// AIProviderConfig into an aibridge AWSBedrockConfig.
-// Returns nil if no Bedrock fields are set.
-func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrockConfig {
-	// Currently, only the first key pair is used, if any.
-	// TODO(ssncferreira): pass a keypool.Pool instead.
-	var accessKey, accessKeySecret string
-	if len(p.BedrockAccessKeys) > 0 {
-		accessKey = p.BedrockAccessKeys[0]
+// buildAIProviderKeyPool builds a [keypool.Pool]. Callers must check
+// len(keys) > 0 first; keypool.New rejects empty input.
+func buildAIProviderKeyPool(keys []database.AIProviderKey) (*keypool.Pool, error) {
+	raw := make([]string, 0, len(keys))
+	for _, k := range keys {
+		raw = append(raw, k.APIKey)
 	}
-	if len(p.BedrockAccessKeySecrets) > 0 {
-		accessKeySecret = p.BedrockAccessKeySecrets[0]
-	}
-	settings := codersdk.NewAIProviderBedrockSettings(
-		p.BedrockRegion, accessKey, accessKeySecret,
-		p.BedrockModel, p.BedrockSmallFastModel,
-	)
-	if !codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings) {
+	return keypool.New(raw, quartz.NewReal())
+}
+
+// bedrockConfigFromRow returns nil when the settings have no Bedrock
+// discriminator or when the Bedrock fields are not actually configured.
+// The provider row's BaseUrl is the generic upstream endpoint and is
+// always non-empty, so it cannot serve as a Bedrock detection signal;
+// gate on the settings blob alone via [codersdk.AIProviderBedrockSettings.IsConfigured].
+func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderSettings) *aibridge.AWSBedrockConfig {
+	if settings.Bedrock == nil {
 		return nil
 	}
+	bedrockSettings := *settings.Bedrock
+	if !bedrockSettings.IsConfigured() {
+		return nil
+	}
+	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)
+	accessKeySecret := ptr.NilToEmpty(bedrockSettings.AccessKeySecret)
 	return &aibridge.AWSBedrockConfig{
-		BaseURL:         p.BedrockBaseURL,
-		Region:          p.BedrockRegion,
+		BaseURL:         row.BaseUrl,
+		Region:          bedrockSettings.Region,
 		AccessKey:       accessKey,
 		AccessKeySecret: accessKeySecret,
-		Model:           p.BedrockModel,
-		SmallFastModel:  p.BedrockSmallFastModel,
+		Model:           bedrockSettings.Model,
+		SmallFastModel:  bedrockSettings.SmallFastModel,
 	}
 }
 
-func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
-	// codersdk.IsBedrockConfigured decides what counts as Bedrock; when
-	// it returns false, the AWS SDK default credential chain (env vars,
-	// shared config, IAM roles, etc.) is left to resolve credentials.
-	settings := codersdk.NewAIProviderBedrockSettings(
-		cfg.Region.String(),
-		cfg.AccessKey.String(),
-		cfg.AccessKeySecret.String(),
-		cfg.Model.String(),
-		cfg.SmallFastModel.String(),
-	)
-	if !codersdk.IsBedrockConfigured(cfg.BaseURL.String(), settings) {
+// circuitBreakerConfig returns nil when the breaker is disabled.
+func circuitBreakerConfig(cfg codersdk.AIBridgeConfig) *config.CircuitBreaker {
+	if !cfg.CircuitBreakerEnabled.Value() {
 		return nil
 	}
-
-	return &aibridge.AWSBedrockConfig{
-		BaseURL:         cfg.BaseURL.String(),
-		Region:          cfg.Region.String(),
-		AccessKey:       cfg.AccessKey.String(),
-		AccessKeySecret: cfg.AccessKeySecret.String(),
-		Model:           cfg.Model.String(),
-		SmallFastModel:  cfg.SmallFastModel.String(),
+	return &config.CircuitBreaker{
+		FailureThreshold: uint32(cfg.CircuitBreakerFailureThreshold.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
+		Interval:         cfg.CircuitBreakerInterval.Value(),
+		Timeout:          cfg.CircuitBreakerTimeout.Value(),
+		MaxRequests:      uint32(cfg.CircuitBreakerMaxRequests.Value()), //nolint:gosec // Validated by serpent.Validate in deployment options.
 	}
 }
