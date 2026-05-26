@@ -269,7 +269,7 @@ const parameterTextarea: PreviewParameter = {
 	diagnostics: [],
 	styling: { placeholder: "NODE_ENV=development\nDEBUG=true" },
 	mutable: true,
-	icon: "/emojis/1f4dd.png",
+	icon: "",
 	options: [],
 	validations: [],
 	required: false,
