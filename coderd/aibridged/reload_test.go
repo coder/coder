@@ -128,7 +128,7 @@ type errInjectingPubsub struct {
 	listener pubsub.ListenerWithErr
 }
 
-func (p *errInjectingPubsub) Subscribe(string, pubsub.Listener) (func(), error) {
+func (*errInjectingPubsub) Subscribe(string, pubsub.Listener) (func(), error) {
 	return nil, xerrors.New("Subscribe not implemented")
 }
 
@@ -137,10 +137,10 @@ func (p *errInjectingPubsub) SubscribeWithErr(_ string, listener pubsub.Listener
 	return func() {}, nil
 }
 
-func (p *errInjectingPubsub) Publish(string, []byte) error {
+func (*errInjectingPubsub) Publish(string, []byte) error {
 	return xerrors.New("Publish not implemented")
 }
 
-func (p *errInjectingPubsub) Close() error {
+func (*errInjectingPubsub) Close() error {
 	return nil
 }
