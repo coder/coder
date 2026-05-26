@@ -311,105 +311,89 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 							/>
 						</AddChatMemberForm>
 
-						<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
-							{isEmpty ? (
-								<div className="p-4">
-									<EmptyState
-										message="No shared members or groups yet"
-										description="Add a member or group using the controls above."
-										isCompact
-									/>
-								</div>
-							) : (
-								<>
-									{groups.map((group) => (
-										<MobileMemberRow
-											key={group.id}
-											disabled={isMutating}
-											onRemove={() => handleRemoveGroup(group)}
-										>
-											<MemberIdentity kind="group" group={group} />
-										</MobileMemberRow>
-									))}
-									{users.map((user) => (
-										<MobileMemberRow
-											key={user.id}
-											disabled={isMutating}
-											onRemove={() => handleRemoveUser(user)}
-										>
-											<MemberIdentity kind="user" user={user} />
-										</MobileMemberRow>
-									))}
-								</>
-							)}
-						</div>
+						{isEmpty ? (
+							<EmptyState
+								message="No shared members or groups yet"
+								description="Add a member or group using the controls above."
+								isCompact
+							/>
+						) : (
+							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
+								{groups.map((group) => (
+									<MobileMemberRow
+										key={group.id}
+										disabled={isMutating}
+										onRemove={() => handleRemoveGroup(group)}
+									>
+										<MemberIdentity kind="group" group={group} />
+									</MobileMemberRow>
+								))}
+								{users.map((user) => (
+									<MobileMemberRow
+										key={user.id}
+										disabled={isMutating}
+										onRemove={() => handleRemoveUser(user)}
+									>
+										<MemberIdentity kind="user" user={user} />
+									</MobileMemberRow>
+								))}
+							</div>
+						)}
 
-						<div className="hidden sm:block">
-							<Table
-								aria-label="Shared chat members and groups"
-								wrapperClassName="max-h-60 overflow-y-auto"
-							>
-								<TableHeader>
-									<TableRow>
-										<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
-											Member
-										</TableHead>
-										<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
-											Role
-										</TableHead>
-										<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{isEmpty ? (
+						{!isEmpty && (
+							<div className="hidden sm:block">
+								<Table
+									aria-label="Shared chat members and groups"
+									wrapperClassName="max-h-60 overflow-y-auto"
+								>
+									<TableHeader>
 										<TableRow>
-											<TableCell colSpan={3}>
-												<EmptyState
-													message="No shared members or groups yet"
-													description="Add a member or group using the controls above."
-													isCompact
-												/>
-											</TableCell>
+											<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
+												Member
+											</TableHead>
+											<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
+												Role
+											</TableHead>
+											<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
 										</TableRow>
-									) : (
-										<>
-											{groups.map((group) => (
-												<TableRow key={group.id}>
-													<TableCell className="py-2 w-[50%]">
-														<MemberIdentity kind="group" group={group} />
-													</TableCell>
-													<TableCell className="py-2 w-[40%]">
-														<ReadRoleBadge />
-													</TableCell>
-													<TableCell className="py-2 w-[10%]">
-														<MemberRowMenu
-															disabled={isMutating}
-															onRemove={() => handleRemoveGroup(group)}
-														/>
-													</TableCell>
-												</TableRow>
-											))}
-											{users.map((user) => (
-												<TableRow key={user.id}>
-													<TableCell className="py-2 w-[50%]">
-														<MemberIdentity kind="user" user={user} />
-													</TableCell>
-													<TableCell className="py-2 w-[40%]">
-														<ReadRoleBadge />
-													</TableCell>
-													<TableCell className="py-2 w-[10%]">
-														<MemberRowMenu
-															disabled={isMutating}
-															onRemove={() => handleRemoveUser(user)}
-														/>
-													</TableCell>
-												</TableRow>
-											))}
-										</>
-									)}
-								</TableBody>
-							</Table>
-						</div>
+									</TableHeader>
+									<TableBody>
+										{groups.map((group) => (
+											<TableRow key={group.id}>
+												<TableCell className="py-2 w-[50%]">
+													<MemberIdentity kind="group" group={group} />
+												</TableCell>
+												<TableCell className="py-2 w-[40%]">
+													<ReadRoleBadge />
+												</TableCell>
+												<TableCell className="py-2 w-[10%]">
+													<MemberRowMenu
+														disabled={isMutating}
+														onRemove={() => handleRemoveGroup(group)}
+													/>
+												</TableCell>
+											</TableRow>
+										))}
+										{users.map((user) => (
+											<TableRow key={user.id}>
+												<TableCell className="py-2 w-[50%]">
+													<MemberIdentity kind="user" user={user} />
+												</TableCell>
+												<TableCell className="py-2 w-[40%]">
+													<ReadRoleBadge />
+												</TableCell>
+												<TableCell className="py-2 w-[10%]">
+													<MemberRowMenu
+														disabled={isMutating}
+														onRemove={() => handleRemoveUser(user)}
+													/>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+						)}
 					</>
 				) : null}
 			</div>
