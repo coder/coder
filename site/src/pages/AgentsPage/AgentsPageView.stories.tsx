@@ -47,8 +47,16 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 
 const defaultModelConfigID = "model-config-1";
+
+const defaultSidebarFilters: AgentSidebarFilters = {
+	archiveStatus: "active",
+	groupBy: "date",
+	prStatuses: [],
+	chatStatuses: ["unread", "read"],
+};
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -282,8 +290,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,
-	archivedFilter: "active",
-	onArchivedFilterChange: fn(),
+	sidebarFilters: defaultSidebarFilters,
+	onSidebarFiltersChange: fn(),
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,
@@ -431,7 +439,10 @@ export const EmptyState: Story = {};
 
 export const ArchivedEmptyState: Story = {
 	args: {
-		archivedFilter: "archived",
+		sidebarFilters: {
+			...defaultSidebarFilters,
+			archiveStatus: "archived",
+		},
 		chatList: [],
 	},
 	parameters: {
