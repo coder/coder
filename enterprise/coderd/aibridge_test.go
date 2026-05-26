@@ -2904,6 +2904,43 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.EqualValues(t, 1_000_000_000, currentOverride.SpendLimitMicros)
 	})
 
+	t.Run("ReassignGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, groupA := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// First upsert: attribute spend to groupA.
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupA.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Create groupB in the same org and add the target user.
+		groupB, err := adminClient.CreateGroup(ctx, targetUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
+			Name: "reassign-test-group-b",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupB.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Reassign the override's attribution to groupB.
+		updated, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, groupB.ID, updated.GroupID, "upsert should change attributed group")
+
+		// GET reflects the new group.
+		got, err := adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err)
+		require.Equal(t, groupB.ID, got.GroupID, "GET should reflect new group")
+	})
+
 	t.Run("GetWhenAbsent_404", func(t *testing.T) {
 		t.Parallel()
 
