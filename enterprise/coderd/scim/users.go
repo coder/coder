@@ -191,7 +191,7 @@ func (ru *ResourceUser) GetAll(r *http.Request, params scim.ListRequestParams) (
 	qry.LimitOpt = int32(params.Count)           //nolint:gosec
 	qry.OffsetOpt = int32(params.StartIndex - 1) //nolint:gosec
 
-	if qry.LimitOpt <= 0 {
+	if qry.LimitOpt < 0 {
 		qry.LimitOpt = 100
 	}
 
@@ -299,10 +299,15 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 		switch op.Op {
 		case "add":
 		case "remove":
+			// TODO: If the path is unspecified, we should fail with the status code 400.
+			//  Today, we only accept the 'active' field and silently drop the rest.
 			if strings.EqualFold(op.Path.String(), "active") {
 				activeSet = ptr.Ref(false)
 			}
 		case "replace":
+			// TODO: Honor mutability rules of fields like `userName` and `email`.
+			//  Should scim be able to change those fields?
+
 			// SCIM PATCH replace can come in two forms:
 			// 1. Path set: {"op":"replace","path":"active","value":false}
 			// 2. No path, value is a map: {"op":"replace","value":{"active":false}}
