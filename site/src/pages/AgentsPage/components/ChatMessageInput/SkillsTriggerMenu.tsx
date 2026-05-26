@@ -139,7 +139,7 @@ export const SkillsTriggerMenu = ({
 		isWorkspaceError && workspaceSkills.length === 0
 			? "Could not load workspace skills. Close and type / again to retry."
 			: undefined,
-	].filter((item): item is string => item !== undefined);
+	].filter((item) => item !== undefined);
 	const shouldRender = open && anchorRect;
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
