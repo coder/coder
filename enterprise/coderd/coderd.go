@@ -67,7 +67,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func registerReplicaNATSPeerCallback(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
+func setNATSPeers(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
 	rm.AddCallback(func() {
 		addresses := make([]string, 0)
 		for _, replica := range rm.AllPrimary() {
@@ -675,11 +675,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	replicaManagerPtr.Store(api.replicaManager)
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-		natsPubsub, ok := api.Pubsub.(*natspubsub.Pubsub)
-		if !ok {
-			api.Logger.Warn(ctx, "nats pubsub experiment enabled but pubsub is not *nats.Pubsub")
+		if natsPubsub, ok := api.Pubsub.(*natspubsub.Pubsub); ok {
+			setNATSPeers(api.ctx, api.Logger, api.replicaManager, natsPubsub)
 		} else {
-			registerReplicaNATSPeerCallback(api.ctx, api.Logger, api.replicaManager, natsPubsub)
+			api.Logger.Critical(ctx, "nats pubsub experiment enabled but pubsub is not *nats.Pubsub")
 		}
 	}
 	if api.DERPServer != nil {
