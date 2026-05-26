@@ -900,31 +900,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
 
-			// AI provider DB initialization runs synchronously here so
-			// authorized reads complete before any background goroutine
-			// starts. Otherwise a mid-startup cancellation can interrupt
-			// them and fail startup. Seeding must also happen before
-			// newAPI so the aibridgeproxyd in the enterprise closure
-			// observes env-configured providers.
-			//
-			// This is a once-off operation; once completed, all providers
-			// will be sourced from the database.
-			if err := coderd.SeedAIProvidersFromEnv(
-				ctx,
-				options.Database,
-				vals.AI.BridgeConfig,
-				logger.Named("aibridge.envseed"),
-			); err != nil {
-				return xerrors.Errorf("seed ai providers from env: %w", err)
-			}
-			var aibridgeProviders []aibridge.Provider
-			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeProviders, err = BuildProviders(ctx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
-			}
-
 			telemetryReporter, err := telemetry.New(telemetry.Options{
 				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
@@ -1040,6 +1015,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
+			// Both seed (writes) and build (reads) of AI providers need
+			// options.Database to be dbcrypt-wrapped, which only happens
+			// inside newAPI. The context is detached: the shutdown
+			// sequence below is not deferred, so a ctx-canceled early
+			// return here would orphan newAPI's goroutines.
+			//nolint:gocritic // Production timeout, not a test wait.
+			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer aibridgeInitCancel()
+			if err := coderd.SeedAIProvidersFromEnv(
+				aibridgeInitCtx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
@@ -1048,6 +1040,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
+				aibridgeProviders, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
+				if err != nil {
+					return xerrors.Errorf("build AI providers: %w", err)
+				}
 				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, aibridgeProviders)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
