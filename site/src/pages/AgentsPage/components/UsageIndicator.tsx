@@ -27,6 +27,7 @@ import {
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
+import { SvgRingProgress } from "./SvgRingProgress";
 
 type UsageSeverity = "normal" | "warning" | "exceeded";
 
@@ -37,7 +38,6 @@ type UsageSectionData = {
 	percent: number;
 	detail: ReactNode;
 	icon: ReactNode;
-	summaryValue: string;
 	hoverLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
@@ -83,7 +83,6 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
-			summaryValue: formatCostMicros(currentSpend),
 			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
 				<>
@@ -124,10 +123,6 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
-			summaryValue:
-				quota.budget > 0
-					? `${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
-					: formatNumber(creditsConsumed),
 			hoverLabel: workspaceHoverLabel,
 			detail: quotaDetail,
 			tooltip:
@@ -178,11 +173,8 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	);
 };
 
-// SVG ring constants for the circular progress indicator.
 const RING_SIZE = 32;
 const RING_STROKE = 1;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
@@ -219,7 +211,6 @@ const UsageRingProgress: FC<{
 	icon: ReactNode;
 }> = ({ ariaLabel, percent, severity = "normal", icon }) => {
 	const clampedPercent = clampPercent(percent);
-	const offset = RING_CIRCUMFERENCE * (1 - clampedPercent / 100);
 
 	return (
 		<div
@@ -231,40 +222,12 @@ const UsageRingProgress: FC<{
 			className="relative flex shrink-0 items-center justify-center"
 			style={{ width: RING_SIZE, height: RING_SIZE }}
 		>
-			<svg
-				width={RING_SIZE}
-				height={RING_SIZE}
-				className="-rotate-90"
-				aria-hidden="true"
-			>
-				{/* Background track */}
-				<circle
-					cx={RING_SIZE / 2}
-					cy={RING_SIZE / 2}
-					r={RING_RADIUS}
-					fill="none"
-					strokeWidth={RING_STROKE}
-					className="stroke-surface-tertiary"
-				/>
-				{/* Progress arc */}
-				<circle
-					cx={RING_SIZE / 2}
-					cy={RING_SIZE / 2}
-					r={RING_RADIUS}
-					fill="none"
-					strokeWidth={RING_STROKE}
-					strokeLinecap="round"
-					className={cn(
-						"transition-[stroke-dashoffset] duration-300 ease-out",
-						getRingStrokeClassName(severity),
-					)}
-					style={{
-						strokeDasharray: RING_CIRCUMFERENCE,
-						strokeDashoffset: offset,
-					}}
-				/>
-			</svg>
-			{/* Centered icon */}
+			<SvgRingProgress
+				size={RING_SIZE}
+				strokeWidth={RING_STROKE}
+				percent={clampedPercent}
+				progressClassName={getRingStrokeClassName(severity)}
+			/>
 			<span
 				aria-hidden="true"
 				className={cn(
@@ -348,15 +311,8 @@ const UsageProgress: FC<{
 	ariaLabel: string;
 	percent: number;
 	severity?: UsageSeverity;
-	size?: "default" | "compact";
 	className?: string;
-}> = ({
-	ariaLabel,
-	percent,
-	severity = "normal",
-	size = "default",
-	className,
-}) => {
+}> = ({ ariaLabel, percent, severity = "normal", className }) => {
 	const clampedPercent = clampPercent(percent);
 
 	return (
@@ -367,8 +323,7 @@ const UsageProgress: FC<{
 			aria-valuemax={100}
 			aria-valuenow={Math.round(clampedPercent)}
 			className={cn(
-				size === "compact" ? "h-1" : "h-1.5",
-				"overflow-hidden rounded-full bg-surface-tertiary",
+				"h-1.5 overflow-hidden rounded-full bg-surface-tertiary",
 				className,
 			)}
 		>

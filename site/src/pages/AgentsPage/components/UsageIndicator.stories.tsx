@@ -202,6 +202,21 @@ export const UsageAndWorkspaceQuota: Story = {
 			"Monthly spend usage",
 			"Workspace quota usage",
 		]);
+
+		// Hover the spend ring and verify the tooltip label.
+		await userEvent.hover(progressBars[0]);
+		await expect(
+			await within(document.body).findByText("Spend $12.50"),
+		).toBeVisible();
+		await userEvent.unhover(progressBars[0]);
+
+		// Hover the workspace ring and verify its tooltip label.
+		await userEvent.hover(progressBars[1]);
+		await expect(
+			await within(document.body).findByText("Workspaces 30/100"),
+		).toBeVisible();
+		await userEvent.unhover(progressBars[1]);
+
 		await openUsageMenu(canvasElement);
 	},
 };
