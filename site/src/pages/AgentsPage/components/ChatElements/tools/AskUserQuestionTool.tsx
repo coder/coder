@@ -292,7 +292,7 @@ const QuestionStep: FC<QuestionStepProps> = ({
 			<div className="flex items-start gap-1.5 text-content-secondary">
 				<MessageCircleQuestionIcon
 					aria-hidden="true"
-					className="mt-0.5 h-4 w-4 shrink-0"
+					className="mt-0.5 size-4 shrink-0"
 				/>
 				<p
 					id={questionTextId}
@@ -355,7 +355,7 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 		<div className="flex items-start gap-1.5 text-content-secondary">
 			<MessageCircleQuestionIcon
 				aria-hidden="true"
-				className="mt-0.5 h-4 w-4 shrink-0"
+				className="mt-0.5 size-4 shrink-0"
 			/>
 			<p
 				id={`${idPrefix}-question-${questionIndex}-text`}
@@ -543,7 +543,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 				>
 					<TriangleAlertIcon
 						aria-label="Error"
-						className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+						className="size-3.5 shrink-0 text-content-secondary"
 					/>
 					<span>{errorMessage || "Failed to ask questions"}</span>
 				</TranscriptRow>
@@ -561,7 +561,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 						</span>
 						<LoaderIcon
 							data-testid="ask-user-question-loading-icon"
-							className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+							className="size-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
 						/>
 					</TranscriptRow>
 				) : (
@@ -629,7 +629,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					role="alert"
 					className="mt-3 flex items-center gap-1.5 text-[13px] text-content-destructive"
 				>
-					<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+					<TriangleAlertIcon className="size-3.5 shrink-0" />
 					<span>{submitError}</span>
 				</div>
 			)}
@@ -664,7 +664,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							disabled={!canSubmitAllAnswers || isSubmitting}
 						>
 							{isSubmitting && (
-								<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+								<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 							)}
 							{isSubmitting ? "Submitting..." : "Submit"}
 						</Button>
@@ -683,7 +683,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					</span>
 					<LoaderIcon
 						data-testid="ask-user-question-loading-icon"
-						className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+						className="size-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
 					/>
 				</TranscriptRow>
 			)}

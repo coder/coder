@@ -175,10 +175,14 @@ type AIBridgeListSessionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	Provider      string    `json:"provider,omitempty"`
-	Model         string    `json:"model,omitempty"`
-	Client        string    `json:"client,omitempty"`
-	SessionID     string    `json:"session_id,omitempty"`
+	// Provider matches the provider type column (openai, anthropic,
+	// copilot). Retained for backward compatibility; new clients should
+	// prefer ProviderName, which scopes to a specific configured row.
+	Provider     string `json:"provider,omitempty"`
+	ProviderName string `json:"provider_name,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Client       string `json:"client,omitempty"`
+	SessionID    string `json:"session_id,omitempty"`
 
 	// AfterSessionID is a cursor for pagination. It is the session ID of the
 	// last session in the previous page.
@@ -198,9 +202,13 @@ type AIBridgeListInterceptionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	Provider      string    `json:"provider,omitempty"`
-	Model         string    `json:"model,omitempty"`
-	Client        string    `json:"client,omitempty"`
+	// Provider matches the provider type column (openai, anthropic,
+	// copilot). Retained for backward compatibility; new clients should
+	// prefer ProviderName, which scopes to a specific configured row.
+	Provider     string `json:"provider,omitempty"`
+	ProviderName string `json:"provider_name,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Client       string `json:"client,omitempty"`
 
 	FilterQuery string `json:"q,omitempty"`
 }
@@ -223,6 +231,9 @@ func (f AIBridgeListInterceptionsFilter) asRequestOption() RequestOption {
 		}
 		if f.Provider != "" {
 			params = append(params, fmt.Sprintf("provider:%q", f.Provider))
+		}
+		if f.ProviderName != "" {
+			params = append(params, fmt.Sprintf("provider_name:%q", f.ProviderName))
 		}
 		if f.Model != "" {
 			params = append(params, fmt.Sprintf("model:%q", f.Model))
@@ -256,6 +267,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		}
 		if f.Provider != "" {
 			params = append(params, fmt.Sprintf("provider:%q", f.Provider))
+		}
+		if f.ProviderName != "" {
+			params = append(params, fmt.Sprintf("provider_name:%q", f.ProviderName))
 		}
 		if f.Model != "" {
 			params = append(params, fmt.Sprintf("model:%q", f.Model))

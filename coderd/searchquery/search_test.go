@@ -1460,6 +1460,55 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			Name:  "PrNumber",
+			Query: "pr:42",
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+				PrNumber: 42,
+			},
+		},
+		{
+			Name:                  "PrNumberInvalid",
+			Query:                 "pr:abc",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:                  "PrNumberZero",
+			Query:                 "pr:0",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:                  "PrNumberNegative",
+			Query:                 "pr:-1",
+			ExpectedErrorContains: "pr",
+		},
+		{
+			Name:  "RepoQuery",
+			Query: "repo:coder/coder",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				RepoQuery: "coder/coder",
+			},
+		},
+		{
+			Name:  "PrTitleQuery",
+			Query: `pr_title:"fix auth bug"`,
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				PrTitleQuery: "fix auth bug",
+			},
+		},
+		{
+			Name:  "CombinedPRRepoTitle",
+			Query: "pr:99 repo:coder/coder pr_title:deploy",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				PrNumber:     99,
+				RepoQuery:    "coder/coder",
+				PrTitleQuery: "deploy",
+			},
+		},
+		{
 			Name:                  "BareTermsRejected",
 			Query:                 "some random words",
 			ExpectedErrorContains: `unsupported search term: "some random words"`,

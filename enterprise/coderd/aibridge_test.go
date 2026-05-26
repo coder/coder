@@ -54,7 +54,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Equal(t, "AI Bridge is a Premium feature. Contact sales!", sdkErr.Message)
+		require.Equal(t, "AI Gateway is a Premium feature. Contact sales!", sdkErr.Message)
 	})
 
 	t.Run("EmptyDB", func(t *testing.T) {
@@ -1844,7 +1844,7 @@ func TestAIBridgeRouting(t *testing.T) {
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write([]byte(r.URL.Path))
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	cases := []struct {
 		name         string
@@ -1907,7 +1907,7 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
@@ -1967,7 +1967,7 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 		<-unblock
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
@@ -2583,7 +2583,7 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 			testHandler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 				rw.WriteHeader(http.StatusOK)
 			})
-			api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			reqURL := client.URL.String() + "/api/v2/aibridge/test"

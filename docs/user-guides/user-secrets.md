@@ -19,12 +19,7 @@ Each user secret has:
 A secret without an environment variable target or file target is stored, but is
 not injected into workspaces.
 
-User secrets apply to all workspaces that you own. Coder injects user secrets
-when a workspace starts. If you create, update, or delete a secret while a
-workspace is running, restart the workspace before relying on that change.
-
-Environment variable secrets are available to startup scripts and workspace
-sessions. File secrets are written before startup scripts run.
+User secrets apply to all workspaces that you own.
 
 Secret values are omitted from CLI output and REST API responses after you
 create or update them.
@@ -34,7 +29,58 @@ create or update them.
 > that workspace. Do not share a workspace that has injected secrets with users
 > who should not access those values.
 
+## How your secrets reach a workspace
+
+Coder applies your secrets when your workspace starts. The same applies any
+time the workspace agent reconnects to Coder, for example after the workspace
+or the agent restarts. To pick up a change to a secret while a workspace is
+running, restart the workspace.
+
+### Environment variable secrets
+
+Coder injects environment variable secrets into every new shell, terminal,
+app, SSH session, and startup script that you start in your workspace.
+Existing shells and processes keep the environment they were given when they
+started.
+
+| If you...                                              | ...then in your workspace                                                                                                                       |
+|--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| Create or update an env secret                         | The change applies after the next workspace start. Until then, your running workspace continues to use the secrets it had when it last started. |
+| Rename the env var (`--env NEW_NAME`)                  | After the next workspace start, new shells get `NEW_NAME` and the old name is no longer set.                                                    |
+| Clear the env target (`--env ""`) or delete the secret | After the next workspace start, the variable is no longer injected.                                                                             |
+
+To pick up a change in a long-running shell or app started after a restart,
+restart that shell or app.
+
+### File secrets
+
+Coder writes file secrets to your workspace filesystem when the workspace
+starts, before any startup scripts run. New parent directories are created as
+needed. If the file already exists, Coder overwrites the contents and leaves
+the existing permissions alone.
+
+| If you...                                                | ...then in your workspace                                                                                                         |
+|----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Create or update a file secret                           | The file is written or overwritten at the next workspace start.                                                                   |
+| Change the file path (`--file NEW_PATH`)                 | At the next workspace start, a file is written at `NEW_PATH`. **The file at the previous path stays on disk with its old value.** |
+| Clear the file target (`--file ""`) or delete the secret | **The previously-written file stays on disk with its last value.**                                                                |
+
+> [!IMPORTANT]
+> Coder never deletes secret files it has written for you. If you remove a
+> secret, change its file path, or clear the file target, the previous file
+> stays in your workspace until you delete it. To remove a stale file, open
+> a terminal in your workspace and run `rm <path>`. Rebuilding the workspace
+> may clear stale files when your template recreates the filesystem.
+
+If you set two file secrets that resolve to the same absolute path (for
+example `~/config` and `/home/coder/config`), only one of them ends up on
+disk; the workspace agent logs a warning to help spot this. Use
+distinct paths to avoid the collision.
+
 ## Create a secret
+
+You can create, edit, and delete user secrets in the Coder dashboard. Click your
+avatar, select **Account**, then select **Secrets**.
 
 Use `coder secret create <name>` to create a user secret. For sensitive values,
 provide the value through non-interactive stdin with a pipe or redirect. This
@@ -65,9 +111,9 @@ coder secret create tool-config \
   < ./tool-config.json
 ```
 
-Coder creates parent directories as needed. If the file already exists, including
-a file created by a template or image, Coder updates the contents and preserves
-the existing permissions.
+On Windows workspaces, prefer `~/...` paths. They resolve to your Windows
+user profile directory. Paths starting with `/` are accepted but resolve
+to the root of the workspace's current drive, which is template dependent.
 
 ### Create a secret with environment variable and file targets
 
@@ -134,13 +180,11 @@ coder secret list api-key
 coder secret delete api-key
 ```
 
-Deleting a secret removes it from Coder and stops Coder from injecting it during
-future workspace starts. Deleting a secret does not remove the value from
-running processes or delete files that were already written in existing
-workspaces.
-
 The list and show commands return secret metadata only. They never return the
 secret value.
+
+See [How your secrets reach a workspace](#how-your-secrets-reach-a-workspace)
+for what happens to running workspaces when you delete a secret.
 
 For full command details, see [`coder secret`](../reference/cli/secret.md) and
 the [Secrets API reference](../reference/api/secrets.md).

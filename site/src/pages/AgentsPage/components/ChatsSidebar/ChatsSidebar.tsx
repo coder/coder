@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
+import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
@@ -37,8 +38,8 @@ interface ChatsSidebarProps {
 	hasNextPage?: boolean;
 	onLoadMore?: () => void;
 	isFetchingNextPage?: boolean;
-	archivedFilter: "active" | "archived";
-	onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	sidebarFilters: AgentSidebarFilters;
+	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
@@ -71,8 +72,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		hasNextPage,
 		onLoadMore,
 		isFetchingNextPage,
-		archivedFilter,
-		onArchivedFilterChange,
+		sidebarFilters,
+		onSidebarFiltersChange,
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
@@ -103,7 +104,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	return (
-		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
@@ -128,8 +129,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				hasNextPage={hasNextPage}
 				onLoadMore={onLoadMore}
 				isFetchingNextPage={isFetchingNextPage}
-				archivedFilter={archivedFilter}
-				onArchivedFilterChange={onArchivedFilterChange}
+				sidebarFilters={sidebarFilters}
+				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
 				isSettingsPanel={isSettingsPanel}

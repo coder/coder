@@ -10,6 +10,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
+	formatToolInput,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -303,6 +304,66 @@ describe("parseArgs", () => {
 
 	it("returns null for arrays", () => {
 		expect(parseArgs([1, 2, 3])).toBeNull();
+	});
+});
+
+describe("formatToolInput", () => {
+	it("returns null for null, undefined, and empty inputs", () => {
+		expect(formatToolInput(null)).toBeNull();
+		expect(formatToolInput(undefined)).toBeNull();
+		expect(formatToolInput("")).toBeNull();
+		expect(formatToolInput({})).toBeNull();
+		expect(formatToolInput([])).toBeNull();
+		expect(formatToolInput("{}")).toBeNull();
+		expect(formatToolInput("[]")).toBeNull();
+		expect(formatToolInput("null")).toBeNull();
+		expect(
+			formatToolInput(
+				JSON.stringify({
+					model_intent: "Reading backend issues",
+					properties: {},
+				}),
+			),
+		).toBeNull();
+	});
+
+	it("formats object input as pretty JSON", () => {
+		expect(formatToolInput({ project: "backend", limit: 2 })).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("formats JSON string input as pretty JSON", () => {
+		expect(formatToolInput('{"project":"backend","limit":2}')).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("unwraps model intent input wrappers", () => {
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				properties: { project: "backend" },
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				project: "backend",
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+		expect(
+			formatToolInput(
+				JSON.stringify({
+					model_intent: "Reading backend issues",
+					properties: { project: "backend" },
+				}),
+			),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+	});
+
+	it("preserves non-JSON string input", () => {
+		expect(formatToolInput("search text")).toBe("search text");
 	});
 });
 
@@ -700,6 +761,57 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed).toHaveLength(1);
 		expect(parsed[0].edits).toHaveLength(1);
 		expect(parsed[0].edits[0].replace).toBe("");
+	});
+
+	it("accepts old_text/new_text field names", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "before", new_text: "after" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "before", replace: "after" });
+	});
+
+	it("prefers old_text/new_text over search/replace when both present", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{
+							old_text: "from-old-text",
+							new_text: "from-new-text",
+							search: "from-search",
+							replace: "from-replace",
+						},
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({
+			search: "from-old-text",
+			replace: "from-new-text",
+		});
+	});
+
+	it("preserves deletion via old_text/new_text (empty new_text)", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "remove me", new_text: "" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({ search: "remove me", replace: "" });
 	});
 
 	// During streaming the model may emit a file entry before any

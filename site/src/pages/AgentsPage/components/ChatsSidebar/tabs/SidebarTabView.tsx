@@ -155,7 +155,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							size="icon"
 							onClick={onClose}
 							aria-label="Close panel"
-							className="h-7 w-7 shrink-0 lg:hidden"
+							className="size-7 shrink-0 lg:hidden"
 						>
 							<ArrowLeftIcon />
 						</Button>
@@ -172,7 +172,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
+						className="hidden size-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
@@ -196,7 +196,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onClose}
 						aria-label="Close panel"
-						className="h-7 w-7 shrink-0 lg:hidden"
+						className="size-7 shrink-0 lg:hidden"
 					>
 						<ArrowLeftIcon />
 					</Button>
@@ -207,7 +207,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleSidebarCollapsed}
 						aria-label="Expand sidebar"
-						className="mr-1 h-7 w-7 shrink-0"
+						className="mr-1 size-7 shrink-0"
 					>
 						<PanelLeftIcon />
 					</Button>
@@ -301,7 +301,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
+					className="hidden size-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>

@@ -808,7 +808,6 @@ type API struct {
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 
-	aibridgedHandler      http.Handler
 	aibridgeproxydHandler http.Handler
 	aiSeatTracker         *aiseats.SeatTracker
 }

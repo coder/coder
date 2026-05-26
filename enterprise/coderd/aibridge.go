@@ -69,7 +69,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if api.aibridgedHandler == nil {
+				if api.AGPL.GetAIBridgedHandler() == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
 					})
@@ -86,7 +86,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
+				api.AGPL.GetAIBridgedHandler().ServeHTTP(rw, r)
 			})
 		})
 	}
@@ -103,7 +103,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
@@ -164,6 +164,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 			StartedBefore: filter.StartedBefore,
 			InitiatorID:   filter.InitiatorID,
 			Provider:      filter.Provider,
+			ProviderName:  filter.ProviderName,
 			Model:         filter.Model,
 			Client:        filter.Client,
 		})
@@ -217,7 +218,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, session_id, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
@@ -296,6 +297,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 			StartedBefore: filter.StartedBefore,
 			InitiatorID:   filter.InitiatorID,
 			Provider:      filter.Provider,
+			ProviderName:  filter.ProviderName,
 			Model:         filter.Model,
 			Client:        filter.Client,
 			SessionID:     filter.SessionID,

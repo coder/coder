@@ -113,6 +113,12 @@ AI GATEWAY OPTIONS:
           with AI budgets. "highest" selects the group with the largest spend
           limit, and is currently the only supported value.
 
+      --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
+          Base directory for dumping AI Bridge request/response pairs to disk
+          for debugging. When set, each provider writes under a subdirectory
+          named after the provider. Sensitive headers are redacted. Leave empty
+          to disable.
+
       --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
           Allow users to provide their own LLM API keys or subscriptions. When
           disabled, only centralized key authentication is permitted.
@@ -157,7 +163,7 @@ AI GATEWAY OPTIONS:
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
 
-      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: false)
+      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
           Whether to start an in-memory AI Gateway instance.
 
       --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)

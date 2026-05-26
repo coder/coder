@@ -82,6 +82,12 @@ export interface AIBridgeConfig {
 	readonly circuit_breaker_interval: number;
 	readonly circuit_breaker_timeout: number;
 	readonly circuit_breaker_max_requests: number;
+	/**
+	 * APIDumpDir is the base directory under which each provider's
+	 * request/response dumps are written, in a subdirectory named after
+	 * the provider. Empty disables dumping.
+	 */
+	readonly api_dump_dir: string;
 }
 
 // From codersdk/aibridge.go
@@ -384,10 +390,6 @@ export interface AIProviderConfig {
 	 * BaseURL is the base URL of the upstream provider API.
 	 */
 	readonly base_url: string;
-	/**
-	 * DumpDir is the directory path for dumping API requests and responses.
-	 */
-	readonly dump_dir?: string;
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
@@ -445,11 +447,25 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/chats.go
+/**
+ * AIProviderSummary is provider metadata embedded in other API responses.
+ */
+export interface AIProviderSummary {
+	readonly id: string;
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly deleted: boolean;
+}
+
 // From codersdk/aiproviders.go
 export type AIProviderType =
 	| "anthropic"
 	| "azure"
 	| "bedrock"
+	| "copilot"
 	| "google"
 	| "openai"
 	| "openai-compat"
@@ -460,6 +476,7 @@ export const AIProviderTypes: AIProviderType[] = [
 	"anthropic",
 	"azure",
 	"bedrock",
+	"copilot",
 	"google",
 	"openai",
 	"openai-compat",
@@ -1596,6 +1613,7 @@ export interface ChatComputerUseProviderResponse {
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly ai_gateway_routing_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -2278,6 +2296,7 @@ export interface ChatModelCallConfig {
 export interface ChatModelConfig {
 	readonly id: string;
 	readonly provider: string;
+	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -2861,8 +2880,9 @@ export interface ChatToolCallPart {
 	 * ParsedCommands holds parsed programs from an execute tool call's
 	 * shell command, one entry per simple command in source order. Each
 	 * entry is [program] or [program, arg] where arg is the first non-flag
-	 * positional argument. Only populated when ToolName is "execute" and
-	 * the command parses successfully; nil otherwise.
+	 * positional argument. Program names are normalized to their base
+	 * name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	 * is "execute" and the command parses successfully; nil otherwise.
 	 */
 	readonly parsed_commands?: readonly string[][];
 	/**
@@ -3205,9 +3225,9 @@ export interface ConvertLoginRequest {
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
- * provider. Name, Type, and BaseURL are required. APIKeys carries
- * the plaintext keys for OpenAI/Anthropic providers; Bedrock
- * providers authenticate via Settings and must omit APIKeys.
+ * provider. Name and Type are required. APIKeys carries the plaintext
+ * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
+ * via Settings and must omit APIKeys.
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -3251,7 +3271,8 @@ export interface CreateChatMessageResponse {
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
-	readonly provider: string;
+	readonly provider?: string;
+	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -3580,6 +3601,15 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/chats.go
+/**
+ * CreateUserAIProviderKeyRequest creates or replaces a user's API key
+ * for an AI provider.
+ */
+export interface CreateUserAIProviderKeyRequest {
+	readonly api_key: string;
 }
 
 // From codersdk/chats.go
@@ -8449,6 +8479,7 @@ export interface UpdateChatDesktopEnabledRequest {
  */
 export interface UpdateChatModelConfigRequest {
 	readonly provider?: string;
+	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -9026,16 +9057,6 @@ export interface UpsertGroupAIBudgetRequest {
 	readonly spend_limit_micros: number;
 }
 
-// From codersdk/aibridge.go
-export interface UpsertUserAIBudgetOverrideRequest {
-	/**
-	 * GroupID is the group the user's spend is attributed to. The user must
-	 * be a member of this group.
-	 */
-	readonly group_id: string;
-	readonly spend_limit_micros: number;
-}
-
 // From codersdk/workspaceagentportshare.go
 export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -9080,13 +9101,16 @@ export interface User extends ReducedUser {
 	readonly has_ai_seat: boolean;
 }
 
-// From codersdk/aibridge.go
-export interface UserAIBudgetOverride {
-	readonly user_id: string;
-	readonly group_id: string;
-	readonly spend_limit_micros: number;
-	readonly created_at: string;
-	readonly updated_at: string;
+// From codersdk/chats.go
+/**
+ * UserAIProviderKeyConfig is a provider summary from the current user's
+ * perspective. It reports key presence but never returns key material.
+ */
+export interface UserAIProviderKeyConfig {
+	readonly provider: AIProviderSummary;
+	readonly has_user_api_key: boolean;
+	readonly has_provider_api_key: boolean;
+	readonly byok_enabled: boolean;
 }
 
 // From codersdk/insights.go
@@ -9215,6 +9239,7 @@ export interface UserChatProviderConfig {
 	readonly display_name: string;
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
+	readonly byok_enabled: boolean;
 }
 
 // From codersdk/insights.go
