@@ -58,16 +58,16 @@ func (mr *MockPoolerMockRecorder) Acquire(ctx, req, clientFn, mcpBootstrapper an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockPooler)(nil).Acquire), ctx, req, clientFn, mcpBootstrapper)
 }
 
-// Reload mocks base method.
-func (m *MockPooler) Reload(providers []aibridge.Provider) {
+// ReplaceProviders mocks base method.
+func (m *MockPooler) ReplaceProviders(providers []aibridge.Provider) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reload", providers)
+	m.ctrl.Call(m, "ReplaceProviders", providers)
 }
 
-// Reload indicates an expected call of Reload.
-func (mr *MockPoolerMockRecorder) Reload(providers any) *gomock.Call {
+// ReplaceProviders indicates an expected call of ReplaceProviders.
+func (mr *MockPoolerMockRecorder) ReplaceProviders(providers any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockPooler)(nil).Reload), providers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceProviders", reflect.TypeOf((*MockPooler)(nil).ReplaceProviders), providers)
 }
 
 // Shutdown mocks base method.

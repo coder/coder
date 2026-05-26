@@ -13,17 +13,8 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// Reload invokes the caller-supplied refresher and swaps the proxy's
-// routing snapshot to match. Domains absent from the new snapshot stop
-// being MITM'd at the next CONNECT, and any host that now resolves to
-// a different provider name is routed accordingly. A connection that
-// has already been authenticated and MITM'd captured the previous
-// router pointer on entry and continues against it until it closes,
-// so inflight requests are not disrupted.
-//
-// A refresh failure leaves the previous snapshot in place: dropping
-// every allowlisted domain because of a transient error would compound
-// the visible failure mode beyond an actual misconfiguration.
+// Reload refreshes proxy routing from the configured provider source.
+// A refresh failure leaves the previous snapshot in place.
 func (s *Server) Reload(ctx context.Context) error {
 	if s.refreshProviders == nil {
 		return nil
@@ -32,7 +23,7 @@ func (s *Server) Reload(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("refresh ai providers for proxy routing: %w", err)
 	}
-	router, err := buildProviderRouter(providers, s.allowedPorts)
+	router, err := buildProviderRouter(ctx, s.logger, providers, s.allowedPorts)
 	if err != nil {
 		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(providers), err)
 	}
@@ -43,9 +34,6 @@ func (s *Server) Reload(ctx context.Context) error {
 	return nil
 }
 
-// loadProviderRouter returns the live router snapshot. The pointer is
-// stable for the duration of the caller's reference; concurrent
-// Reloads only swap subsequent loads.
 func (s *Server) loadProviderRouter() *providerRouter {
 	if p := s.providerRouter.Load(); p != nil {
 		return p
@@ -68,15 +56,30 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 
 // buildProviderRouter constructs a router snapshot from a refreshed
 // provider list. First provider wins on duplicate hostnames.
-func buildProviderRouter(providers []ProviderRoute, allowedPorts []string) (*providerRouter, error) {
+func buildProviderRouter(ctx context.Context, logger slog.Logger, providers []ProviderRoute, allowedPorts []string) (*providerRouter, error) {
 	nameByHost := make(map[string]string, len(providers))
 	var domains []string
 	for _, p := range providers {
 		if p.BaseURL == "" {
+			logger.Warn(ctx, "skipping ai provider without base url",
+				slog.F("provider_name", p.Name),
+			)
 			continue
 		}
 		u, err := url.Parse(p.BaseURL)
-		if err != nil || u.Hostname() == "" {
+		if err != nil {
+			logger.Warn(ctx, "skipping ai provider with invalid base url",
+				slog.F("provider_name", p.Name),
+				slog.F("base_url", p.BaseURL),
+				slog.Error(err),
+			)
+			continue
+		}
+		if u.Hostname() == "" {
+			logger.Warn(ctx, "skipping ai provider base url without hostname",
+				slog.F("provider_name", p.Name),
+				slog.F("base_url", p.BaseURL),
+			)
 			continue
 		}
 		host := strings.ToLower(u.Hostname())

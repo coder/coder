@@ -3,6 +3,8 @@ package aibridged
 import (
 	"context"
 	"net/http"
+	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,13 +29,9 @@ const (
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
 	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
-	// Reload swaps the providers used to construct future RequestBridge
-	// instances and clears the cache. Existing in-flight requests
-	// continue against their previously-cached bridge until completion;
-	// the next Acquire returns a freshly-built bridge using the new
-	// providers slice. Safe to call concurrently with Acquire; a no-op
-	// after Shutdown.
-	Reload(providers []aibridge.Provider)
+	// ReplaceProviders swaps the providers used to construct future
+	// RequestBridge instances and clears the cache.
+	ReplaceProviders(providers []aibridge.Provider)
 	Shutdown(ctx context.Context) error
 }
 
@@ -55,13 +53,11 @@ var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
-	// providers is a hot-swappable snapshot of the live provider set.
-	// Use loadProviders to read and Reload to swap. The atomic
-	// indirection lets the snapshot change in response to configuration
-	// updates without touching the cache or holding a lock on Acquire.
-	providers atomic.Pointer[[]aibridge.Provider]
-	logger    slog.Logger
-	options   PoolOptions
+	// providers is the live provider set used by new RequestBridge instances.
+	providers       atomic.Pointer[[]aibridge.Provider]
+	providerVersion atomic.Int64
+	logger          slog.Logger
+	options         PoolOptions
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
@@ -111,36 +107,32 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 
 		shuttingDownCh: make(chan struct{}),
 	}
-	// Copy on store so callers retain ownership of the slice they passed in.
-	initial := append([]aibridge.Provider(nil), providers...)
+	initial := slices.Clone(providers)
 	pool.providers.Store(&initial)
 	return pool, nil
 }
 
-// Reload atomically replaces the provider snapshot and invalidates the
-// bridge cache. Inflight requests holding a cached bridge keep using
-// the providers captured at bridge construction; the eviction triggered
-// by Clear shuts those bridges down only after their TTL or after
-// being replaced by new Acquire calls. New Acquires build a bridge
-// against the new snapshot.
-//
-// Reload is safe to call concurrently with Acquire and is a no-op after
+// ReplaceProviders swaps the provider snapshot used by future Acquires.
+// It is safe to call concurrently with Acquire and is a no-op after
 // Shutdown.
-func (p *CachedBridgePool) Reload(providers []aibridge.Provider) {
+func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
 	select {
 	case <-p.shuttingDownCh:
 		return
 	default:
 	}
-	snapshot := append([]aibridge.Provider(nil), providers...)
+	snapshot := slices.Clone(providers)
 	p.providers.Store(&snapshot)
+	version := time.Now().UnixNano()
+	p.providerVersion.Store(version)
 	// Clear evicts every cached bridge; OnEvict shuts each one down in
-	// the background. Wait for buffered writes to drain so a Reload
+	// the background. Wait for buffered writes to drain so a replacement
 	// immediately followed by an Acquire always sees the cleared cache.
 	p.cache.Clear()
 	p.cache.Wait()
 	p.logger.Info(context.Background(), "request bridge pool reloaded",
 		slog.F("provider_count", len(snapshot)),
+		slog.F("provider_version", version),
 	)
 }
 
@@ -194,6 +186,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	}
 
 	span.AddEvent("cache_miss")
+	providerVersion := p.providerVersion.Load()
 	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), p.tracer, func() (aibridge.Recorder, error) {
 		client, err := clientFn()
 		if err != nil {
@@ -206,7 +199,8 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
-	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
+	singleflightKey := cacheKey + "|" + strconv.FormatInt(providerVersion, 10)
+	instance, err, _ := p.singleflight.Do(singleflightKey, func() (*aibridge.RequestBridge, error) {
 		var (
 			mcpServers mcp.ServerProxier
 			err        error
@@ -230,7 +224,9 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
 
-		p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
+		if p.providerVersion.Load() == providerVersion {
+			p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
+		}
 
 		return bridge, nil
 	})

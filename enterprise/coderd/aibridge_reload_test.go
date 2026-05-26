@@ -94,7 +94,7 @@ func (r *testPoolReloader) Reload(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	r.pool.Reload(providers)
+	r.pool.ReplaceProviders(providers)
 	return nil
 }
 

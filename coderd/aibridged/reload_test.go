@@ -10,23 +10,18 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
-	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestSubscribeProviderReload covers the contract that the subscriber
-// performs an initial Reload(ctx) synchronously and then invokes
-// Reload(ctx) on every pubsub event delivered on
-// AIProvidersChangedChannel.
 func TestSubscribeProviderReload(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	logger := slogtest.Make(t, nil)
-	ps := pubsub.NewInMemory()
+	ps := dbpubsub.NewInMemory()
 	t.Cleanup(func() { _ = ps.Close() })
 
 	calls := &recordingReloader{}
@@ -35,26 +30,21 @@ func TestSubscribeProviderReload(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(unsub)
 
-	require.Eventually(t, func() bool { return calls.count() >= 1 }, testutil.WaitShort, testutil.IntervalFast,
-		"initial Reload must fire synchronously from SubscribeProviderReload")
+	require.Equal(t, 1, calls.count())
 
-	require.NoError(t, ps.Publish(coderpubsub.AIProvidersChangedChannel, nil))
+	require.NoError(t, ps.Publish(pubsub.AIProvidersChangedChannel, nil))
 
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"Reload must fire again after a pubsub notification")
 }
 
-// TestSubscribeProviderReloadSurfacesReloadError verifies that an
-// error returned by Reload is logged but does not break the
-// subscription: subsequent notifications keep firing.
 func TestSubscribeProviderReloadSurfacesReloadError(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	logger := slogtest.Make(t, nil)
-	ps := pubsub.NewInMemory()
+	ps := dbpubsub.NewInMemory()
 	t.Cleanup(func() { _ = ps.Close() })
 
 	calls := &recordingReloader{returnErr: true}
@@ -63,19 +53,16 @@ func TestSubscribeProviderReloadSurfacesReloadError(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(unsub)
 
-	require.Eventually(t, func() bool { return calls.count() >= 1 }, testutil.WaitShort, testutil.IntervalFast)
-	require.NoError(t, ps.Publish(coderpubsub.AIProvidersChangedChannel, nil))
+	require.Equal(t, 1, calls.count())
+	require.NoError(t, ps.Publish(pubsub.AIProvidersChangedChannel, nil))
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"Reload must keep firing even after a previous Reload returned an error")
 }
 
-// TestSubscribeProviderReloadIgnoresEventError verifies that a
-// pubsub-layer error delivered to the handler does not trigger Reload.
 func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	logger := slogtest.Make(t, nil)
 	ps := &errInjectingPubsub{}
@@ -122,17 +109,17 @@ type stubError string
 
 func (s stubError) Error() string { return string(s) }
 
-var _ pubsub.Pubsub = &errInjectingPubsub{}
+var _ dbpubsub.Pubsub = &errInjectingPubsub{}
 
 type errInjectingPubsub struct {
-	listener pubsub.ListenerWithErr
+	listener dbpubsub.ListenerWithErr
 }
 
-func (*errInjectingPubsub) Subscribe(string, pubsub.Listener) (func(), error) {
+func (*errInjectingPubsub) Subscribe(string, dbpubsub.Listener) (func(), error) {
 	return nil, xerrors.New("Subscribe not implemented")
 }
 
-func (p *errInjectingPubsub) SubscribeWithErr(_ string, listener pubsub.ListenerWithErr) (func(), error) {
+func (p *errInjectingPubsub) SubscribeWithErr(_ string, listener dbpubsub.ListenerWithErr) (func(), error) {
 	p.listener = listener
 	return func() {}, nil
 }

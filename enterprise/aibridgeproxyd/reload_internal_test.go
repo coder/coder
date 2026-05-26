@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 )
@@ -38,6 +39,39 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 	assert.Equal(t, []string{"new.example.com:443"}, router.mitmHosts)
 }
 
+func TestServerReloadPreservesProviderRouterOnRefreshError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	refreshErr := xerrors.New("refresh failed")
+	providers := []ProviderRoute{{Name: "old", BaseURL: "https://old.example.com/"}}
+	failRefresh := false
+	srv := &Server{
+		ctx:          ctx,
+		logger:       slogtest.Make(t, nil),
+		allowedPorts: []string{"443"},
+		refreshProviders: func(context.Context) ([]ProviderRoute, error) {
+			if failRefresh {
+				return nil, refreshErr
+			}
+			return providers, nil
+		},
+	}
+	srv.providerRouter.Store(emptyProviderRouter)
+
+	require.NoError(t, srv.Reload(ctx))
+	before := srv.loadProviderRouter()
+	assert.Equal(t, "old", before.providerFromHost("old.example.com"))
+
+	failRefresh = true
+	require.ErrorIs(t, srv.Reload(ctx), refreshErr)
+
+	after := srv.loadProviderRouter()
+	assert.Same(t, before, after)
+	assert.Equal(t, "old", after.providerFromHost("old.example.com"))
+	assert.Equal(t, []string{"old.example.com:443"}, after.mitmHosts)
+}
+
 // TestBuildProviderRouter covers the host-and-routing derivation that
 // Reload feeds into the providerRouter.
 func TestBuildProviderRouter(t *testing.T) {
@@ -52,7 +86,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "custom", BaseURL: "https://custom-llm.example.com:8443/api"},
 		}
 
-		router, err := buildProviderRouter(providers, []string{"443"})
+		router, err := buildProviderRouter(context.Background(), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "openai", router.providerFromHost("api.openai.com"))
@@ -72,7 +106,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "second", BaseURL: "https://api.example.com/v2"},
 		}
 
-		router, err := buildProviderRouter(providers, []string{"443"})
+		router, err := buildProviderRouter(context.Background(), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		// First provider wins on duplicate host.
@@ -86,7 +120,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "provider", BaseURL: "https://API.Example.COM/v1"},
 		}
 
-		router, err := buildProviderRouter(providers, []string{"443"})
+		router, err := buildProviderRouter(context.Background(), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "provider", router.providerFromHost("API.Example.COM"))
@@ -102,7 +136,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "good", BaseURL: "https://api.good.example.com/"},
 		}
 
-		router, err := buildProviderRouter(providers, []string{"443"})
+		router, err := buildProviderRouter(context.Background(), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "good", router.providerFromHost("api.good.example.com"))

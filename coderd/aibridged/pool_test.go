@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestPool validates the published behavior of [aibridged.CachedBridgePool].
@@ -112,7 +114,7 @@ func TestPool(t *testing.T) {
 	require.EqualValues(t, 3, cacheMetrics.Misses())
 }
 
-func TestPoolReloadClearsCacheAndUsesNewProviders(t *testing.T) {
+func TestPoolReplaceProvidersClearsCacheAndUsesNewProviders(t *testing.T) {
 	t.Parallel()
 
 	oldUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -151,7 +153,7 @@ func TestPoolReloadClearsCacheAndUsesNewProviders(t *testing.T) {
 	require.NoError(t, err)
 	assertHandlerBody(t, inst, "/old/v1/models", "old")
 
-	pool.Reload([]aibridge.Provider{
+	pool.ReplaceProviders([]aibridge.Provider{
 		aibridge.NewOpenAIProvider(config.OpenAI{Name: "new", BaseURL: newUpstream.URL}),
 	})
 
@@ -159,6 +161,111 @@ func TestPoolReloadClearsCacheAndUsesNewProviders(t *testing.T) {
 	require.NoError(t, err)
 	require.NotSame(t, inst, instAfterReload)
 	assertHandlerBody(t, instAfterReload, "/new/v1/models", "new")
+}
+
+func TestPoolReplaceProvidersDoesNotJoinStaleSingleflight(t *testing.T) {
+	t.Parallel()
+
+	oldUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "old")
+	}))
+	t.Cleanup(oldUpstream.Close)
+	newUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "new")
+	}))
+	t.Cleanup(newUpstream.Close)
+
+	logger := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+
+	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Minute}
+	pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "old", BaseURL: oldUpstream.URL}),
+	}, logger, nil, testTracer)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
+
+	req := aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: uuid.New(),
+		APIKeyID:    uuid.New().String(),
+	}
+	clientFn := func() (aibridged.DRPCClient, error) {
+		return client, nil
+	}
+
+	factory := newBlockingMCPFactory()
+	firstDone := make(chan acquireResult, 1)
+	go func() {
+		handler, err := pool.Acquire(t.Context(), req, clientFn, factory)
+		firstDone <- acquireResult{handler: handler, err: err}
+	}()
+
+	require.Eventually(t, factory.firstBuildStarted, testutil.WaitShort, testutil.IntervalFast)
+
+	pool.ReplaceProviders([]aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "new", BaseURL: newUpstream.URL}),
+	})
+
+	secondDone := make(chan acquireResult, 1)
+	go func() {
+		handler, err := pool.Acquire(t.Context(), req, clientFn, factory)
+		secondDone <- acquireResult{handler: handler, err: err}
+	}()
+
+	var second acquireResult
+	require.Eventually(t, func() bool {
+		select {
+		case second = <-secondDone:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, second.err)
+	assertHandlerBody(t, second.handler, "/new/v1/models", "new")
+
+	close(factory.releaseFirst)
+	var first acquireResult
+	require.Eventually(t, func() bool {
+		select {
+		case first = <-firstDone:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, first.err)
+
+	third, err := pool.Acquire(t.Context(), req, clientFn, factory)
+	require.NoError(t, err)
+	require.Same(t, second.handler, third)
+}
+
+func TestPoolReplaceProvidersAfterShutdownIsNoop(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Minute}
+	pool, err := aibridged.NewCachedBridgePool(opts, nil, logger, nil, testTracer)
+	require.NoError(t, err)
+
+	require.NoError(t, pool.Shutdown(t.Context()))
+	require.NotPanics(t, func() {
+		pool.ReplaceProviders([]aibridge.Provider{
+			aibridge.NewOpenAIProvider(config.OpenAI{Name: "new", BaseURL: "https://example.com"}),
+		})
+	})
+
+	_, err = pool.Acquire(t.Context(), aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: uuid.New(),
+		APIKeyID:    uuid.New().String(),
+	}, func() (aibridged.DRPCClient, error) {
+		return nil, context.Canceled
+	}, newMockMCPFactory(nil))
+	require.ErrorContains(t, err, "pool shutting down")
 }
 
 func TestPool_Expiry(t *testing.T) {
@@ -247,4 +354,43 @@ func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 
 func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
 	return m.proxy, nil
+}
+
+type acquireResult struct {
+	handler http.Handler
+	err     error
+}
+
+type blockingMCPFactory struct {
+	calls        atomic.Int32
+	firstStarted chan struct{}
+	releaseFirst chan struct{}
+}
+
+func newBlockingMCPFactory() *blockingMCPFactory {
+	return &blockingMCPFactory{
+		firstStarted: make(chan struct{}),
+		releaseFirst: make(chan struct{}),
+	}
+}
+
+func (m *blockingMCPFactory) firstBuildStarted() bool {
+	select {
+	case <-m.firstStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *blockingMCPFactory) Build(ctx context.Context, _ aibridged.Request, _ trace.Tracer) (mcp.ServerProxier, error) {
+	if m.calls.Add(1) == 1 {
+		close(m.firstStarted)
+		select {
+		case <-m.releaseFirst:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return nil, context.Canceled
 }

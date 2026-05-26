@@ -92,7 +92,7 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 		// mode beyond the operator's actual misconfiguration.
 		return xerrors.Errorf("load ai providers from database: %w", err)
 	}
-	r.pool.Reload(providers)
+	r.pool.ReplaceProviders(providers)
 	return nil
 }
 

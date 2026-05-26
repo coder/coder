@@ -139,25 +139,12 @@ type Server struct {
 	listener       net.Listener
 	tlsEnabled     bool
 	coderAccessURL *url.URL
-	// refreshProviders fetches the live provider snapshot on every
-	// Reload. Nil disables hot-reload; whatever boot-time snapshot is in
-	// providerRouter continues to serve.
-	//
-	// Fail-closed: the empty router (no configured providers, or every
-	// Reload to date has errored) maps no host to any provider, so the
-	// CONNECT handler rejects allowlisted intercept attempts because
-	// the host->name lookup returns "". An error from refreshProviders
-	// leaves the previous snapshot in place rather than dropping it, so
-	// a transient DB failure does not amplify into a denial-of-service.
+	// refreshProviders fetches the live provider snapshot on Reload.
+	// Nil disables hot-reload.
 	refreshProviders RefreshProvidersFunc
 	// providerRouter holds the live (mitmHosts, nameByHost) pair.
-	// Reload swaps it atomically so the goproxy condition and the
-	// per-request provider lookup always see a consistent snapshot.
-	// Inflight requests already past the swap point captured the
-	// previous pointer when they entered the handler and are not
-	// affected.
 	providerRouter atomic.Pointer[providerRouter]
-	// allowedPorts is the port whitelist for CONNECT requests. Fixed at
+	// allowedPorts is the port allowlist for CONNECT requests. Fixed at
 	// construction; not reloadable.
 	allowedPorts []string
 	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
@@ -172,10 +159,7 @@ type Server struct {
 	metrics *Metrics
 }
 
-// providerRouter is the unit of swap for Reload. Both fields move
-// together so a request that loads the pointer sees a self-consistent
-// view: a host (lowercase, no port) is in nameByHost iff its
-// host:port form is in mitmHosts.
+// providerRouter keeps CONNECT matching and provider lookup in sync.
 type providerRouter struct {
 	mitmHosts  []string          // host:port allowlist for the goproxy condition.
 	nameByHost map[string]string // lowercase hostname -> provider name.
@@ -696,7 +680,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	// A concurrent Reload can swap the router between CONNECT matching
 	// and provider lookup, so treat a missing mapping as a runtime miss.
 	if provider == "" {
-		logger.Error(s.ctx, "rejecting CONNECT request with no provider mapping")
+		logger.Warn(s.ctx, "rejecting CONNECT request with no provider mapping")
 		return goproxy.RejectConnect, host
 	}
 
@@ -965,9 +949,9 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	if reqCtx.Provider == "" {
 		// A concurrent Reload can remove the provider after CONNECT
 		// authentication. The request is MITM'd (decrypted), but without a
-		// mapping there is no known route to aibridge. Log error and forward
+		// mapping there is no known route to aibridge. Log and forward
 		// to the original destination as a fallback.
-		s.logger.Error(s.ctx, "decrypted request has no provider mapping, passing through",
+		s.logger.Warn(s.ctx, "decrypted request has no provider mapping, passing through",
 			slog.F("connect_id", reqCtx.ConnectSessionID.String()),
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
