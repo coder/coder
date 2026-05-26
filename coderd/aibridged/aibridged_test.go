@@ -247,7 +247,7 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
 						assert.Equal(t, "coder-token-byok", req.SessionKey,
-							"BYOK delegated request must still surface the extracted Coder token as SessionKey")
+							"BYOK delegated request must surface the extracted Coder token as SessionKey")
 						return mockH, nil
 					})
 			},
@@ -334,7 +334,12 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 				Username: "u",
 			}, nil
 		})
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+			assert.Equal(t, "ignored-on-delegated-path", req.SessionKey,
+				"delegated BYOK request must pass HeaderCoderToken value as SessionKey")
+			return mockH, nil
+		})
 
 	factory := aibridged.NewTransportFactory(srv)
 	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
@@ -343,9 +348,9 @@ func TestServeHTTP_DelegatedAPIKey_BYOK_Integration(t *testing.T) {
 	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/anthropic/v1/messages", nil)
 	require.NoError(t, err)
-	// HeaderCoderToken marks the request as BYOK. Its value is irrelevant on
-	// the delegated path (identity comes from context) and it must be
-	// stripped before forwarding upstream.
+	// HeaderCoderToken marks the request as BYOK. Its value is what gets
+	// extracted as the SessionKey via ExtractAuthToken. It must be stripped
+	// from forwarded headers but its value must reach the pool as SessionKey.
 	req.Header.Set(agplaibridge.HeaderCoderToken, "ignored-on-delegated-path")
 	// The user's own LLM credential; must reach the downstream handler.
 	req.Header.Set("Authorization", userLLMToken)
@@ -386,13 +391,19 @@ func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 				Username: "u",
 			}, nil
 		})
-	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+	pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+			assert.Empty(t, req.SessionKey,
+				"delegated centralized request (no BYOK header) must have empty SessionKey")
+			return mockH, nil
+		})
 
 	factory := aibridged.NewTransportFactory(srv)
 	rt, err := factory.TransportFor("openai", agplaibridge.SourceAgents)
 	require.NoError(t, err)
 
 	ctx := agplaibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), testKeyID)
+	// No headers set: this is a centralized delegated request (no BYOK).
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/openai/v1/chat/completions", nil)
 	require.NoError(t, err)
 
