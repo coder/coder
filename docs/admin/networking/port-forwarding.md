@@ -6,12 +6,12 @@ a browser.
 
 There are four ways to forward ports in Coder:
 
-| Method                                                        | Details                                                                                                                                                        |
-|:--------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Desktop](#coder-desktop)                               | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
-| [CLI (`coder port-forward`)](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
-| [Dashboard](#dashboard)                                       | Proxies traffic through the Coder control plane.                                                                                                               |
-| [SSH](#ssh)                                                   | Forwards ports over an SSH connection.                                                                                                                         |
+| Method                                 | Details                                                                                                                                                        |
+|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
+| [CLI](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
+| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                               |
+| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                         |
 
 Coder Desktop and `coder port-forward` are generally more performant than:
 
