@@ -1,5 +1,5 @@
 import { type FormikTouched, useFormik } from "formik";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	UpdateUserSecretRequest,
@@ -54,7 +54,7 @@ const emptyValues: SecretFormValues = {
 };
 
 const infoText = "Secret values cannot be retrieved once saved.";
-const savedSecretValueDisplay = "••••••••••••••••••••";
+export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••••••••••";
 
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
@@ -108,12 +108,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			}
 		},
 	});
-
-	useEffect(() => {
-		if (open) {
-			setClearValueRequested(false);
-		}
-	}, [open]);
 
 	const closeDialog = () => {
 		setClearValueRequested(false);
@@ -179,6 +173,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								showValue={false}
 							/>
 							<SecretValueField
+								key={`${secret.name}-${open}`}
 								field={getFieldHelpers("value", {
 									helperText: "Leave blank to keep the existing value.",
 								})}
@@ -246,7 +241,7 @@ const SecretFields: FC<SecretFieldsProps> = ({
 						"Name"
 					)
 				}
-				placeholder="Service token"
+				placeholder="Secret name"
 				autoComplete="off"
 				className="placeholder:text-content-disabled"
 				disabled={disableName}
@@ -323,18 +318,14 @@ const SecretValueField: FC<SecretValueFieldProps> = ({
 	onClearValue,
 	onUndoClearValue,
 }) => {
-	const [isShowingSavedValue, setIsShowingSavedValue] = useState(
-		showSavedValue && !clearValueRequested,
-	);
-
-	useEffect(() => {
-		setIsShowingSavedValue(showSavedValue && !clearValueRequested);
-	}, [clearValueRequested, showSavedValue]);
+	const [hasHiddenSavedValue, setHasHiddenSavedValue] = useState(false);
+	const isShowingSavedValue =
+		showSavedValue && !clearValueRequested && !hasHiddenSavedValue;
 
 	const value = clearValueRequested
 		? ""
 		: isShowingSavedValue
-			? savedSecretValueDisplay
+			? SAVED_SECRET_VALUE_DISPLAY
 			: field.value;
 	const maskTypedValue =
 		!clearValueRequested &&
@@ -378,27 +369,24 @@ const SecretValueField: FC<SecretValueFieldProps> = ({
 					className={cn(
 						"placeholder:text-content-disabled sm:flex-1",
 						displayField.error && "border-border-destructive",
-						maskTypedValue && "[-webkit-text-security:disc]",
+						maskTypedValue && "[-webkit-text-security:circle]",
 					)}
-					data-lpignore="true"
-					data-1p-ignore="true"
-					data-form-type="other"
 					onFocus={(event) => {
 						if (isShowingSavedValue) {
 							event.currentTarget.value = "";
-							setIsShowingSavedValue(false);
+							setHasHiddenSavedValue(true);
 						}
 					}}
 					onChange={(event) => {
 						if (isShowingSavedValue) {
-							setIsShowingSavedValue(false);
+							setHasHiddenSavedValue(true);
 						}
 						field.onChange(event);
 					}}
 					onBlur={(event) => {
 						field.onBlur(event);
 						if (showSavedValue && event.currentTarget.value === "") {
-							setIsShowingSavedValue(true);
+							setHasHiddenSavedValue(false);
 						}
 					}}
 				/>

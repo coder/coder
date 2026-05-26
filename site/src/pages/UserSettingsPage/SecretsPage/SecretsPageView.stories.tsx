@@ -6,11 +6,11 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 import { MockUserSecrets, mockApiError } from "#/testHelpers/entities";
+import { SAVED_SECRET_VALUE_DISPLAY } from "./SecretDialog";
 import { SecretsPageView } from "./SecretsPageView";
 
 const visibleSecrets = MockUserSecrets.slice(0, 4);
-const placeholderInput = "placeholder input";
-const savedSecretValueDisplay = "••••••••••••••••••••";
+const PLACEHOLDER_INPUT = "placeholder input";
 
 const meta: Meta<typeof SecretsPageView> = {
 	title: "pages/UserSettingsPage/SecretsPageView",
@@ -163,7 +163,7 @@ export const AddDialogOpened: Story = {
 		await expect(dialogView.getByLabelText("Name")).toBeRequired();
 		await expect(dialogView.getByLabelText("Name")).toHaveAttribute(
 			"placeholder",
-			"Service token",
+			"Secret name",
 		);
 		await expect(dialogView.getByLabelText("Value")).toBeRequired();
 		await expect(dialogView.getByLabelText("Value")).toHaveAttribute(
@@ -199,7 +199,7 @@ export const AddDialogDuplicateEnvValidationError: Story = {
 			dialog.getByLabelText("Environment variable"),
 			"SERVICE_API_KEY",
 		);
-		await user.type(dialog.getByLabelText("Value"), placeholderInput);
+		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 		const saveButton = dialog.getByRole("button", { name: "Save" });
 		await waitFor(() => expect(saveButton).toBeEnabled());
 		await user.click(saveButton);
@@ -229,7 +229,7 @@ export const AddSecretFormSaveEnabled: Story = {
 			dialog.getByLabelText("Environment variable"),
 			"EXAMPLE_SECRET",
 		);
-		await user.type(dialog.getByLabelText("Value"), placeholderInput);
+		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 
 		await expect(saveButton).toBeEnabled();
 		await user.click(dialog.getByRole("button", { name: "Cancel" }));
@@ -258,7 +258,7 @@ export const AddSecretSubmit: Story = {
 			"EXAMPLE_SECRET",
 		);
 		await user.type(dialog.getByLabelText("File path"), "~/secrets/example");
-		await user.type(dialog.getByLabelText("Value"), placeholderInput);
+		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 		await user.type(dialog.getByLabelText("Description"), "Example secret");
 		await user.click(dialog.getByRole("button", { name: "Save" }));
 
@@ -267,7 +267,7 @@ export const AddSecretSubmit: Story = {
 			name: "example-secret",
 			env_name: "EXAMPLE_SECRET",
 			file_path: "~/secrets/example",
-			value: placeholderInput,
+			value: PLACEHOLDER_INPUT,
 			description: "Example secret",
 		});
 		await waitForDialogToClose(body);
@@ -288,7 +288,7 @@ export const EditDialogOpened: Story = {
 			}),
 		);
 		await user.click(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
+			await body.findByRole("menuitem", { name: "Edit secret" }),
 		);
 
 		const dialog = await body.findByRole("dialog");
@@ -308,13 +308,13 @@ export const EditDialogOpened: Story = {
 			secret.file_path,
 		);
 		const valueField = dialogView.getByLabelText("Value");
-		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await expect(valueField).toHaveValue(SAVED_SECRET_VALUE_DISPLAY);
 		const clearButton = dialogView.getByRole("button", { name: "Clear" });
 		await waitFor(() => expect(clearButton).toBeVisible());
 		await user.click(valueField);
 		await expect(valueField).toHaveValue("");
 		await user.tab();
-		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await expect(valueField).toHaveValue(SAVED_SECRET_VALUE_DISPLAY);
 		await expect(
 			dialogView.getByRole("button", { name: "Update" }),
 		).toBeDisabled();
@@ -341,7 +341,7 @@ export const EditSecretSubmit: Story = {
 			}),
 		);
 		await user.click(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
+			await body.findByRole("menuitem", { name: "Edit secret" }),
 		);
 
 		const dialog = within(await body.findByRole("dialog"));
@@ -379,7 +379,7 @@ export const EditSecretClearValue: Story = {
 			}),
 		);
 		await user.click(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
+			await body.findByRole("menuitem", { name: "Edit secret" }),
 		);
 
 		const dialog = within(await body.findByRole("dialog"));
@@ -396,7 +396,7 @@ export const EditSecretClearValue: Story = {
 		await expect(updateButton).toBeEnabled();
 
 		await user.click(dialog.getByRole("button", { name: "Undo" }));
-		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await expect(valueField).toHaveValue(SAVED_SECRET_VALUE_DISPLAY);
 		await expect(valueField).toBeEnabled();
 		await expect(updateButton).toBeDisabled();
 
@@ -432,7 +432,7 @@ export const EditSecretMutationErrorDisplay: Story = {
 			}),
 		);
 		await user.click(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
+			await body.findByRole("menuitem", { name: "Edit secret" }),
 		);
 
 		const dialog = within(await body.findByRole("dialog"));
@@ -440,7 +440,7 @@ export const EditSecretMutationErrorDisplay: Story = {
 		const value = dialog.getByLabelText("Value");
 		await user.clear(description);
 		await user.type(description, "Updated example description");
-		await user.type(value, placeholderInput);
+		await user.type(value, PLACEHOLDER_INPUT);
 		await user.click(dialog.getByRole("button", { name: "Update" }));
 
 		await waitFor(() => expect(onUpdateSecret).toHaveBeenCalledTimes(1));
@@ -451,7 +451,7 @@ export const EditSecretMutationErrorDisplay: Story = {
 			dialog.getByRole("heading", { name: "Edit secret" }),
 		).toBeVisible();
 		await expect(description).toHaveValue("Updated example description");
-		await expect(value).toHaveValue(placeholderInput);
+		await expect(value).toHaveValue(PLACEHOLDER_INPUT);
 		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 	},
@@ -470,9 +470,9 @@ export const KebabActionsAndDeleteConfirmation: Story = {
 			}),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
+			await body.findByRole("menuitem", { name: "Edit secret" }),
 		).toBeInTheDocument();
-		await user.click(body.getByRole("menuitem", { name: "Delete..." }));
+		await user.click(body.getByRole("menuitem", { name: "Delete" }));
 
 		const dialog = await body.findByRole("dialog");
 		const dialogView = within(dialog);
@@ -501,7 +501,7 @@ export const DeleteConfirmSubmit: Story = {
 				name: `Open secret actions for ${secret.name}`,
 			}),
 		);
-		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
+		await user.click(await body.findByRole("menuitem", { name: "Delete" }));
 		await user.click(await body.findByRole("button", { name: "Delete" }));
 
 		await waitFor(() => expect(onDeleteSecret).toHaveBeenCalledTimes(1));
@@ -529,7 +529,7 @@ export const DeleteSecretMutationErrorDisplay: Story = {
 				name: `Open secret actions for ${secret.name}`,
 			}),
 		);
-		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
+		await user.click(await body.findByRole("menuitem", { name: "Delete" }));
 		const dialog = within(await body.findByRole("dialog"));
 		await user.click(dialog.getByRole("button", { name: "Delete" }));
 
@@ -549,16 +549,16 @@ export const DeleteAndCancel: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		const secret = visibleSecrets[0] as UserSecret;
+		const trigger = canvas.getByRole("button", {
+			name: `Open secret actions for ${secret.name}`,
+		});
 
-		await user.click(
-			canvas.getByRole("button", {
-				name: `Open secret actions for ${secret.name}`,
-			}),
-		);
-		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
+		await user.click(trigger);
+		await user.click(await body.findByRole("menuitem", { name: "Delete" }));
 		await user.click(await body.findByRole("button", { name: "Cancel" }));
 
 		await waitForDialogToClose(body);
+		await waitFor(() => expect(trigger).toHaveFocus());
 	},
 };
 
@@ -579,7 +579,7 @@ export const CreateMutationErrorDisplay: Story = {
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = within(await body.findByRole("dialog"));
 		await user.type(dialog.getByLabelText("Name"), "conflict-secret");
-		await user.type(dialog.getByLabelText("Value"), placeholderInput);
+		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
 		await user.click(dialog.getByRole("button", { name: "Save" }));
 
 		await expect(

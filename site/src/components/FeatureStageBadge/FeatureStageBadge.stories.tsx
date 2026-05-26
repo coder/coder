@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
 import { FeatureStageBadge } from "./FeatureStageBadge";
 
 const meta: Meta<typeof FeatureStageBadge> = {
 	title: "components/FeatureStageBadge",
 	component: FeatureStageBadge,
+	parameters: { chromatic },
 	args: {
 		contentType: "beta",
 	},

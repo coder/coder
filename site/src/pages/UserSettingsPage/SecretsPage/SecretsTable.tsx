@@ -3,15 +3,7 @@ import { type FC, useRef, useState } from "react";
 import type { UserSecret } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -53,26 +45,24 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 	onEditSecret,
 	onDeleteSecret,
 }) => {
-	const [secretToDelete, setSecretToDelete] = useState<{
-		secret: UserSecret;
-		returnFocusElement: HTMLElement | null;
-	}>();
+	const [secretToDelete, setSecretToDelete] = useState<UserSecret>();
 
 	return (
 		<>
 			<DeleteSecretDialog
-				secret={secretToDelete?.secret}
+				secret={secretToDelete}
 				isDeleting={isDeleting}
-				returnFocusElement={secretToDelete?.returnFocusElement}
 				onCancel={() => setSecretToDelete(undefined)}
 				onConfirm={(secret) => {
-					void (async () => {
-						await onDeleteSecret(secret);
-						setSecretToDelete(undefined);
-					})().catch(() => {
-						// onDeleteSecret reports failures with a toast before rejecting.
-						// Swallow the rejection here to avoid an unhandled promise rejection warning.
-					});
+					void Promise.resolve()
+						.then(() => onDeleteSecret(secret))
+						.then(() => {
+							setSecretToDelete(undefined);
+						})
+						.catch(() => {
+							// onDeleteSecret reports failures with a toast before rejecting.
+							// Swallow the rejection here to avoid an unhandled promise rejection warning.
+						});
 				}}
 			/>
 
@@ -107,12 +97,21 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 								<TableCell className="font-semibold text-content-primary">
 									{secret.name}
 								</TableCell>
-								<TableCell>{secret.env_name || "Not set"}</TableCell>
-								<TableCell>{secret.file_path || "Not set"}</TableCell>
+								<TableCell>
+									<OptionalSecretValue value={secret.env_name} />
+								</TableCell>
+								<TableCell>
+									<OptionalSecretValue value={secret.file_path} />
+								</TableCell>
 								<TableCell>
 									<SecretTypeBadge secret={secret} />
 								</TableCell>
-								<TableCell>{secret.description || "No description"}</TableCell>
+								<TableCell>
+									<OptionalSecretValue
+										value={secret.description}
+										fallback="No description"
+									/>
+								</TableCell>
 								<TableCell data-chromatic="ignore">
 									{relativeTime(secret.updated_at)}
 								</TableCell>
@@ -120,12 +119,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 									<SecretRowActions
 										secret={secret}
 										onEditSecret={onEditSecret}
-										onDeleteSecret={(secret, returnFocusElement) =>
-											setSecretToDelete({
-												secret,
-												returnFocusElement: returnFocusElement ?? null,
-											})
-										}
+										onDeleteSecret={setSecretToDelete}
 									/>
 								</TableCell>
 							</TableRow>
@@ -136,19 +130,34 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 	);
 };
 
+const OptionalSecretValue: FC<{ value?: string; fallback?: string }> = ({
+	value,
+	fallback = "Not set",
+}) => {
+	if (value) {
+		return value;
+	}
+
+	return <span className="text-content-disabled">{fallback}</span>;
+};
+
 const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 	const hasEnv = Boolean(secret.env_name);
 	const hasFile = Boolean(secret.file_path);
-	const label =
-		hasEnv && hasFile
-			? "env var + file"
-			: hasEnv
-				? "env var"
-				: hasFile
-					? "file"
-					: "not injected";
 
-	return <Badge>{label}</Badge>;
+	if (hasEnv && hasFile) {
+		return <Badge>env var + file</Badge>;
+	}
+
+	if (hasEnv) {
+		return <Badge>env var</Badge>;
+	}
+
+	if (hasFile) {
+		return <Badge>file</Badge>;
+	}
+
+	return <Badge>not injected</Badge>;
 };
 
 type SecretRowActionsProps = {
@@ -157,10 +166,7 @@ type SecretRowActionsProps = {
 		secret: UserSecret,
 		returnFocusElement?: HTMLElement | null,
 	) => void;
-	onDeleteSecret: (
-		secret: UserSecret,
-		returnFocusElement?: HTMLElement | null,
-	) => void;
+	onDeleteSecret: (secret: UserSecret) => void;
 };
 
 const SecretRowActions: FC<SecretRowActionsProps> = ({
@@ -189,15 +195,15 @@ const SecretRowActions: FC<SecretRowActionsProps> = ({
 					onSelect={() => onEditSecret(secret, triggerRef.current)}
 				>
 					<PencilIcon className="size-icon-xs" />
-					Edit secret...
+					Edit secret
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="text-content-destructive focus:text-content-destructive"
-					onSelect={() => onDeleteSecret(secret, triggerRef.current)}
+					onSelect={() => onDeleteSecret(secret)}
 				>
 					<TrashIcon className="size-icon-xs" />
-					Delete...
+					Delete
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -207,7 +213,6 @@ const SecretRowActions: FC<SecretRowActionsProps> = ({
 type DeleteSecretDialogProps = {
 	secret?: UserSecret;
 	isDeleting: boolean;
-	returnFocusElement?: HTMLElement | null;
 	onCancel: () => void;
 	onConfirm: (secret: UserSecret) => void;
 };
@@ -215,53 +220,31 @@ type DeleteSecretDialogProps = {
 const DeleteSecretDialog: FC<DeleteSecretDialogProps> = ({
 	secret,
 	isDeleting,
-	returnFocusElement,
 	onCancel,
 	onConfirm,
 }) => {
 	return (
-		<Dialog
+		<ConfirmDialog
+			type="delete"
 			open={Boolean(secret)}
-			onOpenChange={(open) => !open && !isDeleting && onCancel()}
-		>
-			<DialogContent
-				variant="destructive"
-				onCloseAutoFocus={(event) => {
-					if (returnFocusElement?.isConnected) {
-						event.preventDefault();
-						returnFocusElement.focus();
-					}
-				}}
-			>
-				<DialogHeader>
-					<DialogTitle>Delete secret</DialogTitle>
-				</DialogHeader>
-				<DialogDescription
-					asChild
-					className="m-0 text-sm font-normal leading-relaxed text-content-secondary"
-				>
-					<p>
-						Deleting{" "}
-						<strong className="text-content-primary">{secret?.name}</strong> is
-						irreversible. Workspaces that depend on this secret will no longer
-						receive it on future starts.
-					</p>
-				</DialogDescription>
-				<DialogFooter>
-					<DialogActions
-						cancelText="Cancel"
-						confirmText="Delete"
-						confirmVariant="destructive"
-						confirmLoading={isDeleting}
-						onCancel={onCancel}
-						onConfirm={() => {
-							if (secret) {
-								onConfirm(secret);
-							}
-						}}
-					/>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+			confirmLoading={isDeleting}
+			title="Delete secret"
+			description={
+				<p>
+					Deleting <strong>{secret?.name}</strong> is irreversible. Workspaces
+					that depend on this secret will no longer receive it on future starts.
+				</p>
+			}
+			onClose={() => {
+				if (!isDeleting) {
+					onCancel();
+				}
+			}}
+			onConfirm={() => {
+				if (secret) {
+					onConfirm(secret);
+				}
+			}}
+		/>
 	);
 };
