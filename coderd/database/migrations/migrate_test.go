@@ -1740,6 +1740,8 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	modelConfigID := uuid.New()
 
 	// API keys: one valid (recent), one valid (older), one expired.
+	// TODO: Cover an expired key with a last_used value newer than the valid keys,
+	// but still before its expiry, to prove expiry filtering wins over recency.
 	validKeyRecent := "key-valid-recent-" + uuid.NewString()[:8]
 	validKeyOlder := "key-valid-older-" + uuid.NewString()[:8]
 	expiredKey := "key-expired-" + uuid.NewString()[:8]
