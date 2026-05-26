@@ -3,6 +3,7 @@ package agentfake
 import (
 	"context"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -20,15 +21,24 @@ type Agent struct {
 	coderURL *url.URL
 	token    string
 	logger   slog.Logger
+	metrics  *Metrics
+
+	// firstConnectDuration receives the time-to-first-connect once.
+	// Buffered so the send never blocks.
+	firstConnectDuration chan time.Duration
+	firstConnected       atomic.Bool
 
 	cancel context.CancelFunc
 }
 
-func NewAgent(coderURL *url.URL, token string, logger slog.Logger) *Agent {
+// NewAgent constructs a fake agent. metrics may be nil.
+func NewAgent(coderURL *url.URL, token string, logger slog.Logger, metrics *Metrics) *Agent {
 	return &Agent{
-		coderURL: coderURL,
-		token:    token,
-		logger:   logger,
+		coderURL:             coderURL,
+		token:                token,
+		logger:               logger,
+		metrics:              metrics,
+		firstConnectDuration: make(chan time.Duration, 1),
 	}
 }
 
@@ -43,11 +53,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer a.cancel()
 
 	client := agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
+	start := time.Now()
 	for {
 		if err := runCtx.Err(); err != nil {
 			return nil
 		}
-		err := a.connectAndServe(runCtx, client)
+		err := a.connectAndServe(runCtx, client, start)
 		if err != nil && runCtx.Err() == nil {
 			a.logger.Warn(runCtx, "fake agent dRPC stream ended; reconnecting",
 				slog.Error(err))
@@ -61,15 +72,21 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 // connectAndServe opens one dRPC websocket, announces lifecycle = READY, then blocks until ctx is canceled or the
-// connection is closed by either side. Returns the underlying error, if any.
-func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) error {
+// connection is closed by either side. start is the time Run began, used to record time-to-first-connect.
+func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client, start time.Time) error {
 	rpc, _, err := client.ConnectRPC28WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
 	conn := rpc.DRPCConn()
+	a.metrics.incConnected()
+	// Only record the first connect; reconnects reflect failures, not startup time.
+	if a.firstConnected.CompareAndSwap(false, true) {
+		a.firstConnectDuration <- time.Since(start)
+	}
 	defer func() {
 		_ = conn.Close()
+		a.metrics.decConnected()
 	}()
 
 	// Real agents transition to READY once their startup script finishes. Fakes have no startup script, so they're

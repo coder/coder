@@ -5,8 +5,12 @@ package cli
 import (
 	"os/signal"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	agplcli "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
 	"github.com/coder/serpent"
@@ -26,8 +30,11 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 
 func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 	var (
-		template string
-		owner    string
+		template                string
+		owner                   string
+		prometheusAddress       string
+		expectedAgents          int64
+		expectedAgentsTolerance int64
 	)
 
 	cmd := &serpent.Command{
@@ -47,7 +54,9 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			"for the workspace external-agent feature; both the workspace builds and the credentials " +
 			"endpoint are gated server-side. Pair with `coder exp scaletest create-workspaces " +
 			"--no-wait-for-agents` to seed the workspaces this command will pick up. Workspaces created " +
-			"after this command starts are NOT picked up; rerun the command after seeding more.",
+			"after this command starts are NOT picked up; rerun the command after seeding more.\n\n" +
+			"Exposes Prometheus metrics (Go runtime and process collectors) at /metrics on " +
+			"--prometheus-address (default 0.0.0.0:21112).",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			client, err := r.InitClient(inv)
@@ -66,11 +75,27 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			if template == "" {
 				return xerrors.New("--template is required")
 			}
+			if expectedAgents > 0 && expectedAgentsTolerance < 0 {
+				return xerrors.New("--expected-agents-tolerance must be non-negative")
+			}
 
-			logger := inv.Logger
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			prometheusSrvClose := agplcli.ServeHandler(ctx, logger,
+				promhttp.Handler(), prometheusAddress, "prometheus")
+			defer prometheusSrvClose()
+
+			metrics := agentfake.NewMetrics(prometheus.DefaultRegisterer)
+
 			mgr := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
-				Template: template,
-				Owner:    owner,
+				Template:                template,
+				Owner:                   owner,
+				Metrics:                 metrics,
+				ExpectedAgents:          expectedAgents,
+				ExpectedAgentsTolerance: expectedAgentsTolerance,
 			})
 			defer mgr.Close()
 
@@ -93,6 +118,27 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			Env:         "CODER_SCALETEST_AGENTFAKE_OWNER",
 			Description: "Optional workspace-owner filter (username). When empty, all owners' workspaces of the template are included.",
 			Value:       serpent.StringOf(&owner),
+		},
+		{
+			Flag:        "prometheus-address",
+			Env:         "CODER_SCALETEST_AGENTFAKE_PROMETHEUS_ADDRESS",
+			Default:     "0.0.0.0:21112",
+			Description: "Address on which to expose Prometheus metrics (Go runtime + process collectors) at /metrics.",
+			Value:       serpent.StringOf(&prometheusAddress),
+		},
+		{
+			Flag:        "expected-agents",
+			Env:         "CODER_SCALETEST_AGENTFAKE_EXPECTED_AGENTS",
+			Default:     "0",
+			Description: "Expected number of agents to enumerate. When non-zero, the command polls until the workspace count is within expected ± expected-agents-tolerance before enumerating.",
+			Value:       serpent.Int64Of(&expectedAgents),
+		},
+		{
+			Flag:        "expected-agents-tolerance",
+			Env:         "CODER_SCALETEST_AGENTFAKE_EXPECTED_AGENTS_TOLERANCE",
+			Default:     "0",
+			Description: "Acceptable variance around --expected-agents. Ignored when --expected-agents is 0.",
+			Value:       serpent.Int64Of(&expectedAgentsTolerance),
 		},
 	}
 
