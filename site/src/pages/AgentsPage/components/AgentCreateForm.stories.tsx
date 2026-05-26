@@ -494,7 +494,7 @@ export const MissingProviderAndModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/agents/settings/providers",
+			"/ai/settings",
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
