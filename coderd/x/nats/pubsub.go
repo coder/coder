@@ -40,8 +40,8 @@ type Options struct {
 	MaxPayload int32
 
 	// MaxPending is the per-client outbound pending byte budget on the
-	// embedded server. Zero means DefaultMaxPending; negative means use
-	// the nats-server default (64 MiB).
+	// embedded server. Zero or negative means the package default,
+	// 128 MiB.
 	MaxPending int64
 
 	// PendingLimits configures per-subscription NATS pending limits.
@@ -67,8 +67,7 @@ type Options struct {
 	SubscribeConns int
 }
 
-// Pubsub is an experimental embedded NATS-backed implementation of
-// pubsub.Pubsub.
+// Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.
 //
 // Each Pubsub owns one embedded server, a pool of publisher
 // *natsgo.Conns (Options.PublishConns) and a pool of subscriber
@@ -104,18 +103,19 @@ type Pubsub struct {
 // local subscriber creates it; later local subscribers attach to it.
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
-//
-// sub is set before the natsSub is published in Pubsub.subscriptions
-// and is immutable after that. mu guards listeners. dropMu and
-// lastDropped keep async error accounting independent from listener
-// fan-out.
 type natsSub struct {
+	// sub is set before this natsSub is published in Pubsub.subscriptions
+	// and is immutable after that.
 	sub *natsgo.Subscription
 
-	mu        sync.Mutex
-	listeners map[*localSub]struct{}
+	// mu guards localSubs.
+	mu sync.Mutex
+	// localSubs are the local subscribers attached to this NATS subscription.
+	localSubs map[*localSub]struct{}
 
-	dropMu      sync.Mutex
+	// dropMu keeps async error accounting independent from listener fan-out.
+	dropMu sync.Mutex
+	// lastDropped is the cumulative NATS dropped count last reported locally.
 	lastDropped uint64
 }
 
@@ -351,54 +351,52 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 	}
 	s.init()
 
-	var createdSub *natsgo.Subscription
-	err := func() error {
+	cleanupSub, err := func() (*natsgo.Subscription, error) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
 		if p.ctx.Err() != nil {
-			return errClosed
+			return nil, errClosed
 		}
 
 		nsub, ok := p.subscriptions[event]
 		if ok {
 			nsub.mu.Lock()
-			nsub.listeners[s] = struct{}{}
+			nsub.localSubs[s] = struct{}{}
 			nsub.mu.Unlock()
-			return nil
+			return nsub.sub, nil
 		}
 
 		nsub = &natsSub{
-			listeners: map[*localSub]struct{}{
+			localSubs: map[*localSub]struct{}{
 				s: {},
 			},
 		}
 
 		subConn := pickConn(p.subscribePool, event)
-		natsSub, err := subConn.Subscribe(event, nsub.handleMessage())
+		natsSubscription, err := subConn.Subscribe(event, nsub.handleMessage)
 		if err != nil {
-			return xerrors.Errorf("subscribe: %w", err)
+			return nil, xerrors.Errorf("subscribe: %w", err)
 		}
-		createdSub = natsSub
-		nsub.sub = natsSub
+		nsub.sub = natsSubscription
 
 		// Flush the SUB to the server so a publish issued immediately
 		// after Subscribe returns cannot race ahead of registration.
 		if err := subConn.Flush(); err != nil {
-			return xerrors.Errorf("flush subscribe: %w", err)
+			return natsSubscription, xerrors.Errorf("flush subscribe: %w", err)
 		}
 		limits := defaultPendingLimits(p.opts.PendingLimits)
-		if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
-			return xerrors.Errorf("set pending limits: %w", err)
+		if err := natsSubscription.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
+			return natsSubscription, xerrors.Errorf("set pending limits: %w", err)
 		}
 
 		p.subscriptions[event] = nsub
-		return nil
+		return natsSubscription, nil
 	}()
 	if err != nil {
 		s.close()
-		if createdSub != nil {
-			if unsubscribeErr := createdSub.Unsubscribe(); unsubscribeErr != nil {
+		if cleanupSub != nil {
+			if unsubscribeErr := cleanupSub.Unsubscribe(); unsubscribeErr != nil {
 				err = errors.Join(err, xerrors.Errorf("unsubscribe: %w", unsubscribeErr))
 			}
 		}
@@ -422,11 +420,11 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 
 		nsub.mu.Lock()
 		defer nsub.mu.Unlock()
-		if _, tracked := nsub.listeners[s]; !tracked {
+		if _, tracked := nsub.localSubs[s]; !tracked {
 			return nil
 		}
-		delete(nsub.listeners, s)
-		if len(nsub.listeners) > 0 {
+		delete(nsub.localSubs, s)
+		if len(nsub.localSubs) > 0 {
 			return nil
 		}
 		// Last listener: remove the nsub entry so a new Subscribe to this
@@ -439,29 +437,31 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 	}
 }
 
-// handleMessage returns the NATS message handler for the shared
-// subscription. Each enqueue is non-blocking and does not call user
-// code, so one slow listener cannot stall the NATS delivery goroutine.
+// handleMessage handles messages for the shared subscription. Each
+// enqueue is non-blocking and does not call user code, so one slow
+// listener cannot stall the NATS delivery goroutine.
 //
-// Zero-copy fan-out: msg.Data is delivered to every local listener
-// without cloning. Listeners on a coalesced subject MUST treat the
-// delivered bytes as immutable; the slice is owned by nats.go's
-// per-conn read buffer and is reused for the next message.
-func (nsub *natsSub) handleMessage() natsgo.MsgHandler {
-	return func(msg *natsgo.Msg) {
-		nsub.mu.Lock()
-		defer nsub.mu.Unlock()
+// Zero-copy fan-out: the same msg.Data slice is delivered to every
+// local listener without cloning. Listeners on a coalesced subject MUST
+// treat the delivered bytes as immutable.
+func (nsub *natsSub) handleMessage(msg *natsgo.Msg) {
+	nsub.mu.Lock()
+	defer nsub.mu.Unlock()
 
-		for s := range nsub.listeners {
-			s.enqueue(msg.Data)
-		}
+	for s := range nsub.localSubs {
+		s.enqueue(msg.Data)
 	}
 }
 
 // init starts the per-listener delivery goroutine.
 func (s *localSub) init() {
 	go func() {
-		for s.ctx.Err() == nil {
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+			}
 			select {
 			case <-s.ctx.Done():
 				return
@@ -517,7 +517,7 @@ func (p *Pubsub) signalSubscribersDroppedForConn(conn *natsgo.Conn) {
 			continue
 		}
 		nsub.mu.Lock()
-		for s := range nsub.listeners {
+		for s := range nsub.localSubs {
 			subs = append(subs, s)
 		}
 		nsub.mu.Unlock()
@@ -584,7 +584,7 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 	nsub.mu.Lock()
 	defer nsub.mu.Unlock()
 
-	for s := range nsub.listeners {
+	for s := range nsub.localSubs {
 		s.signalDrop()
 	}
 }
@@ -602,9 +602,9 @@ func (p *Pubsub) Close() error {
 		for _, ss := range p.subscriptions {
 			shareds = append(shareds, ss)
 			ss.mu.Lock()
-			for s := range ss.listeners {
+			for s := range ss.localSubs {
 				subs = append(subs, s)
-				delete(ss.listeners, s)
+				delete(ss.localSubs, s)
 			}
 			ss.mu.Unlock()
 		}

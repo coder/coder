@@ -10,6 +10,7 @@ import (
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -173,11 +174,11 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 
 		matchingSub := newLocal(matchingEvent)
 		otherSub := newLocal(otherEvent)
-		ps.subscriptions[matchingSub.event] = &natsSub{listeners: map[*localSub]struct{}{matchingSub: {}}}
-		ps.subscriptions[otherSub.event] = &natsSub{listeners: map[*localSub]struct{}{otherSub: {}}}
+		ps.subscriptions[matchingSub.event] = &natsSub{localSubs: map[*localSub]struct{}{matchingSub: {}}}
+		ps.subscriptions[otherSub.event] = &natsSub{localSubs: map[*localSub]struct{}{otherSub: {}}}
 
 		handlers := ps.buildConnHandlers()
-		handlers.disconnectErr(&subConnA, errors.New("disconnect"))
+		handlers.disconnectErr(&subConnA, xerrors.New("disconnect"))
 
 		select {
 		case <-matchingSub.dropSignal:
@@ -190,7 +191,7 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 		default:
 		}
 
-		handlers.disconnectErr(&pubConn, errors.New("publisher disconnect"))
+		handlers.disconnectErr(&pubConn, xerrors.New("publisher disconnect"))
 		select {
 		case <-otherSub.dropSignal:
 			require.Fail(t, "publisher connection disconnect signaled subscriber")

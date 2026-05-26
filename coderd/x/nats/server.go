@@ -20,14 +20,9 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
 	}
-	// Zero => DefaultMaxPending; negative => leave zero so nats-server
-	// applies its own default.
 	maxPending := opts.MaxPending
-	switch {
-	case maxPending == 0:
+	if maxPending <= 0 {
 		maxPending = DefaultMaxPending
-	case maxPending < 0:
-		maxPending = 0
 	}
 
 	sopts := &natsserver.Options{
