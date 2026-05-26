@@ -545,7 +545,7 @@ resource "coder_metadata" "container_info" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.1.0"
+  version           = "5.2.0"
   enable_ai_gateway = data.coder_parameter.use_ai_bridge.value
   anthropic_api_key = data.coder_parameter.use_ai_bridge.value ? "" : var.anthropic_api_key
   agent_id          = coder_agent.dev.id
