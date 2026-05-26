@@ -406,6 +406,66 @@ func TestPubsubCluster(t *testing.T) {
 		publishAndFlush(t, a, cSubject, "c-messages-still-work")
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
+
+	t.Run("ClusterAuthToken", func(t *testing.T) {
+		a := newTestPubsub(t, newClusterTestOptionsWithToken(t, "shared"))
+		b := newTestPubsub(t, newClusterTestOptionsWithToken(t, "shared"))
+		require.NoError(t, a.SetPeerAddresses([]string{clusterRouteAddress(t, b)}))
+		waitForRoutes(t, a, 1)
+		waitForRoutes(t, b, 1)
+
+		event := uniqueSubject("auth-shared")
+		got := make(chan []byte, 1)
+		cancel, err := b.Subscribe(event, func(_ context.Context, msg []byte) {
+			got <- msg
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		publishAndFlush(t, a, event, "with-shared-token")
+		require.Equal(t, "with-shared-token", string(receiveMessage(t, got)))
+
+		c := newTestPubsub(t, newClusterTestOptionsWithToken(t, "left"))
+		d := newTestPubsub(t, newClusterTestOptionsWithToken(t, "right"))
+		require.NoError(t, c.SetPeerAddresses([]string{clusterRouteAddress(t, d)}))
+
+		event = uniqueSubject("auth-mismatch")
+		got = make(chan []byte, 1)
+		cancel, err = d.Subscribe(event, func(_ context.Context, msg []byte) {
+			got <- msg
+		})
+		require.NoError(t, err)
+		defer cancel()
+
+		publishAndFlush(t, c, event, "with-mismatched-token")
+		require.Never(t, func() bool {
+			select {
+			case <-got:
+				return true
+			default:
+				return false
+			}
+		}, testutil.IntervalMedium, testutil.IntervalFast)
+	})
+
+	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
+		ps := newTestPubsub(t, Options{})
+		err := ps.SetPeerAddresses(nil)
+		require.ErrorContains(t, err, "not started with clustering enabled")
+	})
+
+	t.Run("SetPeerAddressesClosed", func(t *testing.T) {
+		ps := newTestPubsub(t, newClusterTestOptions(t))
+		require.NoError(t, ps.Close())
+		err := ps.SetPeerAddresses(nil)
+		require.True(t, errors.Is(err, errClosed), "got %v", err)
+	})
+
+	t.Run("SetPeerAddressesDropsSelfRoute", func(t *testing.T) {
+		ps := newTestPubsub(t, newClusterTestOptions(t))
+		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
+		require.Empty(t, ps.currentRoutes)
+	})
 }
 
 func defaultTestOptions() Options {

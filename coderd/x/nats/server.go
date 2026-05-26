@@ -55,6 +55,10 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			Port:     clusterPort,
 			PoolSize: routePoolSize,
 		}
+		if opts.ClusterAuthToken != "" {
+			sopts.Cluster.Username = defaultClusterTokenUsername
+			sopts.Cluster.Password = opts.ClusterAuthToken
+		}
 	}
 
 	return sopts, nil

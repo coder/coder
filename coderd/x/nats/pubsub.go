@@ -81,6 +81,10 @@ type Options struct {
 	// 6222 when cluster mode is enabled.
 	ClusterPort int
 
+	// ClusterAuthToken is the shared route authentication token for
+	// clustered embedded NATS servers. Empty disables route auth.
+	ClusterAuthToken string
+
 	// RoutePoolSize is the NATS route pool size. Zero means the package
 	// default when cluster mode is enabled.
 	RoutePoolSize int

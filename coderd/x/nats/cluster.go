@@ -10,6 +10,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const defaultClusterTokenUsername = "coder"
+
 // SetPeerAddresses replaces the configured NATS cluster peer routes.
 func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	p.clusterMu.Lock()
@@ -31,6 +33,9 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	routes = filterSelfRoutes(routes, self)
 	routes = sortRouteURLs(routes)
 
+	if p.opts.ClusterAuthToken != "" {
+		routes = routesWithAuth(routes, p.opts.ClusterAuthToken)
+	}
 	if sortedURLsEqual(p.currentRoutes, routes) {
 		return nil
 	}
@@ -119,7 +124,23 @@ func sortRouteURLs(routes []*url.URL) []*url.URL {
 	return routes
 }
 
-// sortedURLsEqual assumes sorted slices.
+func routesWithAuth(routes []*url.URL, token string) []*url.URL {
+	if token == "" {
+		return routes
+	}
+	withAuth := make([]*url.URL, 0, len(routes))
+	for _, route := range routes {
+		if route == nil {
+			withAuth = append(withAuth, nil)
+			continue
+		}
+		clone := *route
+		clone.User = url.UserPassword(defaultClusterTokenUsername, token)
+		withAuth = append(withAuth, &clone)
+	}
+	return withAuth
+}
+
 func sortedURLsEqual(a, b []*url.URL) bool {
 	if len(a) != len(b) {
 		return false
