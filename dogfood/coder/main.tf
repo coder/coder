@@ -691,6 +691,16 @@ resource "coder_script" "install-deps" {
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+
+    # Playwright browsers for the @playwright/mcp servers wired into
+    # claude-code + codex. No --with-deps: base image ships chrome libs.
+    # Two installs because @playwright/mcp bundles its own playwright-core
+    # whose chromium revision is independent of site/'s @playwright/test;
+    # resolving playwright-core through --package=@playwright/mcp@0.0.75
+    # ensures we install the exact revision the MCP servers expect.
+    # Browser revisions coexist under ~/.cache/ms-playwright/chromium-<rev>/.
+    cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
+    npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
   EOT
 }
 
@@ -823,13 +833,10 @@ data "docker_registry_image" "dogfood" {
 
 resource "docker_image" "dogfood" {
   name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
+  # CI rebuilds and pushes when any baked-in input changes, so the
+  # digest captures every effective change on its own.
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("ubuntu-22.04/Dockerfile"),
-    filesha1("ubuntu-26.04/Dockerfile"),
-    filesha1("nix.hash"),
-    filesha1("mise.hash"),
   ]
   keep_locally = true
 }
@@ -969,7 +976,7 @@ module "claude-code" {
       "mcpServers": {
         "playwright": {
           "command": "npx",
-          "args": ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+          "args": ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
         }
       }
     }
@@ -1000,7 +1007,7 @@ module "codex" {
   mcp               = <<-EOT
     [mcp_servers.playwright]
     command = "npx"
-    args = ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+    args = ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
     type = "stdio"
   EOT
 }

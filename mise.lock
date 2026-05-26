@@ -288,6 +288,54 @@ url = "https://github.com/sigstore/cosign/releases/download/v2.4.3/cosign-window
 checksum = "sha256:a2ac24e197111c9430cb2a98f10a641164381afb83df036504868e4ea5720800"
 url = "https://github.com/sigstore/cosign/releases/download/v2.4.3/cosign-windows-amd64.exe"
 
+[[tools.crane]]
+version = "0.21.6"
+backend = "aqua:google/go-containerregistry"
+
+[tools.crane."platforms.linux-arm64"]
+checksum = "sha256:6f61571ca0c2a5da27c2927fcb143255ccb2b74b8977dfcb44645b372ab0f951"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_arm64.tar.gz"
+
+[tools.crane."platforms.linux-arm64-musl"]
+checksum = "sha256:6f61571ca0c2a5da27c2927fcb143255ccb2b74b8977dfcb44645b372ab0f951"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_arm64.tar.gz"
+
+[tools.crane."platforms.linux-x64"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-baseline"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-musl"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.macos-arm64"]
+checksum = "sha256:a124f297d1e63e8b6c63c2463e43565290d2fd074c1dadb5ca73d737bc7b2484"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_arm64.tar.gz"
+
+[tools.crane."platforms.macos-x64"]
+checksum = "sha256:f1e653737a1d6e8a412734d0ac25009e04eccec98853be2eb59b8c744dede834"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_x86_64.tar.gz"
+
+[tools.crane."platforms.macos-x64-baseline"]
+checksum = "sha256:f1e653737a1d6e8a412734d0ac25009e04eccec98853be2eb59b8c744dede834"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_x86_64.tar.gz"
+
+[tools.crane."platforms.windows-x64"]
+checksum = "sha256:fb78f814f68ab47266458f319ca7e642a303453ea25c8993a14eb9850c56e870"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Windows_x86_64.tar.gz"
+
+[tools.crane."platforms.windows-x64-baseline"]
+checksum = "sha256:fb78f814f68ab47266458f319ca7e642a303453ea25c8993a14eb9850c56e870"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Windows_x86_64.tar.gz"
+
 [[tools.doctl]]
 version = "1.158.0"
 backend = "aqua:digitalocean/doctl"
