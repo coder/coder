@@ -225,10 +225,7 @@ const ReadFileTimelineBlock = memo<{
 	if (tools.length === 1) {
 		const readFile = getReadFileToolData(firstTool);
 		return (
-			<div
-				data-tool-call=""
-				className="py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0"
-			>
+			<div data-tool-call="">
 				<ReadFileTool
 					{...readFile}
 					status={firstTool.status}

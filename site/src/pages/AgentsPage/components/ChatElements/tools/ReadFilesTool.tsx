@@ -42,10 +42,7 @@ export const ReadFilesTool: FC<{
 	const errorMessage = items.find((item) => item.errorMessage)?.errorMessage;
 
 	return (
-		<div
-			data-tool-call=""
-			className="py-0.5 [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0"
-		>
+		<div data-tool-call="">
 			<ToolCollapsible
 				className="w-full"
 				hasContent={hasContent}
@@ -70,9 +67,9 @@ export const ReadFilesTool: FC<{
 					</>
 				}
 			>
-				<div className="space-y-1 pl-3">
+				<div className="space-y-1 py-0.5 pl-3">
 					{items.map((item) => (
-						<div key={item.id} className="min-h-6">
+						<div key={item.id}>
 							<ReadFileTool
 								path={item.path}
 								content={item.content}
