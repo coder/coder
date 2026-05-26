@@ -4782,18 +4782,30 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 
-	// Create a chat. This inserts one initial "user" message.
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "after-id-test",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "after-id-test",
+		Status:            database.ChatStatusWaiting,
+	})
+
+	// Seed all messages directly so this subscription test is independent
+	// of chat processing lifecycle behavior.
+	firstContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("first"),
 	})
 	require.NoError(t, err)
 
-	// Insert two more messages so we have three total visible
-	// messages (the initial user message plus these two).
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        firstContent,
+	})
+
 	secondContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("second"),
 	})
@@ -4814,6 +4826,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:         chat.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
 		Role:           database.ChatMessageRoleUser,
 		ContentVersion: chatprompt.CurrentContentVersion,
