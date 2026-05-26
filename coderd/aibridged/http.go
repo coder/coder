@@ -64,30 +64,31 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// the user's own LLM credentials in Authorization/X-Api-Key when BYOK
 	// is in effect.
 	var (
-		authReq    *proto.IsAuthorizedRequest
-		sessionKey string
-		delegated  bool
+		authReq *proto.IsAuthorizedRequest
 	)
-	if delegatedID, ok := agplaibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
-		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
-		delegated = true
-		// SessionKey is consumed only by the injected MCP path, which is
-		// not available to delegated callers (they have no secret).
-	} else {
-		key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
-		if key == "" {
-			// Some clients (e.g. Claude) send a HEAD request
-			// without credentials to check connectivity.
-			if r.Method == http.MethodHead {
-				logger.Info(ctx, "unauthenticated HEAD request")
-			} else {
-				logger.Warn(ctx, "no auth key provided")
-			}
-			http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
-			return
+
+	delegatedID, delegated := agplaibridge.DelegatedAPIKeyIDFromContext(ctx)
+
+	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
+
+	// When a BYOK header is present, a key is ALWAYS required.
+	// Delegated auth only requires a key when using BYOK.
+	if key == "" && !delegated {
+		// Some clients (e.g. Claude) send a HEAD request
+		// without credentials to check connectivity.
+		if r.Method == http.MethodHead {
+			logger.Info(ctx, "unauthenticated HEAD request")
+		} else {
+			logger.Warn(ctx, "no auth key provided")
 		}
+		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if delegated {
+		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
-		sessionKey = key
 	}
 
 	// Strip every header that may carry the Coder token so it is never
@@ -151,7 +152,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
-		SessionKey:  sessionKey,
+		SessionKey:  key,
 		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
 	})
