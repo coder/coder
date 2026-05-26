@@ -49,8 +49,7 @@ func newAIGatewayModelRoute(
 }
 
 type aiGatewayProviderAuth struct {
-	Headers              map[string]string
-	PreserveProviderAuth bool
+	Headers map[string]string
 }
 
 type aiGatewayRequestFormat int
@@ -68,17 +67,22 @@ type aiGatewayRoundTripper struct {
 
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
-	if t.providerAuth.PreserveProviderAuth {
-		ctx = aibridge.WithPreserveProviderAuth(ctx)
-	}
 	cloned := req.Clone(ctx)
 	cloned.Header.Del("Authorization")
 	cloned.Header.Del("X-Api-Key")
+	cloned.Header.Del(aibridge.HeaderCoderToken)
+	providerAuthSet := false
 	for name, value := range t.providerAuth.Headers {
 		if value == "" {
 			continue
 		}
 		cloned.Header.Set(name, value)
+		providerAuthSet = true
+	}
+	// Delegated aibridge requests use this non-secret value only as a BYOK
+	// mode marker. aibridged strips the marker before provider forwarding.
+	if providerAuthSet {
+		cloned.Header.Set(aibridge.HeaderCoderToken, aibridgePlaceholderAPIKey)
 	}
 	return t.base.RoundTrip(cloned)
 }
@@ -201,10 +205,7 @@ func (p *Server) aiGatewayProviderAuthForUser(
 	default:
 		headers["Authorization"] = "Bearer " + apiKey
 	}
-	return aiGatewayProviderAuth{
-		Headers:              headers,
-		PreserveProviderAuth: true,
-	}, nil
+	return aiGatewayProviderAuth{Headers: headers}, nil
 }
 
 func (p *Server) resolveAIGatewayRoute(

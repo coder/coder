@@ -161,7 +161,6 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
 		require.NoError(t, err)
-		require.True(t, auth.PreserveProviderAuth)
 		require.Equal(t, "Bearer sk-user", auth.Headers["Authorization"])
 		require.Empty(t, auth.Headers["X-Api-Key"])
 	})
@@ -179,7 +178,6 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatAnthropic)
 		require.NoError(t, err)
-		require.True(t, auth.PreserveProviderAuth)
 		require.Equal(t, "sk-user", auth.Headers["X-Api-Key"])
 		require.Empty(t, auth.Headers["Authorization"])
 	})
@@ -197,7 +195,6 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
 		require.NoError(t, err)
-		require.False(t, auth.PreserveProviderAuth)
 		require.Empty(t, auth.Headers)
 	})
 
@@ -209,7 +206,6 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		server := &Server{db: db, allowBYOK: false}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
 		require.NoError(t, err)
-		require.False(t, auth.PreserveProviderAuth)
 		require.Empty(t, auth.Headers)
 	})
 }
@@ -248,7 +244,6 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
 		require.Equal(t, modelRouteKindAIGateway, route.kind)
-		require.True(t, route.aiGateway.ProviderAuth.PreserveProviderAuth)
 		require.Equal(t, "Bearer sk-user", route.aiGateway.ProviderAuth.Headers["Authorization"])
 	})
 
@@ -263,7 +258,6 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
 		require.NoError(t, err)
 		require.Equal(t, modelRouteKindAIGateway, route.kind)
-		require.False(t, route.aiGateway.ProviderAuth.PreserveProviderAuth)
 		require.Empty(t, route.aiGateway.ProviderAuth.Headers)
 	})
 }
@@ -274,7 +268,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	type seenRequest struct {
 		authorization string
 		xAPIKey       string
-		preserve      bool
+		byokMarker    string
 		apiKeyID      string
 		path          string
 	}
@@ -284,7 +278,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 			seen <- seenRequest{
 				authorization: req.Header.Get("Authorization"),
 				xAPIKey:       req.Header.Get("X-Api-Key"),
-				preserve:      aibridge.PreserveProviderAuthFromContext(req.Context()),
+				byokMarker:    req.Header.Get(aibridge.HeaderCoderToken),
 				apiKeyID:      apiKeyID,
 				path:          req.URL.Path,
 			}
@@ -313,8 +307,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		seen := make(chan seenRequest, 1)
 		provider := *aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
-			Headers:              map[string]string{"Authorization": "Bearer sk-user"},
-			PreserveProviderAuth: true,
+			Headers: map[string]string{"Authorization": "Bearer sk-user"},
 		}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
@@ -325,7 +318,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		got := <-seen
 		require.Equal(t, "Bearer sk-user", got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.True(t, got.preserve)
+		require.Equal(t, aibridgePlaceholderAPIKey, got.byokMarker)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/responses", got.path)
 	})
@@ -336,8 +329,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		seen := make(chan seenRequest, 1)
 		provider := *aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
-			Headers:              map[string]string{"X-Api-Key": "sk-user"},
-			PreserveProviderAuth: true,
+			Headers: map[string]string{"X-Api-Key": "sk-user"},
 		}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "claude-haiku-4-5"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
@@ -348,7 +340,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		got := <-seen
 		require.Empty(t, got.authorization)
 		require.Equal(t, "sk-user", got.xAPIKey)
-		require.True(t, got.preserve)
+		require.Equal(t, aibridgePlaceholderAPIKey, got.byokMarker)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/messages", got.path)
 	})
@@ -368,7 +360,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		got := <-seen
 		require.Empty(t, got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.False(t, got.preserve)
+		require.Empty(t, got.byokMarker)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 	})
 }
