@@ -328,7 +328,9 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "generic",
-				message: "Provider request failed.",
+				message: "The chat request failed unexpectedly.",
+				detail:
+					'stream response: Post "https://api.anthropic.com/v1/messages": decoder failed',
 			},
 		}),
 	},
@@ -337,7 +339,10 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		expect(
 			canvas.getByRole("heading", { name: /request failed/i }),
 		).toBeVisible();
-		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.getByText(/the chat request failed unexpectedly/i),
+		).toBeVisible();
+		expect(canvas.getByText(/decoder failed/i)).toBeVisible();
 		expect(
 			canvas.queryByText(/start a conversation with your agent/i),
 		).not.toBeInTheDocument();

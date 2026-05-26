@@ -32,6 +32,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 529 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily overloaded.",
+				Detail:     "status 529 from upstream",
 				Kind:       codersdk.ChatErrorKindOverloaded,
 				Provider:   "",
 				Retryable:  true,
@@ -43,6 +44,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("anthropic overloaded_error"),
 			want: chaterror.ClassifiedError{
 				Message:    "Anthropic is temporarily overloaded.",
+				Detail:     "anthropic overloaded_error",
 				Kind:       codersdk.ChatErrorKindOverloaded,
 				Provider:   "anthropic",
 				Retryable:  true,
@@ -82,6 +84,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("authentication failed: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     "authentication failed: invalid model",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -93,6 +96,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -104,6 +108,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("forbidden"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     "forbidden",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -115,6 +120,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 401 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     "status 401 from upstream",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -126,6 +132,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 403 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Detail:     "status 403 from upstream",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -137,6 +144,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("forbidden: context length exceeded"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "forbidden: context length exceeded",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -148,6 +156,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is rate limiting requests.",
+				Detail:     "status 429 from upstream",
 				Kind:       codersdk.ChatErrorKindRateLimit,
 				Provider:   "",
 				Retryable:  true,
@@ -159,6 +168,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 429: invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -170,6 +180,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 429: invalid model quota"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 429: invalid model quota",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -181,6 +192,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "service unavailable",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -192,6 +204,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 503: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "status 503: invalid model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -203,6 +216,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("service unavailable: model not found"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "service unavailable: model not found",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -214,6 +228,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("connection refused: unsupported model"),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Detail:     "connection refused: unsupported model",
 				Kind:       codersdk.ChatErrorKindConfig,
 				Provider:   "",
 				Retryable:  false,
@@ -225,6 +240,7 @@ func TestClassify(t *testing.T) {
 			err:  context.DeadlineExceeded,
 			want: chaterror.ClassifiedError{
 				Message:    "The request timed out before it completed.",
+				Detail:     "context deadline exceeded",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  false,
@@ -236,6 +252,7 @@ func TestClassify(t *testing.T) {
 			err:  errors.Join(chaterror.ErrProviderTransportReset, context.Canceled),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "provider transport reset context canceled",
 				Kind:       codersdk.ChatErrorKindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -258,6 +275,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.Errorf("received status 500 from upstream: %w", context.Canceled),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider returned an unexpected error.",
+				Detail:     "received status 500 from upstream: context canceled",
 				Kind:       codersdk.ChatErrorKindGeneric,
 				Provider:   "",
 				Retryable:  true,
@@ -324,6 +342,7 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic")),
 			want: chaterror.ClassifiedError{
 				Message:    "The Anthropic provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "anthropic",
 				Retryable:  false,
@@ -689,6 +708,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeInternal),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -698,6 +718,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeRefusedStream),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; REFUSED_STREAM; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -711,6 +732,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; CANCEL; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -720,6 +742,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeEnhanceYourCalm),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; ENHANCE_YOUR_CALM; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -729,6 +752,7 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 			err:  peerReset(http2.ErrCodeNo),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 455; NO_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -807,6 +831,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 401; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -820,6 +845,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			},
 			want: chaterror.ClassifiedError{
 				Message: "The chat request failed unexpectedly.",
+				Detail:  "stream error: stream ID 503; PROTOCOL_ERROR; received from peer",
 				Kind:    codersdk.ChatErrorKindGeneric,
 			},
 		},
@@ -828,6 +854,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			err:  xerrors.New("stream error: stream ID 401; INTERNAL_ERROR; received from peer"),
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
+				Detail:    "stream error: stream ID 401; INTERNAL_ERROR; received from peer",
 				Kind:      codersdk.ChatErrorKindTimeout,
 				Retryable: true,
 			},
@@ -837,6 +864,7 @@ func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
 			err:  xerrors.New("stream error: stream ID 503; PROTOCOL_ERROR; received from peer"),
 			want: chaterror.ClassifiedError{
 				Message: "The chat request failed unexpectedly.",
+				Detail:  "stream error: stream ID 503; PROTOCOL_ERROR; received from peer",
 				Kind:    codersdk.ChatErrorKindGeneric,
 			},
 		},
@@ -864,6 +892,7 @@ func TestClassify_StatusCodeBeatsTypedHTTP2StreamError(t *testing.T) {
 
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+		Detail:     "provider returned status 401: stream error: stream ID 455; INTERNAL_ERROR; received from peer",
 		Kind:       codersdk.ChatErrorKindAuth,
 		Retryable:  false,
 		StatusCode: 401,
@@ -1106,6 +1135,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "Azure OpenAI is rate limiting requests.",
+		Detail:     "openai received status 429 from upstream",
 		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,
@@ -1122,6 +1152,7 @@ func TestWithProviderAddsProviderWhenUnknown(t *testing.T) {
 	enriched := classified.WithProvider("openai")
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "OpenAI is rate limiting requests.",
+		Detail:     "received status 429 from upstream",
 		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "openai",
 		Retryable:  true,

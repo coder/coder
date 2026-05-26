@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -3123,7 +3124,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat message.",
-			Detail:  sendErr.Error(),
+			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
 		})
 		return
 	}
