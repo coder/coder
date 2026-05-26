@@ -64,12 +64,16 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// the user's own LLM credentials in Authorization/X-Api-Key when BYOK
 	// is in effect.
 	var (
-		authReq   *proto.IsAuthorizedRequest
-		delegated bool
+		authReq *proto.IsAuthorizedRequest
 	)
 
+	delegatedID, delegated := agplaibridge.DelegatedAPIKeyIDFromContext(ctx)
+
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
-	if key == "" {
+
+	// When a BYOK header is present, a key is ALWAYS required.
+	// Delegated auth only requires a key when using BYOK.
+	if key == "" && !delegated {
 		// Some clients (e.g. Claude) send a HEAD request
 		// without credentials to check connectivity.
 		if r.Method == http.MethodHead {
@@ -81,11 +85,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if delegatedID, ok := agplaibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
+	if delegated {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
-		delegated = true
-		// SessionKey is consumed only by the injected MCP path, which is
-		// not available to delegated callers (they have no secret).
 	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
 	}
