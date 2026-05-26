@@ -38,6 +38,7 @@ type UsageSectionData = {
 	detail: ReactNode;
 	icon: ReactNode;
 	summaryValue: string;
+	hoverLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
 	severity?: UsageSeverity;
@@ -83,6 +84,7 @@ export const UsageIndicator: FC = () => {
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			summaryValue: formatCostMicros(currentSpend),
+			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
@@ -110,6 +112,11 @@ export const UsageIndicator: FC = () => {
 				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
 				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
 
+		const workspaceHoverLabel =
+			quota.budget > 0
+				? `Workspaces ${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
+				: `Workspaces ${formatNumber(creditsConsumed)}`;
+
 		sections.push({
 			id: "workspace-quota",
 			title: "Workspace quota",
@@ -121,6 +128,7 @@ export const UsageIndicator: FC = () => {
 				quota.budget > 0
 					? `${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
 					: formatNumber(creditsConsumed),
+			hoverLabel: workspaceHoverLabel,
 			detail: quotaDetail,
 			tooltip:
 				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
@@ -180,17 +188,27 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2">
-			{sections.map((section) => (
-				<UsageRingProgress
-					key={section.id}
-					ariaLabel={section.progressLabel}
-					percent={section.percent}
-					severity={section.severity}
-					icon={section.icon}
-				/>
-			))}
-		</div>
+		<TooltipProvider delayDuration={150}>
+			<div className="flex shrink-0 items-center gap-2">
+				{sections.map((section) => (
+					<Tooltip key={section.id}>
+						<TooltipTrigger asChild>
+							<div>
+								<UsageRingProgress
+									ariaLabel={section.progressLabel}
+									percent={section.percent}
+									severity={section.severity}
+									icon={section.icon}
+								/>
+							</div>
+						</TooltipTrigger>
+						<TooltipContent side="top" sideOffset={6}>
+							{section.hoverLabel}
+						</TooltipContent>
+					</Tooltip>
+				))}
+			</div>
+		</TooltipProvider>
 	);
 };
 
