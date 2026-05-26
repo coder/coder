@@ -42,9 +42,9 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 		panic("aibridged cannot be nil")
 	}
 
-	api.aibridgedHandler = srv
+	api.aibridgedHandler = http.StripPrefix("/api/v2/aibridge", srv)
 
-	factory := aibridged.NewTransportFactory(srv)
+	factory := aibridged.NewTransportFactory(api.aibridgedHandler)
 	var asInterface agplaibridge.TransportFactory = factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
