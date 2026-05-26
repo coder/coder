@@ -287,7 +287,7 @@ func TestLegacyScim(t *testing.T) {
 	})
 }
 
-func TestScimError(t *testing.T) {
+func TestLegacyScimError(t *testing.T) {
 	t.Parallel()
 
 	// Demonstrates that we cannot use the standard errors
