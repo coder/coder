@@ -567,7 +567,7 @@ func TestUserSecretLimits(t *testing.T) {
 			Value:    "x",
 			FilePath: "/tmp/overflow",
 		})
-		requireSecretAPIError(t, err, http.StatusBadRequest, "combined size")
+		requireSecretAPIError(t, err, http.StatusBadRequest, "per-user budget")
 
 		// PATCH at the cap: rewriting the existing row with a value
 		// of the same size must succeed. The FILTER clause excludes

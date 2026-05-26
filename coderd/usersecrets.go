@@ -380,7 +380,9 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 		return codersdk.Response{
 			Message: "User secrets value-bytes limit reached.",
 			Detail: fmt.Sprintf(
-				"The combined size of a user's secret values may not exceed %d bytes.",
+				"Stored bytes of your secret values exceed the per-user "+
+					"budget (%d bytes after encryption, if applicable). "+
+					"Reduce the size or number of your secrets.",
 				codersdk.MaxUserSecretsTotalValueBytes,
 			),
 		}, true
@@ -388,9 +390,9 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 		return codersdk.Response{
 			Message: "Environment-injected user secrets bytes limit reached.",
 			Detail: fmt.Sprintf(
-				"The combined size of secret values with env_name set may not "+
-					"exceed %d bytes. Increase headroom by clearing env_name on "+
-					"large secrets and using file_path instead.",
+				"Stored bytes of env-injected secret values exceed the "+
+					"per-user budget (%d bytes after encryption, if applicable). "+
+					"Clear env_name on large secrets or use file_path instead.",
 				codersdk.MaxUserSecretValueBytes,
 			),
 		}, true
