@@ -5574,7 +5574,6 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-/** @lintignore Consumed by page stories landing in PR 4 of the AI settings stack. */
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
