@@ -716,13 +716,10 @@ resource "coder_script" "install-deps" {
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
 
-    # Playwright browsers for the @playwright/mcp servers wired into
-    # claude-code + codex. No --with-deps: base image ships chrome libs.
-    # Two installs because @playwright/mcp bundles its own playwright-core
-    # whose chromium revision is independent of site/'s @playwright/test;
-    # resolving playwright-core through --package=@playwright/mcp@0.0.75
-    # ensures we install the exact revision the MCP servers expect.
-    # Browser revisions coexist under ~/.cache/ms-playwright/chromium-<rev>/.
+    # Two playwright installs: site/'s @playwright/test and
+    # @playwright/mcp@0.0.75 bundle different playwright-core versions
+    # with different chromium revisions, and both are used at runtime
+    # (site tests + the claude-code/codex MCP servers below).
     cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
     npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
   EOT

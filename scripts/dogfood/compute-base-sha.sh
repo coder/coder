@@ -12,10 +12,7 @@
 # typo-fix commit, doc change, mise.toml bump, etc.) is large.
 set -euo pipefail
 
-# 12 hex chars = 48 bits; collision-resistant well past our expected
-# tag count (~thousands), readable in `docker image ls` output, and
-# matches the truncation length used by Docker / OCI tooling for short
-# digest displays.
+# 12 hex chars matches docker/OCI short-digest displays.
 HASH_LEN=12
 
 distro="${1:?usage: $0 <22.04|26.04>}"

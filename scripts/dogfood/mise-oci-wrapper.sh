@@ -5,26 +5,16 @@
 # does not use this script.
 #
 # Builds a small Debian-based wrapper image with the mise binary on
-# first invocation, then reuses it. Pinning to the same `MISE_VERSION` baked
-# into `Dockerfile.base` (and verified via `min_version` in mise.toml)
-# avoids depending on jdxcode/mise Docker Hub publication cadence,
-# which lags upstream GitHub releases by days.
+# first invocation, then reuses it. Pinning to the same `MISE_VERSION`
+# baked into `Dockerfile.base` avoids depending on jdxcode/mise Docker
+# Hub publication cadence, which lags upstream GitHub releases by days.
 #
-# For `oci build`, the wrapper auto-runs `mise install --yes` first
-# (in the same container) so the tools mise oci packages into layers
-# actually exist. Without that pre-install mise oci would either fail
-# ("install path does not exist") or emit empty layers.
-#
-# `oci build --from <ref>` still requires <ref> to be a registry-
-# resolvable reference (the host's local Docker daemon images are not
-# visible inside the wrapper). `make -C dogfood/coder build-ubuntu-XX`
-# only works locally when the base image has been pushed to a registry
-# the wrapper can reach (ghcr, a local registry sidecar, etc.). See the
-# Makefile comment.
+# `oci build --from <ref>` requires <ref> to be a registry-resolvable
+# reference; the host's local Docker daemon images are not visible
+# inside the wrapper. See the Makefile comment.
 #
 # Honors CONTAINER_RUNTIME=docker (default) or CONTAINER_RUNTIME=container
-# (Apple's `container` CLI on macOS). Sets --platform linux/amd64 for
-# `container` because its default platform is arm64 on Apple Silicon.
+# (Apple's `container` CLI on macOS).
 set -euo pipefail
 
 # Keep MISE_VERSION + MISE_SHA256 in lockstep with the same vars in
