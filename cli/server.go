@@ -900,19 +900,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
 
-			// Seed runs ahead of telemetry.New: telemetry spawns a
-			// background goroutine whose first log triggers ctx
-			// cancellation in some tests, which would otherwise race
-			// the seed's authorized DB reads.
-			if err := coderd.SeedAIProvidersFromEnv(
-				ctx,
-				options.Database,
-				vals.AI.BridgeConfig,
-				logger.Named("aibridge.envseed"),
-			); err != nil {
-				return xerrors.Errorf("seed ai providers from env: %w", err)
-			}
-
 			telemetryReporter, err := telemetry.New(telemetry.Options{
 				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
@@ -1028,6 +1015,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
+			// Both seed (writes) and build (reads) of AI providers need
+			// options.Database to be dbcrypt-wrapped, which only happens
+			// inside newAPI. The context is detached: the shutdown
+			// sequence below is not deferred, so a ctx-canceled early
+			// return here would orphan newAPI's goroutines.
+			//nolint:gocritic // Production timeout, not a test wait.
+			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer aibridgeInitCancel()
+			if err := coderd.SeedAIProvidersFromEnv(
+				aibridgeInitCtx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
@@ -1036,15 +1040,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				// BuildProviders runs after newAPI so options.Database
-				// is dbcrypt-wrapped and stored API keys decrypt
-				// correctly. The context is detached: the shutdown
-				// sequence below is not deferred, so a ctx-canceled
-				// early return here would orphan newAPI's goroutines.
-				//nolint:gocritic // Production timeout, not a test wait.
-				buildCtx, buildCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
-				aibridgeProviders, err := BuildProviders(buildCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
-				buildCancel()
+				aibridgeProviders, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
