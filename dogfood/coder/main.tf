@@ -679,11 +679,26 @@ resource "coder_script" "install-deps" {
   display_name       = "Installing Dependencies"
   run_on_start       = true
   start_blocks_login = false
-  script             = <<EOT
+  script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
 
     trap 'coder exp sync complete install-deps' EXIT
+
+    # Ensure /opt/mise is writable by coder before any login shell
+    # or other script touches mise. `mise oci build` emits its tar
+    # layers in deterministic mode with hardcoded uid=0/gid=0 (see
+    # mise's src/oci/layer.rs), and `prefix_parents` walks the full
+    # mount_point chain, so the final image stamps /opt, /opt/mise,
+    # and /opt/mise/data as root:root regardless of what the base
+    # Dockerfile sets. Without this chown mise warns `migrate:
+    # failed create_dir_all: /opt/mise/data/migrations` and skips
+    # its state writes. /opt/mise is image-resident (not on the
+    # home volume), so this runs every workspace start. Runs
+    # before the git-clone sync barrier so early shells never
+    # observe the unwritable state.
+    sudo chown -R coder:coder /opt/mise
+
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
 

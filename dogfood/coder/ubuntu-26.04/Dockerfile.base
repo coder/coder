@@ -219,7 +219,12 @@ EOF
 
 # Reserve the mount_point declared in mise.toml [oci]. The path is
 # duplicated below in MISE_SHARED_INSTALL_DIRS and PATH; if it ever
-# changes, update all three plus mise.toml.
+# changes, update all three plus mise.toml. Ownership of /opt/mise
+# and /opt/mise/data is reasserted at workspace start by the
+# install-deps coder_script in dogfood/coder/main.tf: `mise oci
+# build` emits deterministic tar layers with hardcoded uid=0/gid=0
+# (see src/oci/layer.rs), so the final image always overwrites
+# whatever ownership we set here.
 RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
