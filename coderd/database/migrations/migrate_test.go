@@ -1713,10 +1713,10 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	// under coderd/coderd_test.go; not retested here.
 }
 
-func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
+func TestMigration000510BackfillChatMessagesAPIKeyID(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 509
+	const migrationVersion = 510
 
 	sqlDB := testSQLDB(t)
 
@@ -1958,7 +1958,7 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	require.False(t, queuedCompletedKeyID.Valid, "queued message in completed chat should not be backfilled")
 
 	// Verify down migration.
-	downSQL, err := os.ReadFile("000509_backfill_chat_messages_api_key_id.down.sql")
+	downSQL, err := os.ReadFile("000510_backfill_chat_messages_api_key_id.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
