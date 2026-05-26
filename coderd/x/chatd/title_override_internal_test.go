@@ -265,7 +265,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
 		APIKey:     "test-key",
-	}}, nil)
+	}}, nil).Times(2)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
