@@ -5518,7 +5518,6 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
 
-/** @lintignore Consumed by component stories landing in the next PR of the AI settings stack. */
 export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",
 	type: "openai",
@@ -5538,7 +5537,6 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-/** @lintignore Consumed by component stories landing in the next PR of the AI settings stack. */
 export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	id: "4f81f1ee-37c1-4a37-a9d5-7e0c1c8c0c11",
 	type: "anthropic",
@@ -5556,8 +5554,6 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
  * Bedrock providers come over the wire with `type: "anthropic"` and a
  * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
  * backend (see `coderd/ai_providers.go`) enforce this convention.
- *
- * @lintignore Consumed by component stories landing in the next PR of the AI settings stack.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",

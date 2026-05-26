@@ -15,6 +15,10 @@
 		// AI settings stack; they are consumed by the provider pages in PR 4.
 		// Remove this exclusion once those pages land.
 		"src/api/queries/aiProviders.ts",
+		// TODO(ai-settings): addableProviderTypes.ts is staged in PR 3 of the
+		// AI settings stack; its exports are consumed by the provider pages
+		// in PR 4. Remove this exclusion once those pages land.
+		"src/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes.ts",
 		// TODO(devtools): debugPanelUtils.ts is staged in PR 7; its exports are
 		// consumed by the Debug panel components in PRs 8 and 9. Remove this
 		// exclusion once the panel components land.
