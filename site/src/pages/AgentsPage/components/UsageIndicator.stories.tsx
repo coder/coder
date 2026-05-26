@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { expect, userEvent, within } from "storybook/test";
@@ -57,11 +57,22 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 	return <Story />;
 };
 
-const withUsageIndicatorFrame = (Story: FC) => (
-	<div className="flex h-12 w-[260px] items-stretch justify-end rounded-md bg-surface-secondary">
-		<Story />
-	</div>
-);
+// Mirrors the sidebar footer wrapper: a fixed-width container with
+// container-type set so the trigger inside reacts to the wrapper's width
+// instead of the viewport's.
+const withUsageIndicatorFrame = (
+	widthClassName = "w-[320px]",
+	frameTestId?: string,
+): Decorator => {
+	return (Story) => (
+		<div
+			data-testid={frameTestId}
+			className={`flex h-12 min-w-0 items-stretch justify-end rounded-md bg-surface-secondary [container-type:inline-size] ${widthClassName}`}
+		>
+			<Story />
+		</div>
+	);
+};
 
 const openUsageMenu = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
@@ -104,7 +115,7 @@ const meta: Meta<typeof UsageIndicator> = {
 	decorators: [
 		withAuthProvider,
 		withDashboardProvider,
-		withUsageIndicatorFrame,
+		withUsageIndicatorFrame(),
 	],
 	parameters: {
 		user: MockUserOwner,
@@ -167,6 +178,9 @@ export const WorkspaceQuotaOnly: Story = {
 		withWorkspaceCount(3),
 	],
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getByText("30/100")).toBeVisible();
 		await openUsageMenu(canvasElement);
 	},
 };
@@ -181,12 +195,44 @@ export const UsageAndWorkspaceQuota: Story = {
 		const canvas = within(canvasElement);
 		const progressBars = canvas.getAllByRole("progressbar");
 
-		expect(canvas.getByText("Usage")).toBeInTheDocument();
+		expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
+		expect(canvas.getByText("$12.50")).toBeVisible();
+		expect(canvas.getByText("30/100")).toBeVisible();
 		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
 			"Monthly spend usage",
 			"Workspace quota usage",
 		]);
-		await userEvent.click(canvas.getByRole("button"));
+		await openUsageMenu(canvasElement);
+	},
+};
+
+// The tiny story covers the responsive edge case where the trigger keeps
+// the bars visible and drops the numeric details.
+const expectTriggerContentFits = (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const frame = canvas.getByTestId("usage-indicator-frame");
+
+	expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
+	expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
+};
+
+const expectTriggerDetailsHidden = (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+
+	expect(canvas.getByText("$12.50")).not.toBeVisible();
+	expect(canvas.getByText("30/100")).not.toBeVisible();
+};
+
+export const TriggerTiny: Story = {
+	decorators: [
+		withUsageIndicatorFrame("w-[240px]", "usage-indicator-frame"),
+		withUsageLimitStatus(limitedUsageStatus()),
+		withWorkspaceQuota(defaultWorkspaceQuota),
+		withWorkspaceCount(3),
+	],
+	play: ({ canvasElement }) => {
+		expectTriggerContentFits(canvasElement);
+		expectTriggerDetailsHidden(canvasElement);
 	},
 };
 
@@ -220,7 +266,7 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 			name: "Workspace quota usage",
 		});
 
-		expect(canvas.getByText("Workspace quota")).toBeInTheDocument();
+		expect(canvas.getByText("20")).toBeInTheDocument();
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
 
 		await openUsageMenu(canvasElement);
