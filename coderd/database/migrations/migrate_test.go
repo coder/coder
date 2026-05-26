@@ -1804,7 +1804,7 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 
 	// Insert a model config (FK dependency for chats).
 	aiProviderID := uuid.New()
-		_, err = tx.ExecContext(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		aiProviderID, "openai", "test-openai", true, "https://api.openai.com/v1", now, now,
