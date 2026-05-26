@@ -508,6 +508,16 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+      # `mise oci build` bakes `ENV MISE_CONFIG_DIR=/etc/mise` into
+      # the image layer above Dockerfile.base, so mise treats
+      # /etc/mise as the user config dir and never reads
+      # ~/.config/mise/conf.d/*, silently dropping the trust file
+      # the install-deps coder_script below seeds. `[oci.env]` in
+      # mise.toml would be the natural place for this, but mise's
+      # internal env bake currently wins on MISE_* key collisions
+      # (non-MISE keys flow through). Move this back to `[oci.env]`
+      # once upstream mise fixes that.
+      MISE_CONFIG_DIR : "/home/coder/.config/mise",
     },
     data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
