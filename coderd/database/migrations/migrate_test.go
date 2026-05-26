@@ -1740,8 +1740,6 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	modelConfigID := uuid.New()
 
 	// API keys: one valid (recent), one valid (older), one expired.
-	// TODO: Cover an expired key with a last_used value newer than the valid keys,
-	// but still before its expiry, to prove expiry filtering wins over recency.
 	validKeyRecent := "key-valid-recent-" + uuid.NewString()[:8]
 	validKeyOlder := "key-valid-older-" + uuid.NewString()[:8]
 	expiredKey := "key-expired-" + uuid.NewString()[:8]
@@ -1750,6 +1748,8 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	chatPending := uuid.New()
 	chatRunning := uuid.New()
 	chatWaiting := uuid.New()
+	chatPaused := uuid.New()
+	chatRequiresAction := uuid.New()
 	chatCompleted := uuid.New()
 	chatArchived := uuid.New()
 	chatNoValidKey := uuid.New()
@@ -1791,9 +1791,9 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 		lastUsed time.Time
 		expires  time.Time
 	}{
-		{validKeyRecent, now.Add(-1 * time.Hour), now.Add(24 * time.Hour)},
+		{validKeyRecent, now.Add(-24 * time.Hour), now.Add(24 * time.Hour)},
 		{validKeyOlder, now.Add(-48 * time.Hour), now.Add(24 * time.Hour)},
-		{expiredKey, now.Add(-72 * time.Hour), now.Add(-1 * time.Hour)},
+		{expiredKey, now.Add(-2 * time.Hour), now.Add(-1 * time.Hour)},
 	} {
 		_, err = tx.ExecContext(ctx,
 			`INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, token_name, scopes, allow_list)
@@ -1829,6 +1829,8 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 		{chatPending, userID, "pending", false},
 		{chatRunning, userID, "running", false},
 		{chatWaiting, userID, "waiting", false},
+		{chatPaused, userID, "paused", false},
+		{chatRequiresAction, userID, "requires_action", false},
 		{chatCompleted, userID, "completed", false},
 		{chatArchived, userID, "pending", true},
 		{chatNoValidKey, userNoKeys, "pending", false},
@@ -1842,7 +1844,7 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	}
 
 	// Insert chat_messages with NULL api_key_id for each chat.
-	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting, chatCompleted, chatArchived, chatNoValidKey} {
+	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting, chatPaused, chatRequiresAction, chatCompleted, chatArchived, chatNoValidKey} {
 		_, err = tx.ExecContext(ctx,
 			`INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1860,7 +1862,7 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert chat_queued_messages with NULL api_key_id.
-	for _, chatID := range []uuid.UUID{chatPending, chatCompleted} {
+	for _, chatID := range []uuid.UUID{chatPending, chatRequiresAction, chatCompleted} {
 		_, err = tx.ExecContext(ctx,
 			`INSERT INTO chat_queued_messages (chat_id, content, created_at)
 			VALUES ($1, $2, $3)`,
@@ -1877,8 +1879,8 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	require.True(t, more)
 	require.EqualValues(t, migrationVersion, version)
 
-	// Verify: active chats (pending, running, waiting) got backfilled with the most recent valid key.
-	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting} {
+	// Verify: active chats got backfilled with the most recent valid key.
+	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting, chatPaused, chatRequiresAction} {
 		var apiKeyID sql.NullString
 		err = sqlDB.QueryRowContext(ctx,
 			`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
@@ -1936,6 +1938,16 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	require.True(t, queuedKeyID.Valid, "queued message in active chat should be backfilled")
 	require.Equal(t, validKeyRecent, queuedKeyID.String)
 
+	// Verify: chat_queued_messages for requires_action chat was backfilled.
+	var queuedRequiresActionKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_queued_messages WHERE chat_id = $1`,
+		chatRequiresAction,
+	).Scan(&queuedRequiresActionKeyID)
+	require.NoError(t, err)
+	require.True(t, queuedRequiresActionKeyID.Valid, "queued message in requires_action chat should be backfilled")
+	require.Equal(t, validKeyRecent, queuedRequiresActionKeyID.String)
+
 	// Verify: chat_queued_messages for completed chat was NOT backfilled.
 	var queuedCompletedKeyID sql.NullString
 	err = sqlDB.QueryRowContext(ctx,
@@ -1951,12 +1963,31 @@ func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 
-	// After down: active chat messages should have NULL api_key_id again.
-	var downKeyID sql.NullString
+	// After down: backfilled and pre-existing values should remain intact.
+	var downChatPendingKeyID sql.NullString
 	err = sqlDB.QueryRowContext(ctx,
 		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
 		chatPending,
-	).Scan(&downKeyID)
+	).Scan(&downChatPendingKeyID)
 	require.NoError(t, err)
-	require.False(t, downKeyID.Valid, "down migration should NULL out backfilled values")
+	require.True(t, downChatPendingKeyID.Valid, "down migration should preserve backfilled values")
+	require.Equal(t, validKeyRecent, downChatPendingKeyID.String)
+
+	var downExistingKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%already attributed%'`,
+		chatPending,
+	).Scan(&downExistingKeyID)
+	require.NoError(t, err)
+	require.True(t, downExistingKeyID.Valid, "down migration should preserve pre-existing values")
+	require.Equal(t, validKeyOlder, downExistingKeyID.String)
+
+	var downQueuedKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_queued_messages WHERE chat_id = $1`,
+		chatPending,
+	).Scan(&downQueuedKeyID)
+	require.NoError(t, err)
+	require.True(t, downQueuedKeyID.Valid, "down migration should preserve backfilled queued values")
+	require.Equal(t, validKeyRecent, downQueuedKeyID.String)
 }

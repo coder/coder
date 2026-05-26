@@ -16,7 +16,7 @@ WHERE cm.api_key_id IS NULL
       SELECT 1 FROM chats c
       WHERE c.id = cm.chat_id
         AND c.archived = false
-        AND c.status IN ('pending', 'running', 'waiting')
+        AND c.status::text IN ('pending', 'running', 'waiting', 'paused', 'requires_action')
   );
 
 UPDATE chat_queued_messages cqm
@@ -34,5 +34,5 @@ WHERE cqm.api_key_id IS NULL
       SELECT 1 FROM chats c
       WHERE c.id = cqm.chat_id
         AND c.archived = false
-        AND c.status IN ('pending', 'running', 'waiting')
+        AND c.status::text IN ('pending', 'running', 'waiting', 'paused', 'requires_action')
   );
