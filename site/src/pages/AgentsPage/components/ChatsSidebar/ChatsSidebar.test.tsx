@@ -17,6 +17,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
+import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -104,6 +105,13 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
+const defaultSidebarFilters: AgentSidebarFilters = {
+	archiveStatus: "active",
+	groupBy: "date",
+	prStatuses: [],
+	chatStatuses: ["unread", "read"],
+};
+
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
@@ -117,50 +125,125 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onRenameTitle: vi.fn(async () => {}),
 	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
+	isSearchDialogOpen: false,
+	onSearchDialogOpenChange: vi.fn(),
 	isCreating: false,
-	archivedFilter: "active" as const,
+	sidebarFilters: defaultSidebarFilters,
+	onSidebarFiltersChange: vi.fn(),
 };
 
 // ---- Tests ----
 
-describe("ChatsSidebar archived filter", () => {
-	it("calls the filter change callback from the dropdown", async () => {
+describe("ChatsSidebar filters", () => {
+	it("calls the sidebar filter change callback after Apply is clicked", async () => {
 		const user = userEvent.setup();
-		const onArchivedFilterChange = vi.fn();
+		const onSidebarFiltersChange = vi.fn();
 
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
-					onArchivedFilterChange={onArchivedFilterChange}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
 			</Wrapper>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("menuitem", { name: /archived/i }));
+		await user.click(screen.getByRole("radio", { name: "Archived" }));
 
-		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
+		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
+
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			archiveStatus: "archived",
+		});
 	});
 
-	it("calls the filter change callback from the empty-state link", async () => {
+	it("clears only result filters when applied filters return no agents", async () => {
 		const user = userEvent.setup();
-		const onArchivedFilterChange = vi.fn();
+		const onSidebarFiltersChange = vi.fn();
+		const sidebarFilters: AgentSidebarFilters = {
+			...defaultSidebarFilters,
+			archiveStatus: "archived",
+			groupBy: "chat_status",
+			prStatuses: ["draft"],
+			chatStatuses: ["unread"],
+		};
 
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[]}
-					archivedFilter="archived"
-					onArchivedFilterChange={onArchivedFilterChange}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: /back to active/i }));
+		expect(
+			screen.getByRole("button", { name: "Filter agents" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("No agents match these filters"),
+		).toBeInTheDocument();
 
-		expect(onArchivedFilterChange).toHaveBeenCalledWith("active");
+		await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...sidebarFilters,
+			prStatuses: [],
+			chatStatuses: ["unread", "read"],
+		});
+	});
+
+	it("groups unpinned chats by chat status", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+						}),
+					]}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						groupBy: "chat_status",
+					}}
+				/>
+			</Wrapper>,
+		);
+
+		const unreadSection = screen.getByTestId("agents-section-toggle-Unread");
+		const readSection = screen.getByTestId("agents-section-toggle-Read");
+		const unreadNode = screen.getByTestId("agents-tree-node-unread-chat");
+		const readNode = screen.getByTestId("agents-tree-node-read-chat");
+
+		expect(
+			screen.queryByTestId("agents-section-toggle-Today"),
+		).not.toBeInTheDocument();
+		expect(
+			unreadSection.compareDocumentPosition(unreadNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			unreadNode.compareDocumentPosition(readSection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			readSection.compareDocumentPosition(readNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 });
 
@@ -327,7 +410,7 @@ describe("ChatsSidebar load-more behavior", () => {
 		const countAfterMount = observeCount;
 		expect(countAfterMount).toBe(1);
 
-		// Start fetching — observer is torn down.
+		// Start fetching, observer is torn down.
 		rerender(
 			<Wrapper>
 				<ChatsSidebar
@@ -339,7 +422,7 @@ describe("ChatsSidebar load-more behavior", () => {
 			</Wrapper>,
 		);
 
-		// Fetch completes — a fresh observer is created, firing
+		// Fetch completes, a fresh observer is created, firing
 		// an initial entry that detects the still-visible sentinel.
 		rerender(
 			<Wrapper>

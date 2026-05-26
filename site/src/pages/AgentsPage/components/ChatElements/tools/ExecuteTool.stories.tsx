@@ -126,3 +126,31 @@ export const ErrorOutput: Story = {
 		].join("\n"),
 	},
 };
+
+/** parsedCommands replaces the raw command in the summary line. */
+export const ParsedCommands: Story = {
+	args: {
+		command: `cd /repo && git pull && git add . && git commit -m "fix bug"`,
+		status: "completed",
+		durationMs: 3200,
+		parsedCommands: [
+			["cd", "/repo"],
+			["git", "pull"],
+			["git", "add"],
+			["git", "commit"],
+		],
+	},
+};
+
+/** parsedCommands paired with modelIntent. */
+export const ParsedCommandsWithIntent: Story = {
+	args: {
+		command: "cd /repo && go test -race ./coderd/...",
+		status: "running",
+		modelIntent: "Running the unit tests",
+		parsedCommands: [
+			["cd", "/repo"],
+			["go", "test"],
+		],
+	},
+};

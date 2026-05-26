@@ -42,19 +42,19 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
-	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
 	readonly providers?: readonly AIProviderConfig[];
@@ -82,6 +82,12 @@ export interface AIBridgeConfig {
 	readonly circuit_breaker_interval: number;
 	readonly circuit_breaker_timeout: number;
 	readonly circuit_breaker_max_requests: number;
+	/**
+	 * APIDumpDir is the base directory under which each provider's
+	 * request/response dumps are written, in a subdirectory named after
+	 * the provider. Empty disables dumping.
+	 */
+	readonly api_dump_dir: string;
 }
 
 // From codersdk/aibridge.go
@@ -366,7 +372,8 @@ export const AIProviderBedrockSettingsVersion = 1;
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
- * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
+ * CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
  * This follows the same indexed pattern as ExternalAuthConfig.
  */
 export interface AIProviderConfig {
@@ -383,10 +390,6 @@ export interface AIProviderConfig {
 	 * BaseURL is the base URL of the upstream provider API.
 	 */
 	readonly base_url: string;
-	/**
-	 * DumpDir is the directory path for dumping API requests and responses.
-	 */
-	readonly dump_dir?: string;
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
@@ -444,11 +447,25 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/chats.go
+/**
+ * AIProviderSummary is provider metadata embedded in other API responses.
+ */
+export interface AIProviderSummary {
+	readonly id: string;
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly deleted: boolean;
+}
+
 // From codersdk/aiproviders.go
 export type AIProviderType =
 	| "anthropic"
 	| "azure"
 	| "bedrock"
+	| "copilot"
 	| "google"
 	| "openai"
 	| "openai-compat"
@@ -459,6 +476,7 @@ export const AIProviderTypes: AIProviderType[] = [
 	"anthropic",
 	"azure",
 	"bedrock",
+	"copilot",
 	"google",
 	"openai",
 	"openai-compat",
@@ -1595,6 +1613,7 @@ export interface ChatComputerUseProviderResponse {
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly ai_gateway_routing_enabled: boolean;
 }
 
 // From codersdk/chats.go
@@ -2277,6 +2296,7 @@ export interface ChatModelCallConfig {
 export interface ChatModelConfig {
 	readonly id: string;
 	readonly provider: string;
+	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -2857,6 +2877,15 @@ export interface ChatToolCallPart {
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
 	/**
+	 * ParsedCommands holds parsed programs from an execute tool call's
+	 * shell command, one entry per simple command in source order. Each
+	 * entry is [program] or [program, arg] where arg is the first non-flag
+	 * positional argument. Program names are normalized to their base
+	 * name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	 * is "execute" and the command parses successfully; nil otherwise.
+	 */
+	readonly parsed_commands?: readonly string[][];
+	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).
 	 */
@@ -3196,9 +3225,9 @@ export interface ConvertLoginRequest {
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
- * provider. Name, Type, and BaseURL are required. APIKeys carries
- * the plaintext keys for OpenAI/Anthropic providers; Bedrock
- * providers authenticate via Settings and must omit APIKeys.
+ * provider. Name and Type are required. APIKeys carries the plaintext
+ * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
+ * via Settings and must omit APIKeys.
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -3242,7 +3271,8 @@ export interface CreateChatMessageResponse {
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
-	readonly provider: string;
+	readonly provider?: string;
+	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -3571,6 +3601,15 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/chats.go
+/**
+ * CreateUserAIProviderKeyRequest creates or replaces a user's API key
+ * for an AI provider.
+ */
+export interface CreateUserAIProviderKeyRequest {
+	readonly api_key: string;
 }
 
 // From codersdk/chats.go
@@ -4162,9 +4201,8 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	/**
-	 * ID identifies the request for response ordering. Websocket response
-	 * IDs are monotonically increasing and may exceed the request ID when
-	 * server-side events trigger additional renders.
+	 * ID identifies the request. The response contains the same
+	 * ID so that the client can match it to the request.
 	 */
 	readonly id: number;
 	readonly inputs: Record<string, string>;
@@ -4179,7 +4217,6 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
-	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -5193,17 +5230,103 @@ export const MaxChatFileSizeBytes = 10485760;
 
 // From codersdk/usersecretvalidation.go
 /**
- * MaxSecretValueSize is the maximum size of a user secret value
- * in bytes. This limit applies uniformly to both env var and
- * file-destined secrets because the value field is shared and
- * the destination can change after creation. 32KB is generous
- * for env vars (most are under 1KB) but necessary for file
- * content like SSH keys, TLS certificate chains, and JSON
- * configs. We are not trying to be overly restrictive here;
- * users can use the full 32KB for env var values even though
- * it would be unusual.
+ * MaxUserSecretEnvNameLength caps the length of an env_name when one
+ * is provided. 256 is a generous round number that should allow any
+ * realistic env name while still bounding inputs.
+ *
+ * This is a per-row syntactic check, not an aggregate. It does not
+ * interact with the env_bytes aggregate (which is itself an
+ * approximate budget; see MaxUserSecretsPerUserCount).
  */
-export const MaxSecretValueSize = 32768; // 32KB
+export const MaxUserSecretEnvNameLength = 256;
+
+// From codersdk/usersecretvalidation.go
+/**
+ * MaxUserSecretValueBytes is the maximum number of bytes for a
+ * single secret value. It is enforced in two places:
+ *
+ *   - The HTTP handler validates the raw (plaintext) value with
+ *     UserSecretValueValid before the row is written.
+ *   - The Postgres trigger enforce_user_secrets_per_user_limits
+ *     enforces the same number as an aggregate on stored bytes
+ *     across a user's env-injected secrets. This defends the
+ *     ~32 KiB Windows process env block.
+ *
+ * On deployments with secret encryption enabled, stored bytes
+ * exceed plaintext by ~1.33x (AES-GCM + base64), so the trigger's
+ * env-aggregate budget can be reached at less plaintext than the
+ * handler's per-value check would suggest. The trigger is
+ * authoritative; the handler's check is a fast pre-flight that
+ * catches the common "one value is too big" case before the row
+ * is encrypted and sent to the DB.
+ *
+ * One number serves both roles because the per-value cap can't
+ * usefully exceed the smallest aggregate cap any single row could
+ * trip: a value bigger than the env aggregate would be rejected
+ * the moment its env_name was set, so allowing it at the per-value
+ * layer would just move the failure later.
+ *
+ * See MaxUserSecretsPerUserCount for the rationale behind the other
+ * two caps (count, total bytes).
+ */
+export const MaxUserSecretValueBytes = 24576; // 24 KiB
+
+// From codersdk/usersecretvalidation.go
+/**
+ * MaxUserSecretsPerUserCount caps the number of secrets a single user
+ * may own.
+ *
+ * Why a cap exists at all: user_secrets is user-scoped, so every
+ * workspace the user owns loads the same set into its agent
+ * manifest, and env-injected ones land in the workspace agent's
+ * process env. Without a cap, a user can overflow one of three
+ * external limits by accumulating enough secrets, or by making
+ * them large enough. The failure surfaces at workspace start (or
+ * as a truncated env), not at create-time.
+ *
+ * What drives each cap, and the rough math:
+ *
+ *   - Count (50): backstops row-count growth from many small
+ *     secrets. The total-bytes cap binds first for large secrets;
+ *     this cap binds first for typical-sized ones (~few KB).
+ *
+ *   - Total bytes (200 KiB): sized to cover realistic credential
+ *     storage (API keys, SSH keys, kubeconfigs, cert bundles)
+ *     with headroom. Well under the 4 MiB DRPC agent manifest
+ *     budget (codersdk/drpcsdk.MaxMessageSize).
+ *
+ *   - Env bytes (24 KiB): an approximate budget for the value
+ *     bytes of env-injected secrets. Leaves ~8 KiB of headroom
+ *     under the ~32 KiB Windows process env block
+ *     (CreateProcessW's lpEnvironment is capped at 32,767
+ *     characters) for what this aggregate does not count:
+ *     env_name bytes, per-entry overhead, agent-injected vars
+ *     (CODER_*, PATH, HOME, ...), and template-defined env. Not
+ *     a strict overflow guarantee. Linux/macOS ARG_MAX (~2 MiB)
+ *     is far above this, so one Windows-safe cap works
+ *     everywhere.
+ *
+ * Byte caps measure stored bytes (octet_length of encrypted+base64).
+ * Plaintext is slightly tighter in encrypted deployments. That is
+ * fine: the limits we defend all measure transmitted bytes, and
+ * stored bytes upper-bound those.
+ *
+ * The Postgres trigger enforce_user_secrets_per_user_limits is the
+ * source of truth; the HTTP handler maps its check_violation to a
+ * 400. TestUserSecretLimits in coderd/usersecrets_test.go exercises
+ * off-by-one at each cap across POST and PATCH, so any drift
+ * between these constants and the trigger's literals fails an
+ * assertion.
+ */
+export const MaxUserSecretsPerUserCount = 50;
+
+// From codersdk/usersecretvalidation.go
+/**
+ * MaxUserSecretsTotalValueBytes caps the sum of stored value bytes
+ * per user. See MaxUserSecretsPerUserCount for the full rationale and
+ * math behind all three caps.
+ */
+export const MaxUserSecretsTotalValueBytes = 204800; // 200 KiB
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -6935,12 +7058,6 @@ export interface RequestOneTimePasscodeRequest {
 // From codersdk/workspaces.go
 export interface ResolveAutostartResponse {
 	readonly parameter_mismatch: boolean;
-	/**
-	 * SecretMismatch is true when the active template version declares
-	 * `coder_secret` requirements that the workspace owner's secrets do not
-	 * satisfy.
-	 */
-	readonly secret_mismatch: boolean;
 }
 
 // From codersdk/audit.go
@@ -7230,14 +7347,6 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
-}
-
-// From codersdk/parameters.go
-export interface SecretRequirementStatus {
-	readonly env?: string;
-	readonly file?: string;
-	readonly help_message: string;
-	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go
@@ -8456,6 +8565,7 @@ export interface UpdateChatDesktopEnabledRequest {
  */
 export interface UpdateChatModelConfigRequest {
 	readonly provider?: string;
+	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
@@ -9077,6 +9187,18 @@ export interface User extends ReducedUser {
 	readonly has_ai_seat: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * UserAIProviderKeyConfig is a provider summary from the current user's
+ * perspective. It reports key presence but never returns key material.
+ */
+export interface UserAIProviderKeyConfig {
+	readonly provider: AIProviderSummary;
+	readonly has_user_api_key: boolean;
+	readonly has_provider_api_key: boolean;
+	readonly byok_enabled: boolean;
+}
+
 // From codersdk/insights.go
 /**
  * UserActivity shows the session time for a user.
@@ -9203,6 +9325,7 @@ export interface UserChatProviderConfig {
 	readonly display_name: string;
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
+	readonly byok_enabled: boolean;
 }
 
 // From codersdk/insights.go

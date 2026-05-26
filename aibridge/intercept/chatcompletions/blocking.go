@@ -3,6 +3,7 @@ package chatcompletions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -224,12 +226,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		// The failover loop may return a keypool exhaustion
 		// error. Check before the SDK-error path.
-		if keyErr := ProcessKeyPoolError(err); keyErr != nil {
-			i.writeUpstreamError(w, keyErr)
+		var keyPoolErr *keypool.Error
+		if errors.As(err, &keyPoolErr) {
+			i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 			return xerrors.Errorf("key pool exhausted: %w", err)
 		}
 
-		if apiErr := getErrorResponse(err); apiErr != nil {
+		if apiErr := intercept.ResponseErrorFromAPIError(err); apiErr != nil {
 			i.writeUpstreamError(w, apiErr)
 			return xerrors.Errorf("openai API error: %w", err)
 		}
@@ -293,9 +296,9 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
 		}
 
 		requestOpts := append([]option.RequestOption{}, opts...)

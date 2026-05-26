@@ -1,5 +1,6 @@
 import {
 	ArrowLeftIcon,
+	ArrowUpRightIcon,
 	BotIcon,
 	BoxesIcon,
 	ChevronRightIcon,
@@ -69,7 +70,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 								? "Back to Settings"
 								: "Back to Agents"
 						}
-						className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+						className="relative z-10 size-7 min-w-0 text-content-secondary hover:text-content-primary"
 					>
 						{settingsPanel === "settings-admin" ? (
 							<Link
@@ -94,7 +95,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							size="icon"
 							onClick={onCollapse}
 							aria-label="Collapse sidebar"
-							className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
+							className="relative z-10 hidden size-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
 						>
 							<PanelLeftCloseIcon />
 						</Button>
@@ -119,6 +120,13 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							state={location.state}
 						/>
 					)}
+					<SettingsNavItem
+						icon={ReceiptTextIcon}
+						label="Personal Skills"
+						active={settingsSection === "personal-skills"}
+						to="/agents/settings/personal-skills"
+						state={location.state}
+					/>
 					<SettingsNavItem
 						icon={ShrinkIcon}
 						label="Compaction"
@@ -158,9 +166,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={PlugIcon}
 						label="Providers"
-						active={settingsSection === "providers"}
-						to="/agents/settings/providers"
-						state={location.state}
+						active={false}
+						to="/ai/settings"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={BoxesIcon}

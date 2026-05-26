@@ -17,6 +17,12 @@ const executeCommand = "git fetch origin";
 const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
+
+const getDiffsText = (element: HTMLElement) =>
+	Array.from(element.querySelectorAll("diffs-container"))
+		.map((container) => container.shadowRoot?.textContent ?? "")
+		.join("\n");
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -848,6 +854,7 @@ export const CloseAgentRunningWithoutChatId: Story = {
 		await waitFor(() => {
 			expect(canvasElement.textContent?.trim()).toBe("");
 		});
+		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
 		expect(canvas.queryByRole("button")).toBeNull();
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
@@ -1079,17 +1086,15 @@ export const MCPToolCompleted: Story = {
 		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
 		// Icon should still be monochrome when completed.
 		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
-		// Result should be collapsed by default.
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
-		// Expand to see result content.
 		await userEvent.click(toggle);
-		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
-		// so textContent on the host element can't see the content.
-		// Query into the shadow root to verify the JSON rendered.
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
 		await waitFor(() => {
-			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
-			expect(shadow?.textContent).toContain("Fix auth flow");
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("backend");
+			expect(diffsText).toContain("Fix auth flow");
 		});
 	},
 };
@@ -1123,8 +1128,12 @@ export const MCPToolNoResult: Story = {
 		mcpServers: sampleMCPServers,
 	},
 	play: async ({ canvasElement }) => {
-		// No toggle button when there is no result content.
-		expect(canvasElement.querySelector("button")).toBeNull();
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		await waitFor(() => {
+			expect(getDiffsText(canvasElement)).toContain("New issue");
+		});
 	},
 };
 
@@ -1192,6 +1201,27 @@ export const MCPToolNoServer: Story = {
 		const canvas = within(canvasElement);
 		// Falls through to generic wrench icon + raw tool name.
 		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+export const WorkspaceMCPToolCompleted: Story = {
+	args: {
+		name: "workspace-mcp__echo",
+		status: "completed",
+		args: { message: "hello from workspace MCP" },
+		result: { output: "hello from workspace MCP" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("workspace-mcp__echo")).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
+		await waitFor(() => {
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("message");
+			expect(diffsText).toContain("hello from workspace MCP");
+		});
 	},
 };
 

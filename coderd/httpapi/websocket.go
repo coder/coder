@@ -21,6 +21,12 @@ func HeartbeatClose(ctx context.Context, logger slog.Logger, exit func(), conn *
 	heartbeatCloseWith(ctx, logger, exit, conn, quartz.NewReal(), HeartbeatInterval)
 }
 
+// HeartbeatCloseWithClock is like HeartbeatClose, but uses the provided
+// clock so tests can drive heartbeat ticks deterministically.
+func HeartbeatCloseWithClock(ctx context.Context, logger slog.Logger, exit func(), conn *websocket.Conn, clk quartz.Clock) {
+	heartbeatCloseWith(ctx, logger, exit, conn, clk, HeartbeatInterval)
+}
+
 func heartbeatCloseWith(ctx context.Context, logger slog.Logger, exit func(), conn *websocket.Conn, clk quartz.Clock, interval time.Duration) {
 	ticker := clk.NewTicker(interval, "HeartbeatClose")
 	defer ticker.Stop()

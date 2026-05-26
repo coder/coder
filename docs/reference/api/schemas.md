@@ -442,6 +442,7 @@
     "base_url": "string",
     "key": "string"
   },
+  "api_dump_dir": "string",
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
@@ -470,7 +471,6 @@
       "bedrock_model": "string",
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
-      "dump_dir": "string",
       "name": "string",
       "type": "string"
     }
@@ -484,27 +484,28 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                 |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                             |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                            |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                             |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                             |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                             |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                             |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.        |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
 ## codersdk.AIBridgeInterception
 
@@ -1245,6 +1246,7 @@
       "base_url": "string",
       "key": "string"
     },
+    "api_dump_dir": "string",
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
@@ -1273,7 +1275,6 @@
         "bedrock_model": "string",
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
-        "dump_dir": "string",
         "name": "string",
         "type": "string"
       }
@@ -1344,7 +1345,6 @@
   "bedrock_model": "string",
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
-  "dump_dir": "string",
   "name": "string",
   "type": "string"
 }
@@ -1358,7 +1358,6 @@
 | `bedrock_model`            | string | false    |              |                                                                                            |
 | `bedrock_region`           | string | false    |              |                                                                                            |
 | `bedrock_small_fast_model` | string | false    |              |                                                                                            |
-| `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
 
@@ -1416,9 +1415,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                     |
-|----------------------------------------------------------------------------------------------|
-| `anthropic`, `azure`, `bedrock`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 
@@ -2308,6 +2307,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2436,6 +2440,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2889,6 +2898,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2980,6 +2994,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "media_type": "string",
   "name": "string",
+  "parsed_commands": [
+    [
+      "string"
+    ]
+  ],
   "provider_executed": true,
   "provider_metadata": [
     0
@@ -3006,46 +3025,47 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                      |
-|--------------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                   |
-| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                            |
-| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                        |
-| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                         |
-| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                            |
-| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                              |
-| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                               |
-| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                               |
-| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                           |
-| `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming. |
-| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                            |
-| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                            |
-| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                |
-| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                            |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                          |
-| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
+| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
+| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
+| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
+| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
+| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
+| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
+| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
+| `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
+| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
+| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatMessagePartType
 
@@ -3145,6 +3165,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3223,6 +3248,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3441,6 +3471,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3602,6 +3637,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -3676,6 +3716,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3739,6 +3784,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3850,6 +3900,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "media_type": "string",
     "name": "string",
+    "parsed_commands": [
+      [
+        "string"
+      ]
+    ],
     "provider_executed": true,
     "provider_metadata": [
       0
@@ -4063,6 +4118,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -4507,6 +4567,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -4584,6 +4649,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -5635,6 +5705,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -5663,7 +5734,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -6234,6 +6304,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "api_dump_dir": "string",
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
@@ -6262,7 +6333,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_model": "string",
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
-          "dump_dir": "string",
           "name": "string",
           "type": "string"
         }
@@ -6826,12 +6896,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
-|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
-| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
-| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
+| Name               | Type    | Required | Restrictions | Description                                                                                                  |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
+| `inputs`           | object  | false    |              |                                                                                                              |
+| » `[any property]` | string  | false    |              |                                                                                                              |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
 
 ## codersdk.DynamicParametersResponse
 
@@ -6905,26 +6975,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": "string"
       }
     }
-  ],
-  "secret_requirements": [
-    {
-      "env": "string",
-      "file": "string",
-      "help_message": "string",
-      "satisfied": true
-    }
   ]
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                          | Required | Restrictions | Description |
-|-----------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `diagnostics`         | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)           | false    |              |             |
-| `id`                  | integer                                                                       | false    |              |             |
-| `parameters`          | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)               | false    |              |             |
-| `secret_requirements` | array of [codersdk.SecretRequirementStatus](#codersdksecretrequirementstatus) | false    |              |             |
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.DynamicTool
 
@@ -7014,6 +7075,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -10998,17 +11064,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "parameter_mismatch": true,
-  "secret_mismatch": true
+  "parameter_mismatch": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                      |
-|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `parameter_mismatch` | boolean | false    |              |                                                                                                                                                  |
-| `secret_mismatch`    | boolean | false    |              | Secret mismatch is true when the active template version declares `coder_secret` requirements that the workspace owner's secrets do not satisfy. |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `parameter_mismatch` | boolean | false    |              |             |
 
 ## codersdk.ResourceType
 
@@ -11402,26 +11466,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
-
-## codersdk.SecretRequirementStatus
-
-```json
-{
-  "env": "string",
-  "file": "string",
-  "help_message": "string",
-  "satisfied": true
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `env`          | string  | false    |              |             |
-| `file`         | string  | false    |              |             |
-| `help_message` | string  | false    |              |             |
-| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
