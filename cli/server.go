@@ -1034,7 +1034,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				providers, err := BuildProviders(vals.AI.BridgeConfig)
+				providers, err := BuildProviders(ctx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
@@ -3114,8 +3114,6 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			}
 		case "BASE_URL":
 			provider.BaseURL = v.Value
-		case "DUMP_DIR":
-			provider.DumpDir = v.Value
 		case "BEDROCK_BASE_URL":
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":

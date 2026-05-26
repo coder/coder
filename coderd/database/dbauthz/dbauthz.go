@@ -627,6 +627,7 @@ var (
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAiModelPrice.Type:         {policy.ActionUpdate}, // Required for the startup price seeder.
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
+					rbac.ResourceAIProvider.Type:           {policy.ActionRead},   // Required to load the live provider snapshot (and per-provider keys) from the database for the in-process pool and to refresh it on pubsub change events.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

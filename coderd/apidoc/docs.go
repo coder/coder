@@ -14450,6 +14450,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "api_dump_dir": {
+                    "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
+                    "type": "string"
+                },
                 "bedrock": {
                     "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
@@ -15060,10 +15064,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "dump_dir": {
-                    "description": "DumpDir is the directory path for dumping API requests and responses.",
                     "type": "string"
                 },
                 "name": {
