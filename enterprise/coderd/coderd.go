@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -65,6 +66,24 @@ import (
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 )
+
+func natsRouteAddressFromRelayAddress(s string) (string, bool) {
+	if s == "" {
+		return "", false
+	}
+	relayURL, err := url.Parse(s)
+	if err != nil {
+		return "", false
+	}
+	host := relayURL.Hostname()
+	if host == "" {
+		return "", false
+	}
+	return (&url.URL{
+		Scheme: "nats",
+		Host:   net.JoinHostPort(host, "6222"),
+	}).String(), true
+}
 
 // New constructs an Enterprise coderd API instance.
 // This handler is designed to wrap the AGPL Coder code and
@@ -655,6 +674,32 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
 	replicaManagerPtr.Store(api.replicaManager)
+	type natsPeerAddressSetter interface {
+		SetPeerAddresses([]string) error
+	}
+	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+		setter, ok := api.Pubsub.(natsPeerAddressSetter)
+		if !ok {
+			api.Logger.Warn(ctx, "nats pubsub experiment enabled but pubsub does not support peer addresses")
+		} else {
+			api.replicaManager.AddCallback(func() {
+				addresses := make([]string, 0)
+				for _, replica := range api.replicaManager.AllPrimary() {
+					if replica.ID == api.replicaManager.ID() {
+						continue
+					}
+					address, ok := natsRouteAddressFromRelayAddress(replica.RelayAddress)
+					if !ok {
+						continue
+					}
+					addresses = append(addresses, address)
+				}
+				if err := setter.SetPeerAddresses(addresses); err != nil {
+					api.Logger.Warn(api.ctx, "set nats peer addresses", slog.Error(err))
+				}
+			})
+		}
+	}
 	if api.DERPServer != nil {
 		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 	}
