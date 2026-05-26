@@ -90,14 +90,6 @@ func retryMessage(classified ClassifiedError) string {
 		return fmt.Sprintf(
 			"%s did not start responding in time.", subject,
 		)
-	case codersdk.ChatErrorKindUsageLimit:
-		displayName := providerDisplayName(classified.Provider)
-		if displayName == "" {
-			displayName = "the AI provider"
-		}
-		return fmt.Sprintf(
-			"The usage quota for %s has been exceeded.", displayName,
-		)
 	case codersdk.ChatErrorKindAuth:
 		displayName := providerDisplayName(classified.Provider)
 		if displayName == "" {
