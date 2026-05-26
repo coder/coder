@@ -365,7 +365,7 @@ func appendUserSecretValidationError(validations []codersdk.ValidationError, fie
 // userSecretLimitResponse maps a per-user-limits trigger violation
 // (raised by enforce_user_secrets_per_user_limits) to a 400. Returns
 // ok=false if err is not such a violation. See
-// codersdk.MaxUserSecretsPerUser for the rationale behind the caps.
+// codersdk.MaxUserSecretsPerUserCount for the rationale behind the caps.
 func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 	switch {
 	case database.IsCheckViolation(err, userSecretsCountLimitConstraint):
@@ -373,7 +373,7 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 			Message: "User secrets limit reached.",
 			Detail: fmt.Sprintf(
 				"Each user can have at most %d secrets.",
-				codersdk.MaxUserSecretsPerUser,
+				codersdk.MaxUserSecretsPerUserCount,
 			),
 		}, true
 	case database.IsCheckViolation(err, userSecretsTotalBytesLimitConstraint):

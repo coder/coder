@@ -8,19 +8,24 @@
 --
 -- What drives each cap:
 --
---   * count_limit = 50: backstop, well under the ~170-secret ceiling
---     where the manifest would overflow at 24 KiB per value
---     (MaxUserSecretValueBytes).
+--   * count_limit = 50: backstop against row-count growth from many
+--     small secrets. The total_bytes_limit binds first for large
+--     secrets; this binds first for typical-sized ones (~few KB).
 --
---   * total_bytes_limit = 1 MiB: ~25 % of the 4 MiB DRPC manifest
---     budget (codersdk/drpcsdk.MaxMessageSize); the rest is for
---     apps/scripts/metadata/devcontainers.
+--   * total_bytes_limit = 200 KiB: sized to cover realistic
+--     credential storage (API keys, SSH keys, kubeconfigs, cert
+--     bundles) with headroom. Well under the 4 MiB DRPC manifest
+--     budget (codersdk/drpcsdk.MaxMessageSize).
 --
---   * env_bytes_limit = 24 KiB: under the ~32 KiB Windows process
---     env block with headroom for the agent's own env (CODER_*,
---     PATH, HOME, ...). file_path secrets bypass the env block and
---     are not counted. Linux/macOS ARG_MAX (~2 MiB) is far above
---     this, so the same cap works everywhere.
+--   * env_bytes_limit = 24 KiB: an approximate budget for the
+--     value bytes of env-injected secrets. Leaves ~8 KiB of
+--     headroom under the ~32 KiB Windows process env block
+--     (CreateProcessW's lpEnvironment is capped at 32,767
+--     characters) for what this aggregate does not count:
+--     env_name bytes, per-entry overhead, agent-injected vars
+--     (CODER_*, PATH, HOME, ...), and template-defined env. Not
+--     a strict overflow guarantee. Linux/macOS ARG_MAX (~2 MiB)
+--     is far above this, so the same cap works everywhere.
 --
 -- octet_length(value) measures stored bytes. In encrypted
 -- deployments stored bytes exceed plaintext (AES-GCM + base64
@@ -46,7 +51,7 @@ DECLARE
     new_env_bytes   bigint;
 
     count_limit       constant int    := 50;
-    total_bytes_limit constant bigint := 1048576;  -- 1 MiB
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
     -- Serialize cap checks per user so concurrent inserts cannot all

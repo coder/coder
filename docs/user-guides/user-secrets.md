@@ -79,16 +79,17 @@ distinct paths to avoid the collision.
 
 ## Limits
 
-User secrets are subject to four per-user caps. Coder enforces these when you
+User secrets are subject to the following limits. Coder enforces these when you
 create or update a secret and rejects the request with an explanatory 400 when
 you exceed one. Delete or shrink an existing secret to make room.
 
-| Cap                                      | Value  |
-|------------------------------------------|--------|
-| Total secrets per user                   | 50     |
-| Combined stored value bytes per user     | 1 MiB  |
-| Combined stored env-injected value bytes | 24 KiB |
-| Per-secret value bytes                   | 24 KiB |
+| Cap                                      | Value     |
+|------------------------------------------|-----------|
+| Total secrets per user                   | 50        |
+| Combined stored value bytes per user     | 200 KiB   |
+| Combined stored env-injected value bytes | 24 KiB    |
+| Per-secret value bytes                   | 24 KiB    |
+| Env var name length                      | 256 bytes |
 
 Only secrets created with `--env` count against the env-injected budget. Coder
 injects these into the workspace agent's process environment, which on Windows

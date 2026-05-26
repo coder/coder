@@ -850,7 +850,7 @@ DECLARE
     new_env_bytes   bigint;
 
     count_limit       constant int    := 50;
-    total_bytes_limit constant bigint := 1048576;  -- 1 MiB
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
     -- Serialize cap checks per user so concurrent inserts cannot all

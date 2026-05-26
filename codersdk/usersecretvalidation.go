@@ -17,7 +17,7 @@ const (
 	maxFilePathLength = 4096
 )
 
-// MaxUserSecretsPerUser caps the number of secrets a single user
+// MaxUserSecretsPerUserCount caps the number of secrets a single user
 // may own.
 //
 // Why a cap exists at all: user_secrets is user-scoped, so every
@@ -30,19 +30,25 @@ const (
 //
 // What drives each cap, and the rough math:
 //
-//   - Count (50): backstops abuse, well under the ~170-secret
-//     ceiling where the manifest itself would overflow at the
-//     24 KiB per-value cap (MaxUserSecretValueBytes).
+//   - Count (50): backstops row-count growth from many small
+//     secrets. The total-bytes cap binds first for large secrets;
+//     this cap binds first for typical-sized ones (~few KB).
 //
-//   - Total bytes (1 MiB): ~25 % of the 4 MiB DRPC agent manifest
-//     budget (codersdk/drpcsdk.MaxMessageSize); the rest covers
-//     apps, scripts, metadata, devcontainers, etc.
+//   - Total bytes (200 KiB): sized to cover realistic credential
+//     storage (API keys, SSH keys, kubeconfigs, cert bundles)
+//     with headroom. Well under the 4 MiB DRPC agent manifest
+//     budget (codersdk/drpcsdk.MaxMessageSize).
 //
-//   - Env bytes (24 KiB): under the ~32 KiB Windows process env
-//     block with headroom for the agent's own env (CODER_*, PATH,
-//     HOME, ...). file_path secrets bypass the env block on every
-//     OS and aren't counted. Linux/macOS ARG_MAX (~2 MiB) is far
-//     above this, so one Windows-safe cap works everywhere.
+//   - Env bytes (24 KiB): an approximate budget for the value
+//     bytes of env-injected secrets. Leaves ~8 KiB of headroom
+//     under the ~32 KiB Windows process env block
+//     (CreateProcessW's lpEnvironment is capped at 32,767
+//     characters) for what this aggregate does not count:
+//     env_name bytes, per-entry overhead, agent-injected vars
+//     (CODER_*, PATH, HOME, ...), and template-defined env. Not
+//     a strict overflow guarantee. Linux/macOS ARG_MAX (~2 MiB)
+//     is far above this, so one Windows-safe cap works
+//     everywhere.
 //
 // Byte caps measure stored bytes (octet_length of encrypted+base64).
 // Plaintext is slightly tighter in encrypted deployments. That is
@@ -55,12 +61,12 @@ const (
 // off-by-one at each cap across POST and PATCH, so any drift
 // between these constants and the trigger's literals fails an
 // assertion.
-const MaxUserSecretsPerUser = 50
+const MaxUserSecretsPerUserCount = 50
 
 // MaxUserSecretsTotalValueBytes caps the sum of stored value bytes
-// per user. Defends the DRPC manifest. See MaxUserSecretsPerUser
-// for the full rationale and math behind all three caps.
-const MaxUserSecretsTotalValueBytes = 1 << 20 // 1 MiB
+// per user. See MaxUserSecretsPerUserCount for the full rationale and
+// math behind all three caps.
+const MaxUserSecretsTotalValueBytes = 200 * 1024 // 200 KiB
 
 // MaxUserSecretValueBytes is the maximum number of bytes for a
 // single secret value. It is enforced in two places:
@@ -86,9 +92,18 @@ const MaxUserSecretsTotalValueBytes = 1 << 20 // 1 MiB
 // the moment its env_name was set, so allowing it at the per-value
 // layer would just move the failure later.
 //
-// See MaxUserSecretsPerUser for the rationale behind the other
+// See MaxUserSecretsPerUserCount for the rationale behind the other
 // two caps (count, total bytes).
 const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
+
+// MaxUserSecretEnvNameLength caps the length of an env_name when one
+// is provided. 256 is a generous round number that should allow any
+// realistic env name while still bounding inputs.
+//
+// This is a per-row syntactic check, not an aggregate. It does not
+// interact with the env_bytes aggregate (which is itself an
+// approximate budget; see MaxUserSecretsPerUserCount).
+const MaxUserSecretEnvNameLength = 256
 
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
@@ -217,6 +232,13 @@ func UserSecretNameValid(s string) error {
 func UserSecretEnvNameValid(s string) error {
 	if s == "" {
 		return nil
+	}
+
+	if len(s) > MaxUserSecretEnvNameLength {
+		return xerrors.Errorf(
+			"environment variable name must not exceed %d bytes",
+			MaxUserSecretEnvNameLength,
+		)
 	}
 
 	if !posixEnvNameRegex.MatchString(s) {

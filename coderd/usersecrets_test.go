@@ -491,7 +491,7 @@ func TestUserSecretLimits(t *testing.T) {
 
 		// Fill the count budget exactly to the cap.
 		var firstSecret codersdk.UserSecret
-		for i := 0; i < codersdk.MaxUserSecretsPerUser; i++ {
+		for i := 0; i < codersdk.MaxUserSecretsPerUserCount; i++ {
 			s, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
 				Name:  fmt.Sprintf("count-limit-%03d", i),
 				Value: "x",
