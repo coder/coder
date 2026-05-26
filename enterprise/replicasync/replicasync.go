@@ -122,10 +122,10 @@ type Manager struct {
 	closed      chan (struct{})
 	closeCancel context.CancelFunc
 
-	self     database.Replica
-	mutex    sync.Mutex
-	peers    []database.Replica
-	callback func()
+	self      database.Replica
+	mutex     sync.Mutex
+	peers     []database.Replica
+	callbacks []func()
 }
 
 func (m *Manager) ID() uuid.UUID {
@@ -312,7 +312,6 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	// nolint:gocritic // Updating a replica is a system function.
 	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:           m.self.ID,
@@ -330,6 +329,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
+			m.mutex.Unlock()
 			return xerrors.Errorf("update replica: %w", err)
 		}
 		// self replica has been cleaned up, we must reinsert
@@ -348,6 +348,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			Primary:         m.self.Primary,
 		})
 		if err != nil {
+			m.mutex.Unlock()
 			return xerrors.Errorf("update replica: %w", err)
 		}
 	}
@@ -355,12 +356,15 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		// Publish an update occurred!
 		err = m.PublishUpdate()
 		if err != nil {
+			m.mutex.Unlock()
 			return xerrors.Errorf("publish replica update: %w", err)
 		}
 	}
 	m.self = replica
-	if m.callback != nil {
-		go m.callback()
+	callbacks := append([]func(){}, m.callbacks...)
+	m.mutex.Unlock()
+	for _, callback := range callbacks {
+		go callback()
 	}
 	return nil
 }
@@ -439,12 +443,12 @@ func (m *Manager) regionID() int32 {
 	return m.self.RegionID
 }
 
-// SetCallback sets a function to execute whenever new peers
+// AddCallback adds a function to execute whenever new peers
 // are refreshed or updated.
-func (m *Manager) SetCallback(callback func()) {
+func (m *Manager) AddCallback(callback func()) {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.callback = callback
+	m.callbacks = append(m.callbacks, callback)
+	m.mutex.Unlock()
 	// Instantly call the callback to inform replicas!
 	go callback()
 }

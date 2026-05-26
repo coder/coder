@@ -207,6 +207,34 @@ func TestReplica(t *testing.T) {
 			return len(server.Regional()) == 0
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+	t.Run("MultipleCallbacks", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		var first atomic.Int64
+		var second atomic.Int64
+		server.AddCallback(func() { first.Add(1) })
+		server.AddCallback(func() { second.Add(1) })
+		require.Eventually(t, func() bool {
+			return first.Load() >= 1 && second.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		require.NoError(t, server.UpdateNow(ctx))
+		require.Eventually(t, func() bool {
+			return first.Load() >= 2 && second.Load() >= 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!
@@ -233,7 +261,7 @@ func TestReplica(t *testing.T) {
 			done := false
 
 			var m sync.Mutex
-			server.SetCallback(func() {
+			server.AddCallback(func() {
 				m.Lock()
 				defer m.Unlock()
 				if len(server.AllPrimary()) != count {

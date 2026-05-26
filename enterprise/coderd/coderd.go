@@ -953,7 +953,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.SetCallback(func() {
+				api.replicaManager.AddCallback(func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
@@ -973,7 +973,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.SetCallback(func() {
+				api.replicaManager.AddCallback(func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)
