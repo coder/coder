@@ -10,8 +10,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestReadAIProvidersFromEnv(t *testing.T) {
@@ -34,7 +36,6 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-zdr",
 				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-xxx",
 				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
-				"CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR=/tmp/aibridge-dump",
 			},
 			expected: []codersdk.AIProviderConfig{
 				{
@@ -42,7 +43,6 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 					Name:    "anthropic-zdr",
 					Keys:    []string{"sk-ant-xxx"},
 					BaseURL: "https://api.anthropic.com/",
-					DumpDir: "/tmp/aibridge-dump",
 				},
 			},
 		},
@@ -534,6 +534,55 @@ func TestValidateLegacyAIBridgeConfig(t *testing.T) {
 			}
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
+	t.Parallel()
+
+	const dumpDir = "/tmp/coder-aibridge-dumps"
+
+	tests := []struct {
+		name string
+		row  database.AIProvider
+	}{
+		{
+			name: "OpenAI",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeOpenai,
+				Name:    "openai",
+				BaseUrl: "https://api.openai.com/",
+			},
+		},
+		{
+			name: "Anthropic",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeAnthropic,
+				Name:    "anthropic",
+				BaseUrl: "https://api.anthropic.com/",
+			},
+		},
+		{
+			name: "Copilot",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeCopilot,
+				Name:    "copilot",
+				BaseUrl: "https://api.githubcopilot.com/",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := buildAIProviderFromRow(tt.row, nil, codersdk.AIBridgeConfig{
+				AllowBYOK:  serpent.Bool(true),
+				APIDumpDir: serpent.String(dumpDir),
+			})
+			require.NoError(t, err)
+			assert.Equal(t, dumpDir, provider.APIDumpDir())
 		})
 	}
 }
