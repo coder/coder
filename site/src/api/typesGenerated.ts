@@ -1613,6 +1613,7 @@ export interface ChatComputerUseProviderResponse {
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly ai_gateway_routing_enabled: boolean;
 }
 
 // From codersdk/chats.go

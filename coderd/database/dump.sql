@@ -1554,7 +1554,8 @@ CREATE TABLE chat_messages (
     total_cost_micros bigint,
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
-    provider_response_id text
+    provider_response_id text,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1593,7 +1594,8 @@ CREATE TABLE chat_queued_messages (
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    model_config_id uuid
+    model_config_id uuid,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -4454,6 +4456,9 @@ ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -4467,6 +4472,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

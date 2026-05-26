@@ -77,6 +77,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -89,6 +92,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -219,6 +225,9 @@ func TestChatStreamRelay(t *testing.T) {
 				Database:        db,
 				Pubsub:          pubsub,
 				TLSCertificates: certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -232,6 +241,9 @@ func TestChatStreamRelay(t *testing.T) {
 				Database:        db,
 				Pubsub:          pubsub,
 				TLSCertificates: certificates,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -398,6 +410,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -410,6 +425,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
@@ -544,6 +562,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		db, pubsub := dbtestutil.NewDB(t)
 		hostPrefixValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
 			dv.HTTPCookies.EnableHostPrefix = true
 			dv.HTTPCookies.Secure = true
 		})
@@ -696,6 +715,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -708,6 +730,9 @@ func TestChatStreamRelay(t *testing.T) {
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
+				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+					require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+				}),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,

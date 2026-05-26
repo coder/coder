@@ -4058,6 +4058,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
 		},
+		{
+			Name:        "Chat: AI Gateway Routing Enabled",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Flag:        "chat-ai-gateway-routing-enabled",
+			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
+			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4714,8 +4725,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {

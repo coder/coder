@@ -1220,6 +1220,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ClientType:         clientType,
 		SystemPrompt:       req.SystemPrompt,
 		InitialUserContent: contentBlocks,
+		APIKeyID:           apiKey.ID,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
@@ -3089,6 +3090,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			CreatedBy:     apiKey.UserID,
 			Content:       contentBlocks,
 			ModelConfigID: modelConfigID,
+			APIKeyID:      apiKey.ID,
 			BusyBehavior:  busyBehavior,
 			PlanMode:      sendPlanMode,
 			MCPServerIDs:  req.MCPServerIDs,
@@ -3229,6 +3231,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		APIKeyID:        apiKey.ID,
 		ModelConfigID:   editModelConfigID,
 	})
 	if editErr != nil {
