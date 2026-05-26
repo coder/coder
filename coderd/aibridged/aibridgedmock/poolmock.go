@@ -14,6 +14,7 @@ import (
 	http "net/http"
 	reflect "reflect"
 
+	aibridge "github.com/coder/coder/v2/aibridge"
 	aibridged "github.com/coder/coder/v2/coderd/aibridged"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -55,6 +56,18 @@ func (m *MockPooler) Acquire(ctx context.Context, req aibridged.Request, clientF
 func (mr *MockPoolerMockRecorder) Acquire(ctx, req, clientFn, mcpBootstrapper any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Acquire", reflect.TypeOf((*MockPooler)(nil).Acquire), ctx, req, clientFn, mcpBootstrapper)
+}
+
+// Reload mocks base method.
+func (m *MockPooler) Reload(providers []aibridge.Provider) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Reload", providers)
+}
+
+// Reload indicates an expected call of Reload.
+func (mr *MockPoolerMockRecorder) Reload(providers any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reload", reflect.TypeOf((*MockPooler)(nil).Reload), providers)
 }
 
 // Shutdown mocks base method.
