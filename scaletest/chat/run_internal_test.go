@@ -3,11 +3,7 @@ package chat
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -16,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -38,8 +35,9 @@ func TestRunnerRunConversation(t *testing.T) {
 		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 		close(events)
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
+		err := runTestConversation(t, runner, chatID, events, noopMarkTurnStartReady)
 		require.NoError(t, err)
+		result := runner.result
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
 		require.Empty(t, result.failureStage)
 		require.True(t, result.sawFirstOutput)
@@ -68,8 +66,9 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
+		err := runTestConversation(t, runner, chatID, events, noopMarkTurnStartReady)
 		require.NoError(t, err)
+		result := runner.result
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
 		require.Equal(t, 7, result.eventCount)
@@ -97,8 +96,9 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
+		err := runTestConversation(t, runner, chatID, events, noopMarkTurnStartReady)
 		require.NoError(t, err)
+		result := runner.result
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
 		require.Equal(t, 7, result.eventCount)
@@ -141,8 +141,10 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
+		runner.resetConversation(time.Now(), sync.OnceFunc(readyWG.Done))
+
 		go func() {
-			_, runErr := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, sync.OnceFunc(readyWG.Done))
+			runErr := runner.runConversation(context.Background(), chatID, testLogger(), events)
 			errCh <- runErr
 		}()
 
@@ -178,8 +180,9 @@ func TestRunnerRunConversation(t *testing.T) {
 		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 		close(events)
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
+		err := runTestConversation(t, runner, chatID, events, noopMarkTurnStartReady)
 		require.NoError(t, err)
+		result := runner.result
 		require.True(t, result.sawFirstOutput, "first output not recorded from assistant message event")
 		require.Equal(t, 1, result.turnsCompleted)
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
@@ -203,12 +206,19 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
+		err := runTestConversation(t, runner, chatID, events, noopMarkTurnStartReady)
 		require.NoError(t, err)
+		result := runner.result
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
 	})
+}
+
+func runTestConversation(t *testing.T, runner *Runner, chatID uuid.UUID, events <-chan codersdk.ChatStreamEvent, markTurnStartReady func()) error {
+	t.Helper()
+	runner.resetConversation(time.Now(), markTurnStartReady)
+	return runner.runConversation(context.Background(), chatID, testLogger(), events)
 }
 
 func TestRunnerCleanup(t *testing.T) {
@@ -219,9 +229,7 @@ func TestRunnerCleanup(t *testing.T) {
 	t.Run("ArchivesChat", func(t *testing.T) {
 		t.Parallel()
 
-		client, archived := newTestClientWithChatArchive(t, chatID, http.StatusNoContent)
-		runner := NewRunner(client, Config{})
-		runner.chatID = chatID
+		runner, archived := newTestRunnerWithChatArchive(t, chatID, nil)
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Cleanup(context.Background(), "runner-1", logs)
@@ -233,9 +241,7 @@ func TestRunnerCleanup(t *testing.T) {
 	t.Run("ArchiveErrorIsReturned", func(t *testing.T) {
 		t.Parallel()
 
-		client, archived := newTestClientWithChatArchive(t, chatID, http.StatusInternalServerError)
-		runner := NewRunner(client, Config{})
-		runner.chatID = chatID
+		runner, archived := newTestRunnerWithChatArchive(t, chatID, xerrors.New("boom"))
 
 		err := runner.Cleanup(context.Background(), "runner-1", bytes.NewBuffer(nil))
 		require.Error(t, err)
@@ -261,108 +267,104 @@ func newRunConfig(t *testing.T) Config {
 	}
 }
 
-func newTestRunner(t *testing.T, cfg Config) *Runner {
-	t.Helper()
-	return NewRunner(newTestClient(t), cfg)
+type fakeChatClient struct {
+	createChatFunc        func(context.Context, codersdk.CreateChatRequest) (codersdk.Chat, error)
+	streamChatFunc        func(context.Context, uuid.UUID, *codersdk.StreamChatOptions) (<-chan codersdk.ChatStreamEvent, io.Closer, error)
+	createChatMessageFunc func(context.Context, uuid.UUID, codersdk.CreateChatMessageRequest) (codersdk.CreateChatMessageResponse, error)
+	updateChatFunc        func(context.Context, uuid.UUID, codersdk.UpdateChatRequest) error
 }
 
-func newTestClientWithChatArchive(t *testing.T, chatID uuid.UUID, responseStatus int) (*codersdk.Client, func() bool) {
+func newFakeChatClient(t *testing.T) *fakeChatClient {
+	t.Helper()
+	return &fakeChatClient{}
+}
+
+func (*fakeChatClient) SetLogger(logger slog.Logger) {}
+
+func (*fakeChatClient) SetLogBodies(logBodies bool) {}
+
+func (f *fakeChatClient) CreateChat(ctx context.Context, req codersdk.CreateChatRequest) (codersdk.Chat, error) {
+	if f.createChatFunc == nil {
+		return codersdk.Chat{}, xerrors.New("unexpected CreateChat call")
+	}
+	return f.createChatFunc(ctx, req)
+}
+
+func (f *fakeChatClient) StreamChat(ctx context.Context, chatID uuid.UUID, opts *codersdk.StreamChatOptions) (<-chan codersdk.ChatStreamEvent, io.Closer, error) {
+	if f.streamChatFunc == nil {
+		return nil, nil, xerrors.New("unexpected StreamChat call")
+	}
+	return f.streamChatFunc(ctx, chatID, opts)
+}
+
+func (f *fakeChatClient) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req codersdk.CreateChatMessageRequest) (codersdk.CreateChatMessageResponse, error) {
+	if f.createChatMessageFunc == nil {
+		return codersdk.CreateChatMessageResponse{}, xerrors.New("unexpected CreateChatMessage call")
+	}
+	return f.createChatMessageFunc(ctx, chatID, req)
+}
+
+func (f *fakeChatClient) UpdateChat(ctx context.Context, chatID uuid.UUID, req codersdk.UpdateChatRequest) error {
+	if f.updateChatFunc == nil {
+		return xerrors.New("unexpected UpdateChat call")
+	}
+	return f.updateChatFunc(ctx, chatID, req)
+}
+
+var _ chatClient = (*fakeChatClient)(nil)
+
+func newTestRunner(t *testing.T, cfg Config) *Runner {
+	t.Helper()
+	return &Runner{client: newFakeChatClient(t), cfg: cfg}
+}
+
+func newTestRunnerWithChatArchive(t *testing.T, chatID uuid.UUID, updateErr error) (*Runner, func() bool) {
 	t.Helper()
 
 	var archived atomic.Bool
-	expectedPath := "/api/experimental/chats/" + chatID.String()
-	client := newTestClientWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPatch {
-			t.Errorf("unexpected method for chat archive: %s", r.Method)
-			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
-			return
-		}
-		if r.URL.Path != expectedPath {
-			t.Errorf("unexpected chat archive path: %s", r.URL.Path)
-			http.NotFound(w, r)
-			return
-		}
-
-		var req codersdk.UpdateChatRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("decode chat archive request: %v", err)
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
+	client := newFakeChatClient(t)
+	client.updateChatFunc = func(ctx context.Context, gotChatID uuid.UUID, req codersdk.UpdateChatRequest) error {
+		if gotChatID != chatID {
+			return xerrors.Errorf("unexpected chat archive ID: %s", gotChatID)
 		}
 		if req.Archived == nil || !*req.Archived {
-			t.Errorf("unexpected archived value: %v", req.Archived)
-			http.Error(w, "unexpected archived value", http.StatusBadRequest)
-			return
+			return xerrors.Errorf("unexpected archived value: %v", req.Archived)
 		}
 		archived.Store(true)
-		if responseStatus == http.StatusNoContent {
-			w.WriteHeader(responseStatus)
-			return
-		}
-		http.Error(w, "boom", responseStatus)
-	})
-	return client, archived.Load
+		return updateErr
+	}
+	runner := &Runner{client: client, cfg: Config{}, chatID: chatID}
+	return runner, archived.Load
 }
 
 func newTestRunnerWithChatMessage(t *testing.T, cfg Config, chatID uuid.UUID, onMessage func()) *Runner {
 	t.Helper()
 
-	expectedPath := "/api/experimental/chats/" + chatID.String() + "/messages"
-	return NewRunner(newTestClientWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			t.Errorf("unexpected method for chat message: %s", r.Method)
-			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
-			return
+	client := newFakeChatClient(t)
+	client.createChatMessageFunc = func(ctx context.Context, gotChatID uuid.UUID, req codersdk.CreateChatMessageRequest) (codersdk.CreateChatMessageResponse, error) {
+		if gotChatID != chatID {
+			return codersdk.CreateChatMessageResponse{}, xerrors.Errorf("unexpected chat message ID: %s", gotChatID)
 		}
-		if r.URL.Path != expectedPath {
-			t.Errorf("unexpected chat message path: %s", r.URL.Path)
-			http.NotFound(w, r)
-			return
-		}
-
-		var req codersdk.CreateChatMessageRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("decode chat message request: %v", err)
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
-		}
-		if len(req.Content) != 1 || req.Content[0].Type != codersdk.ChatInputPartTypeText || req.Content[0].Text != cfg.Prompt {
-			t.Errorf("unexpected chat message content: %#v", req.Content)
-			http.Error(w, "unexpected content", http.StatusBadRequest)
-			return
+		if err := validatePromptParts(req.Content, cfg.Prompt); err != nil {
+			return codersdk.CreateChatMessageResponse{}, err
 		}
 		if req.ModelConfigID == nil || *req.ModelConfigID != cfg.ModelConfigID {
-			t.Errorf("unexpected chat message model config ID: %v", req.ModelConfigID)
-			http.Error(w, "unexpected model config ID", http.StatusBadRequest)
-			return
+			return codersdk.CreateChatMessageResponse{}, xerrors.Errorf("unexpected chat message model config ID: %v", req.ModelConfigID)
 		}
 
 		if onMessage != nil {
 			onMessage()
 		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(codersdk.CreateChatMessageResponse{Queued: true}); err != nil {
-			t.Errorf("encode chat message response: %v", err)
-		}
-	}), cfg)
+		return codersdk.CreateChatMessageResponse{Queued: true}, nil
+	}
+	return &Runner{client: client, cfg: cfg}
 }
 
-func newTestClient(t *testing.T) *codersdk.Client {
-	t.Helper()
-	return newTestClientWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-		http.Error(w, "unexpected request", http.StatusInternalServerError)
-	})
-}
-
-func newTestClientWithHandler(t *testing.T, handler http.HandlerFunc) *codersdk.Client {
-	t.Helper()
-
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	serverURL, err := url.Parse(server.URL)
-	require.NoError(t, err)
-	return codersdk.New(serverURL)
+func validatePromptParts(parts []codersdk.ChatInputPart, prompt string) error {
+	if len(parts) != 1 || parts[0].Type != codersdk.ChatInputPartTypeText || parts[0].Text != prompt {
+		return xerrors.Errorf("unexpected chat message content: %#v", parts)
+	}
+	return nil
 }
 
 func statusEvent(chatID uuid.UUID, status codersdk.ChatStatus) codersdk.ChatStreamEvent {
