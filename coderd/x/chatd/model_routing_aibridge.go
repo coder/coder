@@ -22,8 +22,7 @@ import (
 const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
-	// non-empty API key. AI Gateway resolves the real provider credential from
-	// its central policy unless chatd forwards an explicit user BYOK key.
+	// non-empty API key before aibridged resolves the real credential.
 	aibridgePlaceholderAPIKey = "coder-aibridge"
 )
 
@@ -68,21 +67,8 @@ type aiGatewayRoundTripper struct {
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
 	cloned := req.Clone(ctx)
-	cloned.Header.Del("Authorization")
-	cloned.Header.Del("X-Api-Key")
-	cloned.Header.Del(aibridge.HeaderCoderToken)
-	providerAuthSet := false
 	for name, value := range t.providerAuth.Headers {
-		if value == "" {
-			continue
-		}
 		cloned.Header.Set(name, value)
-		providerAuthSet = true
-	}
-	// Delegated aibridge requests use this non-secret value only as a BYOK
-	// mode marker. aibridged strips the marker before provider forwarding.
-	if providerAuthSet {
-		cloned.Header.Set(aibridge.HeaderCoderToken, aibridgePlaceholderAPIKey)
 	}
 	return t.base.RoundTrip(cloned)
 }

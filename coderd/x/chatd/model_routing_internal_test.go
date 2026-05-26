@@ -268,7 +268,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	type seenRequest struct {
 		authorization string
 		xAPIKey       string
-		byokMarker    string
+		coderToken    string
 		apiKeyID      string
 		path          string
 	}
@@ -278,7 +278,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 			seen <- seenRequest{
 				authorization: req.Header.Get("Authorization"),
 				xAPIKey:       req.Header.Get("X-Api-Key"),
-				byokMarker:    req.Header.Get(aibridge.HeaderCoderToken),
+				coderToken:    req.Header.Get(aibridge.HeaderCoderToken),
 				apiKeyID:      apiKeyID,
 				path:          req.URL.Path,
 			}
@@ -318,7 +318,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		got := <-seen
 		require.Equal(t, "Bearer sk-user", got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.Equal(t, aibridgePlaceholderAPIKey, got.byokMarker)
+		require.Empty(t, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/responses", got.path)
 	})
@@ -338,14 +338,13 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		got := <-seen
-		require.Empty(t, got.authorization)
 		require.Equal(t, "sk-user", got.xAPIKey)
-		require.Equal(t, aibridgePlaceholderAPIKey, got.byokMarker)
+		require.Empty(t, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 		require.Equal(t, "/v1/messages", got.path)
 	})
 
-	t.Run("NoUserKeyScrubsPlaceholder", func(t *testing.T) {
+	t.Run("NoUserKeyLeavesPlaceholderForAIBridged", func(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
@@ -358,9 +357,9 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.NoError(t, err)
 
 		got := <-seen
-		require.Empty(t, got.authorization)
+		require.Equal(t, "Bearer "+aibridgePlaceholderAPIKey, got.authorization)
 		require.Empty(t, got.xAPIKey)
-		require.Empty(t, got.byokMarker)
+		require.Empty(t, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 	})
 }
