@@ -96,6 +96,15 @@ __debug_bin*
 # Local agent configuration
 AGENTS.local.md
 
+# mise local overrides
+mise.local.toml
+.mise.local.toml
+mise.*.local.toml
+.mise.*.local.toml
+
+# `mise oci build` writes its OCI image layout here by default.
+mise-oci/
+
 /.env
 
 # Ignore plans written by AI agents.
