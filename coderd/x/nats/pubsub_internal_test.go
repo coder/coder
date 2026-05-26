@@ -10,7 +10,6 @@ import (
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -79,6 +78,19 @@ func Test_pickConn(t *testing.T) {
 	})
 }
 
+func subjectForConn(t *testing.T, pool []*natsgo.Conn, conn *natsgo.Conn, prefix string) string {
+	t.Helper()
+
+	for i := 0; i < 10_000; i++ {
+		subject := fmt.Sprintf("%s_%d", prefix, i)
+		if pickConn(pool, subject) == conn {
+			return subject
+		}
+	}
+	require.FailNow(t, "no subject matched requested connection")
+	return ""
+}
+
 func Test_New(t *testing.T) {
 	t.Parallel()
 
@@ -140,52 +152,50 @@ func Test_SubscribeWithErr(t *testing.T) {
 func Test_Pubsub_buildConnHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DisconnectSignalsDrops", func(t *testing.T) {
+	t.Run("DisconnectSignalsDropsForMatchingSubscriberConn", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		ps := newPubsub(ctx, logger, Options{})
 
-		dropped := make(chan string, 2)
+		var subConnA, subConnB, pubConn natsgo.Conn
+		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
+		matchingEvent := subjectForConn(t, ps.subscribePool, &subConnA, "disconnect_match")
+		otherEvent := subjectForConn(t, ps.subscribePool, &subConnB, "disconnect_other")
+
 		newLocal := func(event string) *localSub {
-			subCtx, subCancel := context.WithCancel(ctx)
-			s := &localSub{
-				ctx:    subCtx,
-				cancel: subCancel,
-				event:  event,
-				listener: func(_ context.Context, _ []byte, ferr error) {
-					if errors.Is(ferr, pubsub.ErrDroppedMessages) {
-						dropped <- event
-					}
-				},
-				queue:      make(chan []byte, 1),
+			return &localSub{
+				event:      event,
 				dropSignal: make(chan struct{}, 1),
 			}
-			s.init()
-			t.Cleanup(s.close)
-			return s
 		}
 
-		subA := newLocal("disconnect_a")
-		subB := newLocal("disconnect_b")
-		ps.subscriptions[subA.event] = &natsSub{listeners: map[*localSub]struct{}{subA: {}}}
-		ps.subscriptions[subB.event] = &natsSub{listeners: map[*localSub]struct{}{subB: {}}}
+		matchingSub := newLocal(matchingEvent)
+		otherSub := newLocal(otherEvent)
+		ps.subscriptions[matchingSub.event] = &natsSub{listeners: map[*localSub]struct{}{matchingSub: {}}}
+		ps.subscriptions[otherSub.event] = &natsSub{listeners: map[*localSub]struct{}{otherSub: {}}}
 
 		handlers := ps.buildConnHandlers()
-		handlers.disconnectErr(nil, xerrors.New("disconnect"))
+		handlers.disconnectErr(&subConnA, errors.New("disconnect"))
 
-		want := map[string]bool{subA.event: true, subB.event: true}
-		require.Eventually(t, func() bool {
-			for {
-				select {
-				case event := <-dropped:
-					delete(want, event)
-				default:
-					return len(want) == 0
-				}
-			}
-		}, testutil.WaitShort, testutil.IntervalFast)
+		select {
+		case <-matchingSub.dropSignal:
+		default:
+			require.Fail(t, "matching subscriber did not receive drop signal")
+		}
+		select {
+		case <-otherSub.dropSignal:
+			require.Fail(t, "non-matching subscriber received drop signal")
+		default:
+		}
+
+		handlers.disconnectErr(&pubConn, errors.New("publisher disconnect"))
+		select {
+		case <-otherSub.dropSignal:
+			require.Fail(t, "publisher connection disconnect signaled subscriber")
+		default:
+		}
 	})
 }
 

@@ -175,11 +175,11 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 // keeps working.
 func (p *Pubsub) buildConnHandlers() connHandlers {
 	return connHandlers{
-		disconnectErr: func(_ *natsgo.Conn, err error) {
+		disconnectErr: func(conn *natsgo.Conn, err error) {
 			if err != nil {
 				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
-			p.signalAllSubscribersDropped()
+			p.signalSubscribersDroppedForConn(conn)
 		},
 		reconnect: func(_ *natsgo.Conn) {
 			p.logger.Info(p.ctx, "nats client reconnected")
@@ -504,12 +504,18 @@ func (s *localSub) signalDrop() {
 	}
 }
 
-// signalAllSubscribersDropped broadcasts a drop signal to every local
-// subscriber without calling listeners while holding subscription locks.
-func (p *Pubsub) signalAllSubscribersDropped() {
+// signalSubscribersDroppedForConn signals local subscribers assigned to conn.
+func (p *Pubsub) signalSubscribersDroppedForConn(conn *natsgo.Conn) {
+	if conn == nil || len(p.subscribePool) == 0 {
+		return
+	}
+
 	p.mu.Lock()
 	subs := make([]*localSub, 0)
-	for _, nsub := range p.subscriptions {
+	for event, nsub := range p.subscriptions {
+		if pickConn(p.subscribePool, event) != conn {
+			continue
+		}
 		nsub.mu.Lock()
 		for s := range nsub.listeners {
 			subs = append(subs, s)
