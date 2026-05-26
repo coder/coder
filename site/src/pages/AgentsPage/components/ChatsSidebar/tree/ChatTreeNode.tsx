@@ -31,6 +31,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -43,6 +44,7 @@ interface ChatTreeNodeProps {
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const location = useLocation();
+	const locationSearch = normalizeLocationSearch(location.search);
 	const {
 		chatTree,
 		chatById,
@@ -261,7 +263,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<NavLink
 							to={{
 								pathname: `/agents/${chat.id}`,
-								search: location.search,
+								search: locationSearch,
 							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>

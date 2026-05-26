@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { AIProvider } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -26,6 +26,7 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { ProviderRow } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderRow";
+import { docs } from "#/utils/docs";
 
 interface ProvidersPageViewProps {
 	isLoading: boolean;
@@ -82,9 +83,17 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 			<SettingsHeader actions={<AddProviderDropdown />}>
 				<SettingsHeaderTitle>Providers</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Connect third-party LLM services like OpenAI, Anthropic, or Amazon
-					Bedrock. Each provider supplies models that users can select for their
-					conversations.
+					Connect third-party services like OpenAI, Anthropic, or Amazon
+					Bedrock. Providers configured here power Coder Agents, AI Gateway, and
+					other capabilities such as APIs, CLI or IDEs that use LLMs. By
+					default, users can supply their own keys for any provider.{" "}
+					<Link
+						to={docs("/ai-coder/ai-gateway/auth#enable-or-disable-byok")}
+						target="_blank"
+						rel="noreferrer"
+					>
+						Manage deployment-wide BYOK
+					</Link>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{Boolean(error) && (

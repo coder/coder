@@ -79,6 +79,9 @@ distinct paths to avoid the collision.
 
 ## Create a secret
 
+You can create, edit, and delete user secrets in the Coder dashboard. Click your
+avatar, select **Account**, then select **Secrets**.
+
 Use `coder secret create <name>` to create a user secret. For sensitive values,
 provide the value through non-interactive stdin with a pipe or redirect. This
 keeps the value out of your shell history and process arguments.

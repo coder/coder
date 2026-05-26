@@ -1,6 +1,6 @@
 import { ShieldIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link, type To } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
@@ -16,7 +16,7 @@ type SettingsNavItemProps = {
 	disabled?: boolean;
 	trailingIcon?: FC<{ className?: string }>;
 } & (
-	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
+	| { to: To; replace?: boolean; state?: unknown; onClick?: () => void }
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
 );
 
