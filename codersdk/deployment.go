@@ -3445,7 +3445,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Flag:        "scim-use-legacy",
 			Env:         "CODER_SCIM_USE_LEGACY",
 			Hidden:      true,
-			Default:     "false",
+			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
+			Default:     "true",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.UseLegacySCIM,
 		},
