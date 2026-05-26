@@ -100,7 +100,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				}
 			>
 				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="early_access" size="md" />}
+					tooltip={<FeatureStageBadge contentType="beta" size="md" />}
 				>
 					Secrets
 				</SettingsHeaderTitle>

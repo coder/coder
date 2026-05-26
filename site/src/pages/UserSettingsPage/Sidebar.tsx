@@ -58,7 +58,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 						<span>Secrets</span>
 						<FeatureStageBadge
 							aria-hidden="true"
-							contentType="early_access"
+							contentType="beta"
 							size="sm"
 						/>
 					</span>
