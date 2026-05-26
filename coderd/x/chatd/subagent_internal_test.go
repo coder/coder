@@ -3345,6 +3345,26 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
+		// signalWake from CreateChat triggers background processing. Wait
+		// for those runs to finish, then reset both chats so this test owns
+		// the state transition observed by the poll loop.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			parentChat, err := db.GetChatByID(ctx, parent.ID)
+			if err != nil {
+				return false
+			}
+			childChat, err := db.GetChatByID(ctx, child.ID)
+			if err != nil {
+				return false
+			}
+			return parentChat.Status != database.ChatStatusPending &&
+				parentChat.Status != database.ChatStatusRunning &&
+				childChat.Status != database.ChatStatusPending &&
+				childChat.Status != database.ChatStatusRunning
+		}, testutil.IntervalFast)
+		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
 		// Set the trap BEFORE starting the goroutine so we
 		// deterministically catch the ticker creation.
 		tickTrap := mClock.Trap().NewTicker("chatd", "subagent_poll")
