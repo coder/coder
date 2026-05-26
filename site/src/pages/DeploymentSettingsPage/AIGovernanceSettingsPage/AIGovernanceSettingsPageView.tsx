@@ -25,7 +25,7 @@ export const AIGovernanceSettingsPageView: FC<
 	return (
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
-				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
+				<SettingsHeaderTitle>AI Gateway</SettingsHeaderTitle>
 			</SettingsHeader>
 
 			<div>
@@ -50,7 +50,7 @@ export const AIGovernanceSettingsPageView: FC<
 									AI Gateway is included in your license, but not set up yet.
 								</AlertTitle>
 								<AlertDescription>
-									You have access to AI Governance, but it still needs to be
+									You have access to AI Gateway, but it still needs to be
 									setup. Check out the{" "}
 									<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
 										AI Gateway
