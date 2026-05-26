@@ -12,12 +12,29 @@ export interface EditFilesFileEntry {
 	edits: Array<{ search: string; replace: string }>;
 }
 
-const searchReplaceSchema = Yup.object({
-	search: Yup.string().required(),
-	replace: Yup.string().defined(),
-}).required();
-
-type SearchReplace = Yup.InferType<typeof searchReplaceSchema>;
+// Validates that the edit has at least the shape of an object with
+// string-typed text fields. Accepts both current field names
+// (old_text/new_text) and deprecated names (search/replace).
+const normalizeEdit = (
+	e: unknown,
+): { search: string; replace: string } | null => {
+	if (typeof e !== "object" || e === null) return null;
+	const raw = e as Record<string, unknown>;
+	const search =
+		typeof raw.old_text === "string"
+			? raw.old_text
+			: typeof raw.search === "string"
+				? raw.search
+				: null;
+	const replace =
+		typeof raw.new_text === "string"
+			? raw.new_text
+			: typeof raw.replace === "string"
+				? raw.replace
+				: null;
+	if (!search || replace === null) return null;
+	return { search, replace };
+};
 
 const fileEntrySchema = Yup.object({
 	path: Yup.string().required(),
@@ -688,15 +705,15 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 		.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
 		.map((f) => ({
 			path: f.path,
-			edits: f.edits.filter((e): e is SearchReplace =>
-				isValid(searchReplaceSchema, e),
-			),
+			edits: f.edits
+				.map(normalizeEdit)
+				.filter((e): e is { search: string; replace: string } => e !== null),
 		}));
 };
 
 /**
- * Builds a synthetic unified diff from search/replace edit pairs
- * for a single file. Each edit becomes a separate
+ * Builds a synthetic unified diff from edit pairs (normalized to
+ * search/replace) for a single file. Each edit becomes a separate
  * `Diff.createPatch` call; the patches are concatenated and
  * parsed into a single FileDiffMetadata.
  */
