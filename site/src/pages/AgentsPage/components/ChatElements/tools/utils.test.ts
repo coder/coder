@@ -763,6 +763,57 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].edits[0].replace).toBe("");
 	});
 
+	it("accepts old_text/new_text field names", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "before", new_text: "after" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "before", replace: "after" });
+	});
+
+	it("prefers old_text/new_text over search/replace when both present", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{
+							old_text: "from-old-text",
+							new_text: "from-new-text",
+							search: "from-search",
+							replace: "from-replace",
+						},
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({
+			search: "from-old-text",
+			replace: "from-new-text",
+		});
+	});
+
+	it("preserves deletion via old_text/new_text (empty new_text)", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "remove me", new_text: "" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({ search: "remove me", replace: "" });
+	});
+
 	// During streaming the model may emit a file entry before any
 	// edit is complete. Every edit has a missing replace, so all are
 	// filtered out. The file entry survives with an empty edits

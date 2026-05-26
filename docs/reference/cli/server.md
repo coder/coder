@@ -1889,6 +1889,16 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 
 Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
 
+### --ai-gateway-dump-dir
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
+| YAML        | <code>ai_gateway.api_dump_dir</code>    |
+
+Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+
 ### --ai-gateway-allow-byok
 
 |             |                                           |

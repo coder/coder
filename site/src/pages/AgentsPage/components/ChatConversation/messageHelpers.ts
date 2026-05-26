@@ -1,6 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
-import type { ParsedMessageContent, RenderBlock } from "./types";
+import type {
+	ParsedMessageContent,
+	ParsedMessageEntry,
+	RenderBlock,
+} from "./types";
 
 export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
@@ -118,4 +122,89 @@ export const deriveMessageDisplayState = ({
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};
+};
+
+const isReadFileOnlyMessage = (entry: ParsedMessageEntry): boolean => {
+	if (entry.message.role !== "assistant") {
+		return false;
+	}
+	if (
+		entry.parsed.blocks.length === 0 ||
+		entry.parsed.markdown.trim() ||
+		entry.parsed.reasoning.trim() ||
+		entry.parsed.sources.length > 0
+	) {
+		return false;
+	}
+
+	const toolByID = new Map(entry.parsed.tools.map((tool) => [tool.id, tool]));
+	return entry.parsed.blocks.every(
+		(block) =>
+			block.type === "tool" && toolByID.get(block.id)?.name === "read_file",
+	);
+};
+
+const mergeReadFileMessageGroup = (
+	group: readonly ParsedMessageEntry[],
+): ParsedMessageEntry => {
+	if (group.length === 1) {
+		return group[0];
+	}
+
+	const [first] = group;
+	return {
+		message: first.message,
+		parsed: {
+			markdown: "",
+			reasoning: "",
+			toolCalls: group.flatMap((entry) => entry.parsed.toolCalls),
+			toolResults: group.flatMap((entry) => entry.parsed.toolResults),
+			tools: group.flatMap((entry) => entry.parsed.tools),
+			blocks: group.flatMap((entry) => entry.parsed.blocks),
+			sources: [],
+		},
+	};
+};
+
+// Real transcripts place hidden tool-result-only messages between
+// sequential read_file assistant messages. Those hidden entries stay
+// transparent so the visible timeline reflects one file-reading run instead
+// of one row per persisted message. Synthetic grouped entries deliberately
+// render from merged parsed fields because their raw message payload still
+// belongs to the first persisted message.
+export const groupSequentialReadFileMessages = (
+	entries: readonly ParsedMessageEntry[],
+): ParsedMessageEntry[] => {
+	const grouped: ParsedMessageEntry[] = [];
+	let currentReadFileEntries: ParsedMessageEntry[] = [];
+
+	const flushReadFileEntries = () => {
+		if (currentReadFileEntries.length === 0) {
+			return;
+		}
+		grouped.push(mergeReadFileMessageGroup(currentReadFileEntries));
+		currentReadFileEntries = [];
+	};
+
+	for (const entry of entries) {
+		const displayState = deriveMessageDisplayState({
+			message: entry.message,
+			parsed: entry.parsed,
+			hideActions: false,
+			hasActiveStream: false,
+		});
+		if (displayState.shouldHide) {
+			continue;
+		}
+		if (isReadFileOnlyMessage(entry)) {
+			currentReadFileEntries.push(entry);
+			continue;
+		}
+
+		flushReadFileEntries();
+		grouped.push(entry);
+	}
+
+	flushReadFileEntries();
+	return grouped;
 };

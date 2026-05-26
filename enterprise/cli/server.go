@@ -167,7 +167,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			providers, err := agplcli.BuildProviders(options.DeploymentValues.AI.BridgeConfig)
+			providers, err := agplcli.BuildProviders(ctx, options.Database, options.DeploymentValues.AI.BridgeConfig, options.Logger.Named("aibridge.providers"))
 			if err != nil {
 				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
 			}

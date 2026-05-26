@@ -86,7 +86,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				http.StripPrefix("/api/v2/aibridge", api.AGPL.GetAIBridgedHandler()).ServeHTTP(rw, r)
+				api.AGPL.GetAIBridgedHandler().ServeHTTP(rw, r)
 			})
 		})
 	}
