@@ -30078,6 +30078,66 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 	return i, err
 }
 
+const getExternalAgentTokensByWorkspaceIDs = `-- name: GetExternalAgentTokensByWorkspaceIDs :many
+SELECT
+	wb.workspace_id,
+	wa.id         AS agent_id,
+	wa.name       AS agent_name,
+	wa.auth_token AS agent_token
+FROM (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, build_number, has_external_agent
+	FROM workspace_builds
+	WHERE
+		workspace_id = ANY($1 :: uuid[])
+		AND has_external_agent = TRUE
+	ORDER BY workspace_id, build_number DESC
+) AS wb
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents    wa ON wa.resource_id = wr.id
+WHERE wa.deleted = FALSE
+  AND wa.auth_instance_id IS NULL
+`
+
+type GetExternalAgentTokensByWorkspaceIDsRow struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	AgentName   string    `db:"agent_name" json:"agent_name"`
+	AgentToken  uuid.UUID `db:"agent_token" json:"agent_token"`
+}
+
+// GetExternalAgentTokensByWorkspaceIDs returns the auth tokens for all
+// non-deleted external agents on the latest build of each supplied workspace.
+// Only workspaces whose latest build has has_external_agent=true are included.
+func (q *sqlQuerier) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetExternalAgentTokensByWorkspaceIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByWorkspaceIDs, pq.Array(workspaceIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExternalAgentTokensByWorkspaceIDsRow
+	for rows.Next() {
+		var i GetExternalAgentTokensByWorkspaceIDsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.AgentName,
+			&i.AgentToken,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
 SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,

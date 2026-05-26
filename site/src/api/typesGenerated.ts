@@ -4360,6 +4360,38 @@ export interface ExternalAgentCredentials {
 	readonly agent_token: string;
 }
 
+// From codersdk/workspaces.go
+/**
+ * ExternalAgentTokensByWorkspaceIDsRequest is the request body for the
+ * multi-workspace external-agent token fetch endpoint. It replaces N
+ * per-workspace calls with a single request covering a whole page of
+ * workspaces.
+ */
+export interface ExternalAgentTokensByWorkspaceIDsRequest {
+	readonly workspace_ids: readonly string[];
+}
+
+// From codersdk/workspaces.go
+/**
+ * ExternalAgentTokensByWorkspaceIDsResponse is the response body for the
+ * multi-workspace token fetch endpoint.
+ */
+export interface ExternalAgentTokensByWorkspaceIDsResponse {
+	readonly agents: readonly ExternalAgentTokensByWorkspaceIDsRow[];
+}
+
+// From codersdk/workspaces.go
+/**
+ * ExternalAgentTokensByWorkspaceIDsRow is a single token entry returned
+ * by the multi-workspace fetch.
+ */
+export interface ExternalAgentTokensByWorkspaceIDsRow {
+	readonly workspace_id: string;
+	readonly agent_id: string;
+	readonly agent_name: string;
+	readonly agent_token: string;
+}
+
 // From codersdk/externalauth.go
 export interface ExternalAuth {
 	readonly authenticated: boolean;

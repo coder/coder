@@ -3395,6 +3395,16 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 	return q.db.GetEnabledMCPServerConfigs(ctx)
 }
 
+func (q *querier) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetExternalAgentTokensByWorkspaceIDsRow, error) {
+	// ResourceSystem is used because the query spans multiple workspaces
+	// with no single RBAC object to check. The HTTP handler enforces
+	// FeatureWorkspaceExternalAgent and API key auth before this is called.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetExternalAgentTokensByWorkspaceIDs(ctx, workspaceIDs)
+}
+
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLink)(ctx, arg)
 }

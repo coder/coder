@@ -96,3 +96,50 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 		Command:    command,
 	})
 }
+
+// @Summary Get external agent tokens for multiple workspaces
+// @ID get-external-agent-tokens-by-workspace-ids
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.ExternalAgentTokensByWorkspaceIDsRequest true "Workspace IDs"
+// @Success 200 {object} codersdk.ExternalAgentTokensByWorkspaceIDsResponse
+// @Router /api/v2/workspaces/external-agent/tokens [post]
+func (api *API) workspaceExternalAgentTokensByWorkspaceIDs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req codersdk.ExternalAgentTokensByWorkspaceIDsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if len(req.WorkspaceIDs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "workspace_ids must not be empty.",
+		})
+		return
+	}
+
+	rows, err := api.Database.GetExternalAgentTokensByWorkspaceIDs(ctx, req.WorkspaceIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get external agent tokens.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	agents := make([]codersdk.ExternalAgentTokensByWorkspaceIDsRow, 0, len(rows))
+	for _, row := range rows {
+		agents = append(agents, codersdk.ExternalAgentTokensByWorkspaceIDsRow{
+			WorkspaceID: row.WorkspaceID,
+			AgentID:     row.AgentID,
+			AgentName:   row.AgentName,
+			AgentToken:  row.AgentToken.String(),
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentTokensByWorkspaceIDsResponse{
+		Agents: agents,
+	})
+}
