@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -29,6 +30,18 @@ import (
 	"cdr.dev/slog/v3"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
+
+// ProviderRoute is the routing entry for a single AI provider: the
+// instance name (the routing key) and the upstream base URL (the
+// source of the MITM allowlist host).
+type ProviderRoute struct {
+	Name    string
+	BaseURL string
+}
+
+// RefreshProvidersFunc returns the live provider set used by Reload to
+// rebuild the proxy's routing snapshot.
+type RefreshProvidersFunc func(ctx context.Context) ([]ProviderRoute, error)
 
 // Known AI provider hosts.
 const (
@@ -119,14 +132,34 @@ var blockedIPRanges = func() []net.IPNet {
 //   - decrypting requests using the configured MITM CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
-	ctx                      context.Context
-	logger                   slog.Logger
-	proxy                    *goproxy.ProxyHttpServer
-	httpServer               *http.Server
-	listener                 net.Listener
-	tlsEnabled               bool
-	coderAccessURL           *url.URL
-	aibridgeProviderFromHost func(host string) string
+	ctx            context.Context
+	logger         slog.Logger
+	proxy          *goproxy.ProxyHttpServer
+	httpServer     *http.Server
+	listener       net.Listener
+	tlsEnabled     bool
+	coderAccessURL *url.URL
+	// refreshProviders fetches the live provider snapshot on every
+	// Reload. Nil disables hot-reload; whatever boot-time snapshot is in
+	// providerRouter continues to serve.
+	//
+	// Fail-closed: the empty router (no configured providers, or every
+	// Reload to date has errored) maps no host to any provider, so the
+	// CONNECT handler rejects allowlisted intercept attempts because
+	// the host->name lookup returns "". An error from refreshProviders
+	// leaves the previous snapshot in place rather than dropping it, so
+	// a transient DB failure does not amplify into a denial-of-service.
+	refreshProviders RefreshProvidersFunc
+	// providerRouter holds the live (mitmHosts, nameByHost) pair.
+	// Reload swaps it atomically so the goproxy condition and the
+	// per-request provider lookup always see a consistent snapshot.
+	// Inflight requests already past the swap point captured the
+	// previous pointer when they entered the handler and are not
+	// affected.
+	providerRouter atomic.Pointer[providerRouter]
+	// allowedPorts is the port whitelist for CONNECT requests. Fixed at
+	// construction; not reloadable.
+	allowedPorts []string
 	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy's generated certificates.
 	caCert []byte
@@ -137,6 +170,24 @@ type Server struct {
 	newDumper func(provider, requestID string) RoundTripDumper
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
+}
+
+// providerRouter is the unit of swap for Reload. Both fields move
+// together so a request that loads the pointer sees a self-consistent
+// view: a host (lowercase, no port) is in nameByHost iff its
+// host:port form is in mitmHosts.
+type providerRouter struct {
+	mitmHosts  []string          // host:port allowlist for the goproxy condition.
+	nameByHost map[string]string // lowercase hostname -> provider name.
+}
+
+// emptyProviderRouter is used before the first Reload (or when the
+// operator deconfigures every provider) so handlers can safely call
+// loadProviderRouter without a nil check.
+var emptyProviderRouter = &providerRouter{nameByHost: map[string]string{}}
+
+func (r *providerRouter) providerFromHost(host string) string {
+	return r.nameByHost[strings.ToLower(host)]
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -183,13 +234,12 @@ type Options struct {
 	// CertStore is an optional certificate cache for MITM. If nil, a default
 	// cache is created. Exposed for testing.
 	CertStore goproxy.CertStorage
-	// DomainAllowlist is the list of domains to intercept and route through AI Bridge.
-	// Only requests to these domains will be MITM'd and forwarded to aibridged.
-	// Requests to other domains will be tunneled directly without decryption.
+	// DomainAllowlist seeds the boot-time MITM allowlist. Production
+	// callers should leave this empty and rely on RefreshProviders;
+	// tests use it to skip the refresh round-trip.
 	DomainAllowlist []string
-	// AIBridgeProviderFromHost maps a hostname to a known aibridge provider
-	// name. Must be non-nil; the caller derives it from the configured
-	// provider list.
+	// AIBridgeProviderFromHost seeds the boot-time host -> provider
+	// name mapping. Required iff DomainAllowlist is non-empty.
 	AIBridgeProviderFromHost func(host string) string
 	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
 	// (non-allowlisted) requests through. If empty, tunneled requests connect
@@ -214,6 +264,10 @@ type Options struct {
 	// Metrics is the prometheus metrics instance for recording proxy metrics.
 	// If nil, metrics will not be recorded.
 	Metrics *Metrics
+	// RefreshProviders, when set, is invoked by Server.Reload to fetch
+	// the live provider snapshot used to derive the MITM allowlist and
+	// host -> provider-name routing. Nil disables hot-reload.
+	RefreshProviders RefreshProvidersFunc
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -258,29 +312,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		allowedPorts = []string{"80", "443"}
 	}
 
-	// An empty allowlist is permitted so the server can boot before any
-	// ai_providers row exists; every intercept attempt is then rejected
-	// until providers are configured.
-	// TODO: refresh the allowlist when ai_providers changes so a restart
-	// is not required after the first provider is configured.
-	mitmHosts, err := convertDomainsToHosts(opts.DomainAllowlist, allowedPorts)
+	// Build the boot-time router from DomainAllowlist + the lookup fn.
+	// Both empty is fine: the server fails closed (no MITM until
+	// Reload populates the router from the database).
+	bootRouter, err := buildBootRouter(opts.DomainAllowlist, opts.AIBridgeProviderFromHost, allowedPorts)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid domain allowlist: %w", err)
-	}
-
-	if opts.AIBridgeProviderFromHost == nil {
-		return nil, xerrors.New("AIBridgeProviderFromHost is required")
-	}
-	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
-
-	for _, domain := range opts.DomainAllowlist {
-		domain = strings.TrimSpace(strings.ToLower(domain))
-		if domain == "" {
-			continue
-		}
-		if aibridgeProviderFromHost(domain) == "" {
-			return nil, xerrors.Errorf("domain %q is in allowlist but has no provider mapping", domain)
-		}
+		return nil, err
 	}
 
 	// Parse configured exceptions to the blocked IP ranges.
@@ -319,17 +356,22 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	srv := &Server{
-		ctx:                      ctx,
-		logger:                   logger,
-		proxy:                    proxy,
-		tlsEnabled:               opts.TLSCertFile != "",
-		coderAccessURL:           coderAccessURL,
-		aibridgeProviderFromHost: aibridgeProviderFromHost,
-		caCert:                   certPEM,
-		allowedPrivateRanges:     allowedPrivateRanges,
-		newDumper:                opts.NewDumper,
-		metrics:                  opts.Metrics,
+		ctx:                  ctx,
+		logger:               logger,
+		proxy:                proxy,
+		tlsEnabled:           opts.TLSCertFile != "",
+		coderAccessURL:       coderAccessURL,
+		refreshProviders:     opts.RefreshProviders,
+		allowedPorts:         allowedPorts,
+		caCert:               certPEM,
+		allowedPrivateRanges: allowedPrivateRanges,
+		newDumper:            opts.NewDumper,
+		metrics:              opts.Metrics,
 	}
+	// Seed the boot-time router from the constructor inputs so the
+	// proxy can serve immediately. Reload may swap this snapshot at any
+	// point after construction.
+	srv.providerRouter.Store(bootRouter)
 
 	// Configure upstream proxy for tunneled (non-allowlisted) CONNECT requests.
 	// Allowlisted domains are MITM'd and forwarded to aibridge directly,
@@ -406,8 +448,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// other dial failures return 502 Bad Gateway.
 	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, err error) {
 		status := http.StatusBadGateway
-		var blocked *blockedIPError
-		if errors.As(err, &blocked) {
+		if _, ok := errors.AsType[*blockedIPError](err); ok {
 			status = http.StatusForbidden
 		}
 		statusText := http.StatusText(status)
@@ -417,12 +458,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Reject CONNECT requests to non-standard ports.
 	proxy.OnRequest().HandleConnectFunc(srv.portMiddleware(allowedPorts))
 
-	// Apply MITM with authentication only to allowlisted hosts.
-	proxy.OnRequest(
-		// Only CONNECT requests to these hosts will be intercepted and decrypted.
-		// All other requests will be tunneled directly to their destination.
-		goproxy.ReqHostIs(mitmHosts...),
-	).HandleConnectFunc(
+	// Apply MITM with authentication only to allowlisted hosts. The host
+	// list is loaded from the atomic router on every CONNECT so a
+	// Reload while inflight requests are in progress takes effect on
+	// the next CONNECT without touching the already-MITM'd ones.
+	proxy.OnRequest(srv.mitmHostsCondition()).HandleConnectFunc(
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
 	)
@@ -470,7 +510,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		slog.F("listen_addr", listener.Addr().String()),
 		slog.F("tls_listener_enabled", srv.tlsEnabled),
 		slog.F("coder_access_url", coderAccessURL.String()),
-		slog.F("domain_allowlist", mitmHosts),
+		slog.F("domain_allowlist", bootRouter.mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
 		slog.F("allowed_private_cidrs", opts.AllowedPrivateCIDRs),
 		slog.F("api_dump_enabled", opts.NewDumper != nil),
@@ -651,7 +691,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	)
 
 	// Determine the provider from the request hostname.
-	provider := s.aibridgeProviderFromHost(ctx.Req.URL.Hostname())
+	provider := s.loadProviderRouter().providerFromHost(ctx.Req.URL.Hostname())
 	// This should never happen: startup validation ensures all allowlisted
 	// domains have known aibridge provider mappings.
 	if provider == "" {

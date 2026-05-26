@@ -15,7 +15,6 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
-	agplcli "github.com/coder/coder/v2/cli"
 	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
@@ -167,16 +166,13 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			providers, err := agplcli.BuildProviders(ctx, options.Database, options.DeploymentValues.AI.BridgeConfig, options.Logger.Named("aibridge.providers"))
-			if err != nil {
-				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
-			}
-			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api, providers)
+			aiBridgeProxyServer, unsubscribeProxyReload, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
 			}
 			closers.Add(aiBridgeProxyServer)
+			closers.Add(funcCloser(unsubscribeProxyReload))
 
 			// Register the handler so coderd can serve the proxy endpoints.
 			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
@@ -196,6 +192,17 @@ type multiCloser struct {
 }
 
 var _ io.Closer = &multiCloser{}
+
+// funcCloser adapts a parameterless cleanup function into an io.Closer
+// so it can be added to multiCloser alongside real Closers.
+type funcCloser func()
+
+func (f funcCloser) Close() error {
+	if f != nil {
+		f()
+	}
+	return nil
+}
 
 func (m *multiCloser) Add(closer io.Closer) {
 	m.closers = append(m.closers, closer)
