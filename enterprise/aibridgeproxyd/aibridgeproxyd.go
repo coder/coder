@@ -448,7 +448,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// other dial failures return 502 Bad Gateway.
 	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, err error) {
 		status := http.StatusBadGateway
-		if _, ok := errors.AsType[*blockedIPError](err); ok {
+		var blocked *blockedIPError
+		if errors.As(err, &blocked) {
 			status = http.StatusForbidden
 		}
 		statusText := http.StatusText(status)
@@ -692,8 +693,8 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 
 	// Determine the provider from the request hostname.
 	provider := s.loadProviderRouter().providerFromHost(ctx.Req.URL.Hostname())
-	// This should never happen: startup validation ensures all allowlisted
-	// domains have known aibridge provider mappings.
+	// A concurrent Reload can swap the router between CONNECT matching
+	// and provider lookup, so treat a missing mapping as a runtime miss.
 	if provider == "" {
 		logger.Error(s.ctx, "rejecting CONNECT request with no provider mapping")
 		return goproxy.RejectConnect, host
@@ -962,11 +963,10 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	if reqCtx.Provider == "" {
-		// This should never happen: startup validation ensures all allowlisted
-		// domains have known aibridge provider mappings.
-		// The request is MITM'd (decrypted) but since there is no mapping,
-		// there is no known route to aibridge.
-		// Log error and forward to the original destination as a fallback.
+		// A concurrent Reload can remove the provider after CONNECT
+		// authentication. The request is MITM'd (decrypted), but without a
+		// mapping there is no known route to aibridge. Log error and forward
+		// to the original destination as a fallback.
 		s.logger.Error(s.ctx, "decrypted request has no provider mapping, passing through",
 			slog.F("connect_id", reqCtx.ConnectSessionID.String()),
 			slog.F("host", req.Host),

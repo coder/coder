@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -78,21 +78,20 @@ func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
 	t.Cleanup(cancel)
 
 	logger := slogtest.Make(t, nil)
-	ps := pubsub.NewInMemory()
-	t.Cleanup(func() { _ = ps.Close() })
+	ps := &errInjectingPubsub{}
 
 	calls := &recordingReloader{}
 	unsub, err := aibridged.SubscribeProviderReload(ctx, ps, calls, logger)
 	require.NoError(t, err)
 	t.Cleanup(unsub)
 
-	require.Eventually(t, func() bool { return calls.count() >= 1 }, testutil.WaitShort, testutil.IntervalFast)
-	initial := calls.count()
+	require.Equal(t, 1, calls.count())
 
-	// No way to inject a pubsub delivery error against the in-memory
-	// implementation; assert nothing fires absent a publish.
-	time.Sleep(testutil.IntervalFast * 5) //nolint:forbidigo // bounded wait to confirm Reload does not spuriously fire.
-	require.Equal(t, initial, calls.count())
+	ps.listener(ctx, nil, errPubsubDelivery)
+	require.Equal(t, 1, calls.count())
+
+	ps.listener(ctx, nil, nil)
+	require.Equal(t, 2, calls.count())
 }
 
 // recordingReloader is a minimal [aibridged.ProviderReloader] that
@@ -114,8 +113,34 @@ func (r *recordingReloader) count() int {
 	return int(r.n.Load())
 }
 
-var errReloadFailed = stubError("reload failed")
+var (
+	errReloadFailed   = stubError("reload failed")
+	errPubsubDelivery = stubError("pubsub delivery failed")
+)
 
 type stubError string
 
 func (s stubError) Error() string { return string(s) }
+
+var _ pubsub.Pubsub = &errInjectingPubsub{}
+
+type errInjectingPubsub struct {
+	listener pubsub.ListenerWithErr
+}
+
+func (p *errInjectingPubsub) Subscribe(string, pubsub.Listener) (func(), error) {
+	return nil, xerrors.New("Subscribe not implemented")
+}
+
+func (p *errInjectingPubsub) SubscribeWithErr(_ string, listener pubsub.ListenerWithErr) (func(), error) {
+	p.listener = listener
+	return func() {}, nil
+}
+
+func (p *errInjectingPubsub) Publish(string, []byte) error {
+	return xerrors.New("Publish not implemented")
+}
+
+func (p *errInjectingPubsub) Close() error {
+	return nil
+}

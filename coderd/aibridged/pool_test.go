@@ -2,6 +2,9 @@ package aibridged_test
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -12,6 +15,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -107,6 +112,55 @@ func TestPool(t *testing.T) {
 	require.EqualValues(t, 3, cacheMetrics.Misses())
 }
 
+func TestPoolReloadClearsCacheAndUsesNewProviders(t *testing.T) {
+	t.Parallel()
+
+	oldUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "old")
+	}))
+	t.Cleanup(oldUpstream.Close)
+	newUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "new")
+	}))
+	t.Cleanup(newUpstream.Close)
+
+	logger := slogtest.Make(t, nil)
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+	mcpProxy.EXPECT().Init(gomock.Any()).AnyTimes().Return(nil)
+	mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Minute}
+	pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "old", BaseURL: oldUpstream.URL}),
+	}, logger, nil, testTracer)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
+
+	req := aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: uuid.New(),
+		APIKeyID:    uuid.New().String(),
+	}
+	clientFn := func() (aibridged.DRPCClient, error) {
+		return client, nil
+	}
+
+	inst, err := pool.Acquire(t.Context(), req, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err)
+	assertHandlerBody(t, inst, "/old/v1/models", "old")
+
+	pool.Reload([]aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "new", BaseURL: newUpstream.URL}),
+	})
+
+	instAfterReload, err := pool.Acquire(t.Context(), req, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err)
+	require.NotSame(t, inst, instAfterReload)
+	assertHandlerBody(t, instAfterReload, "/new/v1/models", "new")
+}
+
 func TestPool_Expiry(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +218,21 @@ func TestPool_Expiry(t *testing.T) {
 		// expectations.
 		synctest.Wait()
 	})
+}
+
+func assertHandlerBody(t *testing.T, handler http.Handler, path string, body string) {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, req)
+	resp := rw.Result()
+	defer resp.Body.Close()
+
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, body, string(got))
 }
 
 var _ aibridged.MCPProxyBuilder = &mockMCPFactory{}

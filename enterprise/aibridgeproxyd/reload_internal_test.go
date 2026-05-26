@@ -1,11 +1,42 @@
 package aibridgeproxyd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
 )
+
+func TestServerReloadSwapsProviderRouter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	providers := []ProviderRoute{{Name: "old", BaseURL: "https://old.example.com/"}}
+	srv := &Server{
+		ctx:          ctx,
+		logger:       slogtest.Make(t, nil),
+		allowedPorts: []string{"443"},
+		refreshProviders: func(context.Context) ([]ProviderRoute, error) {
+			return providers, nil
+		},
+	}
+	srv.providerRouter.Store(emptyProviderRouter)
+
+	require.NoError(t, srv.Reload(ctx))
+	assert.Equal(t, "old", srv.loadProviderRouter().providerFromHost("old.example.com"))
+	assert.Empty(t, srv.loadProviderRouter().providerFromHost("new.example.com"))
+
+	providers = []ProviderRoute{{Name: "new", BaseURL: "https://new.example.com/"}}
+	require.NoError(t, srv.Reload(ctx))
+
+	router := srv.loadProviderRouter()
+	assert.Empty(t, router.providerFromHost("old.example.com"))
+	assert.Equal(t, "new", router.providerFromHost("new.example.com"))
+	assert.Equal(t, []string{"new.example.com:443"}, router.mitmHosts)
+}
 
 // TestBuildProviderRouter covers the host-and-routing derivation that
 // Reload feeds into the providerRouter.
