@@ -460,8 +460,6 @@ type sqlcQuerier interface {
 	// GetExternalAgentTokensByWorkspaceIDs returns the auth tokens for all
 	// non-deleted external agents on the latest build of each supplied workspace.
 	// Only workspaces whose latest build has has_external_agent=true are included.
-	// Used by the agentfake scaletest manager to enumerate all tokens in O(pages)
-	// round-trips instead of O(workspaces).
 	GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetExternalAgentTokensByWorkspaceIDsRow, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)

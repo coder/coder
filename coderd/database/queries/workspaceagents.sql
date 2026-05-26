@@ -357,24 +357,33 @@ WHERE
 -- non-deleted external agents on the latest build of each supplied workspace.
 -- Only workspaces whose latest build has has_external_agent=true are included.
 SELECT
-	wb.workspace_id,
-	wa.id         AS agent_id,
-	wa.name       AS agent_name,
-	wa.auth_token AS agent_token
+	latest_builds.workspace_id,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
 FROM (
 	-- latest build per workspace
 	SELECT DISTINCT ON (workspace_id)
-		id, workspace_id, job_id, build_number, has_external_agent
-	FROM workspace_builds
+		id, workspace_id, job_id
+	FROM
+		workspace_builds
 	WHERE
 		workspace_id = ANY(@workspace_ids :: uuid[])
 		AND has_external_agent = TRUE
-	ORDER BY workspace_id, build_number DESC
-) AS wb
-JOIN workspace_resources wr ON wr.job_id = wb.job_id
-JOIN workspace_agents    wa ON wa.resource_id = wr.id
-WHERE wa.deleted = FALSE
-  AND wa.auth_instance_id IS NULL;
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL;
 
 -- GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 -- workspace agent and its associated build. During normal operation, this is
