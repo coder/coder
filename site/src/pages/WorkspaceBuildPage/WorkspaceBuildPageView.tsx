@@ -9,7 +9,6 @@ import {
 import { Link, useSearchParams } from "react-router";
 import type {
 	ProvisionerJobLog,
-	Workspace,
 	WorkspaceAgent,
 	WorkspaceBuild,
 } from "#/api/typesGenerated";
@@ -32,7 +31,6 @@ import {
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
-import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
@@ -64,11 +62,16 @@ const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
 	);
 };
 
+export type DeletedWorkspaceBannerProps = Readonly<{
+	createWorkspaceLink: string;
+	templateName: string;
+}>;
+
 interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
 	buildError?: unknown;
-	workspace?: Workspace;
+	deletedWorkspaceBanner?: DeletedWorkspaceBannerProps;
 	builds: WorkspaceBuild[] | undefined;
 	activeBuildNumber: number;
 }
@@ -77,28 +80,18 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	logs,
 	build,
 	buildError,
-	workspace,
+	deletedWorkspaceBanner,
 	builds,
 	activeBuildNumber,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const getLink = useLinks();
 
 	if (buildError) {
-		if (workspace?.latest_build.status === "deleted") {
-			const createWorkspaceLink = `${getLink(
-				linkToTemplate(workspace.organization_name, workspace.template_name),
-			)}/workspace`;
-			const templateName =
-				workspace.template_display_name || workspace.template_name;
-
+		if (deletedWorkspaceBanner) {
 			return (
 				<Margins>
 					<div className="my-4">
-						<WorkspaceDeletedBanner
-							createWorkspaceLink={createWorkspaceLink}
-							templateName={templateName}
-						/>
+						<WorkspaceDeletedBanner {...deletedWorkspaceBanner} />
 					</div>
 				</Margins>
 			);

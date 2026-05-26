@@ -7,6 +7,7 @@ import { API } from "#/api/api";
 import { workspaceBuildByNumber } from "#/api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "#/api/queries/workspaces";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
@@ -45,6 +46,21 @@ const WorkspaceBuildPage: FC = () => {
 		enabled: Boolean(build),
 	});
 	const logs = useWorkspaceBuildLogs(build?.id);
+	const getLink = useLinks();
+	const workspace = workspaceQuery.data;
+	const deletedWorkspaceBanner =
+		workspace?.latest_build.status === "deleted"
+			? {
+					createWorkspaceLink: `${getLink(
+						linkToTemplate(
+							workspace.organization_name,
+							workspace.template_name,
+						),
+					)}/workspace`,
+					templateName:
+						workspace.template_display_name || workspace.template_name,
+				}
+			: undefined;
 
 	return (
 		<>
@@ -58,7 +74,7 @@ const WorkspaceBuildPage: FC = () => {
 				logs={logs}
 				build={build}
 				buildError={wsBuildQuery.error}
-				workspace={workspaceQuery.data}
+				deletedWorkspaceBanner={deletedWorkspaceBanner}
 				builds={buildsQuery.data}
 				activeBuildNumber={buildNumber}
 			/>
