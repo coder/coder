@@ -4349,6 +4349,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
@@ -4358,6 +4359,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"nats_pubsub",
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",
