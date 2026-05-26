@@ -70,28 +70,29 @@ export const ReadFilesTool: FC<{
 					</>
 				}
 			>
-				<div className="mt-2 space-y-1 pl-3">
+				<div className="space-y-1 pl-3">
 					{items.map((item) => (
-						<ReadFileTool
-							key={item.id}
-							path={item.path}
-							content={item.content}
-							status={item.status}
-							isError={item.isError}
-							errorMessage={item.errorMessage}
-							expanded={expandedFileIDs.has(item.id)}
-							onExpandedChange={(nextExpanded) => {
-								setExpandedFileIDs((previous) => {
-									const next = new Set(previous);
-									if (nextExpanded) {
-										next.add(item.id);
-									} else {
-										next.delete(item.id);
-									}
-									return next;
-								});
-							}}
-						/>
+						<div key={item.id} className="min-h-6">
+							<ReadFileTool
+								path={item.path}
+								content={item.content}
+								status={item.status}
+								isError={item.isError}
+								errorMessage={item.errorMessage}
+								expanded={expandedFileIDs.has(item.id)}
+								onExpandedChange={(nextExpanded) => {
+									setExpandedFileIDs((previous) => {
+										const next = new Set(previous);
+										if (nextExpanded) {
+											next.add(item.id);
+										} else {
+											next.delete(item.id);
+										}
+										return next;
+									});
+								}}
+							/>
+						</div>
 					))}
 				</div>
 			</ToolCollapsible>
