@@ -782,6 +782,7 @@ url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/proto
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
 
 [tools.protoc."platforms.linux-x64"]
+checksum = "blake3:b1d1a517cb9c8c3cbfc98c708f93e6d3bd8b3ce0e2db1ad8c1491ae8a4067ad2"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 
 [tools.protoc."platforms.linux-x64-baseline"]
@@ -819,6 +820,7 @@ url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-x64"]
+checksum = "blake3:127ed3a8005b199a8451c258ea8fe8ae0f68dd01b4e52c21c881eb7f1d69a333"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-x64-baseline"]

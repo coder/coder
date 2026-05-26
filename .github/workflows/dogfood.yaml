@@ -225,14 +225,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mise install --yes
-          # `mise install` writes computed checksums for the runner's
-          # platform (linux-x64) back into mise.lock. Reset so the
-          # bind-mounted checkout in the Test image tooling step matches
-          # git HEAD and check_unstaged.sh doesn't trip. The installed
-          # tools live in MISE_DATA_DIR, not the lockfile, so this
-          # doesn't affect the subsequent `mise oci build`.
-          git checkout -- mise.lock
+          # --locked refuses to resolve URLs at install time and forces
+          # the runner to consume what mise.lock already committed,
+          # so a forgotten lockfile entry fails CI instead of silently
+          # being added on next run.
+          mise install --yes --locked
           # Put mise's shims dir on PATH for subsequent steps so
           # `mise oci push --tool crane` can find crane (and any other
           # mise-managed binary it shells out to).
