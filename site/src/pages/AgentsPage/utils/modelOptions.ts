@@ -220,33 +220,7 @@ export const getProviderForModelOption = (
 ): string | undefined =>
 	modelOptions.find((option) => option.id === selectedModel)?.provider;
 
-export const formatProviderLabel = (provider: string): string => {
-	const normalized = provider.trim().toLowerCase();
-	switch (normalized) {
-		case "openai":
-			return "OpenAI";
-		case "anthropic":
-			return "Anthropic";
-		case "azure":
-			return "Azure OpenAI";
-		case "bedrock":
-			return "AWS Bedrock";
-		case "google":
-			return "Google";
-		case "openai-compatible":
-		case "openai_compatible":
-			return "OpenAI-compatible";
-		case "openrouter":
-			return "OpenRouter";
-		case "vercel":
-			return "Vercel AI Gateway";
-		default:
-			if (!normalized) {
-				return "Unknown";
-			}
-			return `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
-	}
-};
+export { formatProviderLabel } from "#/utils/aiProviders";
 
 export const getModelSelectorPlaceholder = (
 	modelOptions: readonly ModelSelectorOption[],

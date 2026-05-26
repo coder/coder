@@ -131,11 +131,13 @@ const UpdateConfirmationDialog: FC<UpdateConfirmationDialogProps> = ({
 						template version. This can{" "}
 						<strong>delete non-persistent data</strong>.
 					</p>
-					{latestVersion?.message && (
-						<MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
-							{latestVersion.message}
-						</MemoizedInlineMarkdown>
-					)}
+					<div>
+						{latestVersion?.message && (
+							<MemoizedInlineMarkdown allowedElements={["ol", "ul", "li"]}>
+								{latestVersion.message}
+							</MemoizedInlineMarkdown>
+						)}
+					</div>
 				</div>
 			}
 		/>

@@ -38,7 +38,6 @@ import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { ChatTopBar } from "./components/ChatTopBar";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -46,7 +45,8 @@ import {
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
-} from "./components/Sidebar/sidebarWidth";
+} from "./components/ChatsSidebar/sidebarWidth";
+import { ChatTopBar } from "./components/ChatTopBar";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -144,6 +144,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
+	owner_username: "owner",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
@@ -256,6 +257,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
 	handleNewAgent: fn(),
+	isSearchDialogOpen: false,
+	onSearchDialogOpenChange: fn(),
 	isCreating: false,
 	isArchiving: false,
 	archivingChatId: undefined,

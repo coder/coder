@@ -104,6 +104,14 @@ type ProviderAPIKeys struct {
 	BaseURLByProvider map[string]string
 }
 
+// Empty reports whether no provider keys or base URL overrides are set.
+func (k ProviderAPIKeys) Empty() bool {
+	return k.OpenAI == "" &&
+		k.Anthropic == "" &&
+		len(k.ByProvider) == 0 &&
+		len(k.BaseURLByProvider) == 0
+}
+
 // UserProviderKey is a user-supplied API key for a specific provider.
 type UserProviderKey struct {
 	ChatProviderID uuid.UUID

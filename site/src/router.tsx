@@ -375,6 +375,9 @@ const AgentSettingsAgentsPage = lazy(
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
+const AgentSettingsPersonalSkillsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
+);
 const AgentSettingsProvidersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
 );
@@ -424,6 +427,25 @@ const AIBridgeListSessionsPage = lazy(
 );
 const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
+);
+
+const AISettingsLayout = lazy(
+	() => import("./pages/AISettingsPage/AISettingsLayout"),
+);
+const AISettingsProvidersPage = lazy(
+	() => import("./pages/AISettingsPage/ProvidersPage/ProvidersPage"),
+);
+const AISettingsUpdateProviderPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"
+		),
+);
+const AISettingsAddProviderPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
+		),
 );
 
 const GlobalLayout = () => {
@@ -578,10 +600,7 @@ export const router = createBrowserRouter(
 								path="observability"
 								element={<ObservabilitySettingsPage />}
 							/>
-							<Route
-								path="ai-governance"
-								element={<AIGovernanceSettingsPage />}
-							/>
+
 							<Route path="network" element={<NetworkSettingsPage />} />
 							<Route path="userauth" element={<UserAuthSettingsPage />} />
 							<Route
@@ -675,6 +694,18 @@ export const router = createBrowserRouter(
 						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
 
+					<Route path="/ai/settings" element={<AISettingsLayout />}>
+						<Route element={<DeploymentConfigProvider />}>
+							<Route path="governance" element={<AIGovernanceSettingsPage />} />
+						</Route>
+						<Route index element={<AISettingsProvidersPage />} />
+						<Route path="add" element={<AISettingsAddProviderPage />} />
+						<Route
+							path=":providerId"
+							element={<AISettingsUpdateProviderPage />}
+						/>
+					</Route>
+
 					<Route path="/health" element={<HealthLayout />}>
 						<Route index element={<Navigate to="access-url" replace />} />
 						<Route path="access-url" element={<AccessURLPage />} />
@@ -745,6 +776,10 @@ export const router = createBrowserRouter(
 						<Route
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
+						/>
+						<Route
+							path="personal-skills"
+							element={<AgentSettingsPersonalSkillsPage />}
 						/>
 						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />

@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,8 +28,8 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 				Region:          "us-east-1",
 				Model:           "anthropic.claude-3-5-sonnet",
 				SmallFastModel:  "anthropic.claude-3-5-haiku",
-				AccessKey:       "AKIA-test", //nolint:gosec // fixture
-				AccessKeySecret: "secret",
+				AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // fixture
+				AccessKeySecret: ptr.Ref("secret"),
 			},
 		})
 		require.NoError(t, err)
@@ -145,8 +146,8 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 			Region:          "us-west-2",
 			Model:           "anthropic.claude-sonnet-4-5",
 			SmallFastModel:  "anthropic.claude-haiku-4-5",
-			AccessKey:       "AKIA-roundtrip", //nolint:gosec // fixture
-			AccessKeySecret: "secret-roundtrip",
+			AccessKey:       ptr.Ref("AKIA-roundtrip"), //nolint:gosec // fixture
+			AccessKeySecret: ptr.Ref("secret-roundtrip"),
 		},
 	}
 	encoded, err := json.Marshal(orig)

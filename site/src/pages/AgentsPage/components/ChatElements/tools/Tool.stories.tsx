@@ -14,8 +14,15 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
+
+const getDiffsText = (element: HTMLElement) =>
+	Array.from(element.querySelectorAll("diffs-container"))
+		.map((container) => container.shadowRoot?.textContent ?? "")
+		.join("\n");
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -51,6 +58,79 @@ export const ExecuteRunning: Story = {
 		result: {
 			output: "remote: Enumerating objects: 12, done.\nFetching origin...",
 		},
+	},
+};
+
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Running tests using ${executeIntentCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
 
@@ -348,6 +428,32 @@ export const SubagentRunning: Story = {
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
 	},
 };
@@ -748,6 +854,7 @@ export const CloseAgentRunningWithoutChatId: Story = {
 		await waitFor(() => {
 			expect(canvasElement.textContent?.trim()).toBe("");
 		});
+		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
 		expect(canvas.queryByRole("button")).toBeNull();
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
@@ -979,17 +1086,15 @@ export const MCPToolCompleted: Story = {
 		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
 		// Icon should still be monochrome when completed.
 		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
-		// Result should be collapsed by default.
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
-		// Expand to see result content.
 		await userEvent.click(toggle);
-		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
-		// so textContent on the host element can't see the content.
-		// Query into the shadow root to verify the JSON rendered.
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
 		await waitFor(() => {
-			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
-			expect(shadow?.textContent).toContain("Fix auth flow");
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("backend");
+			expect(diffsText).toContain("Fix auth flow");
 		});
 	},
 };
@@ -1023,8 +1128,12 @@ export const MCPToolNoResult: Story = {
 		mcpServers: sampleMCPServers,
 	},
 	play: async ({ canvasElement }) => {
-		// No toggle button when there is no result content.
-		expect(canvasElement.querySelector("button")).toBeNull();
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		await waitFor(() => {
+			expect(getDiffsText(canvasElement)).toContain("New issue");
+		});
 	},
 };
 
@@ -1092,6 +1201,27 @@ export const MCPToolNoServer: Story = {
 		const canvas = within(canvasElement);
 		// Falls through to generic wrench icon + raw tool name.
 		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+export const WorkspaceMCPToolCompleted: Story = {
+	args: {
+		name: "workspace-mcp__echo",
+		status: "completed",
+		args: { message: "hello from workspace MCP" },
+		result: { output: "hello from workspace MCP" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("workspace-mcp__echo")).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
+		await waitFor(() => {
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("message");
+			expect(diffsText).toContain("hello from workspace MCP");
+		});
 	},
 };
 
@@ -1950,7 +2080,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

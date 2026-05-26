@@ -9,11 +9,13 @@ import { mergeRegister } from "@lexical/utils";
 import {
 	$createParagraphNode,
 	$createTextNode,
+	$getNodeByKey,
 	$getRoot,
 	$getSelection,
 	$insertNodes,
 	$isParagraphNode,
 	$isRangeSelection,
+	$isTextNode,
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
@@ -28,8 +30,11 @@ import {
 	useImperativeHandle,
 	useLayoutEffect,
 	useRef,
+	useState,
 } from "react";
-import type { AgentChatSendShortcut } from "#/api/typesGenerated";
+import { useQuery } from "react-query";
+import { userSkills } from "#/api/queries/userSkills";
+import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
 import {
@@ -38,9 +43,16 @@ import {
 } from "../../utils/agentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
+	filterPersonalSkills,
+	isPersonalSkillTriggerToken,
+	personalSkillTriggerText,
+} from "../../utils/personalSkills";
+import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
+import { IOSBackspacePlugin } from "./iosBackspace";
+import { PersonalSkillsTriggerMenu } from "./PersonalSkillsTriggerMenu";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
@@ -48,6 +60,10 @@ import {
 	isLargePaste,
 	type PasteCommandEvent,
 } from "./pasteHelpers";
+import {
+	type ActiveSkillsTrigger,
+	SkillsTriggerPlugin,
+} from "./SkillsTriggerPlugin";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -228,7 +244,7 @@ const PasteSanitizationPlugin: FC<{
 
 					// Convert large pastes to file attachments, but
 					// only for normal Cmd+V. Cmd+Shift+V is the
-					// user’s explicit "paste inline" escape hatch.
+					// user's explicit "paste inline" escape hatch.
 					if (
 						!isPlainTextPaste &&
 						allowTextAttachmentPaste &&
@@ -270,7 +286,7 @@ const PasteSanitizationPlugin: FC<{
 // Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
 const EnterKeyPlugin: FC<{
 	onEnter?: () => void;
-	sendShortcut: AgentChatSendShortcut;
+	sendShortcut: TypesGen.AgentChatSendShortcut;
 }> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
 	const [editor] = useLexicalComposerContext();
 
@@ -376,7 +392,7 @@ const ValueSyncPlugin: FC<{
 				editor.setEditorState(parsed);
 				return;
 			} catch {
-				// Malformed state — fall through to plain-text path.
+				// Malformed state, fall through to plain-text path.
 			}
 		}
 
@@ -480,11 +496,12 @@ interface ChatMessageInputProps
 	remountKey?: number;
 	rows?: number;
 	onEnter?: () => void;
-	sendShortcut?: AgentChatSendShortcut;
+	sendShortcut?: TypesGen.AgentChatSendShortcut;
 	onFilePaste?: (file: File) => void;
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
+	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
 	"aria-label"?: string;
 }
 
@@ -502,6 +519,40 @@ const EditableStatePlugin: FC<{ disabled: boolean }> =
 		return null;
 	};
 
+type SkillsTriggerLocation = Pick<
+	ActiveSkillsTrigger,
+	"nodeKey" | "slashOffset"
+>;
+
+const isSameSkillsTriggerLocation = (
+	a: SkillsTriggerLocation | null,
+	b: SkillsTriggerLocation | null,
+): boolean => {
+	return Boolean(
+		a && b && a.nodeKey === b.nodeKey && a.slashOffset === b.slashOffset,
+	);
+};
+
+const isSameSkillsTrigger = (
+	a: ActiveSkillsTrigger | null,
+	b: ActiveSkillsTrigger | null,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.nodeKey === b.nodeKey &&
+		a.slashOffset === b.slashOffset &&
+		a.query === b.query &&
+		a.anchorRect?.top === b.anchorRect?.top &&
+		a.anchorRect?.left === b.anchorRect?.left &&
+		a.anchorRect?.height === b.anchorRect?.height
+	);
+};
+
 const ChatMessageInput = ({
 	className,
 	placeholder,
@@ -516,6 +567,7 @@ const ChatMessageInput = ({
 	allowTextAttachmentPaste,
 	disabled,
 	autoFocus,
+	personalSkillsOverride,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -540,6 +592,87 @@ const ChatMessageInput = ({
 	const lastKnownValueRef = useRef(initialValue ?? "");
 	// Queues a setValue call made before the editor ref is ready.
 	const pendingReplacementRef = useRef<string | null>(null);
+	const [skillsTrigger, setSkillsTrigger] =
+		useState<ActiveSkillsTrigger | null>(null);
+	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
+	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
+	const skillsMenuOpen = Boolean(skillsTrigger);
+	const skillsQuery = useQuery({
+		...userSkills(),
+		enabled: skillsMenuOpen && personalSkillsOverride === undefined,
+	});
+	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
+	const filteredPersonalSkills = skillsTrigger
+		? filterPersonalSkills(personalSkills, skillsTrigger.query)
+		: [];
+	const selectedSkillIndex =
+		filteredPersonalSkills.length === 0
+			? -1
+			: Math.min(skillsMenuSelectedIndex, filteredPersonalSkills.length - 1);
+
+	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
+		if (
+			trigger &&
+			isSameSkillsTriggerLocation(trigger, suppressedSkillsTriggerRef.current)
+		) {
+			suppressedSkillsTriggerRef.current = null;
+			return;
+		}
+		suppressedSkillsTriggerRef.current = null;
+		if (isSameSkillsTrigger(trigger, skillsTrigger)) {
+			return;
+		}
+		if (trigger?.query !== skillsTrigger?.query) {
+			setSkillsMenuSelectedIndex(0);
+		}
+		setSkillsTrigger(trigger);
+	};
+
+	const replaceActiveSkillsTrigger = (skill: TypesGen.UserSkillMetadata) => {
+		const editor = editorRef.current;
+		const trigger = skillsTrigger;
+		if (!editor || !trigger) {
+			setSkillsTrigger(null);
+			setSkillsMenuSelectedIndex(0);
+			return;
+		}
+
+		suppressedSkillsTriggerRef.current = trigger;
+
+		editor.update(() => {
+			const selection = $getSelection();
+			if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+				return;
+			}
+
+			const anchor = selection.anchor;
+			if (anchor.type !== "text" || anchor.key !== trigger.nodeKey) {
+				return;
+			}
+
+			const node = $getNodeByKey(trigger.nodeKey);
+			if (!$isTextNode(node)) {
+				return;
+			}
+
+			const caretOffset = anchor.offset;
+			const token = node
+				.getTextContent()
+				.slice(trigger.slashOffset, caretOffset);
+			if (
+				caretOffset < trigger.slashOffset ||
+				!isPersonalSkillTriggerToken(token)
+			) {
+				return;
+			}
+
+			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
+			selection.focus.set(trigger.nodeKey, caretOffset, "text");
+			selection.insertText(personalSkillTriggerText(skill));
+		});
+		setSkillsTrigger(null);
+		setSkillsMenuSelectedIndex(0);
+	};
 
 	const handleEditorReady = (editor: LexicalEditor) => {
 		editorRef.current = editor;
@@ -736,14 +869,35 @@ const ChatMessageInput = ({
 					onEnter={disabled ? undefined : onEnter}
 					sendShortcut={sendShortcut}
 				/>
+				<IOSBackspacePlugin />
 				<ContentChangePlugin onChange={onChange} />
 				<ValueSyncPlugin
 					initialValue={initialValue}
 					initialEditorState={initialEditorState}
 				/>
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
+				<SkillsTriggerPlugin
+					open={skillsMenuOpen}
+					skills={filteredPersonalSkills}
+					selectedIndex={selectedSkillIndex}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
+					onTriggerChange={handleSkillsTriggerChange}
+					onSkillSelect={replaceActiveSkillsTrigger}
+				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
+				<PersonalSkillsTriggerMenu
+					open={skillsMenuOpen}
+					anchorRect={skillsTrigger?.anchorRect ?? null}
+					query={skillsTrigger?.query ?? ""}
+					skills={filteredPersonalSkills}
+					isLoading={skillsMenuOpen && skillsQuery.isLoading}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
+					isError={skillsMenuOpen && skillsQuery.isError}
+					selectedIndex={selectedSkillIndex}
+					onSelect={replaceActiveSkillsTrigger}
+					onClose={() => handleSkillsTriggerChange(null)}
+				/>
 			</div>
 		</LexicalComposer>
 	);

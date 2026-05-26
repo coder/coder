@@ -32,12 +32,13 @@ import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPane
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
+import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
+import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
+import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
-import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
-import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
@@ -92,7 +93,10 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	chatOwner: { id: string; username?: string } | undefined;
+	chatOwner: Pick<TypesGen.MinimalUser, "name" | "username"> | undefined;
+	canUpdateOtherUserChat: boolean;
+	canUpdateOtherUserChatLoading: boolean;
+	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -197,6 +201,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	persistedError,
 	isArchived,
 	chatOwner,
+	canUpdateOtherUserChat,
+	canUpdateOtherUserChatLoading,
+	canShareChat,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -256,6 +263,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	lastInjectedContext,
 }) => {
 	const queryClient = useQueryClient();
+
+	const canOpenChatSharing = canShareChat && organizationId !== undefined;
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -413,16 +422,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
 
+	const chatOwnerUsername = chatOwner?.username.trim();
 	const chatOwnerLabel =
-		chatOwner === undefined
-			? undefined
-			: chatOwner.username
-				? `@${chatOwner.username}`
-				: `owner ${chatOwner.id}`;
+		chatOwner?.name?.trim() ||
+		(chatOwnerUsername ? `@${chatOwnerUsername}` : undefined);
 	const chatOwnerWarning =
-		chatOwnerLabel === undefined
+		isArchived || canUpdateOtherUserChatLoading || chatOwnerLabel === undefined
 			? undefined
-			: `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`;
+			: canUpdateOtherUserChat
+				? `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`
+				: `This chat is owned by ${chatOwnerLabel}. You have read-only access.`;
 
 	const titleElement = (
 		<title>
@@ -473,20 +482,31 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+								renderChatSharingContent={
+									canOpenChatSharing
+										? (open) => (
+												<ChatSharingPopoverContent
+													chatId={agentId}
+													organizationId={organizationId}
+													open={open}
+												/>
+											)
+										: undefined
+								}
 							/>
-							{chatOwnerWarning && !isArchived && (
+							{chatOwnerWarning && (
 								<div
 									role="status"
 									aria-live="polite"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
-									<TriangleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
 									{chatOwnerWarning}
 								</div>
 							)}
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-									<ArchiveIcon className="h-4 w-4 shrink-0" />
+									<ArchiveIcon className="size-4 shrink-0" />
 									This agent has been archived and is read-only.
 								</div>
 							)}

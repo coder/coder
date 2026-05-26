@@ -228,6 +228,16 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.ChatConverter(),
 		},
 		{
+			Name: "ChatAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(chats_expanded.id :: text != '') OR ` +
+				`(chats_expanded.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";

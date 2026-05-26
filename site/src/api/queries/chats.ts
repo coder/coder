@@ -10,7 +10,9 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -22,6 +24,8 @@ export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
+
+export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
@@ -479,6 +483,7 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -536,9 +541,24 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
+export const chatSearch = (q: string) =>
+	queryOptions({
+		queryKey: [...chatsKey, "search", { q }],
+		queryFn: () =>
+			API.experimental.getChats({
+				limit: CHAT_SEARCH_LIMIT,
+				q,
+			}),
+	});
+
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+});
+
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
 });
 
 const MESSAGES_PAGE_SIZE = 50;
@@ -1589,10 +1609,29 @@ export const chatModels = () => ({
 
 const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
+const toChatProviderConfig = (
+	provider: TypesGen.AIProvider,
+): TypesGen.ChatProviderConfig => ({
+	id: provider.id,
+	provider: provider.type,
+	display_name: provider.display_name || provider.type,
+	enabled: provider.enabled,
+	has_api_key: provider.api_keys.length > 0,
+	central_api_key_enabled: true,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: true,
+	base_url: provider.base_url,
+	source: "database",
+	created_at: provider.created_at,
+	updated_at: provider.updated_at,
+});
+
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.ChatProviderConfig[]> =>
-		API.experimental.getChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.ChatProviderConfig[]> => {
+		const providers = await API.experimental.listAIProviders();
+		return providers.map(toChatProviderConfig);
+	},
 });
 
 const chatModelConfigsKey = ["chat-model-configs"] as const;
@@ -1609,8 +1648,17 @@ export const userChatProviderConfigsKey = [
 
 export const userChatProviderConfigs = () => ({
 	queryKey: userChatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
-		API.experimental.getUserChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.UserChatProviderConfig[]> => {
+		const configs = await API.experimental.getUserAIProviderKeyConfigs();
+		return configs.map((config) => ({
+			provider_id: config.provider.id,
+			provider: config.provider.type,
+			display_name: config.provider.display_name || config.provider.type,
+			has_user_api_key: config.has_user_api_key,
+			byok_enabled: config.byok_enabled,
+			has_central_api_key_fallback: config.has_provider_api_key,
+		}));
+	},
 });
 
 type UpsertUserChatProviderKeyArgs = {
@@ -1620,7 +1668,7 @@ type UpsertUserChatProviderKeyArgs = {
 
 export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
-		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+		API.experimental.upsertUserAIProviderKey(providerConfigId, req),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1633,7 +1681,7 @@ export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 
 export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteUserChatProviderKey(providerConfigId),
+		API.experimental.deleteUserAIProviderKey(providerConfigId),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1652,9 +1700,41 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
+const generatedAIProviderName = (provider: string): string => {
+	const suffix =
+		globalThis.crypto?.randomUUID?.() ??
+		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+	return `${provider}-${suffix}`;
+};
+
+const normalizeAIProviderType = (provider: string): AIProviderType => {
+	const normalized = provider.trim().toLowerCase();
+	const aliased =
+		normalized === "openai-compatible" || normalized === "openai_compatible"
+			? "openai-compat"
+			: normalized;
+	const providerType = AIProviderTypes.find(
+		(candidate) => candidate === aliased,
+	);
+	if (!providerType) {
+		throw new Error(`Unsupported AI provider type "${provider}".`);
+	}
+	return providerType;
+};
+
 export const createChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) =>
-		API.experimental.createChatProviderConfig(req),
+	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
+		const providerType = normalizeAIProviderType(req.provider);
+		const apiKey = req.api_key;
+		return API.experimental.createAIProvider({
+			type: providerType,
+			name: generatedAIProviderName(providerType),
+			display_name: req.display_name || formatProviderLabel(providerType),
+			base_url: req.base_url ?? "",
+			enabled: req.enabled ?? true,
+			api_keys: apiKey ? [apiKey] : undefined,
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1666,11 +1746,23 @@ type UpdateChatProviderConfigMutationArgs = {
 };
 
 export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({
+	mutationFn: async ({
 		providerConfigId,
 		req,
-	}: UpdateChatProviderConfigMutationArgs) =>
-		API.experimental.updateChatProviderConfig(providerConfigId, req),
+	}: UpdateChatProviderConfigMutationArgs) => {
+		const apiKey = req.api_key;
+		return API.experimental.updateAIProvider(providerConfigId, {
+			display_name: req.display_name,
+			base_url: req.base_url,
+			enabled: req.enabled,
+			api_keys:
+				req.api_key === undefined
+					? undefined
+					: apiKey
+						? [{ api_key: apiKey }]
+						: [],
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1678,7 +1770,7 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 
 export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteChatProviderConfig(providerConfigId),
+		API.experimental.deleteAIProvider(providerConfigId),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1891,5 +1983,43 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	role: TypesGen.ChatRole;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	role: TypesGen.ChatRole;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, role }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, role }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });

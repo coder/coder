@@ -105,6 +105,24 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result!.blocks).toEqual([{ type: "tool", id: "tc-1" }]);
 	});
 
+	it("propagates parsed_commands from a tool-call part", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "cd /repo && git pull" },
+			parsed_commands: [
+				["cd", "/repo"],
+				["git", "pull"],
+			],
+		});
+		expect(result).not.toBeNull();
+		expect(result!.toolCalls["tc-1"].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+	});
+
 	it("generates fallback tool call ID when missing", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",
