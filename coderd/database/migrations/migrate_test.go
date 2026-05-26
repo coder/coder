@@ -1712,3 +1712,249 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	// TestSoftDeleteWorkspaceAgentsByWorkspaceID, plus integration tests
 	// under coderd/coderd_test.go; not retested here.
 }
+
+func TestMigration000509BackfillChatMessagesAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 509
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	userID := uuid.New()
+	modelConfigID := uuid.New()
+
+	// API keys: one valid (recent), one valid (older), one expired.
+	validKeyRecent := "key-valid-recent-" + uuid.NewString()[:8]
+	validKeyOlder := "key-valid-older-" + uuid.NewString()[:8]
+	expiredKey := "key-expired-" + uuid.NewString()[:8]
+
+	// Chats in various states.
+	chatPending := uuid.New()
+	chatRunning := uuid.New()
+	chatWaiting := uuid.New()
+	chatCompleted := uuid.New()
+	chatArchived := uuid.New()
+	chatNoValidKey := uuid.New()
+
+	userNoKeys := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	// Insert organization (FK dependency for chats).
+	orgID := uuid.New()
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, description, display_name, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		orgID, "test-org", "Test Organization", "Test Org", now, now,
+	)
+	require.NoError(t, err)
+
+	// Insert users.
+	for _, u := range []struct {
+		id       uuid.UUID
+		username string
+	}{
+		{userID, "backfill-user"},
+		{userNoKeys, "no-keys-user"},
+	} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			u.id, u.username, u.username+"@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+		)
+		require.NoError(t, err)
+	}
+
+	// Insert API keys for userID.
+	for _, k := range []struct {
+		id       string
+		lastUsed time.Time
+		expires  time.Time
+	}{
+		{validKeyRecent, now.Add(-1 * time.Hour), now.Add(24 * time.Hour)},
+		{validKeyOlder, now.Add(-48 * time.Hour), now.Add(24 * time.Hour)},
+		{expiredKey, now.Add(-72 * time.Hour), now.Add(-1 * time.Hour)},
+	} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, token_name, scopes, allow_list)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+			k.id, []byte("secret"), userID, k.lastUsed, k.expires, now, now, "token",
+			k.id, pq.StringArray{"coder:all"}, pq.StringArray{"*"},
+		)
+		require.NoError(t, err)
+	}
+
+	// Insert a model config (FK dependency for chats).
+	aiProviderID := uuid.New()
+		_, err = tx.ExecContext(ctx,
+		`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		aiProviderID, "openai", "test-openai", true, "https://api.openai.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, ai_provider_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		modelConfigID, "openai", "gpt-4", "GPT-4", true, 100000, 70, aiProviderID, now, now,
+	)
+	require.NoError(t, err)
+
+	// Insert chats.
+	for _, c := range []struct {
+		id       uuid.UUID
+		ownerID  uuid.UUID
+		status   string
+		archived bool
+	}{
+		{chatPending, userID, "pending", false},
+		{chatRunning, userID, "running", false},
+		{chatWaiting, userID, "waiting", false},
+		{chatCompleted, userID, "completed", false},
+		{chatArchived, userID, "pending", true},
+		{chatNoValidKey, userNoKeys, "pending", false},
+	} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title, created_at, updated_at, status, archived)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			c.id, c.ownerID, orgID, modelConfigID, "Test Chat", now, now, c.status, c.archived,
+		)
+		require.NoError(t, err)
+	}
+
+	// Insert chat_messages with NULL api_key_id for each chat.
+	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting, chatCompleted, chatArchived, chatNoValidKey} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			chatID, "user", `[{"type":"text","text":"hello"}]`, 1, "both", now,
+		)
+		require.NoError(t, err)
+	}
+
+	// Insert a message that already has api_key_id set (should not be changed).
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, created_at, api_key_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		chatPending, "user", `[{"type":"text","text":"already attributed"}]`, 1, "both", now, validKeyOlder,
+	)
+	require.NoError(t, err)
+
+	// Insert chat_queued_messages with NULL api_key_id.
+	for _, chatID := range []uuid.UUID{chatPending, chatCompleted} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO chat_queued_messages (chat_id, content, created_at)
+			VALUES ($1, $2, $3)`,
+			chatID, `{"role":"user","content":"queued"}`, now,
+		)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, tx.Commit())
+
+	// Run migration 509.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Verify: active chats (pending, running, waiting) got backfilled with the most recent valid key.
+	for _, chatID := range []uuid.UUID{chatPending, chatRunning, chatWaiting} {
+		var apiKeyID sql.NullString
+		err = sqlDB.QueryRowContext(ctx,
+			`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
+			chatID,
+		).Scan(&apiKeyID)
+		require.NoError(t, err, "chat %s", chatID)
+		require.True(t, apiKeyID.Valid, "chat %s should have api_key_id backfilled", chatID)
+		require.Equal(t, validKeyRecent, apiKeyID.String, "chat %s should use most recent valid key", chatID)
+	}
+
+	// Verify: completed chat was NOT backfilled.
+	var completedKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
+		chatCompleted,
+	).Scan(&completedKeyID)
+	require.NoError(t, err)
+	require.False(t, completedKeyID.Valid, "completed chat should not be backfilled")
+
+	// Verify: archived chat was NOT backfilled.
+	var archivedKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
+		chatArchived,
+	).Scan(&archivedKeyID)
+	require.NoError(t, err)
+	require.False(t, archivedKeyID.Valid, "archived chat should not be backfilled")
+
+	// Verify: user with no valid keys was NOT backfilled.
+	var noKeysKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
+		chatNoValidKey,
+	).Scan(&noKeysKeyID)
+	require.NoError(t, err)
+	require.False(t, noKeysKeyID.Valid, "chat with no valid API keys should not be backfilled")
+
+	// Verify: message with existing api_key_id was NOT changed.
+	var existingKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%already attributed%'`,
+		chatPending,
+	).Scan(&existingKeyID)
+	require.NoError(t, err)
+	require.True(t, existingKeyID.Valid)
+	require.Equal(t, validKeyOlder, existingKeyID.String, "pre-existing api_key_id should not be overwritten")
+
+	// Verify: chat_queued_messages for active chat was backfilled.
+	var queuedKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_queued_messages WHERE chat_id = $1`,
+		chatPending,
+	).Scan(&queuedKeyID)
+	require.NoError(t, err)
+	require.True(t, queuedKeyID.Valid, "queued message in active chat should be backfilled")
+	require.Equal(t, validKeyRecent, queuedKeyID.String)
+
+	// Verify: chat_queued_messages for completed chat was NOT backfilled.
+	var queuedCompletedKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_queued_messages WHERE chat_id = $1`,
+		chatCompleted,
+	).Scan(&queuedCompletedKeyID)
+	require.NoError(t, err)
+	require.False(t, queuedCompletedKeyID.Valid, "queued message in completed chat should not be backfilled")
+
+	// Verify down migration.
+	downSQL, err := os.ReadFile("000509_backfill_chat_messages_api_key_id.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	// After down: active chat messages should have NULL api_key_id again.
+	var downKeyID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT api_key_id FROM chat_messages WHERE chat_id = $1 AND content::text LIKE '%hello%'`,
+		chatPending,
+	).Scan(&downKeyID)
+	require.NoError(t, err)
+	require.False(t, downKeyID.Valid, "down migration should NULL out backfilled values")
+}
