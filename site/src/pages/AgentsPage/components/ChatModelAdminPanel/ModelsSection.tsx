@@ -6,7 +6,7 @@ import {
 	StarIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -25,6 +25,7 @@ import {
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
@@ -42,6 +43,28 @@ const clearModelViewParams = (params: URLSearchParams) => {
 	for (const param of MODEL_VIEW_PARAMS) {
 		params.delete(param);
 	}
+};
+
+const modelConfigProviderKey = (
+	modelConfig: TypesGen.ChatModelConfig,
+	providerStates: readonly ProviderState[],
+): string => {
+	const providerID = readOptionalString(modelConfig.ai_provider_id);
+	if (providerID) {
+		return providerID;
+	}
+
+	const provider = normalizeProvider(modelConfig.provider);
+	const providerMatches = providerStates.filter(
+		(providerState) => providerState.provider === provider,
+	);
+	if (providerMatches.length === 1) {
+		return providerMatches[0].key;
+	}
+	if (providerMatches.length > 1) {
+		return "";
+	}
+	return provider;
 };
 
 const canManageProviderModels = (providerState: ProviderState | undefined) => {
@@ -85,6 +108,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onDeleteModel,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
+	const [selectedProviderOverride, setSelectedProviderOverride] = useState<
+		string | null
+	>(null);
 	const location = useLocation();
 
 	// Derive the current view from URL search params so that
@@ -122,9 +148,27 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			state: options?.replace ? location.state : { pushed: true },
 		});
 	};
+	const modelViewIdentity = (() => {
+		switch (view.mode) {
+			case "add":
+				return `add:${view.provider}`;
+			case "edit":
+				return `edit:${view.model.id}`;
+			case "duplicate":
+				return `duplicate:${view.sourceModel.id}`;
+			default:
+				return "list";
+		}
+	})();
+
+	useEffect(() => {
+		void modelViewIdentity;
+		setSelectedProviderOverride(null);
+	}, [modelViewIdentity]);
 
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
+		setSelectedProviderOverride(null);
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
 			clearModelViewParams(next);
@@ -133,6 +177,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	};
 
 	const exitModelView = () => {
+		setSelectedProviderOverride(null);
 		setSearchParams(
 			(prev) => {
 				const next = new URLSearchParams(prev);
@@ -153,13 +198,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		const duplicateSourceModel =
 			view.mode === "duplicate" ? view.sourceModel : undefined;
 		const effectiveProvider =
-			view.mode === "edit"
-				? view.model.provider
+			selectedProviderOverride ??
+			(view.mode === "edit"
+				? modelConfigProviderKey(view.model, providerStates)
 				: view.mode === "duplicate"
-					? view.sourceModel.provider
-					: view.provider;
+					? modelConfigProviderKey(view.sourceModel, providerStates)
+					: view.provider);
 		const effectiveProviderState =
-			providerStates.find((ps) => ps.provider === effectiveProvider) ?? null;
+			providerStates.find((ps) => ps.key === effectiveProvider) ?? null;
 		const formKey =
 			view.mode === "edit"
 				? `edit:${view.model.id}`
@@ -178,7 +224,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onSelectedProviderChange={(provider) => {
 					if (view.mode === "add") {
 						setModelViewParam("newModel", provider, { replace: true });
+						return;
 					}
+					setSelectedProviderOverride(provider);
 				}}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
@@ -214,21 +262,21 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
-					<PlusIcon className="h-4 w-4" />
+					<PlusIcon className="size-4" />
 					Add
-					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
+					<ChevronDownIcon className="size-3.5 text-content-secondary" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				{addableProviders.map((ps) => (
 					<DropdownMenuItem
-						key={ps.provider}
+						key={ps.key}
 						onClick={() => {
-							setModelViewParam("newModel", ps.provider);
+							setModelViewParam("newModel", ps.key);
 						}}
 						className="gap-2"
 					>
-						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
+						<ProviderIcon provider={ps.provider} className="size-5" />
 						{ps.label}
 					</DropdownMenuItem>
 				))}
@@ -285,10 +333,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						const starUnavailable =
 							isUpdating || modelConfig.is_default || !modelConfig.enabled;
 						const providerState = providerStates.find(
-							(ps) => ps.provider === modelConfig.provider,
+							(ps) =>
+								ps.key === modelConfigProviderKey(modelConfig, providerStates),
 						);
-						const duplicateUnavailable =
-							!canManageProviderModels(providerState);
+						const duplicateUnavailable = Boolean(
+							providerState && !canManageProviderModels(providerState),
+						);
 
 						return (
 							<div
@@ -306,7 +356,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								>
 									<ProviderIcon
 										provider={modelConfig.provider}
-										className="h-8 w-8 shrink-0"
+										className="size-8 shrink-0"
 									/>
 									<div className="min-w-0 flex-1">
 										<span
@@ -321,7 +371,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										</span>
 										{showPricingWarning && (
 											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
-												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+												<TriangleAlertIcon className="size-3.5 shrink-0" />
 												Model pricing is not defined
 											</span>
 										)}

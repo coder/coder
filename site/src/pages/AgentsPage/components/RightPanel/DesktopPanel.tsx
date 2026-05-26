@@ -109,7 +109,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div className="relative h-full w-full">
+		<div className="relative size-full">
 			{/* "Release Control" button — top-right, only when controlling */}
 			{isControlling && (
 				<Button
@@ -118,7 +118,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 					onClick={onReleaseControl}
 					className="absolute top-2 right-2 z-20 shadow-xl drop-shadow-lg"
 				>
-					<HandIcon className="h-4 w-4" />
+					<HandIcon className="size-4" />
 					Release control
 				</Button>
 			)}
@@ -127,7 +127,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className={cn("h-full w-full", !isControlling && "pointer-events-none")}
+				className={cn("size-full", !isControlling && "pointer-events-none")}
 			/>
 			{/* "Take Control" hover overlay — only when NOT controlling */}
 			{!isControlling && (
@@ -140,7 +140,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 							aria-label="Take control of desktop"
 							className="shadow-xl drop-shadow-lg"
 						>
-							<MousePointer2Icon className="h-4 w-4" />
+							<MousePointer2Icon className="size-4" />
 							Take control
 						</Button>
 					</span>

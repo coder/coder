@@ -36,7 +36,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 				<ExternalImage
 					src={iconPath}
 					alt={`${formatProviderLabel(provider)} logo`}
-					className="h-3/5 w-3/5"
+					className="size-3/5"
 				/>
 			</div>
 		);
@@ -48,7 +48,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 				className,
 			)}
 		>
-			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+			<ServerIcon className="size-3/5 text-content-secondary" />
 		</div>
 	);
 };

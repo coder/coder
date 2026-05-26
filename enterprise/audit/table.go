@@ -395,7 +395,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AIProviderKey{}: {
 		"id":             ActionTrack,
 		"provider_id":    ActionTrack,
-		"api_key":        ActionSecret, // Provider API key, never expose in audit diffs.
+		"api_key":        ActionTrack,  // Callers must pre-mask before auditing; the audit pipeline never sees plaintext.
 		"api_key_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":     ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.

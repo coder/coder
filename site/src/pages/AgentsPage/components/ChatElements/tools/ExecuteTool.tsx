@@ -20,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
 	isAgentDisplayOpen,
@@ -29,6 +30,7 @@ import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
+	summarizeParsedCommands,
 	type ToolStatus,
 } from "./utils";
 
@@ -41,6 +43,7 @@ type ExecuteToolProps = {
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -78,6 +81,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	isBackgrounded = false,
 	killedBySignal,
 	modelIntent,
+	parsedCommands,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -93,23 +97,28 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 	return (
 		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
-			<button
-				type="button"
-				aria-expanded={outputOpen}
-				aria-label={outputToggleLabel}
-				onClick={() => setOutputOpen((value) => !value)}
-				className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+			<TranscriptRow
+				asChild
+				className="col-start-1 row-start-1 m-0 w-full min-w-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
 			>
-				<ShellCommandLine
-					command={command}
-					modelIntent={modelIntent}
-					durationLabel={durationLabel}
-					expanded={outputOpen}
-				/>
-			</button>
-			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
+				<button
+					type="button"
+					aria-expanded={outputOpen}
+					aria-label={outputToggleLabel}
+					onClick={() => setOutputOpen((value) => !value)}
+				>
+					<ShellCommandLine
+						command={command}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						durationLabel={durationLabel}
+						expanded={outputOpen}
+					/>
+				</button>
+			</TranscriptRow>
+			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
 				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
 				{showFailureIndicator && (
 					<Tooltip>
@@ -119,10 +128,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 								role="img"
 								className="flex shrink-0 text-content-destructive"
 							>
-								<TriangleAlertIcon
-									aria-hidden
-									className="h-3.5 w-3.5 shrink-0"
-								/>
+								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent>Command failed</TooltipContent>
@@ -136,7 +142,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 								role="img"
 								className="flex shrink-0 text-content-secondary"
 							>
-								<LayersIcon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+								<LayersIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent>Running in background</TooltipContent>
@@ -157,7 +163,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					label="Copy command"
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
-			</div>
+			</TranscriptRow>
 			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
@@ -172,20 +178,25 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 const ShellCommandLine: React.FC<{
 	command: string;
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, modelIntent, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
+	const summary =
+		parsedCommands && parsedCommands.length > 0
+			? summarizeParsedCommands(parsedCommands)
+			: "";
+	const commandDisplay = summary || command;
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				{intentLabel ? (
 					<>
-						{intentLabel} using{" "}
-						<code className="font-mono text-xs">{command}</code>
+						{intentLabel} using {commandDisplay}
 					</>
 				) : (
-					<>Ran {command}</>
+					<>Ran {commandDisplay}</>
 				)}
 			</span>
 			{durationLabel && (
@@ -196,7 +207,7 @@ const ShellCommandLine: React.FC<{
 			{expanded !== undefined && (
 				<ChevronDownIcon
 					className={cn(
-						"h-3 w-3 shrink-0 text-current transition-transform",
+						"size-3 shrink-0 text-current transition-transform",
 						expanded ? "rotate-0" : "-rotate-90",
 					)}
 				/>
@@ -250,7 +261,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 	return (
 		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
-				<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+				<CircleAlertIcon className="size-4 shrink-0 text-content-warning" />
 				<span className="text-[13px] text-content-primary">
 					Authenticate with {providerLabel} to continue this command.
 				</span>
@@ -264,7 +275,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 					}
 					className="inline-flex cursor-pointer items-center gap-1 text-xs"
 				>
-					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					<ExternalLinkIcon className="size-3.5 shrink-0" />
 					Authenticate with {providerLabel}
 				</Button>
 				<a
@@ -273,7 +284,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 					rel="noreferrer"
 					className="inline-flex items-center gap-1 text-xs text-content-link no-underline hover:underline"
 				>
-					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					<ExternalLinkIcon className="size-3.5 shrink-0" />
 					Open authentication link
 				</a>
 			</div>
@@ -317,23 +328,23 @@ export const WaitForExternalAuthTool: React.FC<{
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
 	let icon: React.ReactNode = (
-		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
+		<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 	);
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
 		icon = (
-			<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+			<TriangleAlertIcon className="size-3.5 shrink-0 text-content-secondary" />
 		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
 		icon = (
-			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-warning" />
+			<CircleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
 		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
-		icon = <CheckIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />;
+		icon = <CheckIcon className="size-3.5 shrink-0 text-content-success" />;
 	}
 
 	return (
