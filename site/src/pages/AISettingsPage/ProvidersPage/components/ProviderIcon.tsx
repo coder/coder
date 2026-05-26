@@ -5,7 +5,6 @@ type ProviderIconProps = {
 	provider: string;
 };
 
-/** @lintignore Consumed by provider pages landing in the next PR of the AI settings stack. */
 export const getProviderIcon = (provider: string): string | undefined => {
 	switch (provider) {
 		case "openai":
