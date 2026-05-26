@@ -12,9 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -352,6 +354,91 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Len(t, userAIProviderKeys, 1)
 	requireEncryptedEquals(t, c, "user-ai-provider-key-"+userID.String(), userAIProviderKeys[0].APIKey)
 	require.Equal(t, c.HexDigest(), userAIProviderKeys[0].ApiKeyKeyID.String)
+}
+
+// TestServerAIProviderKeysEncryptedWithDBCrypt starts a real enterprise server
+// with external token encryption and AI provider config, then verifies that
+// seeded AI provider keys are encrypted at rest.
+func TestServerAIProviderKeysEncryptedWithDBCrypt(t *testing.T) {
+	t.Parallel()
+
+	// Given: a 32-byte encryption key, base64-encoded.
+	rawKey := testutil.MustRandString(t, 32)
+	b64Key := base64.StdEncoding.EncodeToString([]byte(rawKey))
+
+	ciphers, err := dbcrypt.NewCiphers([]byte(rawKey))
+	require.NoError(t, err)
+	expectedDigest := ciphers[0].HexDigest()
+
+	dbURL, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+
+	const testAPIKey = "sk-test-key-that-must-be-encrypted-at-rest"
+
+	// Given: enterprise server with encryption and a legacy AI provider.
+	var root cli.RootCmd
+	cmd, err := root.Command(root.EnterpriseSubcommands())
+	require.NoError(t, err)
+
+	inv, cfg := clitest.NewWithCommand(t, cmd,
+		"server",
+		"--postgres-url="+dbURL,
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--external-token-encryption-keys", b64Key,
+		"--aibridge-enabled",
+		"--aibridge-openai-key", testAPIKey,
+	)
+
+	// When: the server starts up and seeds ai providers from env
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clitest.Start(t, inv.WithContext(ctx))
+	_ = waitAccessURL(t, cfg)
+
+	// Open a RAW database connection to inspect the actual stored values.
+	sqlDB, err := sql.Open("postgres", dbURL)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	rawDB := database.New(sqlDB)
+
+	// Then: we expect a single provider to be seeded in the db.
+	providers, err := rawDB.GetAIProviders(ctx, database.GetAIProvidersParams{
+		IncludeDeleted:  true,
+		IncludeDisabled: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, providers, 1, "expected exactly one provider")
+	provider := providers[0]
+	require.Equal(t, "openai", provider.Name, "unexpected provider name")
+
+	// Then: provider must exist.
+	require.NotEmpty(t, provider.ID,
+		"seeded AI provider 'openai' should exist in database")
+
+	keys, err := rawDB.GetAIProviderKeysByProviderID(ctx, provider.ID)
+	require.NoError(t, err)
+	require.Len(t, keys, 1, "should have exactly one provider key")
+
+	rawKeyRow := keys[0]
+
+	// Then: key_id must be populated
+	require.True(t, rawKeyRow.ApiKeyKeyID.Valid,
+		"api_key_key_id must be set when dbcrypt is active; NULL means the key was written without encryption (the bug from PR #25699)")
+	require.Equal(t, expectedDigest, rawKeyRow.ApiKeyKeyID.String,
+		"api_key_key_id should match the active cipher's hex digest")
+
+	// Then: the stored value must NOT be plaintext.
+	require.NotEqual(t, testAPIKey, rawKeyRow.APIKey,
+		"raw stored api_key must not be plaintext when encryption is active")
+
+	// Then: the stored value decrypts to the original key.
+	ciphertext, err := base64.StdEncoding.DecodeString(rawKeyRow.APIKey)
+	require.NoError(t, err, "encrypted api_key should be valid base64")
+
+	plaintext, err := ciphers[0].Decrypt(ciphertext)
+	require.NoError(t, err, "should be able to decrypt the stored key with the configured cipher")
+	require.Equal(t, testAPIKey, string(plaintext),
+		"decrypted value should match original API key")
 }
 
 // nullCipher is a dbcrypt.Cipher that does not encrypt or decrypt.

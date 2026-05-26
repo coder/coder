@@ -765,6 +765,11 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # Route chat model requests through AI Gateway when both chat routing and AI
+  # Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats
+  # without API key metadata may need a retry or temporary direct routing.
+  # (default: true, type: bool)
+  aiGatewayRoutingEnabled: true
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

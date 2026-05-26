@@ -65,7 +65,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			"openai",
 			"fallback-chat-model",
 			fallbackModel,
+			resolvedModelRoute{},
 			keys,
+			modelBuildOptions{},
 			generated,
 			logger,
 			nil,
@@ -112,7 +114,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			"openai",
 			"fallback-chat-model",
 			fallbackModel,
+			resolvedModelRoute{},
 			chatprovider.ProviderAPIKeys{},
+			modelBuildOptions{},
 			generated,
 			logger,
 			nil,
@@ -160,7 +164,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
+		resolvedModelRoute{},
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -207,7 +213,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
+		resolvedModelRoute{},
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -257,7 +265,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
 		APIKey:     "test-key",
-	}}, nil)
+	}}, nil).Times(2)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
@@ -272,7 +280,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
+		resolvedModelRoute{},
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -312,7 +322,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
+		resolvedModelRoute{},
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -360,7 +372,9 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
+		resolvedModelRoute{},
 		keys,
+		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -398,6 +412,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
+		modelBuildOptions{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -447,6 +462,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -481,6 +497,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
+		modelBuildOptions{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -508,6 +525,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
+		modelBuildOptions{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -535,6 +553,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{},
+		modelBuildOptions{},
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
@@ -562,6 +581,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
+		modelBuildOptions{},
 	)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")

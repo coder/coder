@@ -167,7 +167,25 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			providers, err := agplcli.BuildProviders(ctx, options.Database, options.DeploymentValues.AI.BridgeConfig, options.Logger.Named("aibridge.providers"))
+			// Seed env-derived providers before reading them back so the
+			// proxy observes them on first startup. options.Database is
+			// dbcrypt-wrapped at this point (set by coderd.New above),
+			// so env-seeded keys are also written encrypted. Detached
+			// ctx for the same reason as in agplcli below: an early
+			// return would orphan newAPI's goroutines. Seeding is
+			// idempotent; the agplcli path seeds again post-newAPI.
+			//nolint:gocritic // Production timeout, not a test wait.
+			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer aibridgeInitCancel()
+			if err := agplcoderd.SeedAIProvidersFromEnv(
+				aibridgeInitCtx,
+				options.Database,
+				options.DeploymentValues.AI.BridgeConfig,
+				options.Logger.Named("aibridge.envseed"),
+			); err != nil {
+				return nil, nil, xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+			providers, err := agplcli.BuildProviders(aibridgeInitCtx, options.Database, options.DeploymentValues.AI.BridgeConfig, options.Logger.Named("aibridge.providers"))
 			if err != nil {
 				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
 			}

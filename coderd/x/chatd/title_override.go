@@ -31,28 +31,18 @@ func readTitleGenerationModelOverride(
 }
 
 // resolveTitleGenerationModelOverride resolves the deployment-wide title
-// generation model override. It returns four values:
-//
-//   - modelConfig and model: populated only on success.
-//   - overrideSet: true when the admin configured a non-empty override,
-//     regardless of whether resolution succeeded. Callers MUST always check
-//     err first; overrideSet alone does not imply the model is usable.
-//   - err: non-nil when resolution failed. DB read failure returns
-//     (zero, nil, false, err). With overrideSet=true, the override is
-//     configured but unusable (deleted model, missing credentials, etc.) and
-//     callers should treat this as a hard failure for explicit-override
-//     semantics, not a soft fallback.
-//
-// When the override is unset or stored as malformed, the function returns
-// (zero, nil, false, nil) so callers can fall back to default behavior.
+// generation model override. overrideSet is true when an override was
+// configured; in that case any returned error is a hard failure. When
+// overrideSet is false, callers may fall back to the default title model.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
-) (database.ChatModelConfig, fantasy.LanguageModel, chatprovider.ProviderAPIKeys, bool, error) {
+	modelOpts modelBuildOptions,
+) (database.ChatModelConfig, fantasy.LanguageModel, chatprovider.ProviderAPIKeys, resolvedModelRoute, bool, error) {
 	raw, err := readTitleGenerationModelOverride(ctx, p.db)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
@@ -84,43 +74,28 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, overrideSet, err
+		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, overrideSet, err
 	}
 	if !overrideSet {
-		return database.ChatModelConfig{}, nil, keys, false, nil
+		return database.ChatModelConfig{}, nil, keys, resolvedModelRoute{}, false, nil
 	}
 
-	providerHint := modelConfig.Provider
-	if modelConfig.AIProviderID.Valid {
-		//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
-		provider, err := p.db.GetAIProviderByID(dbauthz.AsChatd(ctx), modelConfig.AIProviderID.UUID)
-		if err != nil {
-			return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, true, xerrors.Errorf("get AI provider for title generation override: %w", err)
-		}
-		if !provider.Enabled {
-			return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, true, xerrors.Errorf("AI provider %s is disabled", modelConfig.AIProviderID.UUID)
-		}
-		providerHint = string(provider.Type)
-	}
-	model, err := chatprovider.ModelFromConfig(
-		providerHint,
-		modelConfig.Model,
-		overrideProviderKeys,
-		chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-		nil,
-	)
+	//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
+	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig, overrideProviderKeys)
 	if err != nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, true, xerrors.Errorf(
+		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, err
+	}
+	model, err := p.newModel(ctx, modelClientRequest{
+		Chat:         chat,
+		ModelName:    modelConfig.Model,
+		UserAgent:    chatprovider.UserAgent(),
+		ExtraHeaders: chatprovider.CoderHeaders(chat),
+	}, route, modelOpts)
+	if err != nil {
+		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, xerrors.Errorf(
 			"create title generation model override: %w",
 			err,
 		)
 	}
-	if model == nil {
-		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, true, xerrors.Errorf(
-			"create title generation model override returned nil",
-		)
-	}
-
-	return modelConfig, model, overrideProviderKeys, true, nil
+	return modelConfig, model, route.directProviderKeys(), route, true, nil
 }
