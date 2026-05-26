@@ -60,7 +60,6 @@
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
 		--content-destructive: 0 84% 60%;
-		--content-early-access: 195 61% 22%;
 		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
 		--surface-tertiary: 240 6% 90%;
@@ -72,7 +71,6 @@
 		--surface-grey: 240 5% 96%;
 		--surface-orange: 34 100% 92%;
 		--surface-sky: 191, 67%, 89%;
-		--surface-early-access: 191 67% 89%;
 		--surface-red: 0 93% 94%;
 		--surface-purple: 259, 100%, 95%;
 		--surface-magenta: 289 100% 98%;
@@ -84,7 +82,6 @@
 		--border-magenta: 295, 68%, 46%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
-		--border-early-access: 203 90% 40%;
 		--border-secondary: 240 5% 65%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
@@ -136,7 +133,6 @@
 		--content-success: 142 76% 36%;
 		--content-warning: 31 97% 72%;
 		--content-destructive: 0 91% 71%;
-		--content-early-access: 186 76% 79%;
 		--surface-primary: 240 10% 4%;
 		--surface-secondary: 240 6% 10%;
 		--surface-tertiary: 240 4% 16%;
@@ -148,7 +144,6 @@
 		--surface-grey: 240 6% 10%;
 		--surface-orange: 13 81% 15%;
 		--surface-sky: 196, 67%, 12%;
-		--surface-early-access: 192 80% 14%;
 		--surface-red: 0 75% 15%;
 		--surface-purple: 268, 68%, 17%;
 		--surface-magenta: 291, 74%, 15%;
@@ -158,7 +153,6 @@
 		--border-magenta: 292, 100%, 78%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
-		--border-early-access: 188 84% 76%;
 		--border-sky: 194 90% 62%;
 		--border-green: 143 77% 87%;
 		--border-secondary: 240 5% 26%;
