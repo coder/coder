@@ -179,6 +179,7 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 			if err != nil {
 				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
+			p.signalAllSubscribersDropped()
 		},
 		reconnect: func(_ *natsgo.Conn) {
 			p.logger.Info(p.ctx, "nats client reconnected")
@@ -500,6 +501,25 @@ func (s *localSub) signalDrop() {
 	select {
 	case s.dropSignal <- struct{}{}:
 	default:
+	}
+}
+
+// signalAllSubscribersDropped broadcasts a drop signal to every local
+// subscriber without calling listeners while holding subscription locks.
+func (p *Pubsub) signalAllSubscribersDropped() {
+	p.mu.Lock()
+	subs := make([]*localSub, 0)
+	for _, nsub := range p.subscriptions {
+		nsub.mu.Lock()
+		for s := range nsub.listeners {
+			subs = append(subs, s)
+		}
+		nsub.mu.Unlock()
+	}
+	p.mu.Unlock()
+
+	for _, s := range subs {
+		s.signalDrop()
 	}
 }
 

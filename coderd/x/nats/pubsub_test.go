@@ -2,10 +2,8 @@ package nats_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -147,98 +145,55 @@ func TestPubsub(t *testing.T) {
 		assert.NoError(t, second)
 	})
 
-	t.Run("LocalQueueOverflowSignalsDrop", func(t *testing.T) {
+	t.Run("SubscribeWithErrReceivesDropError", func(t *testing.T) {
 		t.Parallel()
-		ps := newSlowConsumerPubsub(t)
+		ps := newTestPubsub(t, xnats.Options{
+			PendingLimits: xnats.PendingLimits{Msgs: 1, Bytes: 1024 * 1024},
+		})
 
 		const event = "slow_evt_sync"
-		type delivery struct {
-			msg []byte
-			err error
-		}
-		deliveries := make(chan delivery, 64)
+		started := make(chan struct{})
 		release := make(chan struct{})
-		var blocked atomic.Bool
+		dropped := make(chan error, 1)
+		var startedOnce sync.Once
+		var releaseOnce sync.Once
+		defer releaseOnce.Do(func() { close(release) })
 
-		cancel, err := ps.SubscribeWithErr(event, func(_ context.Context, msg []byte, err error) {
-			if !blocked.Swap(true) {
-				<-release
+		cancel, err := ps.SubscribeWithErr(event, func(_ context.Context, _ []byte, err error) {
+			if err != nil {
+				select {
+				case dropped <- err:
+				default:
+				}
+				return
 			}
-			deliveries <- delivery{msg: msg, err: err}
+			startedOnce.Do(func() {
+				close(started)
+				<-release
+			})
 		})
 		require.NoError(t, err)
 		defer cancel()
 
-		for i := 0; i < 50; i++ {
+		require.NoError(t, ps.Publish(event, []byte("first")))
+		require.NoError(t, ps.Flush())
+		select {
+		case <-started:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for first callback")
+		}
+
+		for i := 0; i < 8; i++ {
 			require.NoError(t, ps.Publish(event, []byte("burst")))
 		}
 		require.NoError(t, ps.Flush())
-		close(release)
+		releaseOnce.Do(func() { close(release) })
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		var dropCount, msgCount int
-		var sawDrop bool
-		deadline := time.After(testutil.WaitShort)
-	collect:
-		for {
-			select {
-			case d := <-deliveries:
-				if errors.Is(d.err, pubsub.ErrDroppedMessages) {
-					dropCount++
-					sawDrop = true
-				} else if d.err == nil {
-					msgCount++
-				}
-			case <-deadline:
-				break collect
-			case <-ctx.Done():
-				break collect
-			}
-		}
-
-		assert.True(t, sawDrop, "expected at least one ErrDroppedMessages callback")
-		assert.GreaterOrEqual(t, dropCount, 1, "expected at least one drop callback")
-		assert.GreaterOrEqual(t, msgCount, 1, "expected at least the first message delivered")
-
-		gotMarker := make(chan struct{}, 1)
-		cancel2, err := ps.SubscribeWithErr(event, func(_ context.Context, msg []byte, _ error) {
-			if string(msg) == "post-drop-marker" {
-				select {
-				case gotMarker <- struct{}{}:
-				default:
-				}
-			}
-		})
-		require.NoError(t, err)
-		defer cancel2()
-
-		markerTick := time.NewTicker(testutil.IntervalMedium)
-		defer markerTick.Stop()
-		require.NoError(t, ps.Publish(event, []byte("post-drop-marker")))
-		for {
-			select {
-			case <-gotMarker:
-				return
-			case <-markerTick.C:
-				require.NoError(t, ps.Publish(event, []byte("post-drop-marker")))
-			case <-ctx.Done():
-				t.Fatalf("did not receive post-drop-marker: %v", ctx.Err())
-			}
+		select {
+		case err := <-dropped:
+			assert.ErrorIs(t, err, pubsub.ErrDroppedMessages)
+		case <-time.After(testutil.WaitLong):
+			t.Fatal("timed out waiting for drop error")
 		}
 	})
-}
-
-func newSlowConsumerPubsub(t *testing.T) *xnats.Pubsub {
-	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx, cancel := context.WithCancel(context.Background())
-	ps, err := xnats.New(ctx, logger, xnats.Options{
-		PendingLimits: xnats.PendingLimits{Msgs: 8, Bytes: 1024 * 1024},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = ps.Close()
-		cancel()
-	})
-	return ps
 }

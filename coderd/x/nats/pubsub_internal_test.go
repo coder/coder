@@ -10,6 +10,7 @@ import (
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -133,6 +134,58 @@ func Test_SubscribeWithErr(t *testing.T) {
 		ps.mu.Lock()
 		defer ps.mu.Unlock()
 		require.Len(t, ps.subscriptions, 1)
+	})
+}
+
+func Test_Pubsub_buildConnHandlers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DisconnectSignalsDrops", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ps := newPubsub(ctx, logger, Options{})
+
+		dropped := make(chan string, 2)
+		newLocal := func(event string) *localSub {
+			subCtx, subCancel := context.WithCancel(ctx)
+			s := &localSub{
+				ctx:    subCtx,
+				cancel: subCancel,
+				event:  event,
+				listener: func(_ context.Context, _ []byte, ferr error) {
+					if errors.Is(ferr, pubsub.ErrDroppedMessages) {
+						dropped <- event
+					}
+				},
+				queue:      make(chan []byte, 1),
+				dropSignal: make(chan struct{}, 1),
+			}
+			s.init()
+			t.Cleanup(s.close)
+			return s
+		}
+
+		subA := newLocal("disconnect_a")
+		subB := newLocal("disconnect_b")
+		ps.subscriptions[subA.event] = &natsSub{listeners: map[*localSub]struct{}{subA: {}}}
+		ps.subscriptions[subB.event] = &natsSub{listeners: map[*localSub]struct{}{subB: {}}}
+
+		handlers := ps.buildConnHandlers()
+		handlers.disconnectErr(nil, xerrors.New("disconnect"))
+
+		want := map[string]bool{subA.event: true, subB.event: true}
+		require.Eventually(t, func() bool {
+			for {
+				select {
+				case event := <-dropped:
+					delete(want, event)
+				default:
+					return len(want) == 0
+				}
+			}
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
