@@ -36,7 +36,7 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 			hasContent={unique.length > 0}
 			header={
 				<>
-					<GlobeIcon className="h-4 w-4 shrink-0 text-current" />
+					<GlobeIcon className="size-4 shrink-0 text-current" />
 					<span className="text-[13px]">
 						Searched <span className="text-content-secondary/60">{detail}</span>
 					</span>
@@ -103,7 +103,7 @@ const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 				/>
 			)}
 			<span className="truncate">{label}</span>
-			<ExternalLinkIcon className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+			<ExternalLinkIcon className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
 		</a>
 	);
 };

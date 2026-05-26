@@ -94,11 +94,11 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 						</span>
 					</div>
 					{showLimitReached ? (
-						<TriangleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-warning" />
+						<TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-content-warning" />
 					) : showError ? (
-						<CircleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-destructive" />
+						<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-content-destructive" />
 					) : isRunning ? (
-						<LoaderIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					) : null}
 				</>
 			)}
@@ -119,7 +119,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							role="status"
 							className="flex items-start gap-3 rounded-md border border-solid border-border-warning bg-surface-orange p-3 text-sm text-content-primary"
 						>
-							<TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-warning" />
+							<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-warning" />
 							<div className="space-y-1">
 								<p className="m-0 font-medium">Advisor limit reached.</p>
 								<p className="m-0 text-content-primary">
@@ -132,7 +132,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							role="alert"
 							className="flex items-start gap-3 rounded-md border border-solid border-border-destructive bg-surface-red p-3 text-sm text-content-primary"
 						>
-							<CircleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-destructive" />
+							<CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-destructive" />
 							<div className="space-y-1">
 								<p className="m-0 font-medium">Advisor request failed.</p>
 								<p className="m-0 text-content-primary [overflow-wrap:anywhere]">

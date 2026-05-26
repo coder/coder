@@ -569,6 +569,39 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by PR number (exact match on chat's diff status).
+    AND CASE
+        WHEN @pr_number::int != 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pr_number = @pr_number
+        )
+        ELSE true
+    END
+    -- Filter by repository (substring match on remote origin or PR URL).
+    AND CASE
+        WHEN @repo_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    cds.git_remote_origin ILIKE '%' || @repo_query || '%'
+                    OR cds.url ILIKE '%' || @repo_query || '%'
+                )
+        )
+        ELSE true
+    END
+    -- Filter by pull request title (case-insensitive substring).
+    AND CASE
+        WHEN @pr_title_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pull_request_title ILIKE '%' || @pr_title_query || '%'
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -2280,7 +2313,9 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Used by dbpurge.
+-- rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+-- chats sharing the same last-activity date are archived together.
+-- Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -2298,6 +2333,7 @@ WITH to_archive AS (
     WHERE c.archived = false
       AND c.pin_order = 0
       AND c.parent_chat_id IS NULL -- roots only
+      -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')

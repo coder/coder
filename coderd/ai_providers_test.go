@@ -157,6 +157,46 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "no-display", created.DisplayName)
 	})
 
+	t.Run("RequiredBaseURL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "missing-base-url",
+			Enabled: true,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url is required"})
+
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "required-base-url",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		baseURL := "https://proxy.example.com/v1"
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: &baseURL,
+		})
+		require.NoError(t, err)
+		require.Equal(t, baseURL, updated.BaseURL)
+
+		baseURL = ""
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: &baseURL,
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url is required"})
+	})
+
 	t.Run("DuplicateNameConflict", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -285,6 +325,50 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "At least one field must be provided")
+	})
+
+	t.Run("UpdateCannotMutateName", func(t *testing.T) {
+		t.Parallel()
+		// ai_providers.name is the stable key that aibridge_interceptions
+		// snapshots into provider_name. Renames would silently desync
+		// historical interceptions from their live row and break the
+		// future FK backfill, so the PATCH endpoint must ignore any "name"
+		// field in the payload. The SDK type intentionally has no Name
+		// field; this test sends raw JSON to defend against a future
+		// regression where someone adds one without thinking.
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "stable-name",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodPatch,
+			"/api/v2/ai/providers/"+created.Name,
+			json.RawMessage(`{"name":"renamed","display_name":"New Display"}`),
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		got, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.Equal(t, "stable-name", got.Name, "name must not be mutable via PATCH")
+		require.Equal(t, "New Display", got.DisplayName, "display_name should still update")
+
+		// Confirm the original name still resolves and the attempted new
+		// name does not exist as a separate row.
+		_, err = client.AIProvider(ctx, "renamed")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
 	t.Run("UpdateSettingsEmptyObjectRejected", func(t *testing.T) {

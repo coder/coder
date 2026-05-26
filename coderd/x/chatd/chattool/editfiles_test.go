@@ -20,6 +20,44 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
+	// Verify the generated tool schema exposes old_text/new_text
+	// (not the deprecated search/replace) so the rename is
+	// auditable without running a separate program.
+	t.Run("SchemaUsesOldTextNewText", func(t *testing.T) {
+		t.Parallel()
+		tool := chattool.EditFiles(chattool.EditFilesOptions{})
+		info := tool.Info()
+
+		// Dig into: files -> items -> properties -> edits -> items -> properties
+		filesSchema := info.Parameters["files"]
+		require.NotNil(t, filesSchema, "missing files parameter")
+		filesMap, ok := filesSchema.(map[string]any)
+		require.True(t, ok)
+		items, ok := filesMap["items"].(map[string]any)
+		require.True(t, ok)
+		props, ok := items["properties"].(map[string]any)
+		require.True(t, ok)
+		editsSchema, ok := props["edits"].(map[string]any)
+		require.True(t, ok)
+		editItems, ok := editsSchema["items"].(map[string]any)
+		require.True(t, ok)
+		editProps, ok := editItems["properties"].(map[string]any)
+		require.True(t, ok)
+
+		assert.Contains(t, editProps, "old_text", "schema should expose old_text")
+		assert.Contains(t, editProps, "new_text", "schema should expose new_text")
+		assert.Contains(t, editProps, "replace_all", "schema should expose replace_all")
+		assert.NotContains(t, editProps, "search", "schema should not expose deprecated search")
+		assert.NotContains(t, editProps, "replace", "schema should not expose deprecated replace")
+
+		// Verify required fields.
+		editRequired, ok := editItems["required"].([]string)
+		require.True(t, ok)
+		assert.Contains(t, editRequired, "old_text")
+		assert.Contains(t, editRequired, "new_text")
+		assert.NotContains(t, editRequired, "replace_all", "replace_all should be optional")
+	})
+
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -468,6 +506,116 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, resp.IsError)
 	})
+}
+
+func TestEditFiles_OldTextNewTextFieldsPreferred(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+
+	// The agent API should map old_text->Search and new_text->Replace.
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: targetPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old content",
+					Replace: "new content",
+				}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"old content","new_text":"new content"}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+}
+
+func TestEditFiles_DeprecatedSearchReplaceFieldsStillWork(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+
+	// Agents with cached schemas may still send "search"/"replace".
+	// Also exercises replace_all through the new unmarshal+convert path.
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: targetPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:     "old",
+					Replace:    "replacement",
+					ReplaceAll: true,
+				}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"search":"old","replace":"replacement","replace_all":true}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+}
+
+func TestEditFiles_NewFieldNamesTakePrecedenceOverOld(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+
+	// If both old and new field names are present, new names win.
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: targetPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "from-oldText",
+					Replace: "from-newText",
+				}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: `{"files":[{"path":"` + targetPath + `","edits":[{"old_text":"from-oldText","search":"from-search","new_text":"from-newText","replace":"from-replace"}]}]}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
 }
 
 func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {

@@ -85,7 +85,7 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 				{isComplete ? (
 					<CheckIcon
 						aria-label="Complete"
-						className="h-5 w-5 text-content-success"
+						className="size-5 text-content-success"
 					/>
 				) : (
 					`${stepNumber}.`

@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -183,13 +184,15 @@ func seedInternalChatDeps(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		Provider:     "openai",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		IsDefault:    true,
 	})
 
 	return user, org, model
@@ -309,24 +312,38 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		require.True(t, keys.HasProvider("bedrock"))
 		require.Empty(t, keys.APIKey("bedrock"))
 	})
+
+	t.Run("RejectsAmbiguousProviderTypeWithoutSelectedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "first-provider-api-key", true)
+		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "second-provider-api-key", true)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
+		require.ErrorContains(t, err, "multiple enabled AI providers use provider type")
+		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
+	})
 }
 
 func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 	t.Parallel()
 
 	ctx := chatdTestContext(t)
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	user, org, _ := seedInternalChatDeps(t, db)
 	provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", false)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider: "openai",
 		Model:    "gpt-4o-mini",
+		AIProviderID: uuid.NullUUID{
+			UUID:  provider.ID,
+			Valid: true,
+		},
 	})
-	_, err := sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET ai_provider_id = $1 WHERE id = $2", provider.ID, modelConfig.ID)
-	require.NoError(t, err)
-	loadedModelConfig, err := db.GetChatModelConfigByID(ctx, modelConfig.ID)
-	require.NoError(t, err)
-	require.True(t, loadedModelConfig.AIProviderID.Valid)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
@@ -408,19 +425,20 @@ func insertInternalChatProvider(
 	centralAPIKeyEnabled bool,
 	allowUserAPIKey bool,
 	allowCentralAPIKeyFallback bool,
-) database.ChatProvider {
+) database.AIProvider {
 	t.Helper()
 
-	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider:    provider,
-		DisplayName: provider,
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-	}, func(p *database.InsertChatProviderParams) {
-		p.APIKey = apiKey
-		p.CentralApiKeyEnabled = centralAPIKeyEnabled
-		p.AllowUserApiKey = allowUserAPIKey
-		p.AllowCentralApiKeyFallback = allowCentralAPIKeyFallback
+	providerConfig := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderType(provider),
+		Name:        "test-" + uuid.NewString(),
+		DisplayName: sql.NullString{String: provider, Valid: true},
 	})
+	if apiKey != "" {
+		dbgen.AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID: providerConfig.ID,
+			APIKey:     apiKey,
+		})
+	}
 
 	return providerConfig
 }

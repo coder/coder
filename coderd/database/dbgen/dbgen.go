@@ -149,8 +149,29 @@ const (
 
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
+	providerName := takeFirst(seed.Provider, "openai")
+	aiProviderID := seed.AIProviderID
+	if !aiProviderID.Valid {
+		providers, err := db.GetAIProviders(genCtx, database.GetAIProvidersParams{IncludeDisabled: true})
+		require.NoError(t, err, "get ai providers")
+		var provider database.AIProvider
+		for _, candidate := range providers {
+			if candidate.Type != database.AIProviderType(providerName) {
+				continue
+			}
+			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+				provider = candidate
+			}
+		}
+		if provider.ID == uuid.Nil {
+			provider = AIProvider(t, db, database.AIProvider{
+				Type: database.AIProviderType(providerName),
+			})
+		}
+		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	}
 	params := database.InsertChatModelConfigParams{
-		Provider:             takeFirst(seed.Provider, "openai"),
+		Provider:             providerName,
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
 		CreatedBy:            seed.CreatedBy,
@@ -160,6 +181,7 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		ContextLimit:         takeFirst(seed.ContextLimit, defaultChatModelContextLimit),
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
+		AIProviderID:         aiProviderID,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -262,9 +284,36 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 	for _, fn := range munge {
 		fn(&params)
 	}
-	provider, err := db.InsertChatProvider(genCtx, params)
-	require.NoError(t, err, "insert chat provider")
-	return provider
+	provider := AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderType(params.Provider),
+		Name:        "test-" + uuid.NewString(),
+		DisplayName: sql.NullString{String: params.DisplayName, Valid: params.DisplayName != ""},
+		BaseUrl:     params.BaseUrl,
+	}, func(p *database.InsertAIProviderParams) {
+		p.Enabled = params.Enabled
+	})
+	if params.APIKey != "" {
+		AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID:  provider.ID,
+			APIKey:      params.APIKey,
+			ApiKeyKeyID: params.ApiKeyKeyID,
+		})
+	}
+	return database.ChatProvider{
+		ID:                         provider.ID,
+		Provider:                   params.Provider,
+		DisplayName:                params.DisplayName,
+		APIKey:                     params.APIKey,
+		BaseUrl:                    params.BaseUrl,
+		ApiKeyKeyID:                params.ApiKeyKeyID,
+		CreatedBy:                  params.CreatedBy,
+		Enabled:                    params.Enabled,
+		CentralApiKeyEnabled:       params.CentralApiKeyEnabled,
+		AllowUserApiKey:            params.AllowUserApiKey,
+		AllowCentralApiKeyFallback: params.AllowCentralApiKeyFallback,
+		CreatedAt:                  provider.CreatedAt,
+		UpdatedAt:                  provider.UpdatedAt,
+	}
 }
 
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
@@ -402,6 +451,34 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	}
 	require.Failf(t, "connection log not found", "id=%s", arg.ID)
 	return database.ConnectionLog{} // unreachable
+}
+
+func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySession) database.BoundarySession {
+	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
+		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
+		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
+		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert boundary session")
+	return session
+}
+
+func BoundaryLog(t testing.TB, db database.Store, seed database.BoundaryLog) database.BoundaryLog {
+	log, err := db.InsertBoundaryLog(genCtx, database.InsertBoundaryLogParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		SessionID:      seed.SessionID,
+		SequenceNumber: takeFirst(seed.SequenceNumber, 0),
+		CapturedAt:     takeFirst(seed.CapturedAt, dbtime.Now()),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		Proto:          takeFirst(seed.Proto, "http"),
+		Method:         takeFirst(seed.Method, "GET"),
+		Detail:         takeFirst(seed.Detail, "https://example.com"),
+		MatchedRule:    seed.MatchedRule,
+	})
+	require.NoError(t, err, "insert boundary log")
+	return log
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {

@@ -128,7 +128,7 @@ func TestRefresher_WithPRURL(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -184,7 +184,7 @@ func TestRefresher_BranchResolvesToPR(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -226,7 +226,7 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -255,7 +255,7 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 func TestRefresher_NoProviderForOrigin(t *testing.T) {
 	t.Parallel()
 
-	providers := func(_ string) gitprovider.Provider { return nil }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return nil }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -296,7 +296,7 @@ func TestRefresher_TokenResolutionFails(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return nil, errors.New("token lookup failed")
 	}
@@ -328,7 +328,7 @@ func TestRefresher_EmptyToken(t *testing.T) {
 
 	mp := &mockProvider{}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref(""), nil
 	}
@@ -366,7 +366,7 @@ func TestRefresher_ProviderFetchFails(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -402,7 +402,7 @@ func TestRefresher_PRURLParseFailure(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -440,7 +440,7 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 
 	var tokenCalls atomic.Int32
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
@@ -522,7 +522,7 @@ func TestRefresher_UsesInjectedClock(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -574,7 +574,7 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}
@@ -695,7 +695,7 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
 
@@ -780,7 +780,7 @@ func TestRefresher_ConcurrentProcessing(t *testing.T) {
 		},
 	}
 
-	providers := func(_ string) gitprovider.Provider { return mp }
+	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		return ptr.Ref("test-token"), nil
 	}

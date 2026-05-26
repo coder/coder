@@ -194,12 +194,26 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 		},
 		{
-			// KEYS, BEDROCK_ACCESS_KEYS, and BEDROCK_ACCESS_KEY_SECRETS
-			// are plural aliases for their singular counterparts.
-			name: "PluralKeyAliases",
+			// KEYS is a plural alias for KEY.
+			name: "PluralKeysAlias",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type: aibridge.ProviderAnthropic,
+					Name: aibridge.ProviderAnthropic,
+					Keys: []string{"sk-ant-xxx"},
+				},
+			},
+		},
+		{
+			// BEDROCK_ACCESS_KEYS and BEDROCK_ACCESS_KEY_SECRETS are
+			// plural aliases for their singular counterparts.
+			name: "PluralBedrockAliases",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret",
 			},
@@ -207,11 +221,22 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				{
 					Type:                    aibridge.ProviderAnthropic,
 					Name:                    aibridge.ProviderAnthropic,
-					Keys:                    []string{"sk-ant-xxx"},
 					BedrockAccessKeys:       []string{"AKID"},
 					BedrockAccessKeySecrets: []string{"secret"},
 				},
 			},
+		},
+		{
+			// An Anthropic provider can't use both a bearer token
+			// (KEYS) and Bedrock (BEDROCK_*); they're mutually
+			// exclusive authentication modes.
+			name: "AnthropicKeysAndBedrockConflict",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+			},
+			errContains: "KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 		},
 		{
 			name: "ConflictKeyAndKeys",
@@ -442,4 +467,73 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestValidateLegacyAIBridgeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         codersdk.AIBridgeConfig
+		errContains string
+	}{
+		{
+			name: "BareAnthropicKey",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+			},
+		},
+		{
+			name: "BareBedrockRegion",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{Region: "us-east-1"},
+			},
+		},
+		{
+			name: "BedrockCredentialsOnly",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+		},
+		{
+			name: "AnthropicKeyAndBedrockConflict",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Region:          "us-east-1",
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+			errContains: "CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive",
+		},
+		{
+			name: "AnthropicKeyWithBedrockModelDefaultsIsFine",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				// Model defaults shouldn't trip the conflict; they're
+				// always populated in a real deployment.
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateLegacyAIBridgeConfig(tt.cfg)
+			if tt.errContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errContains)
+		})
+	}
 }

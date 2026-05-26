@@ -521,6 +521,19 @@ func (db *dbCrypt) GetAIProviderKeysByProviderID(ctx context.Context, providerID
 	return keys, nil
 }
 
+func (db *dbCrypt) GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error) {
+	keys, err := db.Store.GetAIProviderKeysByProviderIDs(ctx, providerIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range keys {
+		if err := db.decryptAIProviderKey(&keys[i]); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
 func (db *dbCrypt) InsertAIProviderKey(ctx context.Context, params database.InsertAIProviderKeyParams) (database.AIProviderKey, error) {
 	if strings.TrimSpace(params.APIKey) == "" {
 		params.ApiKeyKeyID = sql.NullString{}
@@ -574,92 +587,6 @@ func (db *dbCrypt) UpdateEncryptedAIProviderKey(ctx context.Context, params data
 		return database.AIProviderKey{}, err
 	}
 	return key, nil
-}
-
-func (db *dbCrypt) GetChatProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
-	provider, err := db.Store.GetChatProviderByID(ctx, id)
-	if err != nil {
-		return database.ChatProvider{}, err
-	}
-	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-	return provider, nil
-}
-
-func (db *dbCrypt) GetChatProviderByProvider(ctx context.Context, providerName string) (database.ChatProvider, error) {
-	provider, err := db.Store.GetChatProviderByProvider(ctx, providerName)
-	if err != nil {
-		return database.ChatProvider{}, err
-	}
-	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-	return provider, nil
-}
-
-func (db *dbCrypt) GetChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
-	providers, err := db.Store.GetChatProviders(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range providers {
-		if err := db.decryptField(&providers[i].APIKey, providers[i].ApiKeyKeyID); err != nil {
-			return nil, err
-		}
-	}
-
-	return providers, nil
-}
-
-func (db *dbCrypt) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
-	providers, err := db.Store.GetEnabledChatProviders(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := range providers {
-		if err := db.decryptField(&providers[i].APIKey, providers[i].ApiKeyKeyID); err != nil {
-			return nil, err
-		}
-	}
-
-	return providers, nil
-}
-
-func (db *dbCrypt) InsertChatProvider(ctx context.Context, params database.InsertChatProviderParams) (database.ChatProvider, error) {
-	if strings.TrimSpace(params.APIKey) == "" {
-		params.ApiKeyKeyID = sql.NullString{}
-	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-
-	provider, err := db.Store.InsertChatProvider(ctx, params)
-	if err != nil {
-		return database.ChatProvider{}, err
-	}
-	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-	return provider, nil
-}
-
-func (db *dbCrypt) UpdateChatProvider(ctx context.Context, params database.UpdateChatProviderParams) (database.ChatProvider, error) {
-	if strings.TrimSpace(params.APIKey) == "" {
-		params.ApiKeyKeyID = sql.NullString{}
-	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-
-	provider, err := db.Store.UpdateChatProvider(ctx, params)
-	if err != nil {
-		return database.ChatProvider{}, err
-	}
-	if err := db.decryptField(&provider.APIKey, provider.ApiKeyKeyID); err != nil {
-		return database.ChatProvider{}, err
-	}
-	return provider, nil
 }
 
 func (db *dbCrypt) decryptUserAIProviderKey(key *database.UserAiProviderKey) error {
@@ -750,57 +677,6 @@ func (db *dbCrypt) UpdateEncryptedUserAIProviderKey(ctx context.Context, params 
 	}
 	if err := db.decryptUserAIProviderKey(&key); err != nil {
 		return database.UserAiProviderKey{}, err
-	}
-	return key, nil
-}
-
-func (db *dbCrypt) decryptUserChatProviderKey(key *database.UserChatProviderKey) error {
-	return db.decryptField(&key.APIKey, key.ApiKeyKeyID)
-}
-
-func (db *dbCrypt) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]database.UserChatProviderKey, error) {
-	keys, err := db.Store.GetUserChatProviderKeys(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range keys {
-		if err := db.decryptUserChatProviderKey(&keys[i]); err != nil {
-			return nil, err
-		}
-	}
-	return keys, nil
-}
-
-func (db *dbCrypt) UpsertUserChatProviderKey(ctx context.Context, params database.UpsertUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
-	if strings.TrimSpace(params.APIKey) == "" {
-		params.ApiKeyKeyID = sql.NullString{}
-	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-
-	key, err := db.Store.UpsertUserChatProviderKey(ctx, params)
-	if err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	if err := db.decryptUserChatProviderKey(&key); err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	return key, nil
-}
-
-func (db *dbCrypt) UpdateUserChatProviderKey(ctx context.Context, params database.UpdateUserChatProviderKeyParams) (database.UserChatProviderKey, error) {
-	if strings.TrimSpace(params.APIKey) == "" {
-		params.ApiKeyKeyID = sql.NullString{}
-	} else if err := db.encryptField(&params.APIKey, &params.ApiKeyKeyID); err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-
-	key, err := db.Store.UpdateUserChatProviderKey(ctx, params)
-	if err != nil {
-		return database.UserChatProviderKey{}, err
-	}
-	if err := db.decryptUserChatProviderKey(&key); err != nil {
-		return database.UserChatProviderKey{}, err
 	}
 	return key, nil
 }

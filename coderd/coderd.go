@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -1202,6 +1203,17 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.listUserAIProviderKeyConfigs)
+			r.Route("/{aiProvider}", func(r chi.Router) {
+				r.Put("/", api.upsertUserAIProviderKey)
+				r.Delete("/", api.deleteUserAIProviderKey)
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -2187,6 +2199,16 @@ type API struct {
 	// UsageInserter is a pointer to an atomic pointer because it is passed to
 	// multiple components.
 	UsageInserter *atomic.Pointer[usage.Inserter]
+	// AIBridgeTransportFactory, when non-nil, lets chatd route LLM requests
+	// through an in-process aibridge transport instead of calling upstream
+	// providers directly. Registered by coderd at startup once aibridged is
+	// wired in-memory.
+	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
+	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
+	// RegisterInMemoryAIBridgedHTTPHandler; read both by the enterprise
+	// /api/v2/aibridge route (license-gated) and by the in-memory transport
+	// (used by chatd, license-exempt).
+	aibridgedHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
