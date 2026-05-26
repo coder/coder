@@ -28,12 +28,14 @@ import {
 	deleteChatQueuedMessage,
 	editChatMessage,
 	infiniteChats,
+	infiniteChatsKey,
 	interruptChat,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
 	pinChat,
+	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	regenerateChatTitle,
@@ -73,9 +75,9 @@ vi.mock("#/api/api", () => ({
 	},
 }));
 
-// The infinite query key used by useInfiniteQuery(infiniteChats())
-// is [...chatsKey, undefined] = ["chats", undefined].
-const infiniteChatsTestKey = [...chatsKey, undefined];
+type InfiniteChatsTestOptions = Parameters<typeof infiniteChatsKey>[0];
+
+const infiniteChatsTestKey = infiniteChatsKey();
 
 type InfiniteData = {
 	pages: TypesGen.Chat[][];
@@ -86,8 +88,9 @@ type InfiniteData = {
 const seedInfiniteChats = (
 	queryClient: QueryClient,
 	chats: TypesGen.Chat[],
+	opts?: InfiniteChatsTestOptions,
 ) => {
-	queryClient.setQueryData<InfiniteData>(infiniteChatsTestKey, {
+	queryClient.setQueryData<InfiniteData>(infiniteChatsKey(opts), {
 		pages: [chats],
 		pageParams: [0],
 	});
@@ -96,8 +99,9 @@ const seedInfiniteChats = (
 /** Read chats back from the infinite query cache. */
 const readInfiniteChats = (
 	queryClient: QueryClient,
+	opts?: InfiniteChatsTestOptions,
 ): TypesGen.Chat[] | undefined => {
-	const data = queryClient.getQueryData<InfiniteData>(infiniteChatsTestKey);
+	const data = queryClient.getQueryData<InfiniteData>(infiniteChatsKey(opts));
 	return data?.pages.flat();
 };
 
@@ -191,7 +195,7 @@ describe("invalidateChatListQueries", () => {
 
 		// Sidebar queries.
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
-		queryClient.setQueryData([...chatsKey, { archived: false }], {
+		queryClient.setQueryData(infiniteChatsKey({ archived: false }), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
@@ -212,7 +216,7 @@ describe("invalidateChatListQueries", () => {
 			"flat chats should be invalidated",
 		).toBe(true);
 		expect(
-			queryClient.getQueryState([...chatsKey, { archived: false }])
+			queryClient.getQueryState(infiniteChatsKey({ archived: false }))
 				?.isInvalidated,
 			"infinite chats should be invalidated",
 		).toBe(true);
@@ -240,7 +244,7 @@ describe("invalidateChatListQueries", () => {
 	it("invalidates the infinite query with undefined opts", async () => {
 		const queryClient = createTestQueryClient();
 
-		queryClient.setQueryData([...chatsKey, undefined], {
+		queryClient.setQueryData(infiniteChatsKey(), {
 			pages: [[makeChat("chat-1")]],
 			pageParams: [0],
 		});
@@ -248,7 +252,7 @@ describe("invalidateChatListQueries", () => {
 		await invalidateChatListQueries(queryClient);
 
 		expect(
-			queryClient.getQueryState([...chatsKey, undefined])?.isInvalidated,
+			queryClient.getQueryState(infiniteChatsKey())?.isInvalidated,
 			"infinite chats with undefined opts should be invalidated",
 		).toBe(true);
 	});
@@ -272,6 +276,21 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState(chatMessagesKey(otherChatId))?.isInvalidated,
 			"other chat's chatMessagesKey should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it("prepends new root chats to filtered list caches", () => {
+		const queryClient = createTestQueryClient();
+		const activeChat = makeChat("active-created", { archived: false });
+
+		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
+			archived: false,
+		});
+
+		prependToInfiniteChatsCache(queryClient, activeChat);
+
+		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
+			activeChat,
+		);
 	});
 });
 
@@ -374,7 +393,7 @@ describe("archiveChat optimistic update", () => {
 		// Verify the optimistic update took effect.
 		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(true);
 
-		// Simulate an error — the onError handler invalidates the
+		// Simulate an error, the onError handler invalidates the
 		// cache so a re-fetch restores the correct state.
 		mutation.onError(new Error("server error"), chatId, context);
 
@@ -542,7 +561,7 @@ describe("pinChat optimistic update", () => {
 			makeChat(chatId),
 			makeChat("chat-pinned-2", { pin_order: 2 }),
 		]);
-		queryClient.setQueryData([...chatsKey, { archived: true }], {
+		queryClient.setQueryData(infiniteChatsKey({ archived: true }), {
 			pages: [[makeChat("chat-pinned-archived", { pin_order: 4 })]],
 			pageParams: [0],
 		});
@@ -787,7 +806,7 @@ describe("chat cost query factories", () => {
 describe("mutation invalidation scope", () => {
 	// These tests assert the CORRECT (narrow) invalidation behaviour.
 	// Each mutation should only invalidate the queries it actually
-	// needs to refresh — not the entire ["chats"] prefix tree. The
+	// needs to refresh, not the entire ["chats"] prefix tree. The
 	// WebSocket stream already delivers real-time updates for
 	// messages, status changes, and sidebar ordering, so broad
 	// prefix invalidation causes a burst of redundant HTTP requests
@@ -797,7 +816,7 @@ describe("mutation invalidation scope", () => {
 	 *  observed on the /agents/:id detail page. */
 	const seedAllActiveQueries = (queryClient: QueryClient, chatId: string) => {
 		// Infinite sidebar list: ["chats", { archived: false }]
-		queryClient.setQueryData([...chatsKey, { archived: false }], {
+		queryClient.setQueryData(infiniteChatsKey({ archived: false }), {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
@@ -1205,7 +1224,7 @@ describe("mutation invalidation scope", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Page 0 (newest): IDs 10–6. Page 1 (older): IDs 5–1.
+		// Page 0 (newest): IDs 10 to 6. Page 1 (older): IDs 5 to 1.
 		const page0 = [10, 9, 8, 7, 6].map((id) => makeMsg(chatId, id));
 		const page1 = [5, 4, 3, 2, 1].map((id) => makeMsg(chatId, id));
 		const optimisticMessage = buildOptimisticMessage(requireMessage(page0, 7));
@@ -1374,7 +1393,10 @@ describe("mutation invalidation scope", () => {
 
 			for (const { label, key } of [
 				{ label: "flat chats", key: chatsKey },
-				{ label: "infinite chats", key: [...chatsKey, { archived: false }] },
+				{
+					label: "infinite chats",
+					key: infiniteChatsKey({ archived: false }),
+				},
 				{ label: "chat detail", key: chatKey(chatId) },
 				{ label: "messages", key: chatMessagesKey(chatId) },
 				...unrelatedKeys(chatId),
@@ -1404,7 +1426,7 @@ describe("mutation invalidation scope", () => {
 			"flat chats should be invalidated",
 		).toBe(true);
 		expect(
-			queryClient.getQueryState([...chatsKey, { archived: false }])
+			queryClient.getQueryState(infiniteChatsKey({ archived: false }))
 				?.isInvalidated,
 			"infinite chats should be invalidated",
 		).toBe(true);
@@ -1520,6 +1542,39 @@ describe("infiniteChats", () => {
 			});
 		});
 
+		it("builds q from archived, prStatuses, and chatStatus", async () => {
+			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+			const { queryFn } = infiniteChats({
+				archived: true,
+				prStatuses: ["draft", "open", "merged"],
+				chatStatus: "unread",
+			});
+
+			await queryFn({ pageParam: 0 });
+
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: 0,
+				q: "archived:true pr_status:draft,open,merged has_unread:true",
+			});
+		});
+
+		it("builds q for read chat status", async () => {
+			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+			const { queryFn } = infiniteChats({
+				archived: false,
+				chatStatus: "read",
+			});
+
+			await queryFn({ pageParam: 0 });
+
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: 0,
+				q: "archived:false has_unread:false",
+			});
+		});
+
 		it("throws when pageParam is not a number", () => {
 			const { queryFn } = infiniteChats();
 			expect(() => queryFn({ pageParam: "bad" })).toThrow(
@@ -1548,7 +1603,7 @@ describe("diff_status_change invalidation scope", () => {
 	// These tests verify the CORRECT invalidation pattern for
 	// diff_status_change WebSocket events. The handler should
 	// invalidate only the individual chat detail and diff-contents
-	// queries — NOT the chat list (sidebar) or messages.
+	// queries, NOT the chat list (sidebar) or messages.
 
 	it("exact chatKey invalidation does not cascade to messages or diff-contents", async () => {
 		const queryClient = createTestQueryClient();
@@ -1560,7 +1615,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
 
-		// This is what the fixed handler does — exact: true.
+		// This is what the fixed handler does, exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
@@ -1599,7 +1654,7 @@ describe("diff_status_change invalidation scope", () => {
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 
-		// This is what the OLD (broken) handler did — no exact: true.
+		// This is what the OLD (broken) handler did, no exact: true.
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 		});
@@ -1715,7 +1770,7 @@ describe("cancelChatListRefetches", () => {
 
 		seedInfiniteChats(queryClient, [makeChat(chatId, { title: "original" })]);
 
-		// Start an in-flight refetch (no fetchMeta — simulates a
+		// Start an in-flight refetch (no fetchMeta, simulates a
 		// regular invalidation or window-focus refetch).
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
@@ -1778,7 +1833,7 @@ describe("cancelChatListRefetches", () => {
 		await cancelChatListRefetches(queryClient);
 		await fetchDone;
 
-		// The fetch was NOT cancelled — the new data landed.
+		// The fetch was NOT cancelled, the new data landed.
 		const title = readInfiniteChats(queryClient)?.find(
 			(c) => c.id === chatId,
 		)?.title;
@@ -1825,7 +1880,7 @@ describe("cancelChatListRefetches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 
-		// Do NOT seed the cache — simulate the very first fetch
+		// Do NOT seed the cache, simulate the very first fetch
 		// where no data exists yet.
 		const fetchDone = queryClient.prefetchQuery({
 			queryKey: infiniteChatsTestKey,
