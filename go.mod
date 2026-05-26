@@ -137,7 +137,7 @@ require (
 	github.com/coder/quartz v0.3.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/serpent v0.15.0
-	github.com/coder/terraform-provider-coder/v2 v2.17.0
+	github.com/coder/terraform-provider-coder/v2 v2.18.0
 	github.com/coder/websocket v1.8.14
 	github.com/coder/wgtunnel v0.2.0
 	github.com/coreos/go-oidc/v3 v3.18.0
@@ -341,13 +341,13 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gohugoio/hashstructure v0.6.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/nftables v0.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
@@ -508,7 +508,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
-	github.com/coder/preview v1.0.9
+	github.com/coder/preview v1.0.10-0.20260521153517-34deb0946c4f
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
@@ -521,7 +521,10 @@ require (
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
+	gitlab.com/gitlab-org/api/client-go v1.46.0
 	gonum.org/v1/gonum v0.17.0
+	gopkg.in/dnaeon/go-vcr.v4 v4.0.6
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require (
@@ -594,6 +597,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
+	github.com/joho/godotenv v1.5.1
 	github.com/kaptinlin/go-i18n v0.2.4 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.10 // indirect
 	github.com/kaptinlin/jsonschema v0.6.10 // indirect

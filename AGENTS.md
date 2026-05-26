@@ -164,6 +164,11 @@ See [Modern Go](.claude/docs/GO.md) for comment formatting and the rule to
 avoid unrelated edits. Preserve existing comments that explain non-obvious
 behavior unless the task directly requires changing them.
 
+Comments MUST be **substantive** and **concise**. Describe the **behaviour**
+of the code, not the reasoning the agent used to produce the change. Do not
+leave comments like `// Added per PR feedback` or `// Refactored for
+clarity`. Instead, explain what the code does and why the behaviour matters.
+
 ### No Emdash or Endash
 
 Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation

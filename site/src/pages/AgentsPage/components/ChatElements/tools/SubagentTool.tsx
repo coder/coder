@@ -125,20 +125,20 @@ const SubagentStatusIcon: React.FC<{
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
-		return <ClockIcon className="h-4 w-4 shrink-0 text-current" />;
+		return <ClockIcon className="size-4 shrink-0 text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
-		return <CircleXIcon className="h-4 w-4 shrink-0 text-current" />;
+		return <CircleXIcon className="size-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
 		if (showDesktopPreview) {
-			return <MonitorIcon className="h-4 w-4 shrink-0 text-current" />;
+			return <MonitorIcon className="size-4 shrink-0 text-current" />;
 		}
 		return (
-			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
+			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <DefaultIcon className="h-4 w-4 shrink-0 text-current" />;
+	return <DefaultIcon className="size-4 shrink-0 text-current" />;
 };
 
 /**
@@ -228,14 +228,14 @@ export const SubagentTool: React.FC<{
 								className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 								aria-label="View agent"
 							>
-								<ExternalLinkIcon className="h-3 w-3" />
+								<ExternalLinkIcon className="size-3" />
 							</Link>
 						)}
 					</span>
 					{hasExpandableContent && (
 						<ChevronDownIcon
 							className={cn(
-								"h-3 w-3 shrink-0 text-current transition-transform",
+								"size-3 shrink-0 text-current transition-transform",
 								expanded ? "rotate-0" : "-rotate-90",
 							)}
 						/>

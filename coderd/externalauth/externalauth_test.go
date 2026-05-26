@@ -1231,6 +1231,20 @@ func TestConvertYAML(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 10*time.Second, configs[0].RevokeTimeout)
 	})
+
+	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
+		t.Parallel()
+		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			AuthURL:      "https://gitlab.corp.com/oauth/authorize",
+			TokenURL:     "https://gitlab.corp.com/oauth/token",
+		}}, &url.URL{})
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, "https://gitlab.corp.com/api/v4", configs[0].APIBaseURL)
+	})
 }
 
 // TestConstantQueryParams verifies a constant query parameter can be set in the

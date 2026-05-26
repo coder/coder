@@ -84,11 +84,14 @@ type ExecuteArgs struct {
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
 }
 
+// ExecuteToolName is the registered name of the execute tool.
+const ExecuteToolName = "execute"
+
 // Execute returns an AgentTool that runs a shell command in the
 // workspace via the agent HTTP API.
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"execute",
+		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs the command and waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {

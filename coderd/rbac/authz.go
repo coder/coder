@@ -84,6 +84,7 @@ const (
 	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
 	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
 	SubjectTypeChatd                        SubjectType = "chatd"
+	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 )
 
 const (

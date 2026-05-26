@@ -440,6 +440,38 @@ func (s *MethodTestSuite) TestAuditLogs() {
 	}))
 }
 
+// TODO (PR #24810): These RBAC assertions use placeholder resource types.
+// They will be updated when the dedicated boundary_log resource type is added.
+func (s *MethodTestSuite) TestBoundaryLogs() {
+	s.Run("InsertBoundarySession", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertBoundarySessionParams{}
+		dbm.EXPECT().InsertBoundarySession(gomock.Any(), arg).Return(database.BoundarySession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	}))
+	s.Run("GetBoundarySessionByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), uuid.Nil).Return(database.BoundarySession{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("InsertBoundaryLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertBoundaryLogParams{}
+		dbm.EXPECT().InsertBoundaryLog(gomock.Any(), arg).Return(database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	}))
+	s.Run("GetBoundaryLogByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetBoundaryLogByID(gomock.Any(), uuid.Nil).Return(database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("ListBoundaryLogsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListBoundaryLogsBySessionIDParams{}
+		dbm.EXPECT().ListBoundaryLogsBySessionID(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
+	s.Run("DeleteOldBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldBoundaryLogs(gomock.Any(), database.DeleteOldBoundaryLogsParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldBoundaryLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+}
+
 func (s *MethodTestSuite) TestConnectionLogs() {
 	s.Run("BatchUpsertConnectionLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BatchUpsertConnectionLogsParams{}
@@ -557,10 +589,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatModelConfigsByProvider(gomock.Any(), providerName).Return(nil).AnyTimes()
 		check.Args(providerName).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("DeleteChatProviderByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		id := uuid.New()
-		dbm.EXPECT().DeleteChatProviderByID(gomock.Any(), id).Return(nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	s.Run("DeleteChatModelConfigsByAIProviderID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		providerID := uuid.New()
+		dbm.EXPECT().DeleteChatModelConfigsByAIProviderID(gomock.Any(), providerID).Return(nil).AnyTimes()
+		check.Args(providerID).Asserts(rbac.ResourceAIProvider, policy.ActionDelete)
 	}))
 	s.Run("DeleteChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -972,34 +1004,7 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
 	}))
-	s.Run("GetChatProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		dbm.EXPECT().GetChatProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
-		check.Args(provider.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(provider)
-	}))
-	s.Run("GetChatProviderByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		dbm.EXPECT().GetChatProviderByIDForUpdate(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
-		check.Args(provider.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(provider)
-	}))
-	s.Run("GetChatProviderByProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		providerName := "test-provider"
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{Provider: providerName})
-		dbm.EXPECT().GetChatProviderByProvider(gomock.Any(), providerName).Return(provider, nil).AnyTimes()
-		check.Args(providerName).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(provider)
-	}))
-	s.Run("GetChatProviderByProviderForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		providerName := "test-provider"
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{Provider: providerName})
-		dbm.EXPECT().GetChatProviderByProviderForUpdate(gomock.Any(), providerName).Return(provider, nil).AnyTimes()
-		check.Args(providerName).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(provider)
-	}))
-	s.Run("GetChatProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		providerA := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		providerB := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		dbm.EXPECT().GetChatProviders(gomock.Any()).Return([]database.ChatProvider{providerA, providerB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatProvider{providerA, providerB})
-	}))
+
 	s.Run("GetChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}
 		dbm.EXPECT().GetAuthorizedChats(gomock.Any(), params, gomock.Any()).Return([]database.GetChatsRow{}, nil).AnyTimes()
@@ -1112,12 +1117,7 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
 	}))
-	s.Run("GetEnabledChatProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		providerA := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		providerB := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		dbm.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{providerA, providerB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatProvider{providerA, providerB})
-	}))
+
 	s.Run("GetStaleChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		threshold := dbtime.Now()
 		chats := []database.Chat{testutil.Fake(s.T(), faker, database.Chat{})}
@@ -1166,17 +1166,7 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertChatModelConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
 	}))
-	s.Run("InsertChatProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.InsertChatProviderParams{
-			Provider:    "test-provider",
-			DisplayName: "Test Provider",
-			APIKey:      "test-api-key",
-			Enabled:     true,
-		}
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{Provider: arg.Provider, DisplayName: arg.DisplayName, APIKey: arg.APIKey, Enabled: arg.Enabled})
-		dbm.EXPECT().InsertChatProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(provider)
-	}))
+
 	s.Run("PopNextQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})
@@ -1303,17 +1293,7 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatModelConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
 	}))
-	s.Run("UpdateChatProvider", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		provider := testutil.Fake(s.T(), faker, database.ChatProvider{})
-		arg := database.UpdateChatProviderParams{
-			ID:          provider.ID,
-			DisplayName: "Updated Provider",
-			APIKey:      "updated-api-key",
-			Enabled:     true,
-		}
-		dbm.EXPECT().UpdateChatProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(provider)
-	}))
+
 	s.Run("UpdateChatPinOrder", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatPinOrderParams{
@@ -2933,34 +2913,48 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserChatCustomPrompt(gomock.Any(), u.ID).Return("my custom prompt", nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("my custom prompt")
 	}))
-	s.Run("GetUserChatProviderKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+
+	s.Run("GetUserAIProviderKeyByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		key := testutil.Fake(s.T(), faker, database.UserChatProviderKey{UserID: u.ID})
+		arg := database.GetUserAIProviderKeyByProviderIDParams{UserID: u.ID, AIProviderID: uuid.New()}
+		key := testutil.Fake(s.T(), faker, database.UserAiProviderKey{UserID: u.ID, AIProviderID: arg.AIProviderID})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserChatProviderKeys(gomock.Any(), u.ID).Return([]database.UserChatProviderKey{key}, nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns([]database.UserChatProviderKey{key})
+		dbm.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns(key)
 	}))
-	s.Run("DeleteUserChatProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetUserAIProviderKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.DeleteUserChatProviderKeyParams{UserID: u.ID, ChatProviderID: uuid.New()}
+		key := testutil.Fake(s.T(), faker, database.UserAiProviderKey{UserID: u.ID})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().DeleteUserChatProviderKey(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().GetUserAIProviderKeysByUserID(gomock.Any(), u.ID).Return([]database.UserAiProviderKey{key}, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns([]database.UserAiProviderKey{key})
+	}))
+	s.Run("DeleteUserAIProviderKeysByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerID := uuid.New()
+		dbm.EXPECT().DeleteUserAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil).AnyTimes()
+		check.Args(providerID).Asserts(rbac.ResourceAIProvider, policy.ActionDelete).Returns()
+	}))
+	s.Run("DeleteUserAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.DeleteUserAIProviderKeyParams{UserID: u.ID, AIProviderID: uuid.New()}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().DeleteUserAIProviderKey(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns()
 	}))
-	s.Run("UpdateUserChatProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateUserAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.UpdateUserChatProviderKeyParams{UserID: u.ID, ChatProviderID: uuid.New(), APIKey: "updated-api-key"}
-		key := testutil.Fake(s.T(), faker, database.UserChatProviderKey{UserID: u.ID, ChatProviderID: arg.ChatProviderID, APIKey: arg.APIKey})
+		arg := database.UpdateUserAIProviderKeyParams{UserID: u.ID, AIProviderID: uuid.New(), APIKey: "updated-api-key"}
+		key := testutil.Fake(s.T(), faker, database.UserAiProviderKey{UserID: u.ID, AIProviderID: arg.AIProviderID, APIKey: arg.APIKey})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().UpdateUserChatProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(key)
 	}))
-	s.Run("UpsertUserChatProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpsertUserAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.UpsertUserChatProviderKeyParams{UserID: u.ID, ChatProviderID: uuid.New(), APIKey: "upserted-api-key"}
-		key := testutil.Fake(s.T(), faker, database.UserChatProviderKey{UserID: u.ID, ChatProviderID: arg.ChatProviderID, APIKey: arg.APIKey})
+		arg := database.UpsertUserAIProviderKeyParams{UserID: u.ID, AIProviderID: uuid.New(), APIKey: "upserted-api-key"}
+		key := testutil.Fake(s.T(), faker, database.UserAiProviderKey{UserID: u.ID, AIProviderID: arg.AIProviderID, APIKey: arg.APIKey})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().UpsertUserChatProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		dbm.EXPECT().UpsertUserAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(key)
 	}))
 	s.Run("GetUserChatDebugLoggingEnabled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -6466,6 +6460,11 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
 		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(provider)
 	}))
+	s.Run("GetAIProviderByIDForReferenceLock", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
+		dbm.EXPECT().GetAIProviderByIDForReferenceLock(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()
+		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(provider)
+	}))
 	s.Run("GetAIProviderByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		dbm.EXPECT().GetAIProviderByName(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
@@ -6519,12 +6518,29 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetAIProviderKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
 		check.Args(key.ID).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(key)
 	}))
+	s.Run("GetAIProviderKeyPresence", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})
+		providerB := testutil.Fake(s.T(), faker, database.AIProvider{})
+		arg := []uuid.UUID{providerA.ID, providerB.ID}
+		providerIDs := []uuid.UUID{providerA.ID}
+		dbm.EXPECT().GetAIProviderKeyPresence(gomock.Any(), arg).Return(providerIDs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(providerIDs)
+	}))
 	s.Run("GetAIProviderKeysByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		keyA := testutil.Fake(s.T(), faker, database.AIProviderKey{ProviderID: provider.ID})
 		keyB := testutil.Fake(s.T(), faker, database.AIProviderKey{ProviderID: provider.ID})
 		dbm.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), provider.ID).Return([]database.AIProviderKey{keyA, keyB}, nil).AnyTimes()
 		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIProviderKey{keyA, keyB})
+	}))
+	s.Run("GetAIProviderKeysByProviderIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})
+		providerB := testutil.Fake(s.T(), faker, database.AIProvider{})
+		providerIDs := []uuid.UUID{providerA.ID, providerB.ID}
+		keyA := testutil.Fake(s.T(), faker, database.AIProviderKey{ProviderID: providerA.ID})
+		keyB := testutil.Fake(s.T(), faker, database.AIProviderKey{ProviderID: providerB.ID})
+		dbm.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), providerIDs).Return([]database.AIProviderKey{keyA, keyB}, nil).AnyTimes()
+		check.Args(providerIDs).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIProviderKey{keyA, keyB})
 	}))
 	s.Run("GetAIProviderKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		keyA := testutil.Fake(s.T(), faker, database.AIProviderKey{})
@@ -6555,6 +6571,21 @@ func (s *MethodTestSuite) TestAIBridge() {
 			APIKey: "encrypted-api-key",
 		}
 		dbm.EXPECT().UpdateEncryptedAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(key)
+	}))
+	s.Run("GetUserAIProviderKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		keyA := testutil.Fake(s.T(), faker, database.UserAiProviderKey{})
+		keyB := testutil.Fake(s.T(), faker, database.UserAiProviderKey{})
+		dbm.EXPECT().GetUserAIProviderKeys(gomock.Any()).Return([]database.UserAiProviderKey{keyA, keyB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.UserAiProviderKey{keyA, keyB})
+	}))
+	s.Run("UpdateEncryptedUserAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.UserAiProviderKey{})
+		arg := database.UpdateEncryptedUserAIProviderKeyParams{
+			ID:     key.ID,
+			APIKey: "encrypted-api-key",
+		}
+		dbm.EXPECT().UpdateEncryptedUserAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(key)
 	}))
 }
@@ -6839,19 +6870,6 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 		require.True(t, dbauthz.IsNotAuthorizedError(err),
 			"cascade must run and produce a NotAuthorized error for auditor: got %v", err)
 	})
-}
-
-func TestAsAutostart(t *testing.T) {
-	t.Parallel()
-
-	ctx := dbauthz.AsAutostart(context.Background())
-	actor, ok := dbauthz.ActorFromContext(ctx)
-	require.True(t, ok, "actor must be present")
-
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-
-	err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUserSecret.WithOwner(uuid.NewString()))
-	require.NoError(t, err, "user secret metadata read should be allowed")
 }
 
 func TestAsChatd(t *testing.T) {

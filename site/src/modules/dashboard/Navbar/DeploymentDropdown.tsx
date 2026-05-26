@@ -100,7 +100,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			)}
 			{canViewAIBridge && (
 				<DropdownMenuItem asChild>
-					<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
+					<Link to="/aibridge/sessions">AI Sessions</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewHealth && (

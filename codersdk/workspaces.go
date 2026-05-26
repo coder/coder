@@ -680,10 +680,6 @@ func (c *Client) WorkspaceQuota(ctx context.Context, organizationID string, user
 
 type ResolveAutostartResponse struct {
 	ParameterMismatch bool `json:"parameter_mismatch"`
-	// SecretMismatch is true when the active template version declares
-	// `coder_secret` requirements that the workspace owner's secrets do not
-	// satisfy.
-	SecretMismatch bool `json:"secret_mismatch"`
 }
 
 func (c *Client) ResolveAutostart(ctx context.Context, workspaceID string) (ResolveAutostartResponse, error) {

@@ -17,8 +17,12 @@ There are multiple ways to forward ports in Coder:
 
 ## Coder Desktop
 
-[Coder Desktop](../desktop/index.md) provides seamless access to your remote workspaces, eliminating the need to install a CLI or manually configure port forwarding.
-Access all your ports at `<workspace-name>.coder:PORT`.
+> [!TIP]
+> Coder Desktop is the recommended way to access workspace ports. It provides automatic port forwarding with no manual setup.
+
+[Coder Desktop](../desktop/index.md) creates a VPN tunnel that automatically forwards every port in your workspace. Any service listening on a port is instantly accessible at `<workspace-name>.coder:PORT` from your local machine, with no additional commands or configuration.
+
+This is the simplest option for most developers: install Coder Desktop, enable Coder Connect, and all ports just work. Connections are peer-to-peer for the best performance.
 
 ## The `coder port-forward` command
 

@@ -257,6 +257,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
 	handleNewAgent: fn(),
+	isSearchDialogOpen: false,
+	onSearchDialogOpenChange: fn(),
 	isCreating: false,
 	isArchiving: false,
 	archivingChatId: undefined,

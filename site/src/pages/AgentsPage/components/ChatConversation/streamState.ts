@@ -83,6 +83,7 @@ export const applyMessagePartToStreamState = (
 						mcpServerConfigId:
 							part.mcp_server_config_id || existing?.mcpServerConfigId,
 						modelIntent,
+						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 					},
 				},
 			};
@@ -243,6 +244,7 @@ export const buildStreamTools = (
 			status: getStreamToolStatus(result),
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent: call.modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 
