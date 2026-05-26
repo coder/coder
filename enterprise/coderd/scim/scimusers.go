@@ -103,16 +103,11 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		Username: username,
 	})
 	if err == nil {
-		// User already exists. Update their status if needed.
-		status := scimUserStatus(dbUser, &active)
-		if active {
-			_, err := ru.updateUserStatus(ctx, r, dbUser, status)
-			if err != nil {
-				return scim.Resource{}, err
-			}
+		return scim.Resource{}, scimErrors.ScimError{
+			ScimType: scimErrors.ScimTypeUniqueness,
+			Detail:   fmt.Sprintf("user with email (%q) or username (%q)", email, username),
+			Status:   http.StatusConflict,
 		}
-
-		return userResource(dbUser), nil
 	}
 
 	if !xerrors.Is(err, sql.ErrNoRows) {
@@ -241,7 +236,8 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("changing the 'userName' field is not supported (current value: %q)", dbUser.Username))
 	}
 
-	// TODO: Check primary email
+	// TODO: Check if the primary email has changed. If it has, should we do something?
+
 	activeInterface, ok := Attribute(attributes, "active")
 	if !ok {
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest("missing required 'active' field")
@@ -303,14 +299,14 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 		switch op.Op {
 		case "add":
 		case "remove":
-			if op.Path.String() == "active" {
+			if strings.EqualFold(op.Path.String(), "active") {
 				activeSet = ptr.Ref(false)
 			}
 		case "replace":
 			// SCIM PATCH replace can come in two forms:
 			// 1. Path set: {"op":"replace","path":"active","value":false}
 			// 2. No path, value is a map: {"op":"replace","value":{"active":false}}
-			if op.Path != nil && op.Path.String() == "active" {
+			if op.Path != nil && strings.EqualFold(op.Path.String(), "active") {
 				v, err := BooleanValue(op.Value)
 				if err != nil {
 					return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", op.Value))
