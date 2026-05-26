@@ -91,4 +91,3 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	require.Equal(t, 503, payload.StatusCode)
 	require.WithinDuration(t, startedAt.Add(delay), payload.RetryingAt, time.Second)
 }
-
