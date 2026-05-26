@@ -52,21 +52,12 @@ fi
 # Helper: run a make target inside the image.
 #
 # Mounts /home/coder/ as a single named volume to mirror the dogfood
-# workspace template (dogfood/coder/main.tf), which also persists the
-# entire home dir as one volume. Two consequences:
-#
-#   1. Caches (Go modules, Go build, pnpm store, mise data, etc.) all
-#      persist across runs from a single volume, matching real-workspace
-#      behavior.
-#   2. Docker copies /home/coder's image ownership (coder:coder, from
-#      `useradd --create-home`) into the new volume on first mount, so
-#      the coder user can write to it. Per-cache subpath volumes don't
-#      get this for free because Docker creates non-existent subpaths
-#      root-owned.
-#
-# The bind mount of the checkout at /home/coder/coder layers on top of
-# the home volume — Docker mounts the volume first, then the bind mount
-# shadows that subpath. Both work simultaneously.
+# workspace template (dogfood/coder/main.tf), so caches (Go modules,
+# Go build, pnpm store, mise data, etc.) persist the same way they do
+# in real workspaces. Per-cache subpath volumes would come up
+# root-owned on first mount because Docker creates non-existent
+# subpaths root-owned; the home-level volume inherits coder:coder
+# from the image's existing /home/coder (`useradd --create-home`).
 run_make() {
 	docker run --rm \
 		--volume coder-dogfood-home:/home/coder \
