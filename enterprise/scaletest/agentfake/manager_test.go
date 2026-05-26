@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -107,9 +109,13 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	tmpl, err := client.Template(ctx, templateID)
 	require.NoError(t, err)
 
+	reg := prometheus.NewRegistry()
+	metrics := agentfake.NewMetrics(reg)
+
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	manager := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
 		Template: tmpl.Name,
+		Metrics:  metrics,
 	})
 	t.Cleanup(func() { manager.Close() })
 
@@ -147,6 +153,9 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 			"agent never reached Lifecycle=ready in workspace %s", wsID)
 	}
 
+	// All agents connected: gauge should equal numAgents.
+	require.Equal(t, float64(numAgents), promtest.ToFloat64(metrics.ConnectedAgents))
+
 	// Cleanly stop the Manager and confirm it exits without a non-context error.
 	cancelManager()
 	select {
@@ -157,6 +166,9 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for Manager.Run to return: %v", ctx.Err())
 	}
+
+	// After shutdown all dRPC connections are closed; gauge should be zero.
+	require.Equal(t, float64(0), promtest.ToFloat64(metrics.ConnectedAgents))
 }
 
 // Asserts that an authentication failure during enumeration produces a fatal error, so the retry loop in

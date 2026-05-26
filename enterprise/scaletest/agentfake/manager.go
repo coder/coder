@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -15,13 +16,14 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
-	enumeratePageSize        = 100
-	maxEnumerateRetries      = 5
-	initialEnumerateBackoff  = 1 * time.Second
-	maxEnumerateRetryBackoff = 5 * time.Second
+	maxEnumerateRetries        = 5
+	initialEnumerateBackoff    = 1 * time.Second
+	maxEnumerateRetryBackoff   = 5 * time.Second
+	workspaceCountPollInterval = 5 * time.Second
 )
 
 // TokenInfo is a single workspace-agent auth token retrieved for a coder external agent, along with the identifying
@@ -42,6 +44,16 @@ type ManagerOptions struct {
 	Template string
 	// Owner restricts enumeration to workspaces owned by the given user. Optional; if empty, all owners are included.
 	Owner string
+	// Metrics collectors. Optional; nil disables metric reporting.
+	Metrics *Metrics
+	// ExpectedAgents, when non-zero, causes Run to poll until the workspace
+	// count is within [ExpectedAgents-Tolerance, ExpectedAgents+Tolerance]
+	// before enumerating.
+	ExpectedAgents          int64
+	ExpectedAgentsTolerance int64
+	// Clock is used for the workspace-count polling interval.
+	// Defaults to the real clock; override in tests with quartz.NewMock.
+	Clock quartz.Clock
 }
 
 // Manager supervises a set of fake Agents in one process. It enumerates the agents it owns from coderd at Run time
@@ -60,6 +72,9 @@ type Manager struct {
 // to list workspaces by template and to call the enterprise-only WorkspaceExternalAgentCredentials endpoint
 // (template-admin or higher; FeatureWorkspaceExternalAgent must be enabled).
 func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions) *Manager {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 	return &Manager{
 		client: client,
 		logger: logger,
@@ -77,6 +92,12 @@ func (m *Manager) Run(ctx context.Context) error {
 		return xerrors.New("invalid manager options: Template is required")
 	}
 
+	if m.opts.ExpectedAgents > 0 {
+		if err := m.waitForWorkspaceCount(ctx); err != nil {
+			return xerrors.Errorf("waiting for workspaces: %w", err)
+		}
+	}
+
 	tokens, err := m.enumerateWithRetry(ctx)
 	if err != nil {
 		return xerrors.Errorf("enumerate external agents: %w", err)
@@ -85,7 +106,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	agents := make([]*Agent, 0, len(tokens))
 	for i, ti := range tokens {
 		agents = append(agents, NewAgent(m.client.URL, ti.Token,
-			m.logger.Named("agent-"+strconv.Itoa(i))))
+			m.logger.Named("agent-"+strconv.Itoa(i)), m.opts.Metrics))
 	}
 	m.mu.Lock()
 	m.agents = agents
@@ -97,6 +118,30 @@ func (m *Manager) Run(ctx context.Context) error {
 			return a.Run(egCtx)
 		})
 	}
+
+	// Log connection-time stats once all agents have reported their first connect.
+	// Run in a goroutine so agents that never connect don't block Run from returning.
+	go func() {
+		durations := make([]time.Duration, 0, len(agents))
+		for _, a := range agents {
+			select {
+			case d := <-a.firstConnectDuration:
+				durations = append(durations, d)
+			case <-egCtx.Done():
+				return
+			}
+		}
+		if len(durations) == 0 {
+			return
+		}
+		m.logger.Info(egCtx, "all agents connected",
+			slog.F("count", len(durations)),
+			slog.F("mean", meanDuration(durations)),
+			slog.F("pct_ninety_five", percentileDuration(durations, 95)),
+			slog.F("pct_ninety_nine", percentileDuration(durations, 99)),
+		)
+	}()
+
 	err = eg.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		return err
@@ -121,7 +166,6 @@ func (m *Manager) enumerateWithRetry(ctx context.Context) ([]TokenInfo, error) {
 	bkoff := backoff.WithContext(backoff.WithMaxRetries(b, maxEnumerateRetries), ctx)
 
 	var tokens []TokenInfo
-	// for attempt := 0; attempt <= maxEnumerateRetries; attempt++ {
 	err := backoff.Retry(func() error {
 		var retryErr error
 		tokens, retryErr = m.EnumerateExternalAgents(ctx)
@@ -145,54 +189,116 @@ func (m *Manager) enumerateWithRetry(ctx context.Context) ([]TokenInfo, error) {
 // external agent. Per-agent credential failures are logged and skipped; a non-nil error is returned only if the
 // workspace listing itself fails.
 func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, error) {
-	var workspaces []codersdk.Workspace
-	filter := codersdk.WorkspaceFilter{
+	start := time.Now()
+	m.logger.Info(ctx, "enumerating external-agent workspaces",
+		slog.F("template", m.opts.Template),
+		slog.F("owner", m.opts.Owner))
+
+	page, err := m.client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Template: m.opts.Template,
 		Owner:    m.opts.Owner,
-		Limit:    enumeratePageSize,
+		Limit:    0,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list workspaces: %w", err)
 	}
-	for {
-		page, err := m.client.Workspaces(ctx, filter)
-		if err != nil {
-			return nil, xerrors.Errorf("list workspaces (offset=%d): %w", filter.Offset, err)
-		}
-		workspaces = append(workspaces, page.Workspaces...)
-		if len(page.Workspaces) < filter.Limit {
-			break
-		}
-		filter.Offset += len(page.Workspaces)
+	workspaces := page.Workspaces
+
+	workspacesByID := make(map[uuid.UUID]codersdk.Workspace, len(workspaces))
+	wsIDs := make([]uuid.UUID, 0, len(workspaces))
+	for _, ws := range workspaces {
+		workspacesByID[ws.ID] = ws
+		wsIDs = append(wsIDs, ws.ID)
 	}
 
 	tokens := make([]TokenInfo, 0, len(workspaces))
-	for _, ws := range workspaces {
-		// The credentials endpoint requires WorkspaceBuild.HasExternalAgent=true (see
-		// enterprise/coderd/workspaceagents.go:48). Skip workspaces whose latest build
-		// doesn't carry the flag rather than 404 our way through every workspace in coderd.
-		if ws.LatestBuild.HasExternalAgent == nil || !*ws.LatestBuild.HasExternalAgent {
+	resp, err := m.client.ExternalAgentTokensByWorkspaceIDs(ctx, wsIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch external-agent tokens: %w", err)
+	}
+
+	for _, row := range resp.Agents {
+		ws, ok := workspacesByID[row.WorkspaceID]
+		if !ok {
 			continue
 		}
-		for _, res := range ws.LatestBuild.Resources {
-			for _, agent := range res.Agents {
-				creds, err := m.client.WorkspaceExternalAgentCredentials(ctx, ws.ID, agent.Name)
-				if err != nil {
-					m.logger.Warn(ctx, "fetch external-agent credentials",
-						slog.F("workspace_id", ws.ID),
-						slog.F("workspace_name", ws.Name),
-						slog.F("agent_name", agent.Name),
-						slog.Error(err))
-					continue
-				}
-				tokens = append(tokens, TokenInfo{
-					WorkspaceID:   ws.ID,
-					WorkspaceName: ws.Name,
-					AgentID:       agent.ID,
-					AgentName:     agent.Name,
-					Token:         creds.AgentToken,
-				})
-			}
-		}
+		tokens = append(tokens, TokenInfo{
+			WorkspaceID:   row.WorkspaceID,
+			WorkspaceName: ws.Name,
+			AgentID:       row.AgentID,
+			AgentName:     row.AgentName,
+			Token:         row.AgentToken,
+		})
 	}
+	m.logger.Info(ctx, "enumerated external-agent workspaces",
+		slog.F("template", m.opts.Template),
+		slog.F("owner", m.opts.Owner),
+		slog.F("workspaces", len(workspaces)),
+		slog.F("tokens", len(tokens)),
+		slog.F("duration", time.Since(start)))
 	return tokens, nil
+}
+
+// waitForWorkspaceCount polls until the workspace count for the configured
+// template is within [ExpectedAgents-Tolerance, ExpectedAgents+Tolerance].
+// It uses limit=1 on each poll; the workspaces SQL query computes the total
+// count in a CTE before applying LIMIT, so Count reflects the full result set
+// regardless of page size.
+func (m *Manager) waitForWorkspaceCount(ctx context.Context) error {
+	lo := m.opts.ExpectedAgents - m.opts.ExpectedAgentsTolerance
+	hi := m.opts.ExpectedAgents + m.opts.ExpectedAgentsTolerance
+
+	check := func() (bool, error) {
+		page, err := m.client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Template: m.opts.Template,
+			Owner:    m.opts.Owner,
+			Limit:    1,
+		})
+		if err != nil {
+			return false, xerrors.Errorf("check workspace count: %w", err)
+		}
+		count := int64(page.Count)
+		if count >= lo && count <= hi {
+			m.logger.Info(ctx, "workspace count ready",
+				slog.F("count", count),
+				slog.F("expected", m.opts.ExpectedAgents),
+				slog.F("tolerance", m.opts.ExpectedAgentsTolerance),
+			)
+			return true, nil
+		}
+		m.logger.Info(ctx, "waiting for workspaces",
+			slog.F("count", count),
+			slog.F("want_lo", lo),
+			slog.F("want_hi", hi),
+		)
+		return false, nil
+	}
+
+	// Check immediately before starting the ticker.
+	if done, err := check(); err != nil || done {
+		return err
+	}
+
+	errDone := xerrors.New("done")
+	var tickErr error
+	waiter := m.opts.Clock.TickerFunc(ctx, workspaceCountPollInterval, func() error {
+		done, err := check()
+		if err != nil {
+			tickErr = err
+			return err
+		}
+		if done {
+			return errDone
+		}
+		return nil
+	})
+	if err := waiter.Wait(); err != nil && !errors.Is(err, errDone) {
+		if tickErr != nil {
+			return tickErr
+		}
+		return xerrors.Errorf("waiting for workspace count: %w", err)
+	}
+	return nil
 }
 
 // IsFatalEnumerationError reports whether err from a coderd API call indicates an unrecoverable misconfiguration that
@@ -216,4 +322,32 @@ func IsFatalEnumerationError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// meanDuration returns the mean of d.
+func meanDuration(d []time.Duration) time.Duration {
+	if len(d) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, v := range d {
+		total += v
+	}
+	return total / time.Duration(len(d))
+}
+
+// percentileDuration returns the p-th percentile (0-100) using nearest-rank. Sorts d in place.
+func percentileDuration(d []time.Duration, p float64) time.Duration {
+	if len(d) == 0 {
+		return 0
+	}
+	sort.Slice(d, func(i, j int) bool { return d[i] < d[j] })
+	idx := int(p/100*float64(len(d))+0.5) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(d) {
+		idx = len(d) - 1
+	}
+	return d[idx]
 }
