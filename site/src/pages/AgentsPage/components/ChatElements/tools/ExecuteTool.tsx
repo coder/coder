@@ -189,23 +189,20 @@ const ShellCommandLine: React.FC<{
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
+	const commandLabel = intentLabel
+		? `${intentLabel} using ${commandDisplay}`
+		: `Ran ${commandDisplay}`;
+	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
+
 	return (
 		<>
 			<ToolIcon name="execute" isError={false} />
-			<span className="block min-w-0 truncate text-[13px] font-normal leading-6 text-current">
-				{intentLabel ? (
-					<>
-						{intentLabel} using {commandDisplay}
-					</>
-				) : (
-					<>Ran {commandDisplay}</>
+			<span className="min-w-0 truncate text-[13px] font-normal leading-6 text-current">
+				{commandLabel}
+				{durationSuffix && (
+					<span className="text-content-secondary">{durationSuffix}</span>
 				)}
 			</span>
-			{durationLabel && (
-				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{intentLabel ? ` for ${durationLabel}` : durationLabel}
-				</span>
-			)}
 			{expanded !== undefined && (
 				<ChevronDownIcon
 					className={cn(
