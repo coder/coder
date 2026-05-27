@@ -248,7 +248,10 @@ func (m *Manager) waitForWorkspaceCount(ctx context.Context) error {
 	lo := m.opts.ExpectedAgents - m.opts.ExpectedAgentsTolerance
 	hi := m.opts.ExpectedAgents + m.opts.ExpectedAgentsTolerance
 
-	check := func() (bool, error) {
+	// checkWorkspaceCount returns true if the current workspace count for the
+	// template is within the expected tolerance range, or an error if the
+	// workspaces endpoint fails.
+	checkWorkspaceCount := func() (bool, error) {
 		page, err := m.client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Template: m.opts.Template,
 			Owner:    m.opts.Owner,
@@ -274,15 +277,10 @@ func (m *Manager) waitForWorkspaceCount(ctx context.Context) error {
 		return false, nil
 	}
 
-	// Check immediately before starting the ticker.
-	if done, err := check(); err != nil || done {
-		return err
-	}
-
 	errDone := xerrors.New("done")
 	var tickErr error
 	waiter := m.opts.Clock.TickerFunc(ctx, workspaceCountPollInterval, func() error {
-		done, err := check()
+		done, err := checkWorkspaceCount()
 		if err != nil {
 			tickErr = err
 			return err
