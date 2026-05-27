@@ -1036,7 +1036,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), database.LoginTypeGithub, verifiedEmail.GetEmail())
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1436,7 +1436,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), database.LoginTypeOIDC, email)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1870,6 +1870,20 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
 			}
+
+			// Backfill linked_id for legacy links that predate linked_id
+			// tracking. Only sets the value when currently empty.
+			if link.LinkedID == "" && params.LinkedID != "" {
+				//nolint:gocritic // System needs to update the user link.
+				link, err = tx.UpdateUserLinkedID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkedIDParams{
+					LinkedID:  params.LinkedID,
+					UserID:    user.ID,
+					LoginType: params.LoginType,
+				})
+				if err != nil {
+					return xerrors.Errorf("backfill user linked id: %w", err)
+				}
+			}
 		}
 
 		err = api.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
@@ -2092,7 +2106,11 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
 // If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+// The email fallback is restricted to first-time account linking only.
+// If the user found by email already has a user_link with a different
+// linked_id, the function treats it as "no user found" to prevent
+// account takeover via IdP email reuse.
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -2137,10 +2155,19 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	// possible that a user_link exists without a populated 'linked_id'.
 	link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    user.ID,
-		LoginType: user.LoginType,
+		LoginType: loginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+	}
+
+	// If the user already has a link with a populated linked_id that
+	// does not match the current IdP subject, do not return this user.
+	// This restricts the email fallback to first-time linking and
+	// legacy links (empty linked_id) only, preventing account takeover
+	// when an attacker registers the victim's email at the IdP.
+	if err == nil && link.LinkedID != "" && link.LinkedID != linkedID {
+		return database.User{}, database.UserLink{}, nil
 	}
 
 	return user, link, nil
