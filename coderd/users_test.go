@@ -2423,7 +2423,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		require.Equal(t, field, sdkErr.Validations[0].Field)
 	}
 
-	t.Run("defaults to always collapsed", func(t *testing.T) {
+	t.Run("defaults shell tools to always collapsed", func(t *testing.T) {
 		t.Parallel()
 
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2434,7 +2434,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.ShellToolDisplayMode)
-		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.CodeDiffDisplayMode)
+		require.Empty(t, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("round-trips shell tool display mode", func(t *testing.T) {

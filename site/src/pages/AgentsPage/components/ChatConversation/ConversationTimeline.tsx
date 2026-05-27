@@ -303,7 +303,7 @@ export const BlockList: FC<{
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.code_diff_display_mode || "always_collapsed";
+		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
