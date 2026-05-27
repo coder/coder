@@ -50,7 +50,7 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 		if req == nil {
 			return false
 		}
-		return slices.Contains(s.loadProviderRouter().mitmHosts, req.URL.Host)
+		return slices.Contains(s.loadProviderRouter().mitmHosts, strings.ToLower(req.URL.Host))
 	}
 }
 

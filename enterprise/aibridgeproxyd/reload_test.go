@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -83,9 +84,7 @@ func (s *providerStore) refresh(context.Context) ([]aibridgeproxyd.ProviderRoute
 		return nil, s.err
 	}
 	// Return a copy so callers can't mutate our internal snapshot.
-	out := make([]aibridgeproxyd.ProviderRoute, len(s.providers))
-	copy(out, s.providers)
-	return out, nil
+	return slices.Clone(s.providers), nil
 }
 
 // newReloadTestHarness boots a proxy with an empty boot allowlist and a
