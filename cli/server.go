@@ -3007,29 +3007,10 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
 		}
 
-		switch database.AIProviderType(p.Type) {
-		case database.AiProviderTypeOpenai,
-			database.AiProviderTypeAnthropic,
-			database.AiProviderTypeAzure,
-			database.AiProviderTypeBedrock,
-			database.AiProviderTypeGoogle,
-			database.AiProviderTypeOpenaiCompat,
-			database.AiProviderTypeOpenrouter,
-			database.AiProviderTypeVercel,
-			database.AiProviderTypeCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-				i, p.Type,
-				database.AiProviderTypeOpenai,
-				database.AiProviderTypeAnthropic,
-				database.AiProviderTypeAzure,
-				database.AiProviderTypeBedrock,
-				database.AiProviderTypeGoogle,
-				database.AiProviderTypeOpenaiCompat,
-				database.AiProviderTypeOpenrouter,
-				database.AiProviderTypeVercel,
-				database.AiProviderTypeCopilot,
-			)
+		providerType := database.AIProviderType(p.Type)
+		if !providerType.Valid() {
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %v)",
+				i, p.Type, database.AllAIProviderTypeValues())
 		}
 
 		var bedrockKey, bedrockSecret string
@@ -3048,8 +3029,8 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
 		// with KEYS) and required on bedrock. Any other TYPE rejecting
 		// them prevents silently-ignored credentials.
-		isBedrockType := database.AIProviderType(p.Type) == database.AiProviderTypeBedrock
-		isAnthropicType := database.AIProviderType(p.Type) == database.AiProviderTypeAnthropic
+		isBedrockType := providerType == database.AiProviderTypeBedrock
+		isAnthropicType := providerType == database.AiProviderTypeAnthropic
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
 				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
@@ -3065,7 +3046,7 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type, database.AiProviderTypeBedrock)
 		}
 
-		if database.AIProviderType(p.Type) == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
+		if providerType == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
 				i, p.Type, database.AiProviderTypeCopilot)
 		}

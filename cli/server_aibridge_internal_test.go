@@ -581,8 +581,9 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 	const dumpDir = "/tmp/coder-aibridge-dumps"
 
 	tests := []struct {
-		name string
-		row  database.AIProvider
+		name         string
+		row          database.AIProvider
+		expectedType string
 	}{
 		{
 			name: "OpenAI",
@@ -591,6 +592,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "openai",
 				BaseUrl: "https://api.openai.com/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "Anthropic",
@@ -599,6 +601,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "anthropic",
 				BaseUrl: "https://api.anthropic.com/",
 			},
+			expectedType: aibridge.ProviderAnthropic,
 		},
 		{
 			name: "Copilot",
@@ -607,6 +610,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "copilot",
 				BaseUrl: "https://api.githubcopilot.com/",
 			},
+			expectedType: aibridge.ProviderCopilot,
 		},
 		{
 			name: "Azure",
@@ -615,6 +619,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "azure",
 				BaseUrl: "https://example.openai.azure.com/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "Google",
@@ -623,6 +628,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "google",
 				BaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "OpenAICompat",
@@ -631,6 +637,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "openai-compat",
 				BaseUrl: "https://compat.example.com/v1/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "OpenRouter",
@@ -639,6 +646,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "openrouter",
 				BaseUrl: "https://openrouter.ai/api/v1/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "Vercel",
@@ -647,6 +655,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				Name:    "vercel",
 				BaseUrl: "https://api.v0.dev/v1/",
 			},
+			expectedType: aibridge.ProviderOpenAI,
 		},
 		{
 			name: "Bedrock",
@@ -662,6 +671,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 					},
 				}),
 			},
+			expectedType: aibridge.ProviderAnthropic,
 		},
 	}
 
@@ -675,11 +685,27 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			})
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
+			assert.Equal(t, tt.expectedType, provider.Type())
 		})
 	}
 }
 
+func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildAIProviderFromRow(database.AIProvider{
+		Type:    database.AiProviderTypeBedrock,
+		Name:    "bedrock-no-settings",
+		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+	}, nil, codersdk.AIBridgeConfig{
+		AllowBYOK: serpent.Bool(true),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
+}
+
 func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
+
 	data, err := json.Marshal(s)
 	if err != nil {
 		panic(err)

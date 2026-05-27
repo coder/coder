@@ -327,18 +327,10 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		dp := desiredAIProvider{
 			Name: name,
 		}
-		switch database.AIProviderType(p.Type) {
-		case database.AiProviderTypeOpenai,
-			database.AiProviderTypeAnthropic,
-			database.AiProviderTypeAzure,
-			database.AiProviderTypeBedrock,
-			database.AiProviderTypeGoogle,
-			database.AiProviderTypeOpenaiCompat,
-			database.AiProviderTypeOpenrouter,
-			database.AiProviderTypeVercel,
-			database.AiProviderTypeCopilot:
-			dp.Type = database.AIProviderType(p.Type)
-		default:
+		providerType := database.AIProviderType(p.Type)
+		if providerType.Valid() {
+			dp.Type = providerType
+		} else {
 			logger.Warn(ctx, "skipping indexed AI provider with unsupported type",
 				slog.F("name", name),
 				slog.F("type", p.Type),
