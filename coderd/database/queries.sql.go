@@ -2974,6 +2974,9 @@ LIMIT
 	1
 `
 
+// Returns any non-expired key regardless of login_type (password, OIDC,
+// token, etc.). This is intentional: a user may only have a session key,
+// and the backfill is inherently approximate since the original key is lost.
 func (q *sqlQuerier) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
 	row := q.db.QueryRowContext(ctx, getLastUsedNonExpiredAPIKeyIDByUserID, userID)
 	var id string

@@ -137,6 +137,9 @@ WHERE id IN (
 );
 
 -- name: GetLastUsedNonExpiredAPIKeyIDByUserID :one
+-- Returns any non-expired key regardless of login_type (password, OIDC,
+-- token, etc.). This is intentional: a user may only have a session key,
+-- and the backfill is inherently approximate since the original key is lost.
 SELECT
 	id
 FROM
