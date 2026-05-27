@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -303,6 +304,11 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		_, _ = b.WriteString("{user} ")
 	}
 
+	if chatDescription, ok := chatAuditLogDescription(alog); ok {
+		_, _ = b.WriteString(chatDescription)
+		return b.String()
+	}
+
 	switch {
 	case alog.AuditLog.StatusCode == int32(http.StatusSeeOther):
 		_, _ = b.WriteString("was redirected attempting to ")
@@ -343,6 +349,171 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	_, _ = b.WriteString(" {target}")
 
 	return b.String()
+}
+
+func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool) {
+	if alog.AuditLog.ResourceType != database.ResourceTypeChat ||
+		alog.AuditLog.Action != database.AuditActionWrite ||
+		alog.AuditLog.StatusCode >= 400 ||
+		alog.AuditLog.StatusCode == int32(http.StatusSeeOther) {
+		return "", false
+	}
+
+	diff := codersdk.AuditDiff{}
+	if err := json.Unmarshal(alog.AuditLog.Diff, &diff); err != nil {
+		return "", false
+	}
+
+	if archived, ok := diff["archived"]; ok && len(diff) == 1 {
+		oldArchived, oldOK := auditDiffBool(archived.Old)
+		newArchived, newOK := auditDiffBool(archived.New)
+		if !oldOK || !newOK {
+			return "", false
+		}
+		if !oldArchived && newArchived {
+			return "archived chat {target}", true
+		}
+		if oldArchived && !newArchived {
+			return "unarchived chat {target}", true
+		}
+		return "", false
+	}
+
+	aclDiff, ok := auditLogChatACLChanges(diff)
+	if !ok {
+		return "", false
+	}
+
+	switch {
+	case aclDiff.added > 0 && aclDiff.removed == 0 && !aclDiff.updated:
+		return "shared chat {target} with " + auditLogChatACLTarget(aclDiff.addedUsers, aclDiff.addedGroups), true
+	case aclDiff.added == 0 && aclDiff.removed > 0 && !aclDiff.updated:
+		return "unshared chat {target} with " + auditLogChatACLTarget(aclDiff.removedUsers, aclDiff.removedGroups), true
+	default:
+		return "updated sharing for chat {target}", true
+	}
+}
+
+type auditLogChatACLChange struct {
+	added         int
+	removed       int
+	updated       bool
+	addedUsers    int
+	addedGroups   int
+	removedUsers  int
+	removedGroups int
+}
+
+func auditLogChatACLChanges(diff codersdk.AuditDiff) (auditLogChatACLChange, bool) {
+	if len(diff) == 0 || len(diff) > 2 {
+		return auditLogChatACLChange{}, false
+	}
+
+	var change auditLogChatACLChange
+	for field, diffField := range diff {
+		isUserACL := field == "user_acl"
+		isGroupACL := field == "group_acl"
+		if !isUserACL && !isGroupACL {
+			return auditLogChatACLChange{}, false
+		}
+
+		aclChange, ok := auditLogChatACLFieldChanges(diffField)
+		if !ok {
+			return auditLogChatACLChange{}, false
+		}
+		change.added += aclChange.added
+		change.removed += aclChange.removed
+		change.updated = change.updated || aclChange.updated
+		if isUserACL {
+			change.addedUsers += aclChange.added
+			change.removedUsers += aclChange.removed
+		} else {
+			change.addedGroups += aclChange.added
+			change.removedGroups += aclChange.removed
+		}
+	}
+
+	if change.added == 0 && change.removed == 0 && !change.updated {
+		return auditLogChatACLChange{}, false
+	}
+	return change, true
+}
+
+func auditLogChatACLFieldChanges(diffField codersdk.AuditDiffField) (auditLogChatACLChange, bool) {
+	if diffField.Secret {
+		return auditLogChatACLChange{}, false
+	}
+
+	oldACL, ok := auditDiffChatACL(diffField.Old)
+	if !ok {
+		return auditLogChatACLChange{}, false
+	}
+	newACL, ok := auditDiffChatACL(diffField.New)
+	if !ok {
+		return auditLogChatACLChange{}, false
+	}
+
+	var change auditLogChatACLChange
+	for id, newEntry := range newACL {
+		oldEntry, exists := oldACL[id]
+		if !exists {
+			change.added++
+			continue
+		}
+		if !auditLogChatACLEqual(oldEntry, newEntry) {
+			change.updated = true
+		}
+	}
+	for id := range oldACL {
+		if _, exists := newACL[id]; !exists {
+			change.removed++
+		}
+	}
+	return change, true
+}
+
+func auditDiffChatACL(value any) (map[string]database.ChatACLEntry, bool) {
+	if value == nil {
+		return map[string]database.ChatACLEntry{}, true
+	}
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, false
+	}
+	acl := map[string]database.ChatACLEntry{}
+	if err := json.Unmarshal(raw, &acl); err != nil {
+		return nil, false
+	}
+	return acl, true
+}
+
+func auditDiffBool(value any) (boolValue bool, ok bool) {
+	boolValue, ok = value.(bool)
+	return boolValue, ok
+}
+
+func auditLogChatACLEqual(a, b database.ChatACLEntry) bool {
+	return slices.Equal(a.Permissions, b.Permissions)
+}
+
+func auditLogChatACLTarget(users, groups int) string {
+	segments := make([]string, 0, 2)
+	if users > 0 {
+		segments = append(segments, auditLogCountSegment(users, "user"))
+	}
+	if groups > 0 {
+		segments = append(segments, auditLogCountSegment(groups, "group"))
+	}
+	return strings.Join(segments, " and ")
+}
+
+func auditLogCountSegment(count int, singular string) string {
+	plural := singular
+	if count != 1 {
+		plural += "s"
+	}
+	return fmt.Sprintf("%d %s", count, plural)
 }
 
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {

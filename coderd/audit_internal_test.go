@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -110,6 +111,174 @@ func TestAuditLogDescription(t *testing.T) {
 				},
 			},
 			want: "{user} deleted the git ssh key",
+		},
+		{
+			name: "archive_chat",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"archived":{"old":false,"new":true,"secret":false}}`),
+				},
+			},
+			want: "{user} archived chat {target}",
+		},
+		{
+			name: "unarchive_chat",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"archived":{"old":true,"new":false,"secret":false}}`),
+				},
+			},
+			want: "{user} unarchived chat {target}",
+		},
+		{
+			name: "archive_chat_with_another_change",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"archived":{"old":false,"new":true,"secret":false},"pin_order":{"old":1,"new":0,"secret":false}}`),
+				},
+			},
+			want: "{user} updated chat {target}",
+		},
+		{
+			name: "unsuccessful_archive_chat",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   400,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"archived":{"old":false,"new":true,"secret":false}}`),
+				},
+			},
+			want: "{user} unsuccessfully attempted to write chat {target}",
+		},
+		{
+			name: "redirect_archive_chat",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   303,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"archived":{"old":false,"new":true,"secret":false}}`),
+				},
+			},
+			want: "{user} was redirected attempting to write chat {target}",
+		},
+		{
+			name: "share_chat_with_one_user",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{},"new":{"user-1":{"permissions":["read"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} shared chat {target} with 1 user",
+		},
+		{
+			name: "share_chat_with_users_and_groups",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{},"new":{"user-1":{"permissions":["read"]},"user-2":{"permissions":["read"]}},"secret":false},"group_acl":{"old":{},"new":{"group-1":{"permissions":["read"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} shared chat {target} with 2 users and 1 group",
+		},
+		{
+			name: "unshare_chat_with_one_group",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"group_acl":{"old":{"group-1":{"permissions":["read"]}},"new":{},"secret":false}}`),
+				},
+			},
+			want: "{user} unshared chat {target} with 1 group",
+		},
+		{
+			name: "unshare_chat_with_users_and_groups",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]},"user-2":{"permissions":["read"]}},"new":{},"secret":false},"group_acl":{"old":{"group-1":{"permissions":["read"]}},"new":{},"secret":false}}`),
+				},
+			},
+			want: "{user} unshared chat {target} with 2 users and 1 group",
+		},
+		{
+			name: "mixed_chat_sharing_change",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]}},"new":{"user-2":{"permissions":["read"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} updated sharing for chat {target}",
+		},
+		{
+			name: "changed_chat_acl_permissions",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]}},"new":{"user-1":{"permissions":["read","update"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} updated sharing for chat {target}",
+		},
+		{
+			name: "unchanged_chat_acl",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]}},"new":{"user-1":{"permissions":["read"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} updated chat {target}",
+		},
+		{
+			name: "non_chat_acl_change",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeWorkspace,
+					Diff:         json.RawMessage(`{"user_acl":{"old":{},"new":{"user-1":{"permissions":["read"]}},"secret":false}}`),
+				},
+			},
+			want: "{user} updated workspace {target}",
+		},
+		{
+			name: "malformed_chat_diff",
+			alog: database.GetAuditLogsOffsetRow{
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionWrite,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeChat,
+					Diff:         json.RawMessage("{"),
+				},
+			},
+			want: "{user} updated chat {target}",
 		},
 	}
 	// nolint: paralleltest // no longer need to reinitialize loop vars in go 1.22
