@@ -16,6 +16,9 @@
 // /home/coder/. The script never modifies source files; it only emits the
 // report. The output file defaults to today's date so each run produces a
 // dated snapshot.
+//
+// docs/.audit/ is gitignored. Findings live in Linear (DOCS-253 and the
+// broader DOCS-209 backlog); the report file is a local working artifact.
 
 import fs from "node:fs";
 import path from "node:path";
