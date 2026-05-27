@@ -1,7 +1,6 @@
 package chatprovider_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -72,7 +71,7 @@ func generateOpenAICompatRequest(t *testing.T, baseURL string, modelID string) m
 	)
 	require.NoError(t, err)
 
-	_, err = model.Generate(context.Background(), fantasy.Call{
+	_, err = model.Generate(t.Context(), fantasy.Call{
 		Prompt: geminiOpenAICompatToolPrompt(),
 	})
 	require.NoError(t, err)
@@ -84,15 +83,15 @@ type captureChatCompletionTransport struct {
 	body map[string]any
 }
 
-func (t *captureChatCompletionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (ct *captureChatCompletionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	_ = req.Body.Close()
 	if strings.HasSuffix(req.URL.Path, "/chat/completions") {
-		t.body = map[string]any{}
-		if err := json.Unmarshal(body, &t.body); err != nil {
+		ct.body = map[string]any{}
+		if err := json.Unmarshal(body, &ct.body); err != nil {
 			return nil, err
 		}
 	}

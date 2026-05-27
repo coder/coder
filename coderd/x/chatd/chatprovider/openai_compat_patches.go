@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// OpenAI-compatible providers share an API shape but differ in the exact JSON
+// they accept. These patches adjust Fantasy's serialized request body at the
+// transport boundary so higher-level generation code can stay provider agnostic.
+//
+// googleOpenAICompatDummyThoughtSignature is Google's documented last-resort
+// bypass for callers that cannot preserve a real Gemini thought signature.
+// See https://ai.google.dev/gemini-api/docs/thought-signatures.
 const googleOpenAICompatDummyThoughtSignature = "skip_thought_signature_validator"
 
 func withOpenAICompatRequestPatches(
@@ -31,8 +38,10 @@ func withOpenAICompatRequestPatches(
 }
 
 type openAICompatRequestPatchTransport struct {
-	Base    http.RoundTripper
+	Base http.RoundTripper
+	// BaseURL is the configured provider base URL, used to detect direct Gemini endpoints.
 	BaseURL string
+	// ModelID is the configured model ID, used to detect Gemini routes through Coder AI Bridge.
 	ModelID string
 }
 
@@ -43,19 +52,23 @@ func (t *openAICompatRequestPatchTransport) RoundTrip(req *http.Request) (*http.
 	}
 
 	body, err := io.ReadAll(req.Body)
+	closeErr := req.Body.Close()
 	if err != nil {
 		return nil, err
 	}
-	_ = req.Body.Close()
+	if closeErr != nil {
+		return nil, closeErr
+	}
 
 	patched := patchOpenAICompatChatCompletionsBody(body, t.BaseURL, t.ModelID)
-	req.Body = io.NopCloser(bytes.NewReader(patched))
-	req.ContentLength = int64(len(patched))
-	req.GetBody = func() (io.ReadCloser, error) {
+	patchedReq := req.Clone(req.Context())
+	patchedReq.Body = io.NopCloser(bytes.NewReader(patched))
+	patchedReq.ContentLength = int64(len(patched))
+	patchedReq.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(patched)), nil
 	}
 
-	return base.RoundTrip(req)
+	return base.RoundTrip(patchedReq)
 }
 
 func (t *openAICompatRequestPatchTransport) base() http.RoundTripper {
@@ -93,6 +106,8 @@ func patchOpenAICompatChatCompletionsBody(body []byte, baseURL string, modelID s
 	return patched
 }
 
+// rewriteOpenAICompatSingleToolChoice replaces a single named tool choice with
+// "required" because some compatible endpoints reject the named object form.
 func rewriteOpenAICompatSingleToolChoice(payload map[string]any) bool {
 	tools, ok := payload["tools"].([]any)
 	if !ok || len(tools) != 1 {
@@ -131,6 +146,9 @@ func rewriteOpenAICompatSingleToolChoice(payload map[string]any) bool {
 	return true
 }
 
+// shouldAddGoogleOpenAICompatThoughtSignatures detects direct Gemini OpenAI
+// endpoints and Coder AI Bridge Gemini routes. Other gateways, such as Vercel,
+// keep their own provider-specific compatibility behavior.
 func shouldAddGoogleOpenAICompatThoughtSignatures(baseURL string, modelID string) bool {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -149,6 +167,10 @@ func isGeminiModelID(modelID string) bool {
 	return strings.HasPrefix(modelID, "gemini-") || strings.Contains(modelID, "/gemini-")
 }
 
+// addGoogleOpenAICompatThoughtSignatures adds a dummy thought signature to
+// assistant tool calls in the latest user turn. Gemini validates tool-call
+// history with thought signatures, but OpenAI-compatible serialization can drop
+// the original provider metadata.
 func addGoogleOpenAICompatThoughtSignatures(payload map[string]any) bool {
 	messages, ok := payload["messages"].([]any)
 	if !ok {
@@ -164,6 +186,10 @@ func addGoogleOpenAICompatThoughtSignatures(payload map[string]any) bool {
 		if role, _ := message["role"].(string); role == "user" {
 			currentTurnStart = i
 		}
+	}
+
+	if currentTurnStart == -1 {
+		return false
 	}
 
 	changed := false
@@ -187,9 +213,9 @@ func addGoogleOpenAICompatThoughtSignatures(payload map[string]any) bool {
 	return changed
 }
 
-func isOpenAICompatAssistantRole(value any) bool {
-	role, _ := value.(string)
-	return role == "assistant" || role == "model"
+func isOpenAICompatAssistantRole(role any) bool {
+	roleValue, _ := role.(string)
+	return roleValue == "assistant" || roleValue == "model"
 }
 
 func ensureGoogleOpenAICompatThoughtSignature(toolCall map[string]any) bool {
