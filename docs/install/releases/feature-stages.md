@@ -120,7 +120,7 @@ For support, consult our knowledgeable and growing community on
 already. Customers with a valid Coder license, can submit a support request or
 contact your [account team](https://coder.com/contact).
 
-We intend [Coder documentation](../../README.md) to be the
+We intend [Coder documentation](../../about/contributing/documentation.md) to be the
 [single source of truth](https://en.wikipedia.org/wiki/Single_source_of_truth)
 and all features should have some form of complete documentation that outlines
 how to use or implement a feature. If you discover an error or if you have a
