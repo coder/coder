@@ -5468,32 +5468,47 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
-	// Derive the owner from the session's workspace agent so that
-	// user-scoped create permission is checked correctly.
+	// The session carries the denormalized owner_id, so we only
+	// need a single lookup instead of a multi-table JOIN.
 	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
 	if err != nil {
 		return database.BoundaryLog{}, xerrors.Errorf("get boundary session for owner: %w", err)
 	}
-	row, err := q.db.GetWorkspaceAgentAndWorkspaceByID(ctx, session.WorkspaceAgentID)
-	if err != nil {
-		return database.BoundaryLog{}, xerrors.Errorf("get workspace for boundary log owner: %w", err)
-	}
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(row.WorkspaceTable.OwnerID.String())); err != nil {
+		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.String())); err != nil {
 		return database.BoundaryLog{}, err
 	}
 	return q.db.InsertBoundaryLog(ctx, arg)
 }
 
+func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
+	// All entries in a batch share the same session. Authorize once
+	// using the session's denormalized owner_id.
+	if len(arg.SessionID) == 0 {
+		return nil, nil
+	}
+	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID[0])
+	if err != nil {
+		return nil, xerrors.Errorf("get boundary session for owner: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.InsertBoundaryLogs(ctx, arg)
+}
+
 func (q *querier) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
-	// Derive the owner from the workspace agent so that user-scoped
-	// create permission is checked correctly.
+	// Derive the owner from the workspace agent. This is a one-time
+	// cost per session; subsequent log inserts use the denormalized
+	// owner_id on the session row.
 	row, err := q.db.GetWorkspaceAgentAndWorkspaceByID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return database.BoundarySession{}, xerrors.Errorf("get workspace for boundary session owner: %w", err)
 	}
+	arg.OwnerID = row.WorkspaceTable.OwnerID
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(row.WorkspaceTable.OwnerID.String())); err != nil {
+		rbac.ResourceBoundaryLog.WithOwner(arg.OwnerID.String())); err != nil {
 		return database.BoundarySession{}, err
 	}
 	return q.db.InsertBoundarySession(ctx, arg)
