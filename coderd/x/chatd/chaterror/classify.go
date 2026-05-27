@@ -197,6 +197,7 @@ func Classify(err error) ClassifiedError {
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
+	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
@@ -216,6 +217,8 @@ func Classify(err error) ClassifiedError {
 	// transient-looking errors like "503 invalid model" fail fast.
 	// Overloaded stays ahead because 529/overloaded is a dedicated
 	// provider saturation signal, not a common transport wrapper.
+	// Usage-limit fires before auth so that quota/billing text wins
+	// over whatever HTTP status code the provider happened to use.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
 	rules := []struct {
@@ -227,6 +230,11 @@ func Classify(err error) ClassifiedError {
 			match:     overloadedMatch,
 			kind:      codersdk.ChatErrorKindOverloaded,
 			retryable: true,
+		},
+		{
+			match:     usageLimitMatch,
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			retryable: false,
 		},
 		{
 			match:     authStrong,
