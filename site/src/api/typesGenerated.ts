@@ -3677,6 +3677,14 @@ export interface CreateUserSkillRequest {
 }
 
 // From codersdk/workspaces.go
+export interface CreateWorkspaceBuildOnSuccessRequest {
+	readonly template_version_id?: string;
+	readonly transition: WorkspaceTransition;
+	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
+	readonly template_version_preset_id?: string;
+}
+
+// From codersdk/workspaces.go
 export type CreateWorkspaceBuildReason =
 	| "cli"
 	| "dashboard"
@@ -3727,6 +3735,12 @@ export interface CreateWorkspaceBuildRequest {
 	 * Reason sets the reason for the workspace build.
 	 */
 	readonly reason?: CreateWorkspaceBuildReason;
+	/**
+	 * OnSuccess queues a follow-up workspace build after this build succeeds.
+	 * It currently supports restarting a workspace by starting it after a
+	 * successful stop build.
+	 */
+	readonly on_success?: CreateWorkspaceBuildOnSuccessRequest;
 }
 
 // From codersdk/workspaceproxy.go
