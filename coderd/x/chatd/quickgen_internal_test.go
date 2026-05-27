@@ -671,6 +671,100 @@ func TestFallbackTurnStatusLabel(t *testing.T) {
 	}
 }
 
+func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *testing.T) {
+	t.Parallel()
+
+	server, requests := newOpenAICompatStructuredOutputServer(t, "propose_title", `{"title":"Failed workspace logs"}`)
+	model := openAICompatTestModel(t, server.URL)
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+
+	body := testutil.TryReceive(t.Context(), t, requests)
+	require.Equal(t, "required", body["tool_choice"])
+}
+
+func newOpenAICompatStructuredOutputServer(
+	t *testing.T,
+	toolName string,
+	arguments string,
+) (*httptest.Server, <-chan map[string]any) {
+	t.Helper()
+
+	requests := make(chan map[string]any, 10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		requests <- body
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "chatcmpl-structured-output",
+			"object":  "chat.completion",
+			"created": time.Now().Unix(),
+			"model":   "anthropic/claude-4-5-sonnet",
+			"choices": []map[string]any{
+				{
+					"index": 0,
+					"message": map[string]any{
+						"role":    "assistant",
+						"content": "",
+						"tool_calls": []map[string]any{
+							{
+								"id":   "call_structured_output",
+								"type": "function",
+								"function": map[string]any{
+									"name":      toolName,
+									"arguments": arguments,
+								},
+							},
+						},
+					},
+					"finish_reason": "tool_calls",
+				},
+			},
+			"usage": map[string]any{
+				"prompt_tokens":     10,
+				"completion_tokens": 5,
+				"total_tokens":      15,
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+	return server, requests
+}
+
+func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
+	t.Helper()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasyopenaicompat.Name,
+		"anthropic/claude-4-5-sonnet",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasyopenaicompat.Name: "test-key",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasyopenaicompat.Name: baseURL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	return model
+}
+
 func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
@@ -691,48 +785,23 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		require.Equal(t, "Submitted PR", label)
 	})
 
-	t.Run("uses required tool choice for openai-compatible model", func(t *testing.T) {
-		t.Parallel()
-
-		var generateCalled bool
-		model := &chattest.FakeModel{
-			ProviderName: fantasyopenaicompat.Name,
-			GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
-				generateCalled = true
-				require.NotNil(t, call.ToolChoice)
-				require.Equal(t, fantasy.ToolChoiceRequired, *call.ToolChoice)
-				require.Len(t, call.Tools, 1)
-				require.Equal(t, "propose_turn_status_label", call.Tools[0].GetName())
-				return &fantasy.Response{
-					Content: fantasy.ResponseContent{
-						fantasy.ToolCallContent{
-							ToolName: "propose_turn_status_label",
-							Input:    `{"label":"Submitted PR"}`,
-						},
-					},
-					FinishReason: fantasy.FinishReasonToolCalls,
-				}, nil
-			},
-		}
-
-		label, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
-		require.NoError(t, err)
-		require.True(t, generateCalled)
-		require.Equal(t, "Submitted PR", label)
-	})
-
 	t.Run("sends required tool_choice to openai-compatible provider", func(t *testing.T) {
 		t.Parallel()
 
+		requests := make(chan map[string]any, 1)
 		var attempts atomic.Int32
 		openAIServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			attempts.Add(1)
 
 			var body map[string]any
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-			require.Equal(t, "required", body["tool_choice"])
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			requests <- body
+
 			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":      "chatcmpl-status-label",
 				"object":  "chat.completion",
 				"created": time.Now().Unix(),
@@ -762,23 +831,34 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 					"completion_tokens": 5,
 					"total_tokens":      15,
 				},
-			}))
+			})
 		}))
 		t.Cleanup(openAIServer.Close)
-		openAIURL := openAIServer.URL
 
-		provider, err := fantasyopenaicompat.New(
-			fantasyopenaicompat.WithAPIKey("test-key"),
-			fantasyopenaicompat.WithBaseURL(openAIURL),
+		model, err := chatprovider.ModelFromConfig(
+			fantasyopenaicompat.Name,
+			"anthropic/claude-4-5-sonnet",
+			chatprovider.ProviderAPIKeys{
+				ByProvider: map[string]string{
+					fantasyopenaicompat.Name: "test-key",
+				},
+				BaseURLByProvider: map[string]string{
+					fantasyopenaicompat.Name: openAIServer.URL,
+				},
+			},
+			chatprovider.UserAgent(),
+			nil,
+			nil,
 		)
 		require.NoError(t, err)
-		model, err := provider.LanguageModel(context.Background(), "anthropic/claude-4-5-sonnet")
-		require.NoError(t, err)
 
-		label, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Equal(t, int32(1), attempts.Load())
+
+		body := testutil.TryReceive(t.Context(), t, requests)
+		require.Equal(t, "required", body["tool_choice"])
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
