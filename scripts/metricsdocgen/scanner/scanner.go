@@ -41,6 +41,7 @@ var scanDirs = []string{
 //	eliminate the need for this skip list.
 var skipPaths = []string{
 	"enterprise/aibridgeproxyd/metrics.go",
+	"enterprise/scaletest/agentfake/metrics.go",
 }
 
 // MetricType represents the type of Prometheus metric.
