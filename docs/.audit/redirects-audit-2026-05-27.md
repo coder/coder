@@ -1,12 +1,12 @@
 # Redirects audit: TS/TSX docs-URL references
 
-Generated: 2026-05-27T15:43:00.186Z
+Generated: 2026-05-27T16:29:35.150Z
 
 Tracks: [DOCS-253](https://linear.app/codercom/issue/DOCS-253) (parent: [DOCS-209](https://linear.app/codercom/issue/DOCS-209)).
 
 ## Method
 
-This audit cross-references every static `docs("...")` call, every `docs(\`...\`)` template literal with a literal prefix, and every hardcoded `coder.com/docs/...` URL in TS/TSX files against the source side of every `/docs/*` rule in `coder/coder.com/redirects.json`. Anything that matches a redirect source is stale and needs to be updated to the destination.
+This audit cross-references every static `docs("...")` call, every `docs(`...`)` template literal with a literal prefix, every hardcoded `coder.com/docs/...` URL, and every `](/docs/...)`-style Markdown link in TS/TSX files against the source side of every `/docs/*` rule in `coder/coder.com/redirects.json`. Anything that matches a redirect source is stale and needs to be updated to the destination.
 
 Source of truth for the redirect set: `/home/coder/coder.com/redirects.json` at audit time.
 
@@ -17,9 +17,10 @@ Scanned roots:
 
 Pattern matchers:
 
-* `docs("/...")` and `docs('/...')` and `docs(\`/...\`)` (no `${}`).
-* `docs(\`/.../$\{expr\}/...\`)` (literal prefix only; flagged as dynamic for manual review).
+* `docs("/...")` and `docs('/...')` and `docs(`/...`)` (no `${}`).
+* `docs(`/.../${expr}/...`)` (literal prefix only; flagged as dynamic for manual review).
 * Any string literal containing `https://coder.com/docs/...` or `https://*.coder.com/docs/...`.
+* Markdown-link form `](https://coder.com/docs/...)` or `](/docs/...)` inside prose, notifications, and mock data.
 
 Hash fragments (`#anchor`) and query strings (`?foo`) are stripped before redirect matching.
 
@@ -27,20 +28,23 @@ Hash fragments (`#anchor`) and query strings (`?foo`) are stripped before redire
 
 | Total findings | Auto-fixable (literal) | Manual review (dynamic) |
 |----------------|------------------------|-------------------------|
-| 23             | 23                     | 0                       |
+| 26             | 26                     | 0                       |
 
 ## coder/coder/site
 
-6 findings.
+9 findings.
 
-| File:Line                                                                                | Current path                                           | Redirect rule                                                           | Suggested fix                                                        | Dynamic? |
-|------------------------------------------------------------------------------------------|--------------------------------------------------------|-------------------------------------------------------------------------|----------------------------------------------------------------------|----------|
-| `site/src/components/Paywall/PaywallAIGovernance.tsx:47`                                 | `/ai-coder/ai-bridge`                                  | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*` | `/ai-coder/ai-gateway`                                               | No       |
-| `site/src/pages/AIBridgePage/AIBridgeHelpPopover.tsx:25`                                 | `/ai-coder/ai-bridge`                                  | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*` | `/ai-coder/ai-gateway`                                               | No       |
-| `site/src/pages/AIBridgePage/AIBridgeSessionsLayout.tsx:25`                              | `/ai-coder/ai-bridge/audit`                            | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*` | `/ai-coder/ai-gateway/audit`                                         | No       |
-| `site/src/pages/AIBridgePage/AIBridgeSetupAlert.tsx:15`                                  | `/ai-coder/ai-bridge`                                  | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*` | `/ai-coder/ai-gateway`                                               | No       |
-| `site/src/pages/AIBridgePage/SessionThreadsPage/SessionTimeline/SessionTimeline.tsx:321` | `/ai-coder/ai-bridge/audit#human-vs-agent-attribution` | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*` | `/ai-coder/ai-gateway/audit` (preserve `#anchor` from current value) | No       |
-| `site/src/pages/TemplatesPage/TemplatesFilter.tsx:63`                                    | `/templates#template-filtering`                        | `/docs/templates` -> `/docs/admin/templates`                            | `/admin/templates` (preserve `#anchor` from current value)           | No       |
+| File:Line                                                                                | Current path                                                 | Redirect rule                                                                     | Suggested fix                                                                               | Dynamic? |
+|------------------------------------------------------------------------------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|----------|
+| `site/src/components/Paywall/PaywallAIGovernance.tsx:47`                                 | `/ai-coder/ai-bridge`                                        | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*`           | `/ai-coder/ai-gateway`                                                                      | No       |
+| `site/src/pages/AIBridgePage/AIBridgeHelpPopover.tsx:25`                                 | `/ai-coder/ai-bridge`                                        | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*`           | `/ai-coder/ai-gateway`                                                                      | No       |
+| `site/src/pages/AIBridgePage/AIBridgeSessionsLayout.tsx:25`                              | `/ai-coder/ai-bridge/audit`                                  | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*`           | `/ai-coder/ai-gateway/audit`                                                                | No       |
+| `site/src/pages/AIBridgePage/AIBridgeSetupAlert.tsx:15`                                  | `/ai-coder/ai-bridge`                                        | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*`           | `/ai-coder/ai-gateway`                                                                      | No       |
+| `site/src/pages/AIBridgePage/SessionThreadsPage/SessionTimeline/SessionTimeline.tsx:321` | `/ai-coder/ai-bridge/audit#human-vs-agent-attribution`       | `/docs/ai-coder/ai-bridge/:path*` -> `/docs/ai-coder/ai-gateway/:path*`           | `/ai-coder/ai-gateway/audit` (preserve `#anchor` from current value)                        | No       |
+| `site/src/pages/TemplatesPage/TemplatesFilter.tsx:63`                                    | `/templates#template-filtering`                              | `/docs/templates` -> `/docs/admin/templates`                                      | `/admin/templates` (preserve `#anchor` from current value)                                  | No       |
+| `site/src/testHelpers/entities.ts:4872`                                                  | `/docs/templates/schedule#dormancy-threshold-enterprise`     | `/docs/templates/schedule` -> `/docs/admin/templates/managing-templates/schedule` | `/docs/admin/templates/managing-templates/schedule` (preserve `#anchor` from current value) | No       |
+| `site/src/testHelpers/entities.ts:4872`                                                  | `/docs/templates/schedule#dormancy-auto-deletion-enterprise` | `/docs/templates/schedule` -> `/docs/admin/templates/managing-templates/schedule` | `/docs/admin/templates/managing-templates/schedule` (preserve `#anchor` from current value) | No       |
+| `site/src/testHelpers/entities.ts:4898`                                                  | `/docs/templates/schedule#dormancy-auto-deletion-enterprise` | `/docs/templates/schedule` -> `/docs/admin/templates/managing-templates/schedule` | `/docs/admin/templates/managing-templates/schedule` (preserve `#anchor` from current value) | No       |
 
 ## coder/coder.com/src
 

@@ -4869,7 +4869,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked as Dormant",
 			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -4895,7 +4895,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked for Deletion",
 			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
