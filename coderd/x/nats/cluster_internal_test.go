@@ -7,6 +7,75 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_parsePeerAddresses(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		routes, err := parsePeerAddresses([]string{
+			" nats://127.0.0.1:4222 ",
+			"nats://[::1]:7222",
+			"nats://example.com:6222",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			"nats://127.0.0.1:4222",
+			"nats://[::1]:7222",
+			"nats://example.com:6222",
+		}, routeStrings(routes))
+
+		routes[0].Host = "mutated:4222"
+		routes2, err := parsePeerAddresses([]string{"nats://127.0.0.1:4222"})
+		require.NoError(t, err)
+		require.Equal(t, "nats://127.0.0.1:4222", routes2[0].String())
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		routes, err := parsePeerAddresses(nil)
+		require.NoError(t, err)
+		require.Empty(t, routes)
+	})
+
+	t.Run("FiltersSortsAndDedupes", func(t *testing.T) {
+		t.Parallel()
+		routes, err := parsePeerAddresses([]string{
+			"nats://b.example:6222",
+			"nats://a.example:6222",
+			"nats://b.example:6222",
+			"nats://self.example:6222",
+		}, "self.example:6222")
+		require.NoError(t, err)
+		require.Equal(t, []string{
+			"nats://a.example:6222",
+			"nats://b.example:6222",
+		}, routeStrings(routes))
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		t.Parallel()
+		for _, address := range []string{
+			"",
+			"   ",
+			"http://127.0.0.1:4222",
+			"nats://127.0.0.1",
+			"nats://:4222",
+			"nats://127.0.0.1:0",
+			"nats://127.0.0.1:bad",
+			"nats://user@127.0.0.1:4222",
+			"nats://127.0.0.1:4222/path",
+			"nats://127.0.0.1:4222?x=1",
+			"nats://127.0.0.1:4222#frag",
+		} {
+			t.Run(address, func(t *testing.T) {
+				t.Parallel()
+				_, err := parsePeerAddresses([]string{address})
+				require.Error(t, err)
+			})
+		}
+	})
+}
+
 //nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
 func Test_SetPeerAddresses(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {

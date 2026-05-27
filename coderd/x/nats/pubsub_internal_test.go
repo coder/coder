@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -341,75 +342,6 @@ func Test_localSub_init(t *testing.T) {
 	})
 }
 
-func Test_parsePeerAddresses(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Valid", func(t *testing.T) {
-		t.Parallel()
-		routes, err := parsePeerAddresses([]string{
-			" nats://127.0.0.1:4222 ",
-			"nats://[::1]:7222",
-			"nats://example.com:6222",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []string{
-			"nats://127.0.0.1:4222",
-			"nats://[::1]:7222",
-			"nats://example.com:6222",
-		}, routeStrings(routes))
-
-		routes[0].Host = "mutated:4222"
-		routes2, err := parsePeerAddresses([]string{"nats://127.0.0.1:4222"})
-		require.NoError(t, err)
-		require.Equal(t, "nats://127.0.0.1:4222", routes2[0].String())
-	})
-
-	t.Run("Empty", func(t *testing.T) {
-		t.Parallel()
-		routes, err := parsePeerAddresses(nil)
-		require.NoError(t, err)
-		require.Empty(t, routes)
-	})
-
-	t.Run("FiltersSortsAndDedupes", func(t *testing.T) {
-		t.Parallel()
-		routes, err := parsePeerAddresses([]string{
-			"nats://b.example:6222",
-			"nats://a.example:6222",
-			"nats://b.example:6222",
-			"nats://self.example:6222",
-		}, "self.example:6222")
-		require.NoError(t, err)
-		require.Equal(t, []string{
-			"nats://a.example:6222",
-			"nats://b.example:6222",
-		}, routeStrings(routes))
-	})
-
-	t.Run("Invalid", func(t *testing.T) {
-		t.Parallel()
-		for _, address := range []string{
-			"",
-			"   ",
-			"http://127.0.0.1:4222",
-			"nats://127.0.0.1",
-			"nats://:4222",
-			"nats://127.0.0.1:0",
-			"nats://127.0.0.1:bad",
-			"nats://user@127.0.0.1:4222",
-			"nats://127.0.0.1:4222/path",
-			"nats://127.0.0.1:4222?x=1",
-			"nats://127.0.0.1:4222#frag",
-		} {
-			t.Run(address, func(t *testing.T) {
-				t.Parallel()
-				_, err := parsePeerAddresses([]string{address})
-				require.Error(t, err)
-			})
-		}
-	})
-}
-
 //nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
 func TestPubsubCluster(t *testing.T) {
 	// OK verifies that SetPeerAddresses changes the active cluster topology.
@@ -435,6 +367,7 @@ func TestPubsubCluster(t *testing.T) {
 		require.NoError(t, err)
 		defer cancelBGlobal()
 
+		waitForRouteSubscription(t, a, globalEvent)
 		publishAndFlush(t, a, globalEvent, "from-a-to-b")
 		require.Equal(t, "from-a-to-b", string(receiveMessage(t, bMsg)))
 
@@ -460,6 +393,8 @@ func TestPubsubCluster(t *testing.T) {
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
 		waitForRoutes(t, a, 2)
 		waitForRoutes(t, c, 1)
+		waitForRouteSubscription(t, a, globalEvent)
+		waitForRouteSubscription(t, a, cSubject)
 
 		publishAndFlush(t, a, globalEvent, "new-global-msg")
 		require.Equal(t, "new-global-msg", string(receiveMessage(t, bMsg)))
@@ -522,6 +457,24 @@ func waitForRoutes(t *testing.T, ps *Pubsub, minRoutes int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		return ps.ns.NumRoutes() >= minRoutes
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		routes, err := ps.ns.Routez(&natsserver.RoutezOptions{Subscriptions: true})
+		if err != nil {
+			return false
+		}
+		for _, route := range routes.Routes {
+			for _, sub := range route.Subs {
+				if sub == subject {
+					return true
+				}
+			}
+		}
+		return false
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
