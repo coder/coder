@@ -15,7 +15,6 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
-	agplcli "github.com/coder/coder/v2/cli"
 	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
@@ -167,13 +166,14 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.
 		if options.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-			// Seed env-derived providers before reading them back so the
-			// proxy observes them on first startup. options.Database is
-			// dbcrypt-wrapped at this point (set by coderd.New above),
-			// so env-seeded keys are also written encrypted. Detached
-			// ctx for the same reason as in agplcli below: an early
-			// return would orphan newAPI's goroutines. Seeding is
-			// idempotent; the agplcli path seeds again post-newAPI.
+			// Seed env-derived providers before the proxy daemon's reloader
+			// reads them back so the proxy observes them on first startup.
+			// options.Database is dbcrypt-wrapped at this point (set by
+			// coderd.New above), so env-seeded keys are also written
+			// encrypted. Detached ctx for the same reason as in agplcli
+			// below: an early return would orphan newAPI's goroutines.
+			// Seeding is idempotent; the agplcli path seeds again
+			// post-newAPI.
 			//nolint:gocritic // Production timeout, not a test wait.
 			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			defer aibridgeInitCancel()
@@ -185,19 +185,12 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			); err != nil {
 				return nil, nil, xerrors.Errorf("seed ai providers from env: %w", err)
 			}
-			providers, err := agplcli.BuildProviders(aibridgeInitCtx, options.Database, options.DeploymentValues.AI.BridgeConfig, options.Logger.Named("aibridge.providers"))
-			if err != nil {
-				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
-			}
-			aiBridgeProxyServer, err := newAIBridgeProxyDaemon(api, providers)
+			aiBridgeProxyCloser, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
 			}
-			closers.Add(aiBridgeProxyServer)
-
-			// Register the handler so coderd can serve the proxy endpoints.
-			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
+			closers.Add(aiBridgeProxyCloser)
 		}
 
 		return api.AGPL, closers, nil
