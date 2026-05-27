@@ -6,6 +6,13 @@ on:
       - main
       - release/*
 
+  # GitHub Actions does not reliably trigger push-based CI when a new
+  # branch is created at a commit that already has a workflow run (e.g.
+  # from main). The create event fires separately and ensures CI runs
+  # on newly cut release branches. Non-release branch creations are
+  # filtered out by the changes job condition.
+  create:
+
   pull_request:
   workflow_dispatch:
 
@@ -21,6 +28,13 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # For create events, only run on release branches to avoid
+    # triggering CI for every feature branch creation.
+    if: |
+      github.event_name != 'create' || (
+        github.event.ref_type == 'branch' &&
+        startsWith(github.event.ref, 'release/')
+      )
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
