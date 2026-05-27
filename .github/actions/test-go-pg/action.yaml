@@ -26,6 +26,18 @@ inputs:
     description: "Packages to test (default: ./...)"
     required: false
     default: "./..."
+  run-regex:
+    description: "Go test name regex passed via RUN"
+    required: false
+    default: ""
+  test-shuffle:
+    description: "Go test shuffle mode passed via TEST_SHUFFLE"
+    required: false
+    default: ""
+  gotestsum-json-file:
+    description: "Optional Linux path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
+    required: false
+    default: ""
   embedded-pg-path:
     description: "Path for embedded postgres data (Windows/macOS only)"
     required: false
@@ -61,14 +73,29 @@ runs:
         TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
         TEST_NUM_PARALLEL_TESTS: ${{ inputs.test-parallelism-tests }}
         TEST_COUNT: ${{ inputs.test-count }}
+        RUN: ${{ inputs.run-regex }}
+        TEST_SHUFFLE: ${{ inputs.test-shuffle }}
         TEST_PACKAGES: ${{ inputs.test-packages }}
         RACE_DETECTION: ${{ inputs.race-detection }}
+        GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
         TS_DEBUG_DISCO: "true"
         TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
         LC_ALL: "en_US.UTF-8"
       run: |
         set -euo pipefail
+
+        # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
+        # of writing a PATH shim. "default" is the historical
+        # ${RUNNER_TEMP}/go-test.json location consumed by
+        # ./.github/actions/go-test-failure-report.
+        if [[ -n "${GOTESTSUM_JSONFILE_INPUT}" ]]; then
+          if [[ "${GOTESTSUM_JSONFILE_INPUT}" == "default" ]]; then
+            export GOTESTSUM_JSONFILE="${RUNNER_TEMP}/go-test.json"
+          else
+            export GOTESTSUM_JSONFILE="${GOTESTSUM_JSONFILE_INPUT}"
+          fi
+        fi
 
         if [[ ${RACE_DETECTION} == true ]]; then
           make test-race

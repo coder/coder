@@ -24,7 +24,12 @@ import (
 	"github.com/coder/quartz"
 )
 
-func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
+// newAIBridgeDaemon constructs the in-memory aibridge daemon and wires
+// up a subscription that hot-reloads the provider pool from the
+// database on every ai_providers change event. The returned unsubscribe
+// function tears down the subscription; callers must invoke it
+// alongside Server.Close on shutdown.
+func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg codersdk.AIBridgeConfig) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
@@ -37,7 +42,25 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), metrics, tracer) // TODO: configurable size.
 	if err != nil {
-		return nil, xerrors.Errorf("create request pool: %w", err)
+		return nil, nil, xerrors.Errorf("create request pool: %w", err)
+	}
+
+	// Subscribe to ai_providers change events so the pool tracks the
+	// database without a restart. The boot-time `providers` snapshot
+	// derives from env config and serves as a fallback if the database
+	// load fails inside the reloader.
+	reloader := &poolDBReloader{
+		pool:   pool,
+		db:     coderAPI.Database,
+		cfg:    cfg,
+		logger: logger.Named("provider-loader"),
+	}
+	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
+	if err != nil {
+		// Pool is still usable with the boot-time snapshot; subscription
+		// failure is logged but not fatal so the daemon still serves.
+		logger.Warn(ctx, "subscribe to ai providers change channel", slog.Error(err))
+		unsubscribe = func() {}
 	}
 
 	// Create daemon.
@@ -45,9 +68,32 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
 	}, logger, tracer)
 	if err != nil {
-		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
+		unsubscribe()
+		return nil, nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
-	return srv, nil
+	return srv, unsubscribe, nil
+}
+
+// poolDBReloader implements [aibridged.ProviderReloader] by loading
+// the live provider set from the database and forwarding it to the
+// pool.
+type poolDBReloader struct {
+	pool   *aibridged.CachedBridgePool
+	db     database.Store
+	cfg    codersdk.AIBridgeConfig
+	logger slog.Logger
+}
+
+func (r *poolDBReloader) Reload(ctx context.Context) error {
+	providers, err := BuildProviders(ctx, r.db, r.cfg, r.logger)
+	if err != nil {
+		// Keep the previous snapshot in place: dropping all providers
+		// because the DB read failed would compound the visible failure
+		// mode beyond the operator's actual misconfiguration.
+		return xerrors.Errorf("load ai providers from database: %w", err)
+	}
+	r.pool.ReplaceProviders(providers)
+	return nil
 }
 
 // BuildProviders loads every enabled ai_providers row, attaches its
@@ -138,17 +184,28 @@ func buildAIProviderFromRow(
 	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
 
+	// aibridge currently has native support for OpenAI and Anthropic
+	// only. The other ai_provider_type values (azure, google,
+	// openai-compat, openrouter, vercel) route through the OpenAI
+	// provider because chatd configures them against their
+	// OpenAI-compatible endpoints. Bedrock routes through the Anthropic
+	// provider with a Bedrock discriminator in Settings.
 	switch row.Type {
-	case database.AiProviderTypeOpenai:
+	case database.AiProviderTypeOpenai,
+		database.AiProviderTypeAzure,
+		database.AiProviderTypeGoogle,
+		database.AiProviderTypeOpenaiCompat,
+		database.AiProviderTypeOpenrouter,
+		database.AiProviderTypeVercel:
 		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("openai provider has no api keys configured and BYOK is not enabled")
+			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", row.Type)
 		}
 		var pool *keypool.Pool
 		if len(keys) > 0 {
 			var err error
 			pool, err = buildAIProviderKeyPool(keys)
 			if err != nil {
-				return nil, xerrors.Errorf("openai key pool: %w", err)
+				return nil, xerrors.Errorf("%s key pool: %w", row.Type, err)
 			}
 		}
 		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
@@ -160,8 +217,15 @@ func buildAIProviderFromRow(
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AiProviderTypeAnthropic:
+	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
 		bedrock := bedrockConfigFromRow(row, settings)
+		// A row typed 'bedrock' authenticates exclusively via settings;
+		// without populated Bedrock credentials it cannot make upstream
+		// calls, so refuse rather than falling back to an unsigned
+		// Anthropic client.
+		if row.Type == database.AiProviderTypeBedrock && bedrock == nil {
+			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
+		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
 		// the settings blob, not the api_keys table. A bearer-token
 		// Anthropic without any key cannot make upstream calls.

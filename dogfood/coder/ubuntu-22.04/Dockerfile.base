@@ -177,7 +177,9 @@ RUN useradd coder \
 # (see /home/linuxbrew volume in main.tf).
 ARG MISE_VERSION=v2026.5.12 \
 	MISE_SHA256=a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48 \
-	MISE_INSTALL_DIR=/opt/mise/bin
+	MISE_INSTALL_DIR=/opt/mise/bin \
+	HOMEBREW_INSTALL_COMMIT=540da2ca91271886910572df3a50332540ca84e4 \
+	HOMEBREW_INSTALL_SHA256=dfd5145fe2aa5956a600e35848765273f5798ce6def01bd08ecec088a1268d91
 RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
 	curl --silent --show-error --location --fail \
 		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
@@ -219,7 +221,12 @@ RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/m
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
 # writable after the image build.
-RUN sudo --login --user=coder env NONINTERACTIVE=1 CI=1 /bin/bash -lc 'set -euo pipefail && curl --silent --show-error --location --fail https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash' && \
+RUN sudo --login --user=coder env \
+		NONINTERACTIVE=1 \
+		CI=1 \
+		HOMEBREW_INSTALL_COMMIT=${HOMEBREW_INSTALL_COMMIT} \
+		HOMEBREW_INSTALL_SHA256=${HOMEBREW_INSTALL_SHA256} \
+		/bin/bash -lc 'set -euo pipefail && installer="$(mktemp)" && trap '"'"'rm -f "${installer}"'"'"' EXIT && curl --silent --show-error --location --fail "https://raw.githubusercontent.com/Homebrew/install/${HOMEBREW_INSTALL_COMMIT}/install.sh" --output "${installer}" && echo "${HOMEBREW_INSTALL_SHA256}  ${installer}" | sha256sum -c && /bin/bash "${installer}"' && \
 	test -x /home/linuxbrew/.linuxbrew/bin/brew && \
 	sudo --login --user=coder /bin/bash -lc '/home/linuxbrew/.linuxbrew/bin/brew --version'
 
