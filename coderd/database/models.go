@@ -4699,6 +4699,7 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
+	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatModelConfig struct {
@@ -4726,6 +4727,7 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatTable struct {

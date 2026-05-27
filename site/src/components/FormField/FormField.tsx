@@ -7,11 +7,13 @@ import type { FormHelpers } from "#/utils/formUtils";
 type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
+	description?: ReactNode;
 };
 
 export const FormField: FC<FormFieldProps> = ({
 	field,
 	label,
+	description,
 	className,
 	...inputProps
 }) => {
@@ -19,10 +21,33 @@ export const FormField: FC<FormFieldProps> = ({
 	const id = inputProps.id ?? generatedId;
 	const errorId = `${id}-error`;
 	const helperId = `${id}-helper`;
+	const descriptionId = `${id}-description`;
+	const describedBy = [
+		description ? descriptionId : null,
+		field.error ? errorId : field.helperText ? helperId : null,
+	]
+		.filter(Boolean)
+		.join(" ");
+	const required = inputProps.required ?? false;
 
 	return (
 		<div className="flex flex-col gap-2">
-			<Label htmlFor={id}>{label}</Label>
+			<Label htmlFor={id}>
+				{label}
+				{required && (
+					<>
+						{" "}
+						<span className="text-xs font-bold text-content-destructive">
+							*
+						</span>
+					</>
+				)}
+			</Label>
+			{description && (
+				<div id={descriptionId} className="text-xs text-content-secondary">
+					{description}
+				</div>
+			)}
 			<Input
 				name={field.name}
 				value={field.value}
@@ -31,9 +56,7 @@ export const FormField: FC<FormFieldProps> = ({
 				{...inputProps}
 				id={id}
 				aria-invalid={field.error}
-				aria-describedby={
-					field.error ? errorId : field.helperText ? helperId : undefined
-				}
+				aria-describedby={describedBy || undefined}
 				className={cn(field.error && "border-border-destructive", className)}
 			/>
 			{field.error ? (

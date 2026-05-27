@@ -14,6 +14,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import { SvgRingProgress } from "./SvgRingProgress";
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
@@ -71,8 +72,6 @@ const basename = (path: string): string => {
 
 const RING_SIZE = 18;
 const RING_STROKE = 2.5;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 // Delay before the popover closes after the mouse leaves, giving
 // the user time to move into the popover content.
@@ -122,8 +121,6 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 100;
-	const dashOffset =
-		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
 	const toneClassName = getIndicatorToneClassName(percentUsed);
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
@@ -225,33 +222,14 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 			aria-label={ariaLabel}
 			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
-			<svg
-				className={cn("size-icon-sm -rotate-90", toneClassName)}
-				viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-				aria-hidden
-			>
-				<circle
-					cx={RING_SIZE / 2}
-					cy={RING_SIZE / 2}
-					r={RING_RADIUS}
-					fill="none"
-					strokeWidth={RING_STROKE}
-					className="stroke-content-secondary/25"
-				/>
-				<circle
-					cx={RING_SIZE / 2}
-					cy={RING_SIZE / 2}
-					r={RING_RADIUS}
-					fill="none"
-					strokeWidth={RING_STROKE}
-					strokeLinecap="round"
-					className="stroke-current transition-all duration-300 ease-out"
-					style={{
-						strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-						strokeDashoffset: dashOffset,
-					}}
-				/>
-			</svg>
+			<SvgRingProgress
+				size={RING_SIZE}
+				strokeWidth={RING_STROKE}
+				percent={clampedPercent}
+				trackClassName="stroke-content-secondary/25"
+				progressClassName="stroke-current"
+				className={cn("size-icon-sm", toneClassName)}
+			/>
 		</button>
 	);
 

@@ -508,6 +508,16 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+      # `mise oci build` bakes `ENV MISE_CONFIG_DIR=/etc/mise` into
+      # the image layer above Dockerfile.base, so mise treats
+      # /etc/mise as the user config dir and never reads
+      # ~/.config/mise/conf.d/*, silently dropping the trust file
+      # the install-deps coder_script below seeds. `[oci.env]` in
+      # mise.toml would be the natural place for this, but mise's
+      # internal env bake currently wins on MISE_* key collisions
+      # (non-MISE keys flow through). Move this back to `[oci.env]`
+      # once upstream mise fixes that.
+      MISE_CONFIG_DIR : "/home/coder/.config/mise",
     },
     data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
@@ -679,11 +689,26 @@ resource "coder_script" "install-deps" {
   display_name       = "Installing Dependencies"
   run_on_start       = true
   start_blocks_login = false
-  script             = <<EOT
+  script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
 
     trap 'coder exp sync complete install-deps' EXIT
+
+    # Ensure /opt/mise is writable by coder before any login shell
+    # or other script touches mise. `mise oci build` emits its tar
+    # layers in deterministic mode with hardcoded uid=0/gid=0 (see
+    # mise's src/oci/layer.rs), and `prefix_parents` walks the full
+    # mount_point chain, so the final image stamps /opt, /opt/mise,
+    # and /opt/mise/data as root:root regardless of what the base
+    # Dockerfile sets. Without this chown mise warns `migrate:
+    # failed create_dir_all: /opt/mise/data/migrations` and skips
+    # its state writes. /opt/mise is image-resident (not on the
+    # home volume), so this runs every workspace start. Runs
+    # before the git-clone sync barrier so early shells never
+    # observe the unwritable state.
+    sudo chown -R coder:coder /opt/mise
+
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
 

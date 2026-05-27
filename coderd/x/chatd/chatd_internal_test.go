@@ -152,10 +152,11 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		context.Background(),
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		chatprovider.ProviderAPIKeys{},
+		newDirectModelRoute(modelProvider, chatprovider.ProviderAPIKeys{}),
 		provider,
 		modelProvider,
 		modelName,
+		modelBuildOptions{},
 	)
 	require.Error(t, err)
 	require.Nil(t, model)
@@ -165,6 +166,55 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
 	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
+}
+
+func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: uuid.New(), Type: database.AiProviderTypeAnthropic, Enabled: true},
+		{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true},
+	}, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil)
+
+	server := &Server{db: db}
+	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
+		ctx,
+		ownerID,
+		chattool.ComputerUseProviderOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
+	require.NotNil(t, aiProvider)
+	require.Equal(t, providerID, aiProvider.ID)
+	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
+}
+
+func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
+
+	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	_, err := server.resolveModelRouteForProviderType(
+		ctx,
+		uuid.New(),
+		chattool.ComputerUseProviderOpenAI,
+	)
+	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {
@@ -731,6 +781,11 @@ func TestRenameChatTitle(t *testing.T) {
 	})
 }
 
+func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
+	message.APIKeyID = sqlNullString(apiKeyID)
+	return message
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -749,6 +804,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	modelConfigID := uuid.New()
 	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -814,12 +870,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,

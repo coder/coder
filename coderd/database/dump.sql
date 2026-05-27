@@ -837,6 +837,67 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION enforce_user_secrets_per_user_limits() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    existing_count       int;
+    existing_total_bytes bigint;
+    existing_env_bytes   bigint;
+
+    new_count       int;
+    new_total_bytes bigint;
+    new_env_bytes   bigint;
+
+    count_limit       constant int    := 50;
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
+    env_bytes_limit   constant bigint := 24576;    -- 24 KiB
+BEGIN
+    -- Serialize cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert aggregates and exceed the cap.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+
+    -- Sum existing rows excluding the row being updated (so UPDATE statements
+    -- don't double-count NEW). On INSERT, no row matches NEW.id, so
+    -- the FILTER is a no-op.
+    SELECT
+        count(*) FILTER (WHERE id IS DISTINCT FROM NEW.id),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id AND env_name <> ''), 0)
+    INTO existing_count, existing_total_bytes, existing_env_bytes
+    FROM user_secrets
+    WHERE user_id = NEW.user_id;
+
+    new_count       := existing_count + 1;
+    new_total_bytes := existing_total_bytes + octet_length(NEW.value);
+    new_env_bytes   := existing_env_bytes
+                       + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
+
+    IF new_count > count_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets count limit (% > %)',
+            new_count, count_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_count_limit';
+    END IF;
+
+    IF new_total_bytes > total_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets total value bytes limit (% > %)',
+            new_total_bytes, total_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_total_bytes_limit';
+    END IF;
+
+    IF new_env_bytes > env_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the env-injected user secrets bytes limit (% > %)',
+            new_env_bytes, env_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1554,7 +1615,8 @@ CREATE TABLE chat_messages (
     total_cost_micros bigint,
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
-    provider_response_id text
+    provider_response_id text,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1593,7 +1655,8 @@ CREATE TABLE chat_queued_messages (
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    model_config_id uuid
+    model_config_id uuid,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -4396,6 +4459,8 @@ CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secre
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
 
+CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
@@ -4454,6 +4519,9 @@ ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -4467,6 +4535,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
