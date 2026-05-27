@@ -1560,6 +1560,12 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "SomeNewStrongPassword!",
 		})
 		require.NoError(t, err, "owner should be able to reset another owner's password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "another-owner@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "other owner should login with the new password")
 	})
 
 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
