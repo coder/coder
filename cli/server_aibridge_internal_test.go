@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -363,6 +366,40 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables",
 		},
 		{
+			name: "BedrockTypeHappyPath",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY=AKID",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=secret",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                    string(database.AiProviderTypeBedrock),
+					Name:                    "bedrock-prod",
+					BedrockRegion:           "us-east-1",
+					BedrockAccessKeys:       []string{"AKID"},
+					BedrockAccessKeySecrets: []string{"secret"},
+				},
+			},
+		},
+		{
+			name:        "BedrockTypeWithoutBedrockFields",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock", "CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod"},
+			errContains: "requires BEDROCK_* fields to be configured",
+		},
+		{
+			name: "BedrockTypeRejectsAPIKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-should-fail",
+			},
+			errContains: "KEY/KEYS are not supported for TYPE",
+		},
+		{
 			name: "BedrockKeysTooMany",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -571,6 +608,61 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 				BaseUrl: "https://api.githubcopilot.com/",
 			},
 		},
+		{
+			name: "Azure",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeAzure,
+				Name:    "azure",
+				BaseUrl: "https://example.openai.azure.com/",
+			},
+		},
+		{
+			name: "Google",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeGoogle,
+				Name:    "google",
+				BaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+			},
+		},
+		{
+			name: "OpenAICompat",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeOpenaiCompat,
+				Name:    "openai-compat",
+				BaseUrl: "https://compat.example.com/v1/",
+			},
+		},
+		{
+			name: "OpenRouter",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeOpenrouter,
+				Name:    "openrouter",
+				BaseUrl: "https://openrouter.ai/api/v1/",
+			},
+		},
+		{
+			name: "Vercel",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeVercel,
+				Name:    "vercel",
+				BaseUrl: "https://api.v0.dev/v1/",
+			},
+		},
+		{
+			name: "Bedrock",
+			row: database.AIProvider{
+				Type:    database.AiProviderTypeBedrock,
+				Name:    "bedrock",
+				BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				Settings: mustMarshalSettings(codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{
+						Region:          "us-east-1",
+						AccessKey:       ptr.Ref("AKID"),
+						AccessKeySecret: ptr.Ref("secret"),
+					},
+				}),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -585,4 +677,12 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 		})
 	}
+}
+
+func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
+	data, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return sql.NullString{String: string(data), Valid: true}
 }

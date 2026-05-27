@@ -184,17 +184,28 @@ func buildAIProviderFromRow(
 	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
 
+	// aibridge currently has native support for OpenAI and Anthropic
+	// only. The other ai_provider_type values (azure, google,
+	// openai-compat, openrouter, vercel) route through the OpenAI
+	// provider because chatd configures them against their
+	// OpenAI-compatible endpoints. Bedrock routes through the Anthropic
+	// provider with a Bedrock discriminator in Settings.
 	switch row.Type {
-	case database.AiProviderTypeOpenai:
+	case database.AiProviderTypeOpenai,
+		database.AiProviderTypeAzure,
+		database.AiProviderTypeGoogle,
+		database.AiProviderTypeOpenaiCompat,
+		database.AiProviderTypeOpenrouter,
+		database.AiProviderTypeVercel:
 		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("openai provider has no api keys configured and BYOK is not enabled")
+			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", row.Type)
 		}
 		var pool *keypool.Pool
 		if len(keys) > 0 {
 			var err error
 			pool, err = buildAIProviderKeyPool(keys)
 			if err != nil {
-				return nil, xerrors.Errorf("openai key pool: %w", err)
+				return nil, xerrors.Errorf("%s key pool: %w", row.Type, err)
 			}
 		}
 		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
@@ -206,8 +217,15 @@ func buildAIProviderFromRow(
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AiProviderTypeAnthropic:
+	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
 		bedrock := bedrockConfigFromRow(row, settings)
+		// A row typed 'bedrock' authenticates exclusively via settings;
+		// without populated Bedrock credentials it cannot make upstream
+		// calls, so refuse rather than falling back to an unsigned
+		// Anthropic client.
+		if row.Type == database.AiProviderTypeBedrock && bedrock == nil {
+			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
+		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
 		// the settings blob, not the api_keys table. A bearer-token
 		// Anthropic without any key cannot make upstream calls.

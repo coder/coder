@@ -327,13 +327,17 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		dp := desiredAIProvider{
 			Name: name,
 		}
-		switch p.Type {
-		case aibridge.ProviderOpenAI:
-			dp.Type = database.AiProviderTypeOpenai
-		case aibridge.ProviderAnthropic:
-			dp.Type = database.AiProviderTypeAnthropic
-		case aibridge.ProviderCopilot:
-			dp.Type = database.AiProviderTypeCopilot
+		switch database.AIProviderType(p.Type) {
+		case database.AiProviderTypeOpenai,
+			database.AiProviderTypeAnthropic,
+			database.AiProviderTypeAzure,
+			database.AiProviderTypeBedrock,
+			database.AiProviderTypeGoogle,
+			database.AiProviderTypeOpenaiCompat,
+			database.AiProviderTypeOpenrouter,
+			database.AiProviderTypeVercel,
+			database.AiProviderTypeCopilot:
+			dp.Type = database.AIProviderType(p.Type)
 		default:
 			logger.Warn(ctx, "skipping indexed AI provider with unsupported type",
 				slog.F("name", name),
@@ -343,12 +347,12 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		}
 
 		dp.BaseURL = p.BaseURL
-		// Bedrock fields only apply to Anthropic. Detection goes
-		// through AIProviderBedrockSettings.IsConfigured() so the
-		// legacy and indexed paths agree on what counts as a Bedrock
-		// provider.
+		// Bedrock fields apply to Anthropic and the dedicated Bedrock
+		// type. Detection goes through
+		// AIProviderBedrockSettings.IsConfigured() so the legacy and
+		// indexed paths agree on what counts as a Bedrock provider.
 		isBedrock := false
-		if dp.Type == database.AiProviderTypeAnthropic {
+		if dp.Type == database.AiProviderTypeAnthropic || dp.Type == database.AiProviderTypeBedrock {
 			var accessKey, accessKeySecret string
 			if len(p.BedrockAccessKeys) > 0 {
 				accessKey = p.BedrockAccessKeys[0]

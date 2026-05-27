@@ -56,7 +56,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -3008,11 +3007,29 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
 		}
 
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
+		switch database.AIProviderType(p.Type) {
+		case database.AiProviderTypeOpenai,
+			database.AiProviderTypeAnthropic,
+			database.AiProviderTypeAzure,
+			database.AiProviderTypeBedrock,
+			database.AiProviderTypeGoogle,
+			database.AiProviderTypeOpenaiCompat,
+			database.AiProviderTypeOpenrouter,
+			database.AiProviderTypeVercel,
+			database.AiProviderTypeCopilot:
 		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+				i, p.Type,
+				database.AiProviderTypeOpenai,
+				database.AiProviderTypeAnthropic,
+				database.AiProviderTypeAzure,
+				database.AiProviderTypeBedrock,
+				database.AiProviderTypeGoogle,
+				database.AiProviderTypeOpenaiCompat,
+				database.AiProviderTypeOpenrouter,
+				database.AiProviderTypeVercel,
+				database.AiProviderTypeCopilot,
+			)
 		}
 
 		var bedrockKey, bedrockSecret string
@@ -3028,21 +3045,36 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		)
 		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
 
-		if p.Type != aibridge.ProviderAnthropic && isBedrock {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
+		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
+		// with KEYS) and required on bedrock. Any other TYPE rejecting
+		// them prevents silently-ignored credentials.
+		isBedrockType := database.AIProviderType(p.Type) == database.AiProviderTypeBedrock
+		isAnthropicType := database.AIProviderType(p.Type) == database.AiProviderTypeAnthropic
+		if !isAnthropicType && !isBedrockType && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
+				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
 		}
 
-		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+		if isBedrockType && !isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires BEDROCK_* fields to be configured",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if isBedrockType && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use BEDROCK_* fields)",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if database.AIProviderType(p.Type) == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, aibridge.ProviderCopilot)
+				i, p.Type, database.AiProviderTypeCopilot)
 		}
 
 		// An Anthropic provider authenticates either via a bearer
 		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
 		// the conflict here so misconfigured deployments fail before
 		// any DB work happens at server startup.
-		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && isBedrock {
+		if isAnthropicType && len(p.Keys) > 0 && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 				i, p.Type)
 		}

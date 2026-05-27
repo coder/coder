@@ -176,6 +176,7 @@ type AIBridgeListSessionsFilter struct {
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
 	// Provider matches the provider type column (openai, anthropic,
+	// azure, bedrock, google, openai-compat, openrouter, vercel,
 	// copilot). Retained for backward compatibility; new clients should
 	// prefer ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
@@ -203,6 +204,7 @@ type AIBridgeListInterceptionsFilter struct {
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
 	// Provider matches the provider type column (openai, anthropic,
+	// azure, bedrock, google, openai-compat, openrouter, vercel,
 	// copilot). Retained for backward compatibility; new clients should
 	// prefer ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
