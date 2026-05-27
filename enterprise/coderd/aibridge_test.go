@@ -3091,7 +3091,7 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
 
 	setupCtx := testutil.Context(t, testutil.WaitLong)
-	group, err := ownerClient.CreateGroup(setupCtx, owner.OrganizationID, codersdk.CreateGroupRequest{
+	group, err := userAdminClient.CreateGroup(setupCtx, owner.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "role-access-group",
 	})
 	require.NoError(t, err)
@@ -3115,7 +3115,7 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 
 			// Each case gets a fresh target user.
 			_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-			_, err := ownerClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			_, err := userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 				AddUsers: []string{targetUser.ID.String()},
 			})
 			require.NoError(t, err)
@@ -3144,8 +3144,8 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), "PUT")
 
-				// Seed a row via owner so we can verify read access still works.
-				_, err = ownerClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				// Seed a row via UserAdmin so we can verify read access still works.
+				_, err = userAdminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
 				require.NoError(t, err)
 
 				// GET still works (all roles have ActionRead on User).
