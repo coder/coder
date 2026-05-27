@@ -97,6 +97,7 @@ const ConnectionLogPage: FC = () => {
 					},
 				}}
 				dataProtectionEnabled={dataProtectionEnabled}
+				dpTier={dpTier}
 				isAuditor={isAuditor}
 			/>
 		</>

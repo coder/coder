@@ -138,6 +138,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 				dataProtectionEnabled={dataProtectionEnabled}
+				dpTier={dpTier}
 				isAuditor={isAuditor}
 			/>
 		</RequirePermission>
@@ -240,6 +241,7 @@ interface TemplateInsightsPageViewProps {
 	controls: ReactNode;
 	interval: InsightsInterval;
 	dataProtectionEnabled: boolean | undefined;
+	dpTier: number | undefined;
 	isAuditor: boolean | undefined;
 }
 
@@ -251,11 +253,13 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	interval,
 	dataProtectionEnabled,
 	isAuditor,
+	dpTier,
 }) => {
 	return (
 		<>
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
@@ -270,6 +274,7 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					data={userLatency.data}
 					error={userLatency.error}
 					dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				/>
 				<TemplateUsagePanel
 					className="col-span-2"
@@ -280,6 +285,7 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					data={userActivity.data}
 					error={userActivity.error}
 					dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				/>
 				<TemplateParametersUsagePanel
 					className="col-span-3"
@@ -326,6 +332,7 @@ interface UsersLatencyPanelProps extends PanelProps {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
 	dataProtectionEnabled: boolean | undefined;
+	dpTier: number | undefined;
 }
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
@@ -391,6 +398,7 @@ interface UsersActivityPanelProps extends PanelProps {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
 	dataProtectionEnabled: boolean | undefined;
+	dpTier: number | undefined;
 }
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({

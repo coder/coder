@@ -102,6 +102,7 @@ const AuditPage: FC = () => {
 					},
 				}}
 				dataProtectionEnabled={dataProtectionEnabled}
+				dpTier={dpTier}
 				isAuditor={isAuditor}
 			/>
 		</>

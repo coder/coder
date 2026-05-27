@@ -42,6 +42,7 @@ interface AuditPageViewProps {
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
 	dataProtectionEnabled?: boolean;
+	dpTier?: number;
 	isAuditor?: boolean;
 }
 
@@ -55,6 +56,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	showOrgDetails,
 	dataProtectionEnabled,
 	isAuditor,
+	dpTier,
 }) => {
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -76,6 +78,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 
