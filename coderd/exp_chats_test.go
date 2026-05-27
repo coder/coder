@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -8468,6 +8471,85 @@ func TestProposeChatTitle(t *testing.T) {
 		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt),
 			"propose must not bump updated_at")
 	})
+}
+
+func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		call func(context.Context, *codersdk.ExperimentalClient, uuid.UUID) error
+	}{
+		{
+			name: "RegenerateChatTitle",
+			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
+				_, err := client.RegenerateChatTitle(ctx, chatID)
+				return err
+			},
+		},
+		{
+			name: "ProposeChatTitle",
+			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
+				_, err := client.ProposeChatTitle(ctx, chatID)
+				return err
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			values := chatDeploymentValues(t)
+			require.NoError(t, values.AI.BridgeConfig.Enabled.Set("true"))
+			require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("true"))
+			client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
+				opts.DeploymentValues = values
+			})
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+			wantAPIKeyID := strings.Split(client.SessionToken(), "-")[0]
+			wantTitle := "Fallback title"
+			seenAPIKeyID := make(chan string, 1)
+			stub := &stubTransportFactory{
+				handler: http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(r.Context())
+					seenAPIKeyID <- apiKeyID
+					rw.Header().Set("Content-Type", "application/json")
+					text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+					_, _ = io.WriteString(rw, `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4.1","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":`+text+`}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`)
+				}),
+				calls: make(chan callRecord, 1),
+			}
+			var factory aibridge.TransportFactory = stub
+			api.AIBridgeTransportFactory.Store(&factory)
+			require.NoError(t, client.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextTitleGeneration, codersdk.UpdateChatModelOverrideRequest{
+				ModelConfigID: modelConfig.ID.String(),
+			}))
+
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "initial title",
+				Status:            database.ChatStatusCompleted,
+			})
+			content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("manual title source"),
+			})
+			require.NoError(t, err)
+			_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:        chat.ID,
+				CreatedBy:     uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				Role:          database.ChatMessageRoleUser,
+				Visibility:    database.ChatMessageVisibilityBoth,
+				Content:       content,
+			})
+
+			require.NoError(t, tt.call(ctx, client, chat.ID))
+			require.Equal(t, wantAPIKeyID, <-seenAPIKeyID)
+		})
+	}
 }
 
 func TestGetChatDiffStatus(t *testing.T) {
