@@ -3673,7 +3673,10 @@ func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uui
 }
 
 func (q *querier) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceApiKey.WithOwner(userID.String())); err != nil {
+		return "", err
+	}
+	return q.db.GetMostRecentNonExpiredAPIKeyByUserID(ctx, userID)
 }
 
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -6688,7 +6691,18 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 }
 
 func (q *querier) UpdateChatMessageAPIKeyID(ctx context.Context, arg database.UpdateChatMessageAPIKeyIDParams) error {
-	panic("not implemented")
+	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatMessageAPIKeyID(ctx, arg)
 }
 
 func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {

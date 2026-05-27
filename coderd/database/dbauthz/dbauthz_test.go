@@ -361,6 +361,11 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(keyA, policy.ActionRead, keyB, policy.ActionRead).
 			Returns(slice.New(keyA, keyB))
 	}))
+	s.Run("GetMostRecentNonExpiredAPIKeyByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypeToken})
+		dbm.EXPECT().GetMostRecentNonExpiredAPIKeyByUserID(gomock.Any(), key.UserID).Return(key.ID, nil).AnyTimes()
+		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionRead).Returns(key.ID)
+	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		now := time.Now()
 		a := database.APIKey{LastUsed: now.Add(time.Hour)}
@@ -1280,6 +1285,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatMessageByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
+	}))
+	s.Run("UpdateChatMessageAPIKeyID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
+		arg := database.UpdateChatMessageAPIKeyIDParams{
+			ID:       msg.ID,
+			APIKeyID: sql.NullString{String: "test-key", Valid: true},
+		}
+		dbm.EXPECT().GetChatMessageByID(gomock.Any(), msg.ID).Return(msg, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatMessageAPIKeyID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate)
 	}))
 	s.Run("UpdateChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
