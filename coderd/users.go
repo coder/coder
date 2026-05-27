@@ -1550,7 +1550,7 @@ func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
 	if slices.Contains(codersdk.ValidAgentDisplayModes, mode) {
 		return mode
 	}
-	return codersdk.AgentDisplayModeAuto
+	return codersdk.AgentDisplayModeAlwaysCollapsed
 }
 
 func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
