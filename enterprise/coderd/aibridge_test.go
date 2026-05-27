@@ -3072,6 +3072,8 @@ func TestUserAIBudgetOverride(t *testing.T) {
 //   - Owner / UserAdmin: full CRUD.
 //   - OrgAdmin / OrgUserAdmin: read-only. Writes require ActionUpdate on the
 //     User resource (site-scoped), which neither role has.
+//
+//nolint:tparallel // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
 func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 	t.Parallel()
 
@@ -3107,8 +3109,8 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 		{Name: "OrgUserAdmin", Client: orgUserAdminClient, CanWrite: false},
 	}
 
+	//nolint:paralleltest // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
 	for _, tc := range cases {
-		//nolint:paralleltest // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
 		t.Run(tc.Name, func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
