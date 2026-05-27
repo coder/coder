@@ -107,9 +107,23 @@ runs:
         echo "sha256=${checksum}" >> "$GITHUB_OUTPUT"
 
     - name: Configure mise data directory
+      id: mise-data-dir
       shell: bash
-      run: | # zizmor: ignore[github-env] MISE_DATA_DIR is a static runner path.
-        printf '%s\n' 'MISE_DATA_DIR=${{ runner.temp }}/mise-data' >> "$GITHUB_ENV"
+      env:
+        RUNNER_OS: ${{ runner.os }}
+      run: | # zizmor: ignore[github-env] MISE_DATA_DIR uses only runner-provided paths.
+        set -euo pipefail
+
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+          data_dir="${LOCALAPPDATA:-${USERPROFILE}\\AppData\\Local}\\mise"
+        else
+          data_dir="${RUNNER_TEMP}/mise-data"
+        fi
+
+        {
+          printf 'path=%s\n' "${data_dir}"
+        } >> "$GITHUB_OUTPUT"
+        printf 'MISE_DATA_DIR=%s\n' "${data_dir}" >> "$GITHUB_ENV"
 
     - name: Cache mise tools
       if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
@@ -117,7 +131,7 @@ runs:
       with:
         path: |
           ~/.cache/mise
-          ${{ runner.temp }}/mise-data
+          ${{ steps.mise-data-dir.outputs.path }}
         key: ${{ steps.cache-key.outputs.key }}
         restore-keys: |
           ${{ steps.cache-key.outputs.restore-key }}
@@ -128,7 +142,7 @@ runs:
       with:
         path: |
           ~/.cache/mise
-          ${{ runner.temp }}/mise-data
+          ${{ steps.mise-data-dir.outputs.path }}
         key: ${{ steps.cache-key.outputs.key }}
         restore-keys: |
           ${{ steps.cache-key.outputs.restore-key }}
@@ -138,7 +152,7 @@ runs:
       with:
         version: ${{ inputs.mise-version }}
         sha256: ${{ steps.checksum.outputs.sha256 }}
-        mise_dir: ${{ runner.temp }}/mise-data
+        mise_dir: ${{ steps.mise-data-dir.outputs.path }}
         install_args: ${{ inputs.install_args }}
         cache: "false"
 
