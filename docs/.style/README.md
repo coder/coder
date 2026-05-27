@@ -56,7 +56,7 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale, once configured per a follow-up PR, lints the entire
+- Vale, once `.vale.ini` lands in a follow-up PR, lints the entire
   `docs/**/*.md` set including `docs/.style/style-guide.md`.
 
 ## What does not run against this directory
@@ -79,7 +79,5 @@ with another style or contributing doc in the repo, it governs.
 
 ## Editing the style guide
 
-Open a PR against `docs/.style/style-guide.md`. The rule-specific tickets
-in the
-[Docs style guide](https://linear.app/codercom/project/docs-style-guide-7828445b9afc)
-project fill in the body section by section.
+Open a PR against `docs/.style/style-guide.md`. Follow-up PRs add each
+rule and the matching style-guide section together.
