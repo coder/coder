@@ -394,8 +394,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
-	const [chatFullWidth] = useChatFullWidth();
-
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
