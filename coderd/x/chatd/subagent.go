@@ -1033,7 +1033,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
 
-		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
+		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: insertedChat.ID,
 		}
 		if deploymentPrompt != "" {
@@ -1090,7 +1090,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: insertedChat.ID,
 		}
 		childUserMsg := newUserChatMessage(
@@ -1100,7 +1100,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
 		)
-		childUserMsg.chatMessage = childUserMsg.chatMessage.withCreatedBy(parent.OwnerID)
+		childUserMsg = childUserMsg.withCreatedBy(parent.OwnerID)
 		appendUserChatMessage(&userParams, childUserMsg)
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
 			return xerrors.Errorf("insert initial child user message: %w", err)
@@ -1178,7 +1178,7 @@ func copyParentContextMessages(
 		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append(User)ChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 		ChatID: child.ID,
 	}
 	if copiedRole == database.ChatMessageRoleUser {

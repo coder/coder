@@ -464,13 +464,16 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 		AfterID: 0,
 	})
 	require.NoError(t, err)
+	var userMsgCount int
 	for _, msg := range childMessages {
 		if msg.Role != database.ChatMessageRoleUser {
 			continue
 		}
+		userMsgCount++
 		require.True(t, msg.APIKeyID.Valid, "child user message (id=%d) should have api_key_id set", msg.ID)
 		require.Equal(t, apiKey.ID, msg.APIKeyID.String, "child user message (id=%d) api_key_id mismatch", msg.ID)
 	}
+	require.Greater(t, userMsgCount, 0, "expected at least one user-role message in child chat")
 }
 
 func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
