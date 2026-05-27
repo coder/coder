@@ -49,6 +49,10 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 				isRunning={isRunning}
 			/>
 			<span className="text-[13px] leading-6">{label}</span>
+		</>
+	);
+	const headerStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -72,6 +76,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 		<div className="w-full">
 			<ToolCollapsible
 				header={header}
+				headerStatus={headerStatus}
 				hasContent={hasBuildLogs}
 				defaultExpanded={isRunning}
 			>

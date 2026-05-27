@@ -938,6 +938,10 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					mcpSlug={mcpServer?.slug}
 				/>
 			)}
+		</>
+	);
+	const toolHeaderStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -963,7 +967,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 
 	return (
-		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={toolHeader}
+			headerStatus={toolHeaderStatus}
+		>
 			{toolContent}
 		</ToolCollapsible>
 	);

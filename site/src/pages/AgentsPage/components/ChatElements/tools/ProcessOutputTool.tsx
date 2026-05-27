@@ -78,8 +78,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const toggleOutputExpansion = () => {
 		setOutputFullyExpanded((expanded) => !expanded);
 	};
-	const hasHeaderActions =
-		isRunning || Boolean(killedBySignal) || showExitCode || hasOutput;
+	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
 		<AgentDisplayModeToolCollapsible
@@ -100,12 +99,14 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 					<span className="text-[13px] leading-6">Process output</span>
 				</>
 			}
+			headerStatus={
+				isRunning ? (
+					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				) : undefined
+			}
 			headerActions={
 				hasHeaderActions ? (
 					<>
-						{isRunning && (
-							<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-						)}
 						{killedBySignal && !isRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>

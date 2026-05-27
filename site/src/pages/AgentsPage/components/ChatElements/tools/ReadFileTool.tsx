@@ -99,6 +99,10 @@ export const ReadFileTool: React.FC<{
 				<>
 					<ToolIcon name="read_file" isError={isError} isRunning={isRunning} />
 					<span className="text-[13px] leading-6">{label}</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

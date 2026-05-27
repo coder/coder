@@ -237,6 +237,22 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		subagentVariants: new Map([["desktop-child", "computer_use"]]),
 	},
 	{
+		name: "read_file",
+		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
+		status: "error",
+		isError: true,
+		result: { error: "File not found" },
+	},
+	{
+		name: "create_workspace",
+		status: "running",
+		args: { workspace_name: "agent-icons" },
+		result: {
+			workspace_name: "agent-icons",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
 		name: "unknown_tool",
 		args: { example: true },
 		result: { ok: true },

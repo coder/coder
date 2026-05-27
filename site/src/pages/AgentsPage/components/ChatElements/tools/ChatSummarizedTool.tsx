@@ -38,6 +38,10 @@ export const ChatSummarizedTool: React.FC<{
 					<span className="text-[13px] leading-6">
 						{isRunning ? "Summarizing…" : "Summarized"}
 					</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

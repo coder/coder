@@ -43,6 +43,10 @@ export const ListTemplatesTool: React.FC<{
 						isRunning={isRunning}
 					/>
 					<span className="text-[13px] leading-6">{label}</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

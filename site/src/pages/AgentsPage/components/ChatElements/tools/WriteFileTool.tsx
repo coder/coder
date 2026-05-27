@@ -56,6 +56,10 @@ export const WriteFileTool: React.FC<{
 				<>
 					<ToolIcon name="write_file" isError={isError} isRunning={isRunning} />
 					<span className="text-[13px] leading-6">{label}</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

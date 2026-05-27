@@ -31,6 +31,10 @@ export const ReadSkillTool: React.FC<{
 					<span className="text-[13px] leading-6">
 						{isRunning ? `Reading ${label}…` : `Read ${label}`}
 					</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

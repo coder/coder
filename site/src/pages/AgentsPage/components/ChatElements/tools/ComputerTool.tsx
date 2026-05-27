@@ -44,6 +44,10 @@ export const ComputerTool: React.FC<{
 					<span className="text-[13px] leading-6">
 						{isRunning ? "Taking screenshot…" : "Screenshot"}
 					</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
