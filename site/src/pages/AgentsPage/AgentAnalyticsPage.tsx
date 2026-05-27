@@ -32,7 +32,6 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
 	const isAuditor = dpStatus.data?.auditor;
-	const dpTier = dpStatus.data?.tier;
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {
@@ -47,7 +46,6 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 			<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
 			<DataProtectionBanner
 				dataProtectionEnabled={dataProtectionEnabled}
-				tier={dpTier}
 				isAuditor={isAuditor}
 			/>
 			<AgentAnalyticsPageView
