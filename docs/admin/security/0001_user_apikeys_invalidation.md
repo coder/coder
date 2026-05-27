@@ -84,6 +84,6 @@ Otherwise, the following information will be reported:
 
 > [!TIP]
 > If your license includes the
-> [Audit Logs](https://coder.com/docs/admin/security/audit-logs#filtering-logs) feature,
+> [Audit Logs](https://coder.com/docs/admin/security/audit-logs#how-to-filter-audit-logs) feature,
 > you can then query all actions performed by the above users by using the
 > filter `email:$USER_EMAIL`.
