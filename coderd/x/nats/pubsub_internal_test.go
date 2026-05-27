@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -434,6 +433,30 @@ func TestPubsubCluster(t *testing.T) {
 		)
 		require.ErrorIs(t, err, natsgo.ErrAuthorization,
 			"unauthenticated route dial must be rejected")
+	})
+
+	// ClientAuthRequired asserts the local NATS client listener also requires
+	// the configured ClusterAuthToken, so loopback clients cannot bypass auth.
+	t.Run("ClientAuthRequired", func(t *testing.T) {
+		t.Parallel()
+
+		ps := newTestPubsub(t, newAuthClusterOptions(t, "shared-token"))
+		clientURL := ps.ns.ClientURL()
+
+		_, err := natsgo.Connect(clientURL,
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"unauthenticated client connect must be rejected")
+
+		nc, err := natsgo.Connect(clientURL,
+			natsgo.Token("shared-token"),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.NoError(t, err, "authenticated client connect with matching token must succeed")
+		nc.Close()
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
@@ -1090,10 +1113,3 @@ func routeStrings(routes []*url.URL) []string {
 	}
 	return out
 }
-<<<<<<< HEAD
-=======
-
-func uniqueSubject(prefix string) string {
-	return fmt.Sprintf("cluster.%s.%d", prefix, time.Now().UnixNano())
-}
->>>>>>> 5b256546e3 (test(coderd/x/nats): assert auth rejection via nats.ErrAuthorization)
