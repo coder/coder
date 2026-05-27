@@ -15,6 +15,7 @@ import (
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"golang.org/x/xerrors"
@@ -487,7 +488,7 @@ func generateStructuredTitleWithUsage(
 	var result *fantasy.ObjectResult[generatedTitle]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[generatedTitle](retryCtx, model, fantasy.ObjectCall{
+		result, genErr = generateQuickgenObject[generatedTitle](retryCtx, model, fantasy.ObjectCall{
 			Prompt:            prompt,
 			SchemaName:        "propose_title",
 			SchemaDescription: "Propose a short chat title.",
@@ -509,6 +510,41 @@ func generateStructuredTitleWithUsage(
 		return "", result.Usage, err
 	}
 	return title, result.Usage, nil
+}
+
+func generateQuickgenObject[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	if model.Provider() == fantasyopenaicompat.Name {
+		model = requiredToolChoiceObjectModel{LanguageModel: model}
+	}
+	return object.Generate[T](ctx, model, call)
+}
+
+type requiredToolChoiceObjectModel struct {
+	fantasy.LanguageModel
+}
+
+func (m requiredToolChoiceObjectModel) GenerateObject(
+	ctx context.Context,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResponse, error) {
+	return object.GenerateWithTool(ctx, requiredToolChoiceModel(m), call)
+}
+
+type requiredToolChoiceModel struct {
+	fantasy.LanguageModel
+}
+
+func (m requiredToolChoiceModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
+	if len(call.Tools) == 1 && call.ToolChoice != nil &&
+		*call.ToolChoice == fantasy.SpecificToolChoice(call.Tools[0].GetName()) {
+		toolChoice := fantasy.ToolChoiceRequired
+		call.ToolChoice = &toolChoice
+	}
+	return m.LanguageModel.Generate(ctx, call)
 }
 
 func validateGeneratedTitle(title string) error {
@@ -927,7 +963,7 @@ func generateStructuredTurnStatusLabel(
 	var result *fantasy.ObjectResult[generatedTurnStatusLabel]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[generatedTurnStatusLabel](retryCtx, model, fantasy.ObjectCall{
+		result, genErr = generateQuickgenObject[generatedTurnStatusLabel](retryCtx, model, fantasy.ObjectCall{
 			Prompt:            prompt,
 			SchemaName:        "propose_turn_status_label",
 			SchemaDescription: "Propose a compact chat status label.",
