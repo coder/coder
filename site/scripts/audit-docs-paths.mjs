@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Audit script for DOCS-253 (parent: DOCS-209).
 //
 // Cross-references docs(...) and string-literal docs-URL references in TS/TSX
@@ -7,7 +6,7 @@
 // and needs to be updated to the redirect's destination.
 //
 // Usage:
-//   node site/scripts/audit_docs_paths.mjs \
+//   node site/scripts/audit-docs-paths.mjs \
 //     --redirects=/path/to/coder.com/redirects.json \
 //     --roots=/path/to/coder/site,/path/to/coder.com/src \
 //     --out=docs/.audit/redirects-audit-YYYY-MM-DD.md
@@ -23,6 +22,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 // ---------------------------------------------------------------------------
 // Redirect indexing.
@@ -109,7 +109,7 @@ export const HARDCODED_URL_RE =
 export const MARKDOWN_LINK_RE =
 	/\]\(\s*(?:https?:\/\/(?:[a-z0-9-]+\.)?coder\.com)?(\/docs\/[^\s)]+)\)/g;
 
-export function stripFragments(p) {
+export function stripQueryAndFragment(p) {
 	// Remove hash fragment and query string before redirect matching.
 	let out = p;
 	const hash = out.indexOf("#");
@@ -163,32 +163,26 @@ export function extractReferences(filePath, content) {
 		});
 	};
 
-	let m;
-
-	DOCS_LITERAL_RE.lastIndex = 0;
-	while ((m = DOCS_LITERAL_RE.exec(content)) !== null) {
-		push(m, "docs-literal", m[2], "/docs" + stripFragments(m[2]), false);
+	for (const m of content.matchAll(DOCS_LITERAL_RE)) {
+		push(m, "docs-literal", m[2], "/docs" + stripQueryAndFragment(m[2]), false);
 	}
 
-	DOCS_TEMPLATE_RE.lastIndex = 0;
-	while ((m = DOCS_TEMPLATE_RE.exec(content)) !== null) {
+	for (const m of content.matchAll(DOCS_TEMPLATE_RE)) {
 		push(
 			m,
 			"docs-template",
 			m[1],
-			"/docs" + stripFragments(literalPrefix(m[1])),
+			"/docs" + stripQueryAndFragment(literalPrefix(m[1])),
 			true,
 		);
 	}
 
-	HARDCODED_URL_RE.lastIndex = 0;
-	while ((m = HARDCODED_URL_RE.exec(content)) !== null) {
-		push(m, "hardcoded-url", m[1], stripFragments(m[1]), false);
+	for (const m of content.matchAll(HARDCODED_URL_RE)) {
+		push(m, "hardcoded-url", m[1], stripQueryAndFragment(m[1]), false);
 	}
 
-	MARKDOWN_LINK_RE.lastIndex = 0;
-	while ((m = MARKDOWN_LINK_RE.exec(content)) !== null) {
-		push(m, "markdown-link", m[1], stripFragments(m[1]), false);
+	for (const m of content.matchAll(MARKDOWN_LINK_RE)) {
+		push(m, "markdown-link", m[1], stripQueryAndFragment(m[1]), false);
 	}
 
 	return refs;
@@ -266,12 +260,7 @@ export function suggestedFixForKind(kind, suggestedDestination) {
 }
 
 export function buildReport({ findings, redirectsPath, roots, startedAt }) {
-	const byRepo = new Map();
-	for (const f of findings) {
-		const repo = repoForFile(f.file);
-		if (!byRepo.has(repo)) byRepo.set(repo, []);
-		byRepo.get(repo).push(f);
-	}
+	const byRepo = Map.groupBy(findings, (f) => repoForFile(f.file));
 
 	// Stable sort: dynamic last; otherwise by file then line.
 	for (const list of byRepo.values()) {
@@ -376,7 +365,7 @@ export function buildReport({ findings, redirectsPath, roots, startedAt }) {
 		"* Findings under `docs/.audit/` or `docs/CHANGELOG` paths are excluded by file discovery to avoid feedback loops on the audit itself.",
 	);
 	out.push(
-		"* Re-run with `node site/scripts/audit_docs_paths.mjs` from the repo root.",
+		"* Re-run with `node site/scripts/audit-docs-paths.mjs` from the repo root.",
 	);
 	out.push("");
 
@@ -386,24 +375,20 @@ export function buildReport({ findings, redirectsPath, roots, startedAt }) {
 // ---------------------------------------------------------------------------
 // CLI entry point.
 
-function parseArgs(argv) {
-	return Object.fromEntries(
-		argv
-			.map((arg) => {
-				const m = arg.match(/^--([^=]+)=(.*)$/);
-				return m ? [m[1], m[2]] : null;
-			})
-			.filter(Boolean),
-	);
-}
-
 function defaultOutForToday() {
 	const today = new Date().toISOString().slice(0, 10);
 	return `/home/coder/coder/docs/.audit/redirects-audit-${today}.md`;
 }
 
 export function runCli(argv) {
-	const args = parseArgs(argv);
+	const { values: args } = parseArgs({
+		args: argv,
+		options: {
+			redirects: { type: "string" },
+			roots: { type: "string" },
+			out: { type: "string" },
+		},
+	});
 	const redirectsPath = args.redirects ?? "/home/coder/coder.com/redirects.json";
 	const roots = (
 		args.roots ?? "/home/coder/coder/site/src,/home/coder/coder.com/src"
@@ -421,6 +406,10 @@ export function runCli(argv) {
 	const exts = [".ts", ".tsx"];
 	const allFiles = [];
 	for (const root of roots) {
+		if (!fs.existsSync(root)) {
+			console.error(`  WARNING: ${root} does not exist; skipping`);
+			continue;
+		}
 		console.error(`Scanning ${root}`);
 		const found = walk(root, exts);
 		console.error(`  ${found.length} files`);

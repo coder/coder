@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	DOCS_LITERAL_RE,
 	DOCS_TEMPLATE_RE,
 	HARDCODED_URL_RE,
 	MARKDOWN_LINK_RE,
+	buildReport,
 	docsRedirects,
 	escapeMd,
 	extractReferences,
@@ -12,9 +13,13 @@ import {
 	matchRedirect,
 	relForFile,
 	repoForFile,
-	stripFragments,
+	runCli,
+	stripQueryAndFragment,
 	suggestedFixForKind,
-} from "./audit_docs_paths.mjs";
+} from "./audit-docs-paths.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const rule = (source, destination) => ({ source, destination, permanent: true });
 
@@ -113,26 +118,26 @@ describe("findMatchingRedirect", () => {
 	});
 });
 
-describe("stripFragments", () => {
+describe("stripQueryAndFragment", () => {
 	it("removes a hash fragment", () => {
-		expect(stripFragments("/docs/a#section")).toBe("/docs/a");
+		expect(stripQueryAndFragment("/docs/a#section")).toBe("/docs/a");
 	});
 
 	it("removes a query string", () => {
-		expect(stripFragments("/docs/a?x=1")).toBe("/docs/a");
+		expect(stripQueryAndFragment("/docs/a?x=1")).toBe("/docs/a");
 	});
 
 	it("removes both when query precedes hash", () => {
-		expect(stripFragments("/docs/a?x=1#section")).toBe("/docs/a");
+		expect(stripQueryAndFragment("/docs/a?x=1#section")).toBe("/docs/a");
 	});
 
 	it("removes both when hash precedes query", () => {
 		// Slices at the first hash; query suffix after the hash is dropped too.
-		expect(stripFragments("/docs/a#section?x=1")).toBe("/docs/a");
+		expect(stripQueryAndFragment("/docs/a#section?x=1")).toBe("/docs/a");
 	});
 
 	it("is a no-op when neither is present", () => {
-		expect(stripFragments("/docs/a/b")).toBe("/docs/a/b");
+		expect(stripQueryAndFragment("/docs/a/b")).toBe("/docs/a/b");
 	});
 });
 
@@ -151,13 +156,7 @@ describe("literalPrefix", () => {
 });
 
 describe("regex patterns", () => {
-	const exec = (re, content) => {
-		re.lastIndex = 0;
-		const out = [];
-		let m;
-		while ((m = re.exec(content)) !== null) out.push([...m]);
-		return out;
-	};
+	const exec = (re, content) => [...content.matchAll(re)].map((m) => [...m]);
 
 	it("DOCS_LITERAL_RE matches docs(\"...\"), docs('...'), docs(`...`)", () => {
 		const src = `docs("/a/b") docs('/c/d') docs(\`/e/f\`)`;
@@ -353,5 +352,188 @@ describe("suggestedFixForKind", () => {
 		expect(suggestedFixForKind("markdown-link", "/docs/admin/x")).toBe(
 			"/docs/admin/x",
 		);
+	});
+});
+
+describe("buildReport", () => {
+	const finding = (file, lineNo, overrides = {}) => ({
+		file,
+		lineNo,
+		kind: "docs-literal",
+		rawArg: "/admin/rbac",
+		docsPath: "/docs/admin/rbac",
+		dynamic: false,
+		match: {
+			redirect: rule(
+				"/docs/admin/rbac",
+				"/docs/admin/templates/template-permissions",
+			),
+			suggestedDestination: "/docs/admin/templates/template-permissions",
+		},
+		...overrides,
+	});
+
+	const startedAt = new Date("2026-05-27T12:00:00.000Z");
+
+	it("renders an empty report with zero findings", () => {
+		const report = buildReport({
+			findings: [],
+			redirectsPath: "/redirects.json",
+			roots: ["/home/coder/coder/site/src"],
+			startedAt,
+		});
+		expect(report).toContain("# Redirects audit");
+		expect(report).toContain("| 0 | 0 | 0 |");
+		expect(report).toContain("## coder/coder/site");
+		expect(report).toContain("No findings.");
+		expect(report).toContain("/redirects.json");
+		expect(report).toContain("`/home/coder/coder/site/src`");
+	});
+
+	it("groups findings by repo, counts dynamic/static, and sorts within sections", () => {
+		const findings = [
+			// Dynamic finding under site (sorted last in section).
+			finding("/home/coder/coder/site/src/b.tsx", 5, {
+				kind: "docs-template",
+				rawArg: "/templates/${slug}/edit",
+				docsPath: "/docs/templates/",
+				dynamic: true,
+			}),
+			// Static finding under site, file b, later line.
+			finding("/home/coder/coder/site/src/b.tsx", 20),
+			// Static finding under site, file a (sorts before file b).
+			finding("/home/coder/coder/site/src/a.tsx", 10),
+			// Static finding under coder.com/src.
+			finding("/home/coder/coder.com/src/page.ts", 3),
+		];
+		const report = buildReport({
+			findings,
+			redirectsPath: "/redirects.json",
+			roots: ["/home/coder/coder/site/src", "/home/coder/coder.com/src"],
+			startedAt,
+		});
+
+		// Summary: 4 total, 3 static, 1 dynamic.
+		expect(report).toContain("| 4 | 3 | 1 |");
+
+		// Both repo sections present, each with finding counts.
+		expect(report).toMatch(/## coder\/coder\/site\n\n3 findings\./);
+		expect(report).toMatch(/## coder\/coder\.com\/src\n\n1 findings\./);
+
+		// Within the site section, file a should appear before file b, and the
+		// dynamic finding should appear after the static ones from the same file.
+		const siteIdx = report.indexOf("## coder/coder/site");
+		const comIdx = report.indexOf("## coder/coder.com/src");
+		const siteSection = report.slice(siteIdx, comIdx);
+		const aIdx = siteSection.indexOf("site/src/a.tsx:10");
+		const bStaticIdx = siteSection.indexOf("site/src/b.tsx:20");
+		const bDynamicIdx = siteSection.indexOf("site/src/b.tsx:5");
+		expect(aIdx).toBeGreaterThan(-1);
+		expect(bStaticIdx).toBeGreaterThan(-1);
+		expect(bDynamicIdx).toBeGreaterThan(-1);
+		expect(aIdx).toBeLessThan(bStaticIdx);
+		expect(bStaticIdx).toBeLessThan(bDynamicIdx);
+
+		// Dynamic? column reflects the dynamic flag.
+		expect(siteSection).toMatch(/site\/src\/a\.tsx:10\b[^\n]*\| No \|/);
+		expect(siteSection).toMatch(/site\/src\/b\.tsx:5\b[^\n]*\| Yes \|/);
+	});
+
+	it("annotates findings whose rawArg contains a # fragment", () => {
+		const report = buildReport({
+			findings: [
+				finding("/home/coder/coder/site/src/a.tsx", 1, {
+					rawArg: "/admin/rbac#perms",
+				}),
+			],
+			redirectsPath: "/redirects.json",
+			roots: ["/home/coder/coder/site/src"],
+			startedAt,
+		});
+		expect(report).toContain("(preserve `#anchor` from current value)");
+	});
+
+	it("emits an Unclassified findings section for paths outside known repos", () => {
+		const report = buildReport({
+			findings: [finding("/var/tmp/foo.ts", 1)],
+			redirectsPath: "/redirects.json",
+			roots: ["/var/tmp"],
+			startedAt,
+		});
+		expect(report).toContain("## Unclassified findings");
+		expect(report).toContain("/var/tmp/foo.ts:1");
+	});
+});
+
+describe("runCli", () => {
+	// Minimal redirects file written to a tmp dir so the CLI can load it.
+	const writeTmpRedirects = (tmpDir) => {
+		const redirectsPath = path.join(tmpDir, "redirects.json");
+		fs.writeFileSync(
+			redirectsPath,
+			JSON.stringify([
+				rule("/docs/admin/rbac", "/docs/admin/templates/template-permissions"),
+			]),
+		);
+		return redirectsPath;
+	};
+
+	it("warns and continues when a --roots directory does not exist", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-cli-"));
+		try {
+			const redirectsPath = writeTmpRedirects(tmpDir);
+			const missingRoot = path.join(tmpDir, "does-not-exist");
+			const outPath = path.join(tmpDir, "out.md");
+
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			let stderr;
+			try {
+				runCli([
+					`--redirects=${redirectsPath}`,
+					`--roots=${missingRoot}`,
+					`--out=${outPath}`,
+				]);
+				stderr = errSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+			} finally {
+				errSpy.mockRestore();
+			}
+
+			expect(stderr).toContain(missingRoot);
+			expect(stderr).toContain("does not exist");
+
+			// Report was still written with zero findings.
+			expect(fs.existsSync(outPath)).toBe(true);
+			const report = fs.readFileSync(outPath, "utf-8");
+			expect(report).toContain("| 0 | 0 | 0 |");
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("writes a report when --roots contains a real directory with no matches", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-cli-"));
+		try {
+			const redirectsPath = writeTmpRedirects(tmpDir);
+			const emptyRoot = path.join(tmpDir, "empty");
+			fs.mkdirSync(emptyRoot);
+			const outPath = path.join(tmpDir, "out.md");
+
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			try {
+				runCli([
+					`--redirects=${redirectsPath}`,
+					`--roots=${emptyRoot}`,
+					`--out=${outPath}`,
+				]);
+			} finally {
+				errSpy.mockRestore();
+			}
+
+			expect(fs.existsSync(outPath)).toBe(true);
+			const report = fs.readFileSync(outPath, "utf-8");
+			expect(report).toContain("| 0 | 0 | 0 |");
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
 	});
 });

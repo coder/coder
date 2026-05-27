@@ -116,6 +116,6 @@ license.txt
 # Agent planning documents (local working files).
 docs/plans/
 
-# Local audit reports (e.g. site/scripts/audit_docs_paths.mjs output).
+# Local audit reports (e.g. site/scripts/audit-docs-paths.mjs output).
 # Findings live in Linear; the file is for local inspection only.
 docs/.audit/
