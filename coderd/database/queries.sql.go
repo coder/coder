@@ -2592,9 +2592,6 @@ type UpsertUserAIBudgetOverrideParams struct {
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
 }
 
-// Membership of the user in the attributed group (including via the
-// "Everyone" group) is enforced by the CHECK constraint
-// user_ai_budget_overrides_must_be_group_member on the table.
 func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
 	var i UserAiBudgetOverride

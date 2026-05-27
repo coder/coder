@@ -1409,9 +1409,6 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
-	// Membership of the user in the attributed group (including via the
-	// "Everyone" group) is enforced by the CHECK constraint
-	// user_ai_budget_overrides_must_be_group_member on the table.
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and
