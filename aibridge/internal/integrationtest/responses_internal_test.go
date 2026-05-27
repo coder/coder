@@ -920,7 +920,12 @@ func TestResponsesInjectedTool(t *testing.T) {
 			for i := range tokenUsages {
 				tokenUsages[i].InterceptionID = "" // ignore interception ID and time creation when comparing
 				tokenUsages[i].CreatedAt = time.Time{}
-				require.Equal(t, tc.expectTokenUsages[i], *tokenUsages[i])
+			}
+
+			// Match by content, not position, AsyncRecorder may flake.
+			// See https://github.com/coder/internal/issues/1544.
+			for _, expected := range tc.expectTokenUsages {
+				require.Contains(t, tokenUsages, &expected)
 			}
 
 			// Verify the response is the final tool response (after agentic loop).

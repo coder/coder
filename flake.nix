@@ -198,7 +198,6 @@
             pango
             pixman
             pkg-config
-            playwright-driver.browsers
             pnpm
             postgresql_16
             proto_gen_go_1_30
@@ -278,16 +277,6 @@
             '';
           };
       in
-      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
-      # - https://nixos.wiki/wiki/Playwright
-      assert pkgs.lib.assertMsg
-        (
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-          == pkgs.playwright-driver.version
-        )
-        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
@@ -300,9 +289,6 @@
             ))
             {
             buildInputs = devShellPackages;
-
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
 
             LOCALE_ARCHIVE =
               with pkgs;

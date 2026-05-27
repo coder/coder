@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	Command,
@@ -35,6 +36,15 @@ type PersonalSkillsTriggerMenuProps = {
 	onClose: () => void;
 };
 
+type PersonalSkillsMenuState = {
+	anchorRect: CaretAnchorRect;
+	query: string;
+	skills: readonly TypesGen.UserSkillMetadata[];
+	isLoading?: boolean;
+	isError?: boolean;
+	selectedIndex: number;
+};
+
 export const PersonalSkillsTriggerMenu = ({
 	open,
 	anchorRect,
@@ -47,34 +57,72 @@ export const PersonalSkillsTriggerMenu = ({
 	onSelect,
 	onClose,
 }: PersonalSkillsTriggerMenuProps) => {
+	const [lastOpenMenuState, setLastOpenMenuState] =
+		useState<PersonalSkillsMenuState | null>(null);
+	const isAnchoredOpen = open && anchorRect !== null;
+	const activeMenuState: PersonalSkillsMenuState | null = isAnchoredOpen
+		? {
+				anchorRect,
+				query,
+				skills,
+				isLoading,
+				isError,
+				selectedIndex,
+			}
+		: null;
+	const menuState = activeMenuState ?? lastOpenMenuState;
+	const menuAnchorRect = menuState?.anchorRect ?? null;
+	const menuSkills = menuState?.skills ?? [];
+	const menuSelectedIndex = menuState?.selectedIndex ?? -1;
+
+	useLayoutEffect(() => {
+		if (!isAnchoredOpen) {
+			return;
+		}
+		setLastOpenMenuState({
+			anchorRect,
+			query,
+			skills,
+			isLoading,
+			isError,
+			selectedIndex,
+		});
+	}, [
+		anchorRect,
+		isAnchoredOpen,
+		isError,
+		isLoading,
+		query,
+		selectedIndex,
+		skills,
+	]);
+
 	const handleHighlightedValueChange = (value: string) => {
-		const nextIndex = skills.findIndex((skill) => skill.name === value);
+		const nextIndex = menuSkills.findIndex((skill) => skill.name === value);
 		if (nextIndex >= 0) {
 			onSelectedIndexChange(nextIndex);
 		}
 	};
 
-	const shouldRender = open && anchorRect;
-
 	return (
 		<Popover
-			open={Boolean(shouldRender)}
+			open={isAnchoredOpen}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) {
 					onClose();
 				}
 			}}
 		>
-			{shouldRender && (
+			{menuAnchorRect && (
 				<PopoverAnchor asChild>
 					<span
 						aria-hidden="true"
 						style={{
 							position: "fixed",
-							top: anchorRect.top,
-							left: anchorRect.left,
+							top: menuAnchorRect.top,
+							left: menuAnchorRect.left,
 							width: 1,
-							height: Math.max(anchorRect.height, MIN_ANCHOR_HEIGHT_PX),
+							height: Math.max(menuAnchorRect.height, MIN_ANCHOR_HEIGHT_PX),
 							pointerEvents: "none",
 						}}
 					/>
@@ -83,7 +131,7 @@ export const PersonalSkillsTriggerMenu = ({
 			<PopoverContent
 				align="start"
 				side="bottom"
-				className="w-80 p-1"
+				className="w-80 overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
@@ -92,26 +140,26 @@ export const PersonalSkillsTriggerMenu = ({
 					shouldFilter={false}
 					loop={false}
 					onValueChange={handleHighlightedValueChange}
-					value={skills[selectedIndex]?.name ?? ""}
+					value={menuSkills[menuSelectedIndex]?.name ?? ""}
 				>
-					<CommandList className="max-h-72 border-t-0">
-						{isLoading ? (
+					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+						{menuState?.isLoading ? (
 							<CommandItem value="loading" disabled>
 								Loading personal skills...
 							</CommandItem>
-						) : isError ? (
+						) : menuState?.isError ? (
 							<CommandItem value="error" disabled>
 								Could not load personal skills. Close and type / again to retry.
 							</CommandItem>
-						) : skills.length === 0 ? (
+						) : menuSkills.length === 0 ? (
 							<CommandEmpty>
-								{query
+								{menuState?.query
 									? "No personal skills match that query."
 									: "No personal skills found."}
 							</CommandEmpty>
 						) : (
 							<CommandGroup heading="Personal skills">
-								{skills.map((skill) => (
+								{menuSkills.map((skill) => (
 									<CommandItem
 										key={skill.id}
 										value={skill.name}

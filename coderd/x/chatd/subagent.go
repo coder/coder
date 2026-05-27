@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -908,6 +909,14 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
+func (p *Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	if !ok && p.shouldUseAIGatewayRouting() {
+		return "", xerrors.New("AI Gateway routing requires the active turn API key ID for subagent messages")
+	}
+	return apiKeyID, nil
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
@@ -949,6 +958,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
+	}
+	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
 	}
 
 	childPlanMode := parent.PlanMode
@@ -1005,9 +1018,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("insert child chat: %w", err)
 		}
 
-		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		workspaceAwareness := workspaceDetachedNoCreateAwareness
 		if insertedChat.WorkspaceID.Valid {
-			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+			workspaceAwareness = workspaceAttachedAwareness
 		}
 		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(workspaceAwareness),
@@ -1086,7 +1099,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID))
+		).withCreatedBy(parent.OwnerID).withAPIKeyID(childAPIKeyID))
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
 			return xerrors.Errorf("insert initial child user message: %w", err)
 		}
@@ -1236,10 +1249,16 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
+	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {

@@ -916,6 +916,15 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 }
 
+func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.True(t, dv.AI.Chat.AIGatewayRoutingEnabled.Value())
+}
+
 func TestAIBudgetConfigParsing(t *testing.T) {
 	t.Parallel()
 

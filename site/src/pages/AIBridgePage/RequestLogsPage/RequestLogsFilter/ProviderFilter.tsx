@@ -1,4 +1,6 @@
 import type { FC } from "react";
+import { API } from "#/api/api";
+import type { AIProvider } from "#/api/typesGenerated";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
@@ -9,29 +11,13 @@ import {
 } from "#/components/Filter/SelectFilter";
 import { AIBridgeProviderIcon } from "../icons/AIBridgeProviderIcon";
 
-const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
-	{
-		label: "OpenAI",
-		value: "openai",
-		startIcon: (
-			<AIBridgeProviderIcon provider="openai" className="size-icon-sm" />
-		),
-	},
-	{
-		label: "Anthropic",
-		value: "anthropic",
-		startIcon: (
-			<AIBridgeProviderIcon provider="anthropic" className="size-icon-sm" />
-		),
-	},
-	{
-		label: "Copilot",
-		value: "copilot",
-		startIcon: (
-			<AIBridgeProviderIcon provider="copilot" className="size-icon-sm" />
-		),
-	},
-];
+const toFilterOption = (provider: AIProvider): SelectFilterOption => ({
+	value: provider.name,
+	label: provider.display_name || provider.name,
+	startIcon: (
+		<AIBridgeProviderIcon provider={provider.type} className="size-icon-sm" />
+	),
+});
 
 export const useProviderFilterMenu = ({
 	value,
@@ -39,11 +25,18 @@ export const useProviderFilterMenu = ({
 	enabled,
 }: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
 	return useFilterMenu({
-		id: "provider",
-		getSelectedOption: async () =>
-			AIBRIDGE_PROVIDERS.find((option) => option.value === value) ?? null,
+		id: "provider_name",
+		getSelectedOption: async () => {
+			if (!value) {
+				return null;
+			}
+			const providers = await API.experimental.listAIProviders();
+			const match = providers.find((p) => p.name === value);
+			return match ? toFilterOption(match) : null;
+		},
 		getOptions: async () => {
-			return AIBRIDGE_PROVIDERS;
+			const providers = await API.experimental.listAIProviders();
+			return providers.map(toFilterOption);
 		},
 		value,
 		onChange,

@@ -442,6 +442,7 @@
     "base_url": "string",
     "key": "string"
   },
+  "api_dump_dir": "string",
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
@@ -470,7 +471,6 @@
       "bedrock_model": "string",
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
-      "dump_dir": "string",
       "name": "string",
       "type": "string"
     }
@@ -488,6 +488,7 @@
 |-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.        |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
 | `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
@@ -1245,6 +1246,7 @@
       "base_url": "string",
       "key": "string"
     },
+    "api_dump_dir": "string",
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
@@ -1273,7 +1275,6 @@
         "bedrock_model": "string",
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
-        "dump_dir": "string",
         "name": "string",
         "type": "string"
       }
@@ -1344,7 +1345,6 @@
   "bedrock_model": "string",
   "bedrock_region": "string",
   "bedrock_small_fast_model": "string",
-  "dump_dir": "string",
   "name": "string",
   "type": "string"
 }
@@ -1358,7 +1358,6 @@
 | `bedrock_model`            | string | false    |              |                                                                                            |
 | `bedrock_region`           | string | false    |              |                                                                                            |
 | `bedrock_small_fast_model` | string | false    |              |                                                                                            |
-| `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
 
@@ -1416,9 +1415,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                     |
-|----------------------------------------------------------------------------------------------|
-| `anthropic`, `azure`, `bedrock`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 
@@ -5706,6 +5705,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -5734,7 +5734,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -6305,6 +6304,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "api_dump_dir": "string",
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
@@ -6333,7 +6333,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_model": "string",
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
-          "dump_dir": "string",
           "name": "string",
           "type": "string"
         }

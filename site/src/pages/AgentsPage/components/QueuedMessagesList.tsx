@@ -41,12 +41,13 @@ export const getQueuedMessageInfo = (
 ): QueuedMessageInfo => {
 	const { content } = message;
 	const fileBlocks = content.filter((p) => p.type === "file");
-	const rawText = content
-		.filter((p) => p.type === "text")
-		.map((p) => p.text)
-		.filter((t): t is string => Boolean(t?.trim()))
-		.join(" ")
-		.trim();
+	const textParts: string[] = [];
+	for (const part of content) {
+		if (part.type === "text" && part.text?.trim()) {
+			textParts.push(part.text);
+		}
+	}
+	const rawText = textParts.join(" ").trim();
 
 	if (rawText) {
 		return {

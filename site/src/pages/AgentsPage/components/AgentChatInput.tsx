@@ -183,6 +183,7 @@ interface AgentChatInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
+	agentSetupNotice?: React.ReactNode;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -342,6 +343,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
+	agentSetupNotice,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
@@ -543,27 +545,129 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	useEffect(() => {
 		if (!composerElement) return;
+		// Radix popover wrappers are fixed-positioned, so their
+		// inset values need to be in layout-viewport coordinates.
+		// The visual viewport can be offset inside the layout
+		// viewport when the mobile keyboard is open. Treat
+		// `visualViewport.offsetTop` as a clamp only when it yields
+		// a positive height, since mobile WebKit can report mixed
+		// coordinate systems while the keyboard is settling.
+		const viewport = globalThis.visualViewport;
+		const root = document.documentElement;
+		const fixedProbe = document.createElement("div");
+		Object.assign(fixedProbe.style, {
+			position: "fixed",
+			bottom: "0",
+			left: "0",
+			width: "0",
+			height: "0",
+			pointerEvents: "none",
+			visibility: "hidden",
+		});
+		document.body.appendChild(fixedProbe);
+		const composerGap = 8;
+		const viewportPadding = 16;
+		const minimumMenuHeight = 96;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const bottom = Math.max(0, window.innerHeight - rect.bottom);
-			document.documentElement.style.setProperty(
-				"--mobile-dropdown-bottom",
-				`${bottom}px`,
+			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
+			const visibleViewportTop = viewport?.offsetTop ?? 0;
+			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
+			// Distance from the fixed-position viewport bottom to a point
+			// just above the composer's top edge.
+			const aboveComposerBottom = Math.max(
+				0,
+				fixedViewportBottom - rect.top + composerGap,
+			);
+			const maxHeightCandidates = [
+				rect.top - visibleViewportTop - composerGap - viewportPadding,
+				rect.top - composerGap - viewportPadding,
+			].filter((height) => height > 0);
+			const aboveComposerMaxHeight = Math.max(
+				minimumMenuHeight,
+				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
+			);
+			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
+			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
+			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
+			root.style.setProperty(
+				"--mobile-dropdown-above-composer-bottom",
+				`${aboveComposerBottom}px`,
+			);
+			root.style.setProperty(
+				"--mobile-dropdown-above-composer-max-height",
+				`${aboveComposerMaxHeight}px`,
 			);
 		};
-		update();
-		const ro = new ResizeObserver(update);
+		const animationFrameIDs = new Set<number>();
+		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
+		const cancelScheduledUpdates = () => {
+			for (const id of animationFrameIDs) {
+				cancelAnimationFrame(id);
+			}
+			animationFrameIDs.clear();
+			for (const id of timeoutIDs) {
+				clearTimeout(id);
+			}
+			timeoutIDs.clear();
+		};
+		const queueAnimationFrame = (callback: () => void) => {
+			const id = requestAnimationFrame(() => {
+				animationFrameIDs.delete(id);
+				callback();
+			});
+			animationFrameIDs.add(id);
+		};
+		const scheduleUpdate = () => {
+			cancelScheduledUpdates();
+			update();
+			// Mobile WebKit can finish keyboard panning after focus and
+			// input events. Re-read geometry after the viewport settles so
+			// the first slash-menu render is not stuck under the composer.
+			queueAnimationFrame(() => {
+				update();
+				queueAnimationFrame(update);
+			});
+			for (const delay of [50, 150, 300]) {
+				const id = setTimeout(() => {
+					timeoutIDs.delete(id);
+					update();
+				}, delay);
+				timeoutIDs.add(id);
+			}
+		};
+		scheduleUpdate();
+		const ro = new ResizeObserver(scheduleUpdate);
 		ro.observe(composerElement);
-		window.addEventListener("resize", update);
-		const viewport = window.visualViewport;
-		viewport?.addEventListener("resize", update);
-		viewport?.addEventListener("scroll", update);
+		addEventListener("resize", scheduleUpdate);
+		addEventListener("scroll", scheduleUpdate, { passive: true });
+		addEventListener("focusin", scheduleUpdate);
+		addEventListener("focusout", scheduleUpdate);
+		composerElement.addEventListener("input", scheduleUpdate);
+		composerElement.addEventListener("keyup", scheduleUpdate);
+		document.addEventListener("selectionchange", scheduleUpdate);
+		viewport?.addEventListener("resize", scheduleUpdate);
+		viewport?.addEventListener("scroll", scheduleUpdate);
+		viewport?.addEventListener("scrollend", scheduleUpdate);
 		return () => {
 			ro.disconnect();
-			window.removeEventListener("resize", update);
-			viewport?.removeEventListener("resize", update);
-			viewport?.removeEventListener("scroll", update);
-			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+			cancelScheduledUpdates();
+			removeEventListener("resize", scheduleUpdate);
+			removeEventListener("scroll", scheduleUpdate);
+			removeEventListener("focusin", scheduleUpdate);
+			removeEventListener("focusout", scheduleUpdate);
+			composerElement.removeEventListener("input", scheduleUpdate);
+			composerElement.removeEventListener("keyup", scheduleUpdate);
+			document.removeEventListener("selectionchange", scheduleUpdate);
+			viewport?.removeEventListener("resize", scheduleUpdate);
+			viewport?.removeEventListener("scroll", scheduleUpdate);
+			viewport?.removeEventListener("scrollend", scheduleUpdate);
+			fixedProbe.remove();
+			root.style.removeProperty("--mobile-dropdown-bottom");
+			root.style.removeProperty("--mobile-dropdown-left");
+			root.style.removeProperty("--mobile-dropdown-width");
+			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
+			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
 	}, [composerElement]);
 
@@ -892,11 +996,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
+			{agentSetupNotice && (
+				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
+			)}
 			<div
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					agentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1020,7 +1128,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									disabled={isDisabled}
+									disabled={isDisabled && !agentSetupNotice}
 									aria-label="More options"
 								>
 									<PlusIcon />

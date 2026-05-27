@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -317,58 +318,139 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 	}
 }
 
-func TestAnthropic_InjectAuthHeader(t *testing.T) {
+func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	t.Parallel()
 
-	provider := NewAnthropic(config.Anthropic{Key: "centralized-key"}, nil)
+	pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+	require.NoError(t, err)
 
-	tests := []struct {
-		name              string
-		presetHeaders     map[string]string
-		wantXApiKey       string
-		wantAuthorization string
-	}{
-		{
-			name:          "when no auth headers are provided, inject centralized key",
-			presetHeaders: map[string]string{},
-			wantXApiKey:   "centralized-key",
-		},
-		{
-			name:          "when X-Api-Key header is provided, use it",
-			presetHeaders: map[string]string{"X-Api-Key": "user-api-key"},
-			wantXApiKey:   "user-api-key",
-		},
-		{
-			name:              "when Authorization header is provided, use it",
-			presetHeaders:     map[string]string{"Authorization": "Bearer user-access-token"},
-			wantAuthorization: "Bearer user-access-token",
-		},
-		{
-			name: "when both headers are provided, keep both",
-			presetHeaders: map[string]string{
-				"Authorization": "Bearer user-access-token",
-				"X-Api-Key":     "user-api-key",
+	p := NewAnthropic(config.Anthropic{KeyPool: pool}, nil)
+
+	cfg := p.KeyFailoverConfig(slog.Make())
+
+	assert.Same(t, pool, cfg.Pool, "Pool must be wired from the provider config")
+	assert.Equal(t, config.ProviderAnthropic, cfg.ProviderName, "ProviderName must match the provider name")
+	require.NotNil(t, cfg.IsBYOK)
+	require.NotNil(t, cfg.InjectAuthKey)
+	require.NotNil(t, cfg.BuildKeyPoolResponse)
+
+	t.Run("IsBYOK", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			headers map[string]string
+			want    bool
+		}{
+			{
+				name:    "no_auth_headers",
+				headers: nil,
+				want:    false,
 			},
-			wantXApiKey:       "user-api-key",
-			wantAuthorization: "Bearer user-access-token",
-		},
-	}
+			{
+				name:    "non_auth_header",
+				headers: map[string]string{"Content-Type": "application/json"},
+				want:    false,
+			},
+			{
+				name:    "x_api_key_only",
+				headers: map[string]string{"X-Api-Key": "user-key"},
+				want:    true,
+			},
+			{
+				name:    "authorization_only",
+				headers: map[string]string{"Authorization": "Bearer user-token"},
+				want:    true,
+			},
+			{
+				name: "both_headers_set",
+				headers: map[string]string{
+					"X-Api-Key":     "user-key",
+					"Authorization": "Bearer user-token",
+				},
+				want: true,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				r := httptest.NewRequest(http.MethodPost, "/", nil)
+				for k, v := range tc.headers {
+					r.Header.Set(k, v)
+				}
+				assert.Equal(t, tc.want, cfg.IsBYOK(r))
+			})
+		}
+	})
 
-			headers := http.Header{}
-			for k, v := range tc.presetHeaders {
-				headers.Set(k, v)
-			}
+	t.Run("InjectAuthKey", func(t *testing.T) {
+		t.Parallel()
 
-			provider.InjectAuthHeader(&headers)
+		cases := []struct {
+			name              string
+			initialHeaders    http.Header
+			key               string
+			wantAuthorization string
+		}{
+			{
+				name:              "writes_key_to_x_api_key",
+				initialHeaders:    http.Header{},
+				key:               "centralized-key",
+				wantAuthorization: "",
+			},
+			{
+				name:              "overwrites_existing_x_api_key",
+				initialHeaders:    http.Header{"X-Api-Key": {"stale"}, "Authorization": {"Bearer stale"}},
+				key:               "next-key",
+				wantAuthorization: "Bearer stale",
+			},
+		}
 
-			assert.Equal(t, tc.wantXApiKey, headers.Get("X-Api-Key"))
-			assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
-		})
-	}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				headers := tc.initialHeaders
+				cfg.InjectAuthKey(&headers, tc.key)
+				assert.Equal(t, tc.key, headers.Get("X-Api-Key"))
+				assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
+			})
+		}
+	})
+
+	t.Run("BuildKeyPoolResponse", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name           string
+			err            *keypool.Error
+			wantStatus     int
+			wantRetryAfter string
+		}{
+			{
+				name:       "permanent_returns_502",
+				err:        &keypool.Error{Kind: keypool.ErrorKindPermanent},
+				wantStatus: http.StatusBadGateway,
+			},
+			{
+				name:           "rate_limited_returns_429_with_retry_after",
+				err:            &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
+				wantStatus:     http.StatusTooManyRequests,
+				wantRetryAfter: "5",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp := cfg.BuildKeyPoolResponse(tc.err)
+				require.NotNil(t, resp)
+				t.Cleanup(func() { _ = resp.Body.Close() })
+				assert.Equal(t, tc.wantStatus, resp.StatusCode)
+				assert.Equal(t, tc.wantRetryAfter, resp.Header.Get("Retry-After"))
+			})
+		}
+	})
 }
 
 func TestExtractAnthropicHeaders(t *testing.T) {

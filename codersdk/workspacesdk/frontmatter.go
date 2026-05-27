@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 )
 
 // SkillNameRegex is the regular expression used to validate kebab-case skill names.
@@ -24,32 +25,21 @@ var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 // the frontmatter is missing a required name field.
 var ErrFrontmatterNameRequired = xerrors.New("frontmatter missing required 'name' field")
 
-func unquoteFrontmatterScalar(value string) string {
-	if len(value) < 2 {
-		return value
+func frontmatterStringField(frontmatter map[string]any, key string) (string, bool, error) {
+	value, ok := frontmatter[key]
+	if !ok {
+		return "", false, nil
 	}
-
-	quote := value[0]
-	if quote != value[len(value)-1] {
-		return value
+	stringValue, ok := value.(string)
+	if !ok {
+		return "", true, xerrors.Errorf("frontmatter field %q must be a string", key)
 	}
-
-	inner := value[1 : len(value)-1]
-	switch quote {
-	case '"':
-		// This parser supports a small SKILL.md scalar subset, not full
-		// YAML. Double quotes only unescape quoted text and Windows paths.
-		return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(inner)
-	case '\'':
-		return inner
-	default:
-		return value
-	}
+	return strings.TrimRight(stringValue, "\r\n"), true, nil
 }
 
 // ParseSkillFrontmatter extracts name, description, and the
 // remaining body from a skill meta file. The expected format is
-// YAML-ish frontmatter delimited by "---" lines:
+// YAML frontmatter delimited by "---" lines:
 //
 //	---
 //	name: my-skill
@@ -78,24 +68,22 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 		)
 	}
 
-	for _, line := range lines[1:closingIdx] {
-		key, value, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-		value = unquoteFrontmatterScalar(value)
-		switch strings.ToLower(key) {
-		case "name":
-			name = value
-		case "description":
-			description = value
-		}
+	frontmatterContent := strings.Join(lines[1:closingIdx], "\n")
+	var frontmatter map[string]any
+	if err := yaml.Unmarshal([]byte(frontmatterContent), &frontmatter); err != nil {
+		return "", "", "", xerrors.Errorf("parse frontmatter YAML: %w", err)
 	}
 
-	if name == "" {
+	name, ok, err := frontmatterStringField(frontmatter, "name")
+	if err != nil {
+		return "", "", "", xerrors.Errorf("%w: %v", ErrFrontmatterNameRequired, err)
+	}
+	if !ok || name == "" {
 		return "", "", "", xerrors.Errorf("%w", ErrFrontmatterNameRequired)
+	}
+	description, _, err = frontmatterStringField(frontmatter, "description")
+	if err != nil {
+		return "", "", "", err
 	}
 
 	// Everything after the closing delimiter is the body.

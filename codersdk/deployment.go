@@ -1863,6 +1863,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "structured_logging",
 	}
+	aiGatewayAPIDumpDir := serpent.Option{
+		Name:        "AI Gateway API Dump Directory",
+		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Flag:        "ai-gateway-dump-dir",
+		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
+		Value:       &c.AI.BridgeConfig.APIDumpDir,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "api_dump_dir",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
 		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
@@ -4048,6 +4058,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
 		},
+		{
+			Name:        "Chat: AI Gateway Routing Enabled",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Flag:        "chat-ai-gateway-routing-enabled",
+			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
+			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4275,6 +4296,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
 			Description: "Deprecated: use --ai-gateway-allow-byok or CODER_AI_GATEWAY_ALLOW_BYOK instead. Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
@@ -4632,6 +4654,10 @@ type AIBridgeConfig struct {
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
 	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
 	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
+	// APIDumpDir is the base directory under which each provider's
+	// request/response dumps are written, in a subdirectory named after
+	// the provider. Empty disables dumping.
+	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -4669,8 +4695,6 @@ type AIProviderConfig struct {
 	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
-	// DumpDir is the directory path for dumping API requests and responses.
-	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL string `json:"-"`
@@ -4701,8 +4725,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {

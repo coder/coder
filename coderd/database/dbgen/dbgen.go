@@ -119,6 +119,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
+		APIKeyID:            []string{seed.APIKeyID.String},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
 		Role:                []database.ChatMessageRole{takeFirst(seed.Role, database.ChatMessageRoleUser)},
 		Content:             []string{content},
@@ -451,6 +452,34 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	}
 	require.Failf(t, "connection log not found", "id=%s", arg.ID)
 	return database.ConnectionLog{} // unreachable
+}
+
+func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySession) database.BoundarySession {
+	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
+		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
+		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
+		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert boundary session")
+	return session
+}
+
+func BoundaryLog(t testing.TB, db database.Store, seed database.BoundaryLog) database.BoundaryLog {
+	log, err := db.InsertBoundaryLog(genCtx, database.InsertBoundaryLogParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		SessionID:      seed.SessionID,
+		SequenceNumber: takeFirst(seed.SequenceNumber, 0),
+		CapturedAt:     takeFirst(seed.CapturedAt, dbtime.Now()),
+		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
+		Proto:          takeFirst(seed.Proto, "http"),
+		Method:         takeFirst(seed.Method, "GET"),
+		Detail:         takeFirst(seed.Detail, "https://example.com"),
+		MatchedRule:    seed.MatchedRule,
+	})
+	require.NoError(t, err, "insert boundary log")
+	return log
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {

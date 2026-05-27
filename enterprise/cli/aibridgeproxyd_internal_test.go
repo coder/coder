@@ -6,11 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge"
-	agplcli "github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestDomainsFromProviders(t *testing.T) {
@@ -19,14 +16,11 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("ExtractsHostnames", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := agplcli.BuildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "openai", Keys: []string{"k"}},
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic", Keys: []string{"k"}},
-				{Type: aibridge.ProviderOpenAI, Name: "custom", Keys: []string{"k"}, BaseURL: "https://custom-llm.example.com:8443/api"},
-			},
-		})
-		require.NoError(t, err)
+		providers := []aibridge.Provider{
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "openai", BaseURL: "https://api.openai.com/v1/"}),
+			aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{Name: "anthropic", BaseURL: "https://api.anthropic.com/"}, nil),
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "custom", BaseURL: "https://custom-llm.example.com:8443/api"}),
+		}
 
 		domains, mapping := domainsFromProviders(providers)
 
@@ -43,13 +37,10 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("DeduplicatesSameHost", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := agplcli.BuildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "first", Keys: []string{"k"}, BaseURL: "https://api.example.com/v1"},
-				{Type: aibridge.ProviderOpenAI, Name: "second", Keys: []string{"k"}, BaseURL: "https://api.example.com/v2"},
-			},
-		})
-		require.NoError(t, err)
+		providers := []aibridge.Provider{
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "first", BaseURL: "https://api.example.com/v1"}),
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "second", BaseURL: "https://api.example.com/v2"}),
+		}
 
 		domains, mapping := domainsFromProviders(providers)
 
@@ -68,12 +59,9 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("CaseInsensitive", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := agplcli.BuildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "provider", Keys: []string{"k"}, BaseURL: "https://API.Example.COM/v1"},
-			},
-		})
-		require.NoError(t, err)
+		providers := []aibridge.Provider{
+			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "provider", BaseURL: "https://API.Example.COM/v1"}),
+		}
 
 		domains, mapping := domainsFromProviders(providers)
 

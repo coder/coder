@@ -37,9 +37,14 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getOSKey } from "#/utils/platform";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	type AgentSidebarFilters,
+} from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
-import { FilterDropdown } from "../filters/FilterDropdown";
+import { FilterPopover } from "../filters/FilterPopover";
+import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
 import {
 	ChatTreeContext,
@@ -59,6 +64,9 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { UserSidebarFooter } from "./UserSidebarFooter";
+
+const UNREAD_SECTION_KEY = "Unread";
+const READ_SECTION_KEY = "Read";
 
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
@@ -87,8 +95,8 @@ interface ChatsPanelProps {
 	readonly hasNextPage?: boolean;
 	readonly onLoadMore?: () => void;
 	readonly isFetchingNextPage?: boolean;
-	readonly archivedFilter: "active" | "archived";
-	readonly onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	readonly sidebarFilters: AgentSidebarFilters;
+	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
 	readonly isSettingsPanel: boolean;
@@ -120,15 +128,15 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
-	archivedFilter,
-	onArchivedFilterChange,
+	sidebarFilters,
+	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
 	isSettingsPanel,
 	isChatsActive,
 	location,
 }) => {
-	const normalizedSearch = "";
+	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
@@ -138,7 +146,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
-		search: normalizedSearch,
+		search: "",
 		tree: chatTree,
 	});
 	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
@@ -149,6 +157,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
+	const unpinnedChats = visibleRootIDs
+		.map((id) => chatById.get(id))
+		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
+	const hasAppliedResultFilters =
+		sidebarFilters.prStatuses.length > 0 ||
+		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length;
+	const disablePinnedReordering = hasAppliedResultFilters;
 
 	// Local override for pinned order during drag. Applied
 	// synchronously so there's no flash between the dnd-kit
@@ -206,6 +221,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
+
+		if (disablePinnedReordering) {
+			return;
+		}
 
 		lastDragEndedAtRef.current = performance.now();
 		if (!over || active.id === over.id) return;
@@ -268,7 +287,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		chatTree,
 		chatById,
 		visibleChatIDs,
-		normalizedSearch,
+		normalizedSearch: "",
 		expandedById,
 		modelOptions,
 		modelConfigs,
@@ -284,6 +303,42 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+	};
+
+	const chatSections = (
+		sidebarFilters.groupBy === "chat_status"
+			? [
+					{
+						key: UNREAD_SECTION_KEY,
+						label: UNREAD_SECTION_KEY,
+						chats: unpinnedChats.filter((chat) => chat.has_unread),
+					},
+					{
+						key: READ_SECTION_KEY,
+						label: READ_SECTION_KEY,
+						chats: unpinnedChats.filter((chat) => !chat.has_unread),
+					},
+				]
+			: TIME_GROUPS.map((group) => ({
+					key: group,
+					label: group,
+					chats: unpinnedChats.filter(
+						(chat) => getTimeGroup(chat.updated_at) === group,
+					),
+				}))
+	).filter((section) => section.chats.length > 0);
+	const isShowingEmptyState = visibleRootIDs.length === 0;
+	const emptyStateMessage = hasAppliedResultFilters
+		? "No agents match these filters"
+		: sidebarFilters.archiveStatus === "archived"
+			? "No archived agents"
+			: "No agents yet";
+	const clearResultFilters = () => {
+		onSidebarFiltersChange({
+			...sidebarFilters,
+			prStatuses: [],
+			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+		});
 	};
 
 	return (
@@ -316,7 +371,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						>
 							<Link
 								to="/agents/settings"
-								state={{ from: location.pathname + location.search }}
+								state={{ from: location.pathname + locationSearch }}
 							>
 								<SettingsIcon />
 							</Link>
@@ -338,7 +393,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					icon={SquarePenIcon}
 					label="New Agent"
 					active={isChatsActive}
-					to={`/agents${location.search}`}
+					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
@@ -381,9 +436,9 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 										</span>
 									</TooltipContent>
 								</Tooltip>
-								<FilterDropdown
-									archivedFilter={archivedFilter}
-									onArchivedFilterChange={onArchivedFilterChange}
+								<FilterPopover
+									filters={sidebarFilters}
+									onFiltersChange={onSidebarFiltersChange}
 								/>
 							</div>
 						</div>
@@ -419,102 +474,100 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							</>
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>
-								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										<button
-											type="button"
-											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-											onClick={() =>
-												onArchivedFilterChange?.(
-													archivedFilter === "archived" ? "active" : "archived",
-												)
-											}
-										>
-											{archivedFilter === "archived"
-												? "← Back to active"
-												: "View archived →"}
-										</button>
-									</div>
-								) : (
-									<div className="pb-2">
-										{pinnedChats.length > 0 && (
-											<div className="[&:not(:first-child)]:mt-3">
-												<ChatSectionHeader
-													label={PINNED_SECTION_KEY}
-													count={pinnedChats.length}
-													expanded={!collapsedSections[PINNED_SECTION_KEY]}
-													onToggle={() => toggleSection(PINNED_SECTION_KEY)}
-													testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
-												/>
-												{!collapsedSections[PINNED_SECTION_KEY] && (
-													<DndContext
-														sensors={sensors}
-														collisionDetection={closestCenter}
-														onDragEnd={handleDragEnd}
-													>
-														<SortableContext
-															items={pinnedChatIds}
-															strategy={verticalListSortingStrategy}
-														>
-															<div
-																ref={pinnedContainerRef}
-																className="flex flex-col gap-0.5"
-															>
+								<div className="pb-2">
+									{isShowingEmptyState ? (
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">{emptyStateMessage}</p>
+											{hasAppliedResultFilters && (
+												<button
+													type="button"
+													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+													onClick={clearResultFilters}
+												>
+													Clear filters
+												</button>
+											)}
+										</div>
+									) : (
+										<>
+											{pinnedChats.length > 0 && (
+												<div className="[&:not(:first-child)]:mt-3">
+													<ChatSectionHeader
+														label={PINNED_SECTION_KEY}
+														count={pinnedChats.length}
+														expanded={!collapsedSections[PINNED_SECTION_KEY]}
+														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
+														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
+													/>
+													{!collapsedSections[PINNED_SECTION_KEY] &&
+														(disablePinnedReordering ? (
+															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<SortableChatTreeNode
+																	<ChatTreeNode
 																		key={chat.id}
 																		chat={chat}
+																		isChildNode={false}
 																	/>
 																))}
 															</div>
-														</SortableContext>
-													</DndContext>
-												)}
-											</div>
-										)}
-										{TIME_GROUPS.map((group) => {
-											const groupChats = visibleRootIDs
-												.map((id) => chatById.get(id))
-												.filter(
-													(chat): chat is Chat =>
-														chat !== undefined &&
-														getTimeGroup(chat.updated_at) === group &&
-														chat.pin_order === 0,
-												);
-											if (groupChats.length === 0) return null;
-											const isGroupExpanded = !collapsedSections[group];
-											return (
-												<div key={group} className="[&:not(:first-child)]:mt-3">
-													<ChatSectionHeader
-														label={group}
-														count={groupChats.length}
-														expanded={isGroupExpanded}
-														onToggle={() => toggleSection(group)}
-														testId={getSectionToggleTestId(group)}
-													/>
-													{isGroupExpanded && (
-														<div className="flex flex-col gap-0.5">
-															{groupChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
-															))}
-														</div>
-													)}
+														) : (
+															<DndContext
+																sensors={sensors}
+																collisionDetection={closestCenter}
+																onDragEnd={handleDragEnd}
+															>
+																<SortableContext
+																	items={pinnedChatIds}
+																	strategy={verticalListSortingStrategy}
+																>
+																	<div
+																		ref={pinnedContainerRef}
+																		className="flex flex-col gap-0.5"
+																	>
+																		{sortedPinnedChats.map((chat) => (
+																			<SortableChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																			/>
+																		))}
+																	</div>
+																</SortableContext>
+															</DndContext>
+														))}
 												</div>
-											);
-										})}
-									</div>
-								)}
+											)}
+											{chatSections.map((section) => {
+												const isSectionExpanded =
+													!collapsedSections[section.key];
+												return (
+													<div
+														key={section.key}
+														className="[&:not(:first-child)]:mt-3"
+													>
+														<ChatSectionHeader
+															label={section.label}
+															count={section.chats.length}
+															expanded={isSectionExpanded}
+															onToggle={() => toggleSection(section.key)}
+															testId={getSectionToggleTestId(section.key)}
+														/>
+														{isSectionExpanded && (
+															<div className="flex flex-col gap-0.5">
+																{section.chats.map((chat) => (
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		isChildNode={false}
+																	/>
+																))}
+															</div>
+														)}
+													</div>
+												);
+											})}
+										</>
+									)}
+								</div>
 								{(hasNextPage || isFetchingNextPage) && (
 									<LoadMoreSentinel
 										onLoadMore={onLoadMore}

@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, and diff_url:\u003curl\u003e (quote URLs). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1436,7 +1436,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, started_after, started_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, started_after, started_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1515,7 +1515,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
                         "name": "q",
                         "in": "query"
                     },
@@ -14450,6 +14450,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "api_dump_dir": {
+                    "description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
+                    "type": "string"
+                },
                 "bedrock": {
                     "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
@@ -15062,10 +15066,6 @@ const docTemplate = `{
                 "bedrock_small_fast_model": {
                     "type": "string"
                 },
-                "dump_dir": {
-                    "description": "DumpDir is the directory path for dumping API requests and responses.",
-                    "type": "string"
-                },
                 "name": {
                     "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
                     "type": "string"
@@ -15117,7 +15117,8 @@ const docTemplate = `{
                 "openai-compat",
                 "openrouter",
                 "vercel",
-                "bedrock"
+                "bedrock",
+                "copilot"
             ],
             "x-enum-varnames": [
                 "AIProviderTypeOpenAI",
@@ -15127,7 +15128,8 @@ const docTemplate = `{
                 "AIProviderTypeOpenAICompat",
                 "AIProviderTypeOpenrouter",
                 "AIProviderTypeVercel",
-                "AIProviderTypeBedrock"
+                "AIProviderTypeBedrock",
+                "AIProviderTypeCopilot"
             ]
         },
         "codersdk.APIAllowListTarget": {
