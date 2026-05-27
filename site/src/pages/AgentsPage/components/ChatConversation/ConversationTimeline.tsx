@@ -49,6 +49,7 @@ import {
 	PromptHistoryPopover,
 } from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
+import { scrollToUserSentinelAfterClose } from "./scrollToUserSentinel";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
@@ -74,6 +75,13 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
+
+const waitForNextPaint = () =>
+	new Promise<void>((resolve) => {
+		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+	});
+
+const MAX_PROMPT_JUMP_PAGE_LOADS = 200;
 
 const ReasoningDisclosure = memo<{
 	id: string;
@@ -470,6 +478,9 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 	promptHistory?: readonly PromptHistoryEntry[];
+	onPromptHistoryEntrySelect?: (
+		entry: PromptHistoryEntry,
+	) => void | Promise<void>;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -501,6 +512,7 @@ const ChatMessageItem = memo<{
 		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
 		promptHistory,
+		onPromptHistoryEntrySelect,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -636,6 +648,7 @@ const ChatMessageItem = memo<{
 							{isUser && promptHistory && (
 								<PromptHistoryPopover
 									entries={promptHistory}
+									onSelectEntry={onPromptHistoryEntrySelect}
 									onOpenChange={setHistoryOpen}
 								/>
 							)}
@@ -729,6 +742,9 @@ const StickyUserMessage = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	promptHistory?: readonly PromptHistoryEntry[];
+	onPromptHistoryEntrySelect?: (
+		entry: PromptHistoryEntry,
+	) => void | Promise<void>;
 	hasActiveStream?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
@@ -742,6 +758,7 @@ const StickyUserMessage = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		promptHistory,
+		onPromptHistoryEntrySelect,
 		hasActiveStream = false,
 		prevUserMessageId,
 		nextUserMessageId,
@@ -1003,6 +1020,7 @@ const StickyUserMessage = memo<{
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
 							promptHistory={promptHistory}
+							onPromptHistoryEntrySelect={onPromptHistoryEntrySelect}
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
@@ -1049,6 +1067,7 @@ const StickyUserMessage = memo<{
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
 									promptHistory={promptHistory}
+									onPromptHistoryEntrySelect={onPromptHistoryEntrySelect}
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
@@ -1097,6 +1116,9 @@ interface ConversationTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	promptHistory?: readonly PromptHistoryEntry[];
+	hasMoreMessages?: boolean;
+	onFetchMoreMessages?: () => unknown;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -1114,6 +1136,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
+		promptHistory,
+		hasMoreMessages,
+		onFetchMoreMessages,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -1138,9 +1163,40 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
+		const hasMoreMessagesRef = useRef(Boolean(hasMoreMessages));
+		const onFetchMoreMessagesRef = useRef(onFetchMoreMessages);
+		useLayoutEffect(() => {
+			hasMoreMessagesRef.current = Boolean(hasMoreMessages);
+			onFetchMoreMessagesRef.current = onFetchMoreMessages;
+		}, [hasMoreMessages, onFetchMoreMessages]);
+
+		const handlePromptHistoryEntrySelect = async (
+			entry: PromptHistoryEntry,
+		) => {
+			let pageLoads = 0;
+			while (
+				!sentinelsRef.current.has(entry.id) &&
+				hasMoreMessagesRef.current &&
+				pageLoads < MAX_PROMPT_JUMP_PAGE_LOADS
+			) {
+				const fetchMoreMessages = onFetchMoreMessagesRef.current;
+				if (!fetchMoreMessages) {
+					break;
+				}
+				try {
+					await fetchMoreMessages();
+				} catch {
+					break;
+				}
+				pageLoads++;
+				await waitForNextPaint();
+			}
+			scrollToUserSentinelAfterClose(entry.id);
+		};
+
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
-		const promptHistory = (() => {
+		const loadedPromptHistory = (() => {
 			const result: PromptHistoryEntry[] = [];
 			let promptIndex = 0;
 			for (const entry of parsedMessages) {
@@ -1181,6 +1237,30 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				}
 			}
 			return result;
+		})();
+
+		const effectivePromptHistory = (() => {
+			if (!promptHistory) {
+				return loadedPromptHistory;
+			}
+			const loadedHistoryById = new Map(
+				loadedPromptHistory.map((entry) => [entry.id, entry]),
+			);
+			const mergedHistoryById = new Map<number, PromptHistoryEntry>();
+			for (const entry of promptHistory) {
+				mergedHistoryById.set(
+					entry.id,
+					loadedHistoryById.get(entry.id) ?? entry,
+				);
+			}
+			for (const entry of loadedPromptHistory) {
+				if (!mergedHistoryById.has(entry.id)) {
+					mergedHistoryById.set(entry.id, entry);
+				}
+			}
+			return Array.from(mergedHistoryById.values())
+				.sort((a, b) => a.id - b.id)
+				.map((entry, index) => ({ ...entry, index: index + 1 }));
 		})();
 
 		if (parsedMessages.length === 0) {
@@ -1293,7 +1373,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-									promptHistory={promptHistory}
+									promptHistory={effectivePromptHistory}
+									onPromptHistoryEntrySelect={handlePromptHistoryEntrySelect}
 									hasActiveStream={Boolean(hasActiveStream)}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}

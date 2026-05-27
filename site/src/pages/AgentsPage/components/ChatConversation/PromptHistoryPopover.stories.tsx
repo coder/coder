@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	type PromptHistoryEntry,
 	PromptHistoryPopover,
@@ -33,6 +33,25 @@ export const Default: Story = {
 
 		const items = await screen.findAllByRole("option");
 		await expect(items).toHaveLength(5);
+	},
+};
+
+export const SelectEntry: Story = {
+	args: {
+		entries: sampleEntries,
+		onSelectEntry: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: "Prompt history" });
+		await userEvent.click(trigger);
+
+		const item = await screen.findByText(
+			"What are the best practices for Terraform?",
+		);
+		await userEvent.click(item);
+
+		await expect(args.onSelectEntry).toHaveBeenCalledWith(sampleEntries[3]);
 	},
 };
 

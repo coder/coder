@@ -32,6 +32,7 @@ export interface PromptHistoryEntry {
 
 interface PromptHistoryPopoverProps {
 	entries: readonly PromptHistoryEntry[];
+	onSelectEntry?: (entry: PromptHistoryEntry) => void | Promise<void>;
 	/** Called when the popover opens/closes so the parent action bar
 	 *  can stay visible while the dropdown is active. */
 	onOpenChange?: (open: boolean) => void;
@@ -43,6 +44,7 @@ interface PromptHistoryPopoverProps {
  */
 export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 	entries,
+	onSelectEntry,
 	onOpenChange,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -90,6 +92,10 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 									value={`${entry.index} ${entry.label}`}
 									onSelect={() => {
 										handleOpenChange(false);
+										if (onSelectEntry) {
+											void onSelectEntry(entry);
+											return;
+										}
 										scrollToUserSentinelAfterClose(entry.id);
 									}}
 								>

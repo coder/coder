@@ -18,7 +18,7 @@ function unlock() {
 }
 
 /** Scroll to a user-message sentinel. Disables scroll-anchoring during animation to prevent snap-back. */
-export function scrollToUserSentinel(messageId: number): void {
+export function scrollToUserSentinel(messageId: number): boolean {
 	if (activeRafId !== null) {
 		cancelAnimationFrame(activeRafId);
 		activeRafId = null;
@@ -28,10 +28,10 @@ export function scrollToUserSentinel(messageId: number): void {
 	const sentinel = document.querySelector(
 		`[data-user-sentinel][data-user-message-id="${messageId}"]`,
 	);
-	if (!sentinel) return;
+	if (!sentinel) return false;
 
 	const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
-	if (!scroller) return;
+	if (!scroller) return false;
 
 	activeScroller = scroller;
 	scroller.style.overflowAnchor = "none";
@@ -50,7 +50,7 @@ export function scrollToUserSentinel(messageId: number): void {
 		scroller.scrollTop += offset;
 		unlock();
 		activeRafId = null;
-		return;
+		return true;
 	}
 
 	const start = scroller.scrollTop;
@@ -70,6 +70,7 @@ export function scrollToUserSentinel(messageId: number): void {
 		}
 	};
 	activeRafId = requestAnimationFrame(step);
+	return true;
 }
 
 export function scrollToUserSentinelAfterClose(messageId: number): void {

@@ -175,7 +175,7 @@ interface AgentChatPageViewProps {
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	onFetchMoreMessages: () => void;
+	onFetchMoreMessages: () => unknown;
 	messageCount: number;
 
 	urlTransform?: UrlTransform;
@@ -537,6 +537,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									persistedError={persistedError}
 									onEditUserMessage={editing.handleEditUserMessage}
 									editingMessageId={editing.editingMessageId}
+									hasMoreMessages={hasMoreMessages}
+									onFetchMoreMessages={onFetchMoreMessages}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
 									onImplementPlan={onImplementPlan}

@@ -65,7 +65,7 @@ describe("scrollToUserSentinel", () => {
 
 	it("does nothing when sentinel is not found", () => {
 		const scroller = buildDOM([1]);
-		scrollToUserSentinel(999);
+		expect(scrollToUserSentinel(999)).toBe(false);
 		expect(scroller.scrollTop).toBe(0);
 	});
 
@@ -76,8 +76,7 @@ describe("scrollToUserSentinel", () => {
 		sentinel.setAttribute("data-user-message-id", "1");
 		document.body.appendChild(sentinel);
 
-		scrollToUserSentinel(1);
-		// No error thrown is the success condition
+		expect(scrollToUserSentinel(1)).toBe(false);
 	});
 
 	it("jumps instantly and updates scrollTop when prefers-reduced-motion is set", () => {
@@ -86,7 +85,7 @@ describe("scrollToUserSentinel", () => {
 		} as MediaQueryList);
 
 		const scroller = buildDOM([1]);
-		scrollToUserSentinel(1);
+		expect(scrollToUserSentinel(1)).toBe(true);
 
 		// sentinel top=200, scroller top=0, clientHeight=600 => offset = 200 - 0 - 300 = -100
 		expect(scroller.scrollTop).toBe(-100);
