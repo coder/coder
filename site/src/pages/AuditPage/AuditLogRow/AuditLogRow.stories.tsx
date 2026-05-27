@@ -256,7 +256,7 @@ export const WithSharedChatDescription: Story = {
 			...MockChatAuditLog,
 			id: "8f26cabf-8867-4d2f-942d-77e759a16c1c",
 			action: "write",
-			description: "{user} shared chat {target} with 1 user",
+			description: "{user} shared chat with 1 user {target}",
 			diff: {
 				user_acl: {
 					old: {},
@@ -278,7 +278,7 @@ export const WithUnsharedChatDescription: Story = {
 			...MockChatAuditLog,
 			id: "ae510ae2-c10b-4d5e-bf51-2eb69a83d72d",
 			action: "write",
-			description: "{user} unshared chat {target} with 1 user",
+			description: "{user} unshared chat with 1 user {target}",
 			diff: {
 				user_acl: {
 					old: {

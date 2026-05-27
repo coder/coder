@@ -351,6 +351,8 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	return b.String()
 }
 
+// chatAuditLogDescription returns a specific description for successful chat
+// write operations based on the diff contents.
 func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool) {
 	if alog.AuditLog.ResourceType != database.ResourceTypeChat ||
 		alog.AuditLog.Action != database.AuditActionWrite ||
@@ -379,16 +381,16 @@ func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool)
 		return "", false
 	}
 
-	aclDiff, ok := auditLogChatACLChanges(diff)
+	aclDiff, ok := computeChatACLDiff(diff)
 	if !ok {
 		return "", false
 	}
 
 	switch {
 	case aclDiff.added > 0 && aclDiff.removed == 0 && !aclDiff.updated:
-		return "shared chat {target} with " + auditLogChatACLTarget(aclDiff.addedUsers, aclDiff.addedGroups), true
+		return "shared chat with " + auditLogChatACLCountSummary(aclDiff.addedUsers, aclDiff.addedGroups) + " {target}", true
 	case aclDiff.added == 0 && aclDiff.removed > 0 && !aclDiff.updated:
-		return "unshared chat {target} with " + auditLogChatACLTarget(aclDiff.removedUsers, aclDiff.removedGroups), true
+		return "unshared chat with " + auditLogChatACLCountSummary(aclDiff.removedUsers, aclDiff.removedGroups) + " {target}", true
 	default:
 		return "updated sharing for chat {target}", true
 	}
@@ -404,7 +406,7 @@ type auditLogChatACLChange struct {
 	removedGroups int
 }
 
-func auditLogChatACLChanges(diff codersdk.AuditDiff) (auditLogChatACLChange, bool) {
+func computeChatACLDiff(diff codersdk.AuditDiff) (auditLogChatACLChange, bool) {
 	if len(diff) == 0 || len(diff) > 2 {
 		return auditLogChatACLChange{}, false
 	}
@@ -417,7 +419,7 @@ func auditLogChatACLChanges(diff codersdk.AuditDiff) (auditLogChatACLChange, boo
 			return auditLogChatACLChange{}, false
 		}
 
-		aclChange, ok := auditLogChatACLFieldChanges(diffField)
+		aclChange, ok := computeChatACLFieldDiff(diffField)
 		if !ok {
 			return auditLogChatACLChange{}, false
 		}
@@ -439,7 +441,7 @@ func auditLogChatACLChanges(diff codersdk.AuditDiff) (auditLogChatACLChange, boo
 	return change, true
 }
 
-func auditLogChatACLFieldChanges(diffField codersdk.AuditDiffField) (auditLogChatACLChange, bool) {
+func computeChatACLFieldDiff(diffField codersdk.AuditDiffField) (auditLogChatACLChange, bool) {
 	if diffField.Secret {
 		return auditLogChatACLChange{}, false
 	}
@@ -494,10 +496,14 @@ func auditDiffBool(value any) (boolValue bool, ok bool) {
 }
 
 func auditLogChatACLEqual(a, b database.ChatACLEntry) bool {
-	return slices.Equal(a.Permissions, b.Permissions)
+	left := slices.Clone(a.Permissions)
+	right := slices.Clone(b.Permissions)
+	slices.Sort(left)
+	slices.Sort(right)
+	return slices.Equal(left, right)
 }
 
-func auditLogChatACLTarget(users, groups int) string {
+func auditLogChatACLCountSummary(users, groups int) string {
 	segments := make([]string, 0, 2)
 	if users > 0 {
 		segments = append(segments, auditLogCountSegment(users, "user"))

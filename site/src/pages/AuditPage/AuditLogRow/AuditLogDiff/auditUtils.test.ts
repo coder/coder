@@ -129,6 +129,9 @@ describe("formatAuditDiffValue", () => {
 			value: ["admin", "auditor"],
 			expected: '["admin", "auditor"]',
 		},
+		{ name: "boolean true", value: true, expected: "true" },
+		{ name: "boolean false", value: false, expected: "false" },
+		{ name: "number", value: 42, expected: "42" },
 		{ name: "null", value: null, expected: "null" },
 		{ name: "undefined", value: undefined, expected: "null" },
 		{

@@ -182,7 +182,7 @@ func TestAuditLogDescription(t *testing.T) {
 					Diff:         json.RawMessage(`{"user_acl":{"old":{},"new":{"user-1":{"permissions":["read"]}},"secret":false}}`),
 				},
 			},
-			want: "{user} shared chat {target} with 1 user",
+			want: "{user} shared chat with 1 user {target}",
 		},
 		{
 			name: "share_chat_with_users_and_groups",
@@ -194,7 +194,7 @@ func TestAuditLogDescription(t *testing.T) {
 					Diff:         json.RawMessage(`{"user_acl":{"old":{},"new":{"user-1":{"permissions":["read"]},"user-2":{"permissions":["read"]}},"secret":false},"group_acl":{"old":{},"new":{"group-1":{"permissions":["read"]}},"secret":false}}`),
 				},
 			},
-			want: "{user} shared chat {target} with 2 users and 1 group",
+			want: "{user} shared chat with 2 users and 1 group {target}",
 		},
 		{
 			name: "unshare_chat_with_one_group",
@@ -206,7 +206,7 @@ func TestAuditLogDescription(t *testing.T) {
 					Diff:         json.RawMessage(`{"group_acl":{"old":{"group-1":{"permissions":["read"]}},"new":{},"secret":false}}`),
 				},
 			},
-			want: "{user} unshared chat {target} with 1 group",
+			want: "{user} unshared chat with 1 group {target}",
 		},
 		{
 			name: "unshare_chat_with_users_and_groups",
@@ -218,7 +218,7 @@ func TestAuditLogDescription(t *testing.T) {
 					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]},"user-2":{"permissions":["read"]}},"new":{},"secret":false},"group_acl":{"old":{"group-1":{"permissions":["read"]}},"new":{},"secret":false}}`),
 				},
 			},
-			want: "{user} unshared chat {target} with 2 users and 1 group",
+			want: "{user} unshared chat with 2 users and 1 group {target}",
 		},
 		{
 			name: "mixed_chat_sharing_change",
@@ -233,16 +233,16 @@ func TestAuditLogDescription(t *testing.T) {
 			want: "{user} updated sharing for chat {target}",
 		},
 		{
-			name: "changed_chat_acl_permissions",
+			name: "reordered_chat_acl_permissions",
 			alog: database.GetAuditLogsOffsetRow{
 				AuditLog: database.AuditLog{
 					Action:       database.AuditActionWrite,
 					StatusCode:   200,
 					ResourceType: database.ResourceTypeChat,
-					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read"]}},"new":{"user-1":{"permissions":["read","update"]}},"secret":false}}`),
+					Diff:         json.RawMessage(`{"user_acl":{"old":{"user-1":{"permissions":["read","update"]}},"new":{"user-1":{"permissions":["update","read"]}},"secret":false}}`),
 				},
 			},
-			want: "{user} updated sharing for chat {target}",
+			want: "{user} updated chat {target}",
 		},
 		{
 			name: "unchanged_chat_acl",

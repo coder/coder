@@ -24,6 +24,11 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
 	};
 };
 
+/**
+ * Formats an audit diff value for display. Strings are quoted, nullish values
+ * become "null", SQL time objects are localized, arrays are recursed, and plain
+ * objects are serialized as compact JSON with sorted keys.
+ */
 export const formatAuditDiffValue = (value: unknown): string => {
 	if (typeof value === "string") {
 		return `"${value}"`;
