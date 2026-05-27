@@ -514,7 +514,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
-							isCreating || isForbidden || isPersonalModelOverridesLoading
+							isCreating ||
+							isForbidden ||
+							isPersonalModelOverridesLoading ||
+							!hasModelOptions
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}

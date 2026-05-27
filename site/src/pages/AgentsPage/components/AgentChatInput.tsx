@@ -1128,7 +1128,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									disabled={isDisabled}
+									disabled={isDisabled && !agentSetupNotice}
 									aria-label="More options"
 								>
 									<PlusIcon />
