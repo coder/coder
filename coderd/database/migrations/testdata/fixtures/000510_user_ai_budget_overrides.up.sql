@@ -1,6 +1,5 @@
 -- Seed a group_members row so the override below references a real
--- membership. A composite FK on (user_id, group_id) requires the
--- membership to exist before the override can be inserted.
+-- membership.
 INSERT INTO group_members (
     user_id,
     group_id
