@@ -91,9 +91,9 @@ var (
 
 	// ResourceBoundaryLog
 	// Valid Actions
-	//  - "ActionCreate" :: persist boundary audit logs reported by the workspace agent
-	//  - "ActionDelete" :: delete boundary audit logs past the retention period
-	//  - "ActionRead" :: read boundary audit logs and session metadata
+	//  - "ActionCreate" :: create boundary log records
+	//  - "ActionDelete" :: delete boundary logs past the retention period
+	//  - "ActionRead" :: read boundary logs and session metadata
 	ResourceBoundaryLog = Object{
 		Type: "boundary_log",
 	}

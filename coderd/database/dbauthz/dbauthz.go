@@ -5468,11 +5468,35 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
-	return insert(q.log, q.auth, rbac.ResourceBoundaryLog, q.db.InsertBoundaryLog)(ctx, arg)
+	// Derive the owner from the session's workspace agent so that
+	// user-scoped create permission is checked correctly.
+	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
+	if err != nil {
+		return database.BoundaryLog{}, xerrors.Errorf("get boundary session for owner: %w", err)
+	}
+	row, err := q.db.GetWorkspaceAgentAndWorkspaceByID(ctx, session.WorkspaceAgentID)
+	if err != nil {
+		return database.BoundaryLog{}, xerrors.Errorf("get workspace for boundary log owner: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(row.WorkspaceTable.OwnerID.String())); err != nil {
+		return database.BoundaryLog{}, err
+	}
+	return q.db.InsertBoundaryLog(ctx, arg)
 }
 
 func (q *querier) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
-	return insert(q.log, q.auth, rbac.ResourceBoundaryLog, q.db.InsertBoundarySession)(ctx, arg)
+	// Derive the owner from the workspace agent so that user-scoped
+	// create permission is checked correctly.
+	row, err := q.db.GetWorkspaceAgentAndWorkspaceByID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return database.BoundarySession{}, xerrors.Errorf("get workspace for boundary session owner: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(row.WorkspaceTable.OwnerID.String())); err != nil {
+		return database.BoundarySession{}, err
+	}
+	return q.db.InsertBoundarySession(ctx, arg)
 }
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {

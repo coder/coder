@@ -424,9 +424,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"boundary_log": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: "persist boundary audit logs reported by the workspace agent",
-			ActionRead:   "read boundary audit logs and session metadata",
-			ActionDelete: "delete boundary audit logs past the retention period",
+			ActionCreate: "create boundary log records",
+			ActionRead:   "read boundary logs and session metadata",
+			ActionDelete: "delete boundary logs past the retention period",
 		},
 	},
 	"boundary_usage": {

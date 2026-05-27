@@ -1230,33 +1230,33 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Boundary logs: members (and thus workspace agents) can create;
-			// only the site owner can delete.
-			// All subjects below carry RoleMember(), which grants site-level
-			// ActionCreate on boundary_log, so no subject is in the false set.
+			// Boundary logs: members can create logs they own (user-scoped).
+			// memberMe and agentsAccessUser have ID == currentUser, so they
+			// match the resource owner. Other subjects have different IDs.
 			Name:     "BoundaryLogCreate",
 			Actions:  []policy.Action{policy.ActionCreate},
-			Resource: rbac.ResourceBoundaryLog,
+			Resource: rbac.ResourceBoundaryLog.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {
-					owner, memberMe, agentsAccessUser,
+				true: {memberMe, agentsAccessUser},
+				false: {
+					owner,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor, auditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
-				false: {},
 			},
 		},
 		{
-			// Boundary logs: only the site owner can delete (retention purge).
+			// Boundary logs: only DBPurge can delete. No human role
+			// has delete; DBPurge is a system subject outside this matrix.
 			Name:     "BoundaryLogDelete",
 			Actions:  []policy.Action{policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryLog,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
+				true: {},
 				false: {
-					memberMe, agentsAccessUser,
+					owner, memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor, auditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
