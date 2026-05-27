@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -1014,6 +1015,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
 			}
+			var aibridgeDaemon *aibridged.Server
 
 			// Both seed (writes) and build (reads) of AI providers need
 			// options.Database to be dbcrypt-wrapped, which only happens
@@ -1044,7 +1046,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
-				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, aibridgeProviders)
+				aibridgeDaemon, err = newAIBridgeDaemon(coderAPI, aibridgeProviders)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1310,6 +1312,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
+			// The in-memory aibridge server participates in the websocket
+			// wait group, so close its client before waiting for that group.
+			if aibridgeDaemon != nil {
+				_ = aibridgeDaemon.Close()
+			}
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
