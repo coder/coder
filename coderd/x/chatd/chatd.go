@@ -3199,6 +3199,11 @@ func (p *Server) generateManualTitleCandidate(
 		return manualTitleCandidateResult{}, nil
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
+	if modelOpts.ActiveAPIKeyID == "" {
+		if apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
+			modelOpts.ActiveAPIKeyID = apiKeyID
+		}
+	}
 
 	model, modelConfig, modelKeys, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
 	result := manualTitleCandidateResult{
