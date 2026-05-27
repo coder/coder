@@ -531,14 +531,10 @@ func (m requiredToolChoiceObjectModel) GenerateObject(
 	ctx context.Context,
 	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResponse, error) {
-	return object.GenerateWithTool(ctx, requiredToolChoiceModel(m), call)
+	return object.GenerateWithTool(ctx, m, call)
 }
 
-type requiredToolChoiceModel struct {
-	fantasy.LanguageModel
-}
-
-func (m requiredToolChoiceModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
+func (m requiredToolChoiceObjectModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
 	if len(call.Tools) == 1 && call.ToolChoice != nil &&
 		*call.ToolChoice == fantasy.SpecificToolChoice(call.Tools[0].GetName()) {
 		toolChoice := fantasy.ToolChoiceRequired

@@ -52,8 +52,9 @@ type geminiOpenAICompatThoughtSignatureTransport struct {
 }
 
 func (t *geminiOpenAICompatThoughtSignatureTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	base := t.base()
 	if !shouldPatchGeminiOpenAICompatThoughtSignatureRequest(req) {
-		return t.base().RoundTrip(req)
+		return base.RoundTrip(req)
 	}
 
 	body, err := io.ReadAll(req.Body)
@@ -62,17 +63,14 @@ func (t *geminiOpenAICompatThoughtSignatureTransport) RoundTrip(req *http.Reques
 	}
 	_ = req.Body.Close()
 
-	patched, changed := addGeminiOpenAICompatThoughtSignatures(body)
-	if !changed {
-		patched = body
-	}
+	patched, _ := addGeminiOpenAICompatThoughtSignatures(body)
 	req.Body = io.NopCloser(bytes.NewReader(patched))
 	req.ContentLength = int64(len(patched))
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(patched)), nil
 	}
 
-	return t.base().RoundTrip(req)
+	return base.RoundTrip(req)
 }
 
 func (t *geminiOpenAICompatThoughtSignatureTransport) base() http.RoundTripper {
