@@ -1080,6 +1080,15 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION is_group_member(uid uuid, gid uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    AS $$
+	SELECT EXISTS (
+		SELECT 1 FROM group_members_expanded
+		WHERE user_id = uid AND group_id = gid
+	);
+$$;
+
 CREATE FUNCTION nullify_next_start_at_on_workspace_autostart_modification() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -3145,6 +3154,7 @@ CREATE TABLE user_ai_budget_overrides (
     spend_limit_micros bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_ai_budget_overrides_must_be_group_member CHECK (is_group_member(user_id, group_id)),
     CONSTRAINT user_ai_budget_overrides_spend_limit_micros_check CHECK ((spend_limit_micros >= 0))
 );
 

@@ -2578,9 +2578,7 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 
 const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
-SELECT $1, $2, $3
-FROM group_members_expanded
-WHERE user_id = $1 AND group_id = $2
+VALUES ($1, $2, $3)
 ON CONFLICT (user_id) DO UPDATE SET
 	group_id           = EXCLUDED.group_id,
 	spend_limit_micros = EXCLUDED.spend_limit_micros,
@@ -2594,9 +2592,9 @@ type UpsertUserAIBudgetOverrideParams struct {
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
 }
 
-// The SELECT gates the write on the user being a member of the attributed
-// group, checked against group_members_expanded so the "Everyone" group
-// (whose membership lives in organization_members) is correctly handled.
+// Membership of the user in the attributed group (including via the
+// "Everyone" group) is enforced by the CHECK constraint
+// user_ai_budget_overrides_must_be_group_member on the table.
 func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
 	var i UserAiBudgetOverride

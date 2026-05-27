@@ -884,10 +884,10 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		GroupID:          req.GroupID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
-	// The query gates the write on the user being a member of the
-	// attributed group. When membership is absent, no row is written and
-	// the query returns sql.ErrNoRows.
-	if errors.Is(err, sql.ErrNoRows) {
+	// The CHECK constraint on the table enforces that the user must be a
+	// member of the attributed group; map the resulting check_violation
+	// to a structured 400.
+	if database.IsCheckViolation(err, database.CheckUserAiBudgetOverridesMustBeGroupMember) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "User is not a member of the referenced group.",
 			Validations: []codersdk.ValidationError{{
