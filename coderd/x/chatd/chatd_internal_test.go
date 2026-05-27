@@ -6616,3 +6616,91 @@ func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
 	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.False(t, ok, "primer must not cache anything when canceled")
 }
+
+func TestTriggeringUserMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		messages []database.ChatMessage
+		wantID   int64
+		wantOK   bool
+	}{
+		{
+			name: "LastVisibleUserMessage",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 3, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantID: 3,
+			wantOK: true,
+		},
+		{
+			name: "SkipsAssistantMessages",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantID: 1,
+			wantOK: true,
+		},
+		{
+			name: "SkipsModelOnlyVisibility",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel},
+			},
+			wantID: 1,
+			wantOK: true,
+		},
+		{
+			name: "UserVisibilityIsVisible",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityUser},
+			},
+			wantID: 1,
+			wantOK: true,
+		},
+		{
+			name: "SkipsSystemMessages",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 2, Role: database.ChatMessageRoleSystem, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantID: 1,
+			wantOK: true,
+		},
+		{
+			name:     "EmptyMessages",
+			messages: []database.ChatMessage{},
+			wantOK:   false,
+		},
+		{
+			name: "NoUserMessages",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+				{ID: 2, Role: database.ChatMessageRoleSystem, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantOK: false,
+		},
+		{
+			name: "OnlyModelOnlyUserMessages",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel},
+			},
+			wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			msg, ok := triggeringUserMessage(tt.messages)
+			require.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				require.Equal(t, tt.wantID, msg.ID)
+			}
+		})
+	}
+}

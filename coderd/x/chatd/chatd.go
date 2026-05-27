@@ -6456,6 +6456,14 @@ func (p *Server) backfillActiveTurnAPIKeyID(
 		return "", xerrors.New("no triggering user message found")
 	}
 
+	owner, err := p.db.GetUserByID(ctx, chat.OwnerID)
+	if err != nil {
+		return "", xerrors.Errorf("lookup chat owner %s: %w", chat.OwnerID, err)
+	}
+	if owner.Status == database.UserStatusSuspended {
+		return "", xerrors.New("chat owner is suspended")
+	}
+
 	apiKeyID, err := p.db.GetLastUsedNonExpiredAPIKeyIDByUserID(ctx, chat.OwnerID)
 	if err != nil {
 		return "", xerrors.Errorf("lookup valid API key for owner %s: %w", chat.OwnerID, err)
