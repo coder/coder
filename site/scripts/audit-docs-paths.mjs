@@ -330,7 +330,7 @@ export function buildReport({ findings, redirectsPath, roots, startedAt }) {
 			out.push("");
 			continue;
 		}
-		out.push(`${list.length} findings.`);
+		out.push(`${list.length} ${list.length === 1 ? "finding" : "findings"}.`);
 		out.push("");
 		out.push(
 			"| File:Line | Current path | Redirect rule | Suggested fix | Dynamic? |",
@@ -362,7 +362,7 @@ export function buildReport({ findings, redirectsPath, roots, startedAt }) {
 		"* Dynamic findings have a `${...}` expression somewhere in the path. The suggested fix shows what the literal prefix should become; the developer must keep the dynamic suffix intact.",
 	);
 	out.push(
-		"* Findings under `docs/.audit/` or `docs/CHANGELOG` paths are excluded by file discovery to avoid feedback loops on the audit itself.",
+		"* Findings under `docs/.audit/` are excluded by file discovery (`.audit` is in SKIP_DIRS) to avoid feedback loops on the audit itself.",
 	);
 	out.push(
 		"* Re-run with `node site/scripts/audit-docs-paths.mjs` from the repo root.",

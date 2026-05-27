@@ -418,7 +418,7 @@ describe("buildReport", () => {
 
 		// Both repo sections present, each with finding counts.
 		expect(report).toMatch(/## coder\/coder\/site\n\n3 findings\./);
-		expect(report).toMatch(/## coder\/coder\.com\/src\n\n1 findings\./);
+		expect(report).toMatch(/## coder\/coder\.com\/src\n\n1 finding\./);
 
 		// Within the site section, file a should appear before file b, and the
 		// dynamic finding should appear after the static ones from the same file.
