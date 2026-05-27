@@ -3162,6 +3162,7 @@ func (p *Server) recordManualTitleGenerationFailure(
 // generateManualTitleCandidate performs only model generation and returns the
 // candidate plus accounting metadata. Endpoint-specific commit paths are
 // responsible for recording usage and deciding whether to persist the title.
+// The context may carry the caller's delegated API key for manual title routes.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
@@ -3199,6 +3200,13 @@ func (p *Server) generateManualTitleCandidate(
 		return manualTitleCandidateResult{}, nil
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
+	// Manual title routes can run over messages that lack API key attribution.
+	// Fall back to the authenticated caller's delegated key for AI Gateway routing.
+	if modelOpts.ActiveAPIKeyID == "" {
+		if apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
+			modelOpts.ActiveAPIKeyID = apiKeyID
+		}
+	}
 
 	model, modelConfig, modelKeys, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
 	result := manualTitleCandidateResult{

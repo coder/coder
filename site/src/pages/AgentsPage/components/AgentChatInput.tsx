@@ -183,6 +183,7 @@ interface AgentChatInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
+	agentSetupNotice?: React.ReactNode;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -342,6 +343,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
+	agentSetupNotice,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const internalRef = useRef<ChatMessageInputRef>(null);
@@ -994,11 +996,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
+			{agentSetupNotice && (
+				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
+			)}
 			<div
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					agentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1122,7 +1128,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									disabled={isDisabled}
+									disabled={isDisabled && !agentSetupNotice}
 									aria-label="More options"
 								>
 									<PlusIcon />
