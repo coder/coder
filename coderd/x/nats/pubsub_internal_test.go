@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -407,18 +408,25 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
 
-	// MismatchedTokenRejectsRoute asserts that two clustered pubsubs with
-	// different ClusterAuthTokens never successfully establish a route.
+	// MismatchedTokenRejectsRoute asserts the route handshake is rejected
+	// when peers have different ClusterAuthTokens. Authentication failures
+	// surface immediately on the rejecting server's error logger.
 	t.Run("MismatchedTokenRejectsRoute", func(t *testing.T) {
 		t.Parallel()
 
 		c := newTestPubsub(t, newAuthClusterOptions(t, "left-token"))
 		d := newTestPubsub(t, newAuthClusterOptions(t, "right-token"))
+		cLog := captureNATSErrors(c.ns)
+		dLog := captureNATSErrors(d.ns)
+
 		require.NoError(t, c.SetPeerAddresses([]string{clusterRouteAddress(t, d)}))
 
-		require.Never(t, func() bool {
-			return c.ns.NumRoutes() > 0 || d.ns.NumRoutes() > 0
-		}, testutil.IntervalMedium, testutil.IntervalFast)
+		require.Eventually(t, func() bool {
+			return cLog.containsError("authentication error") || dLog.containsError("authentication error")
+		}, testutil.WaitShort, testutil.IntervalFast,
+			"expected at least one peer to log an authentication error")
+		require.Zero(t, c.ns.NumRoutes())
+		require.Zero(t, d.ns.NumRoutes())
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
@@ -1069,9 +1077,9 @@ func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 }
 
 func routeStrings(routes []*url.URL) []string {
-	strings := make([]string, 0, len(routes))
+	out := make([]string, 0, len(routes))
 	for _, route := range routes {
-		strings = append(strings, route.String())
+		out = append(out, route.String())
 	}
-	return strings
+	return out
 }
