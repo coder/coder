@@ -3927,8 +3927,8 @@ type chatMessage struct {
 	providerResponseID  string
 }
 
-// userChatMessage describes a user message. The apiKeyID field is
-// required by newUserChatMessage so that omitting it is a compile error.
+// userChatMessage wraps chatMessage with a required apiKeyID so that
+// omitting it for user messages is a compile error, not a silent data bug.
 type userChatMessage struct {
 	chatMessage
 	apiKeyID string
@@ -4024,9 +4024,9 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
-// appendMessageFields appends the common fields from a chatMessage to the
-// batch insert params. apiKeyID is passed explicitly so that non-user
-// messages always get "" and user messages get the caller's key.
+// appendMessageFields writes all chatMessage fields into the batch insert
+// params. apiKeyID is explicit so non-user messages always get "" while
+// user messages carry the caller's key for AI Gateway routing.
 func appendMessageFields(
 	params *database.InsertChatMessagesParams,
 	msg chatMessage,
@@ -4063,7 +4063,7 @@ func appendChatMessage(
 	appendMessageFields(params, msg, "")
 }
 
-// appendUserChatMessage appends a user message to the batch insert params.
+// appendUserChatMessage inserts a user message with its apiKeyID preserved.
 func appendUserChatMessage(
 	params *database.InsertChatMessagesParams,
 	msg userChatMessage,
