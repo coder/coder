@@ -21,12 +21,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  select_tests:
-    name: Identify Modified Tests
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    timeout-minutes: 10
-    outputs:
-      matrix: ${{ steps.selector.outputs.matrix }}
+  flake_go:
+    name: Flake Check
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    timeout-minutes: 20
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
@@ -38,9 +36,6 @@ jobs:
         with:
           repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
-          # Keep the PR head history complete. The Go planner lazily repairs
-          # missing base history, but fork head ancestry is most reliable when
-          # checkout owns it.
           fetch-depth: 0
           persist-credentials: false
 
@@ -49,21 +44,11 @@ jobs:
 
       - name: Install whichtests
         shell: bash
-        # Pinned to coder/whichtests@ec33bab (amended initial release
-        # adding the --coalesce flag used below).
         run: ./.github/scripts/retry.sh -- go install github.com/coder/whichtests@ec33bab1ec04cd86beb7a61a069db4463dba63f5
 
       - name: Select changed tests
         id: selector
         shell: bash
-        # --coalesce collapses the per-package selection into a single matrix
-        # row whose package list and run-regex union every selected target.
-        # The flake_go job runs that row as one go test invocation so all
-        # selected packages compete for the same constrained runner, which
-        # amplifies the scheduling and resource contention that surfaces
-        # flakes in real CI. The trade-off is loss of per-package precision
-        # in -run: a test name selected in one package will also match a
-        # same-named test in any other listed package.
         run: |
           set -euo pipefail
           whichtests \
@@ -72,62 +57,26 @@ jobs:
             --coalesce \
             --out-matrix "$RUNNER_TEMP/flake-matrix.json"
 
-  flake_go:
-    name: Flake Check
-    needs: select_tests
-    if: ${{ fromJSON(needs.select_tests.outputs.matrix).include[0] != null }}
-    # Deliberately use the smaller depot-ubuntu-22.04-4 runner. Existing Linux
-    # test-go-pg jobs run at 1x oversubscription on 8 vCPU to keep noise low,
-    # but this job's purpose is the opposite: reproduce the contention that
-    # makes flakes appear in real CI. Half the cores with the same -parallel
-    # value gives 4x oversub on a runner family that test-e2e already runs
-    # Postgres-backed services on, so Postgres still has CPU headroom.
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
-    # 15m budget covers a coalesced run of every selected package in a single
-    # go test invocation. Raise this if a PR routinely picks up a slow
-    # integration test and times out; do not raise it as the first response
-    # to a real flake.
-    timeout-minutes: 15
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
       - name: Setup Terraform
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
         uses: ./.github/actions/setup-tf
 
       - name: Run targeted Go flake checks
+        id: flake_check
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          # -p=4 matches the 4 vCPU runner so package-level parallelism does
-          # not waste context switches. The stress comes from -parallel=16
-          # inside each package (4x oversub), which is where t.Parallel()
-          # ordering bugs surface.
           test-parallelism-packages: "4"
           test-parallelism-tests: "16"
-          # 25 reps gives ~93% catch rate on a 10%-per-iteration flake while
-          # staying inside the 20m per-test timeout for a coalesced run.
           test-count: "25"
-          test-packages: ${{ fromJSON(needs.select_tests.outputs.matrix).include[0].package }}
-          run-regex: ${{ fromJSON(needs.select_tests.outputs.matrix).include[0].run_regex }}
+          test-packages: ${{ fromJSON(steps.selector.outputs.matrix).include[0].package }}
+          run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
           test-shuffle: "on"
           gotestsum-json-file: default
 
       - name: Publish Go test failure report
-        if: failure() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        if: ${{ steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
         uses: ./.github/actions/go-test-failure-report
         with:
           artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
