@@ -195,6 +195,10 @@ newStream:
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.setCredentialHint(key.Hint())
+			logger.Debug(ctx, "using centralized api key", slog.F("credential_hint", key.Hint()))
+
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover

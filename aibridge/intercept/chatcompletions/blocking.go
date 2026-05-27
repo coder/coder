@@ -291,15 +291,15 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 // 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller.
 func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
 			return nil, keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.setCredentialHint(key.Hint())
+		i.logger.Debug(ctx, "using centralized api key", slog.F("credential_hint", key.Hint()))
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

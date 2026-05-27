@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -60,36 +61,40 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 		expectedRetryAfter   string
 		// Expected key states after the request, by index in keys.
 		expectedKeyStates []keypool.KeyState
+		// Expected credential hint after ProcessRequest: last
+		// attempted key for centralized, request hint for BYOK.
+		expectedCredentialHint string
 	}{
 		{
 			// Given: 1 valid key returning a successful stream.
 			// Then: 1 request, 200 response, key remains valid.
 			name: "single_valid_key",
-			keys: []string{"k0"},
+			keys: []string{"k0-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {
+				"k0-long-key": {
 					statusCode: http.StatusOK,
 					headers:    map[string]string{"Content-Type": "text/event-stream"},
 					body:       streamingSuccessBody,
 				},
 			},
-			expectedRequestCount: 1,
-			expectedStatusCode:   http.StatusOK,
-			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateValid},
+			expectedRequestCount:   1,
+			expectedStatusCode:     http.StatusOK,
+			expectedKeyStates:      []keypool.KeyState{keypool.KeyStateValid},
+			expectedCredentialHint: utils.MaskSecret("k0-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 returns 429 pre-stream, key-1
 			// streams successfully.
 			// Then: 2 requests, 200 response, key-0 temporary, key-1 valid.
 			name: "failover_after_429",
-			keys: []string{"k0", "k1"},
+			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {
+				"k0-long-key": {
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "5"},
 					body:       rateLimitBody,
 				},
-				"k1": {
+				"k1-long-key": {
 					statusCode: http.StatusOK,
 					headers:    map[string]string{"Content-Type": "text/event-stream"},
 					body:       streamingSuccessBody,
@@ -101,16 +106,17 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 returns 401 pre-stream, key-1
 			// streams successfully.
 			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
 			name: "failover_after_401",
-			keys: []string{"k0", "k1"},
+			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {statusCode: http.StatusUnauthorized, body: authErrorBody},
-				"k1": {
+				"k0-long-key": {statusCode: http.StatusUnauthorized, body: authErrorBody},
+				"k1-long-key": {
 					statusCode: http.StatusOK,
 					headers:    map[string]string{"Content-Type": "text/event-stream"},
 					body:       streamingSuccessBody,
@@ -122,15 +128,16 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 returns 403 pre-stream, key-1 streams.
 			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
 			name: "failover_after_403",
-			keys: []string{"k0", "k1"},
+			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {statusCode: http.StatusForbidden, body: authErrorBody},
-				"k1": {
+				"k0-long-key": {statusCode: http.StatusForbidden, body: authErrorBody},
+				"k1-long-key": {
 					statusCode: http.StatusOK,
 					headers:    map[string]string{"Content-Type": "text/event-stream"},
 					body:       streamingSuccessBody,
@@ -142,6 +149,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
 			// Given: 3 keys; all return 429 pre-stream with
@@ -149,19 +157,19 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			// Then: 3 requests, 429 response with smallest
 			// Retry-After, all keys temporary.
 			name: "all_keys_rate_limited",
-			keys: []string{"k0", "k1", "k2"},
+			keys: []string{"k0-long-key", "k1-long-key", "k2-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {
+				"k0-long-key": {
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "5"},
 					body:       rateLimitBody,
 				},
-				"k1": {
+				"k1-long-key": {
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "3"},
 					body:       rateLimitBody,
 				},
-				"k2": {
+				"k2-long-key": {
 					statusCode: http.StatusTooManyRequests,
 					headers:    map[string]string{"Retry-After": "10"},
 					body:       rateLimitBody,
@@ -175,15 +183,16 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
 			},
+			expectedCredentialHint: utils.MaskSecret("k2-long-key"),
 		},
 		{
 			// Given: 2 keys; both return 401 pre-stream.
 			// Then: 2 requests, 502 api_error response, both keys permanent.
 			name: "all_keys_unauthorized",
-			keys: []string{"k0", "k1"},
+			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {statusCode: http.StatusUnauthorized, body: authErrorBody},
-				"k1": {statusCode: http.StatusUnauthorized, body: authErrorBody},
+				"k0-long-key": {statusCode: http.StatusUnauthorized, body: authErrorBody},
+				"k1-long-key": {statusCode: http.StatusUnauthorized, body: authErrorBody},
 			},
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusBadGateway,
@@ -191,14 +200,15 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStatePermanent,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 returns 500 pre-stream.
 			// Then: 1 request, 500 response, both keys remain valid.
 			name: "server_error_no_failover",
-			keys: []string{"k0", "k1"},
+			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
-				"k0": {statusCode: http.StatusInternalServerError, body: serverErrorBody},
+				"k0-long-key": {statusCode: http.StatusInternalServerError, body: serverErrorBody},
 			},
 			expectedRequestCount: 1,
 			expectedStatusCode:   http.StatusInternalServerError,
@@ -206,6 +216,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStateValid,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k0-long-key"),
 		},
 		{
 			// Given: BYOK with a single key returning 429.
@@ -226,9 +237,10 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 					body: rateLimitBody,
 				},
 			},
-			expectedRequestCount: 1,
-			expectedStatusCode:   http.StatusTooManyRequests,
-			expectedRetryAfter:   "5",
+			expectedRequestCount:   1,
+			expectedStatusCode:     http.StatusTooManyRequests,
+			expectedRetryAfter:     "5",
+			expectedCredentialHint: utils.MaskSecret("user-byok"),
 		},
 	}
 
@@ -258,6 +270,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 
 			cfg := config.Anthropic{BaseURL: upstream.URL + "/"}
 			var pool *keypool.Pool
+			credInfo := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
 			if len(tc.keys) > 0 {
 				var err error
 				pool, err = keypool.New(tc.keys, quartz.NewMock(t))
@@ -265,6 +278,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				cfg.KeyPool = pool
 			} else if tc.byokKey != "" {
 				cfg.Key = tc.byokKey
+				credInfo = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, utils.MaskSecret(tc.byokKey))
 			}
 
 			payload, err := NewRequestPayload([]byte(requestBody))
@@ -279,7 +293,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 				http.Header{},
 				"X-Api-Key",
 				otel.Tracer("streaming_test"),
-				intercept.NewCredentialInfo(intercept.CredentialKindCentralized, ""),
+				credInfo,
 			)
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 
@@ -301,6 +315,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			if pool != nil {
 				assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
 			}
+			assert.Equal(t, tc.expectedCredentialHint, interceptor.Credential().Hint, "credential hint")
 		})
 	}
 }
@@ -387,6 +402,9 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 		// error (e.g. all keys exhausted).
 		expectedErr       bool
 		expectedKeyStates []keypool.KeyState
+		// Expected credential hint after ProcessRequest: hint of the
+		// last attempted key across all agentic-loop iterations.
+		expectedCredentialHint string
 	}{
 		{
 			// Given: 2 keys; both upstream calls succeed on key-0.
@@ -397,13 +415,14 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
 			},
 			expectedRequestCount:  2,
-			expectedSeenKeys:      []string{"k0", "k0"},
+			expectedSeenKeys:      []string{"k0-long-key", "k0-long-key"},
 			expectedBodyContains:  "done",
 			expectErrorAsSSEEvent: false,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateValid,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k0-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 succeeds initially, then 429s
@@ -421,13 +440,14 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				{statusCode: http.StatusOK, headers: sseHeaders, body: textStreamBody},
 			},
 			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
+			expectedSeenKeys:      []string{"k0-long-key", "k0-long-key", "k1-long-key"},
 			expectedBodyContains:  "done",
 			expectErrorAsSSEEvent: false,
 			expectedKeyStates: []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
 			// Given: 2 keys; key-0 succeeds initially, then both
@@ -453,7 +473,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				},
 			},
 			expectedRequestCount:  3,
-			expectedSeenKeys:      []string{"k0", "k0", "k1"},
+			expectedSeenKeys:      []string{"k0-long-key", "k0-long-key", "k1-long-key"},
 			expectedBodyContains:  "all configured keys are rate-limited",
 			expectErrorAsSSEEvent: true,
 			expectedErr:           true,
@@ -461,6 +481,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
 			},
+			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 	}
 
@@ -494,7 +515,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 
-			pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+			pool, err := keypool.New([]string{"k0-long-key", "k1-long-key"}, quartz.NewMock(t))
 			require.NoError(t, err)
 
 			cfg := config.Anthropic{
@@ -553,6 +574,7 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			defer seenKeysMu.Unlock()
 			assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
 			assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
+			assert.Equal(t, tc.expectedCredentialHint, interceptor.Credential().Hint, "credential hint")
 		})
 	}
 }

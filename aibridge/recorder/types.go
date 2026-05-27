@@ -39,13 +39,21 @@ type InterceptionRecord struct {
 	Client                string
 	UserAgent             string
 	CorrelatingToolCallID *string
-	CredentialKind        string
-	CredentialHint        string
+	// CredentialKind is always set: either BYOK or centralized.
+	CredentialKind string
+	// CredentialHint is only set for BYOK, where the key is known
+	// from the request. Centralized uses key failover, so the hint
+	// can only be determined at end-of-interception.
+	CredentialHint string
 }
 
 type InterceptionRecordEnded struct {
 	ID      string
 	EndedAt time.Time
+	// CredentialHint is set for centralized to the key that
+	// succeeded, or the last attempted key if all failed. Empty for
+	// BYOK, which sets it at the start.
+	CredentialHint string
 }
 
 type TokenUsageRecord struct {

@@ -367,15 +367,15 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // Errors that aren't key-specific don't trigger failover and
 // are returned to the caller.
 func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
 			return nil, keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.setCredentialHint(key.Hint())
+		i.logger.Debug(ctx, "using centralized api key", slog.F("credential_hint", key.Hint()))
 
 		msg, err := i.newMessageWithKey(ctx, svc,
 			option.WithAPIKey(key.Value()),
