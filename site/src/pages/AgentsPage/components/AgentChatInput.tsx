@@ -997,9 +997,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{agentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">
-					{agentSetupNotice}
-				</div>
+				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
 			)}
 			<div
 				ref={setComposerElement}
