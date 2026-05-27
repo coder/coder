@@ -54,6 +54,37 @@ jobs:
           corepack enable pnpm
           mkdir -p "$(pnpm store path --silent)"
 
+      - name: Resolve Linkspector Puppeteer version
+        id: linkspector-puppeteer
+        run: |
+          set -euo pipefail
+
+          range="$(npm view @umbrelladocs/linkspector@0.4.7 dependencies.puppeteer)"
+          version="$(
+            npm view "puppeteer@${range}" version --json |
+              node -e '
+                let input = "";
+                process.stdin.on("data", (chunk) => { input += chunk; });
+                process.stdin.on("end", () => {
+                  const versions = JSON.parse(input);
+                  console.log(Array.isArray(versions) ? versions.at(-1) : versions);
+                });
+              '
+          )"
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Puppeteer browser cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ runner.arch }}-${{ steps.linkspector-puppeteer.outputs.version }}
+
+      - name: Install Linkspector Chrome
+        run: npx --yes "puppeteer@${PUPPETEER_VERSION}" browsers install chrome
+        env:
+          PUPPETEER_VERSION: ${{ steps.linkspector-puppeteer.outputs.version }}
+
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
         id: markdown-link-check
