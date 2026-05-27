@@ -86,10 +86,19 @@ jobs:
             # previous preview comment now points at a deleted page;
             # delete it so readers don't follow a dead deep-link.
             #
-            # Intentionally not piped into head so that a gh-api failure
-            # propagates immediately instead of being swallowed by
-            # `|| true`, matching the all_files pattern above.
-            stale_comment_ids=$(list_docs_preview_comments)
+            # Intentionally decoupled from head so that a gh-api failure
+            # propagates here instead of being swallowed by `|| true`. In
+            # this branch the workflow has no preview link to post anyway
+            # (no Markdown in the push), so a transient list failure is a
+            # cosmetic miss; log and exit cleanly rather than red-checking
+            # every docs-touching PR during a comments-endpoint hiccup.
+            # The next push will retry the cleanup. The upsert path below
+            # uses strict propagation by contrast, because silent failure
+            # there would create duplicate comments.
+            stale_comment_ids=$(list_docs_preview_comments) || {
+              echo "Could not list preview comments; skipping cleanup."
+              exit 0
+            }
             stale_id=$(printf '%s\n' "$stale_comment_ids" | head -n 1) || true
 
             if [ -n "$stale_id" ]; then
