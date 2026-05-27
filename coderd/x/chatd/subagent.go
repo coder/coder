@@ -1033,7 +1033,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
 
-		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: insertedChat.ID,
 		}
 		if deploymentPrompt != "" {
@@ -1090,7 +1090,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: insertedChat.ID,
 		}
 		childUserMsg := newUserChatMessage(

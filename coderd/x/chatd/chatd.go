@@ -1629,7 +1629,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
 
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: insertedChat.ID,
 		}
 
@@ -2113,7 +2113,7 @@ func (p *Server) EditMessage(
 		// InsertChatMessages CTE updates chats.last_model_config_id
 		// when the new message's model differs, so the assistant turn
 		// that follows picks up the new selection.
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: opts.ChatID,
 		}
 		editUserMsg := newUserChatMessage(
@@ -4015,14 +4015,16 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
-// appendChatMessage appends a non-user message to the batch insert params.
-// For user messages, use appendUserChatMessage instead.
-func appendChatMessage(
+// appendMessageFields appends the common fields from a chatMessage to the
+// batch insert params. apiKeyID is passed explicitly so that non-user
+// messages always get "" and user messages get the caller's key.
+func appendMessageFields(
 	params *database.InsertChatMessagesParams,
 	msg chatMessage,
+	apiKeyID string,
 ) {
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
-	params.APIKeyID = append(params.APIKeyID, "")
+	params.APIKeyID = append(params.APIKeyID, apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
 	params.Role = append(params.Role, msg.role)
 	params.Content = append(params.Content, string(msg.content.RawMessage))
@@ -4039,6 +4041,15 @@ func appendChatMessage(
 	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
+}
+
+// appendChatMessage appends a non-user message to the batch insert params.
+// For user messages, use appendUserChatMessage instead.
+func appendChatMessage(
+	params *database.InsertChatMessagesParams,
+	msg chatMessage,
+) {
+	appendMessageFields(params, msg, "")
 }
 
 // appendUserChatMessage appends a user message to the batch insert params.
@@ -4047,46 +4058,7 @@ func appendUserChatMessage(
 	params *database.InsertChatMessagesParams,
 	msg userChatMessage,
 ) {
-	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
-	params.APIKeyID = append(params.APIKeyID, msg.apiKeyID)
-	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
-	params.Role = append(params.Role, msg.role)
-	params.Content = append(params.Content, string(msg.content.RawMessage))
-	params.ContentVersion = append(params.ContentVersion, msg.contentVersion)
-	params.Visibility = append(params.Visibility, msg.visibility)
-	params.InputTokens = append(params.InputTokens, msg.inputTokens)
-	params.OutputTokens = append(params.OutputTokens, msg.outputTokens)
-	params.TotalTokens = append(params.TotalTokens, msg.totalTokens)
-	params.ReasoningTokens = append(params.ReasoningTokens, msg.reasoningTokens)
-	params.CacheCreationTokens = append(params.CacheCreationTokens, msg.cacheCreationTokens)
-	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
-	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
-	params.Compressed = append(params.Compressed, msg.compressed)
-	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
-	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
-	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
-}
-
-// BuildSingleChatMessageInsertParams creates batch insert params for one
-// message using the shared chat message builder.
-func BuildSingleChatMessageInsertParams(
-	chatID uuid.UUID,
-	role database.ChatMessageRole,
-	content pqtype.NullRawMessage,
-	visibility database.ChatMessageVisibility,
-	modelConfigID uuid.UUID,
-	contentVersion int16,
-	createdBy uuid.UUID,
-) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-		ChatID: chatID,
-	}
-	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
-	if createdBy != uuid.Nil {
-		msg = msg.withCreatedBy(createdBy)
-	}
-	appendChatMessage(&params, msg)
-	return params
+	appendMessageFields(params, msg.chatMessage, msg.apiKeyID)
 }
 
 // BuildSingleUserChatMessageInsertParams creates batch insert params for
@@ -4122,7 +4094,7 @@ func insertUserMessageAndSetPending(
 	createdBy uuid.UUID,
 	apiKeyID string,
 ) (database.ChatMessage, database.Chat, error) {
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 		ChatID: lockedChat.ID,
 	}
 	insertUserMsg := newUserChatMessage(
@@ -5946,7 +5918,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		return nil, nil, false, xerrors.New("popped queued message out of order")
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 		ChatID: chat.ID,
 	}
 	queuedUserMsg := newUserChatMessage(
@@ -7729,7 +7701,7 @@ func (p *Server) runChat(
 				}
 			}
 
-			stepParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			stepParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 				ChatID: chat.ID,
 			}
 
@@ -8535,7 +8507,7 @@ func (p *Server) persistChatContextSummary(
 	var insertedMessages []database.ChatMessage
 
 	txErr := p.db.InTx(func(tx database.Store) error {
-		summaryParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		summaryParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: chatID,
 		}
 
@@ -9080,12 +9052,12 @@ func (p *Server) persistInstructionFiles(
 		if err != nil {
 			return "", nil, nil
 		}
-		blankAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		contextAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: chat.ID,
 		}
 		appendUserChatMessage(&msgParams, newUserChatMessage(
-			blankAPIKeyID,
+			contextAPIKeyID,
 			content,
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
