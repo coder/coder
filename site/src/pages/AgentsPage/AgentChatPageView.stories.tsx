@@ -512,12 +512,12 @@ export const MissingProviderAndModelSetup: Story = {
 
 		await waitFor(() => {
 			expect(
-				canvas.getByText((_content, element) => {
+				canvas.getAllByText((_content, element) => {
 					return (
 						element?.textContent ===
 						"To chat with Coder Agents, set up a provider then add a model."
 					);
-				}),
+				})[0],
 			).toBeVisible();
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
@@ -547,12 +547,12 @@ export const MissingModelSetup: Story = {
 
 		await waitFor(() => {
 			expect(
-				canvas.getByText((_content, element) => {
+				canvas.getAllByText((_content, element) => {
 					return (
 						element?.textContent ===
 						"To chat with Coder Agents, set up a model."
 					);
-				}),
+				})[0],
 			).toBeVisible();
 		});
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
@@ -575,12 +575,12 @@ export const MissingProviderSetup: Story = {
 
 		await waitFor(() => {
 			expect(
-				canvas.getByText((_content, element) => {
+				canvas.getAllByText((_content, element) => {
 					return (
 						element?.textContent ===
 						"To chat with Coder Agents, set up a provider."
 					);
-				}),
+				})[0],
 			).toBeVisible();
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
