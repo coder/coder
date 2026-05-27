@@ -2,9 +2,12 @@ import type { FC } from "react";
 import { cn } from "#/utils/cn";
 
 /**
- * Shared SVG ring (donut) progress indicator. Both UsageIndicator and
- * ContextUsageIndicator use this to avoid duplicating the SVG circle
- * pattern.
+ * SVG ring (donut) progress indicator.
+ *
+ * The rendered SVG is aria-hidden; callers must provide an accessible
+ * wrapper (e.g. a progressbar role or labeled button).
+ *
+ * @param percent - Fill percentage, clamped to [0, 100].
  */
 export const SvgRingProgress: FC<{
 	size: number;

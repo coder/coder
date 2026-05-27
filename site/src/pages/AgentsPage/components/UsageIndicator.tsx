@@ -83,7 +83,7 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
-			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
+			hoverLabel: `Spend ${formatCostMicros(currentSpend)}/${formatCostMicros(spendLimit)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
@@ -173,7 +173,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	);
 };
 
-const RING_SIZE = 32;
+const RING_SIZE = 28;
 const RING_STROKE = 1;
 
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({

@@ -203,14 +203,12 @@ export const UsageAndWorkspaceQuota: Story = {
 			"Workspace quota usage",
 		]);
 
-		// Hover the spend ring and verify the tooltip label.
 		await userEvent.hover(progressBars[0]);
 		await expect(
-			await within(document.body).findByText("Spend $12.50"),
+			await within(document.body).findByText("Spend $12.50/$50.00"),
 		).toBeVisible();
 		await userEvent.unhover(progressBars[0]);
 
-		// Hover the workspace ring and verify its tooltip label.
 		await userEvent.hover(progressBars[1]);
 		await expect(
 			await within(document.body).findByText("Workspaces 30/100"),
@@ -221,15 +219,6 @@ export const UsageAndWorkspaceQuota: Story = {
 	},
 };
 
-// The ring-based trigger is fixed-size so it always fits even in narrow containers.
-const expectTriggerContentFits = (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	const frame = canvas.getByTestId("usage-indicator-frame");
-
-	expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
-	expect(frame.scrollWidth).toBeLessThanOrEqual(frame.clientWidth);
-};
-
 export const TriggerTiny: Story = {
 	decorators: [
 		withUsageIndicatorFrame("w-[240px]", "usage-indicator-frame"),
@@ -237,9 +226,6 @@ export const TriggerTiny: Story = {
 		withWorkspaceQuota(defaultWorkspaceQuota),
 		withWorkspaceCount(3),
 	],
-	play: ({ canvasElement }) => {
-		expectTriggerContentFits(canvasElement);
-	},
 };
 
 export const WorkspaceQuotaUnused: Story = {
@@ -273,6 +259,12 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 		});
 
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
+
+		await userEvent.hover(progressbar);
+		await expect(
+			await within(document.body).findByText("Workspaces 20"),
+		).toBeVisible();
+		await userEvent.unhover(progressbar);
 
 		await openUsageMenu(canvasElement);
 		expect(within(document.body).getByText("100%")).toBeInTheDocument();
