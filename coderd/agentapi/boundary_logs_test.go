@@ -170,7 +170,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.NotNil(t, resp)
 	})
 
-	t.Run("SessionCachedAfterFirstBatch", func(t *testing.T) {
+	t.Run("SessionLookedUpOnEveryBatch", func(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
@@ -194,6 +194,13 @@ func TestReportBoundaryLogs(t *testing.T) {
 			InsertBoundarySession(gomock.Any(), gomock.Any()).
 			Return(database.BoundarySession{ID: sessionID}, nil).
 			Times(1)
+
+		// Second batch: session now exists in the database.
+		dbM.EXPECT().
+			GetBoundarySessionByID(gomock.Any(), sessionID).
+			Return(database.BoundarySession{ID: sessionID}, nil).
+			Times(1)
+
 		dbM.EXPECT().
 			InsertBoundaryLog(gomock.Any(), gomock.Any()).
 			Return(database.BoundaryLog{}, nil).
@@ -221,8 +228,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 		_, err := api.ReportBoundaryLogs(context.Background(), req)
 		require.NoError(t, err)
 
-		// Second call should NOT call GetBoundarySessionByID or
-		// InsertBoundarySession because the session is cached.
+		// Second call looks up the session again in the database.
 		req.Logs[0].SequenceNumber = 1
 		_, err = api.ReportBoundaryLogs(context.Background(), req)
 		require.NoError(t, err)

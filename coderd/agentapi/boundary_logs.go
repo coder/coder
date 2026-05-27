@@ -3,7 +3,6 @@ package agentapi
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,12 +24,6 @@ type BoundaryLogsAPI struct {
 	TemplateID           uuid.UUID
 	TemplateVersionID    uuid.UUID
 	BoundaryUsageTracker *boundaryusage.Tracker
-
-	// knownSessions tracks session IDs that have already been created
-	// in the database during this connection's lifetime, avoiding
-	// redundant lookups on every batch.
-	knownSessionsMu sync.Mutex
-	knownSessions   map[uuid.UUID]struct{}
 }
 
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
@@ -113,27 +106,12 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 }
 
 // ensureSession creates the boundary_sessions row if it does not
-// already exist. The check is cached in-memory so that subsequent
-// batches for the same session skip the database round-trip.
+// already exist.
 func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID, confinedProcess string, now time.Time) error {
-	a.knownSessionsMu.Lock()
-	if a.knownSessions == nil {
-		a.knownSessions = make(map[uuid.UUID]struct{})
-	}
-	_, known := a.knownSessions[sessionID]
-	a.knownSessionsMu.Unlock()
-
-	if known {
-		return nil
-	}
-
 	// Check the database in case another replica or reconnection
 	// already created this session.
 	_, err := a.Database.GetBoundarySessionByID(ctx, sessionID)
 	if err == nil {
-		a.knownSessionsMu.Lock()
-		a.knownSessions[sessionID] = struct{}{}
-		a.knownSessionsMu.Unlock()
 		return nil
 	}
 
@@ -147,21 +125,15 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		UpdatedAt:           now,
 	})
 	if err != nil {
-		// If another goroutine or replica raced us, the insert
-		// will fail with a unique constraint violation. Treat
-		// that as success.
+		// If another replica raced us, the insert will fail
+		// with a unique constraint violation. Treat that as
+		// success.
 		if database.IsUniqueViolation(err, database.UniqueBoundarySessionsPkey) {
-			a.knownSessionsMu.Lock()
-			a.knownSessions[sessionID] = struct{}{}
-			a.knownSessionsMu.Unlock()
 			return nil
 		}
 		return xerrors.Errorf("insert boundary session: %w", err)
 	}
 
-	a.knownSessionsMu.Lock()
-	a.knownSessions[sessionID] = struct{}{}
-	a.knownSessionsMu.Unlock()
 	return nil
 }
 
