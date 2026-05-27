@@ -64,10 +64,10 @@ jobs:
           fi
 
           # Map the repo path to the docs site URL path.
-          #   docs/README.md           ->  ""           (docs root)
-          #   docs/<dir>/index.md      ->  "<dir>"      (directory index)
-          #   docs/<dir>/README.md     ->  "<dir>"      (directory index)
-          #   docs/<dir>/<file>.md     ->  "<dir>/<file>"
+          #   docs/README.md           -> ""           (docs root)
+          #   docs/<dir>/index.md      -> "<dir>"      (directory index)
+          #   docs/<dir>/README.md     -> "<dir>"      (directory index)
+          #   docs/<dir>/<file>.md     -> "<dir>/<file>"
           rel="${first_doc#docs/}"
           case "$rel" in
             README.md)
