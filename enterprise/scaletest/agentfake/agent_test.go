@@ -13,9 +13,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
@@ -27,47 +24,40 @@ import (
 // Assert that our fake agent routine establishes the drpc connection and sets its lifecycle status to Ready.
 func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	client, db := coderdtest.NewWithDatabase(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	a := agentfake.NewAgent(client.URL, r.AgentToken, logger)
-	t.Cleanup(func() { a.Close() })
+	agentID := uuid.New()
+	manifest := agentsdk.Manifest{
+		AgentID:     agentID,
+		WorkspaceID: uuid.New(),
+	}
+	statsCh := make(chan *agentproto.Stats, 1)
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() { _ = coord.Close() })
+	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
+	t.Cleanup(dialer.Close)
+
+	a := agentfake.NewAgent(nil, "", logger, agentfake.WithDialer(dialer))
+	t.Cleanup(a.Close)
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
 	runErr := make(chan error, 1)
-	go func() {
-		runErr <- a.Run(runCtx)
-	}()
+	go func() { runErr <- a.Run(runCtx) }()
 
-	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
-		WithContext(ctx).
-		Wait()
-
+	// The fake agent sends UpdateLifecycle(READY) once per dRPC
+	// connect; agenttest records every lifecycle update.
 	require.Eventually(t, func() bool {
-		ws, err := client.Workspace(ctx, r.Workspace.ID)
-		if err != nil {
-			return false
-		}
-		for _, res := range ws.LatestBuild.Resources {
-			for _, agent := range res.Agents {
-				if agent.LifecycleState != codersdk.WorkspaceAgentLifecycleReady {
-					return false
-				}
+		for _, state := range dialer.GetLifecycleStates() {
+			if state == codersdk.WorkspaceAgentLifecycleReady {
+				return true
 			}
 		}
-		return true
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"agent never reached Lifecycle=ready in workspace %s", r.Workspace.ID)
+		return false
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"agent never reported Lifecycle=ready")
 
 	// Cancel Run and confirm a clean exit (nil error, not ctx error).
 	cancel()
