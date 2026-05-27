@@ -460,11 +460,6 @@ func (s *localSub) init() {
 			select {
 			case <-s.ctx.Done():
 				return
-			default:
-			}
-			select {
-			case <-s.ctx.Done():
-				return
 			case data := <-s.queue:
 				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
