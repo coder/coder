@@ -8547,7 +8547,7 @@ func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
 			})
 
 			require.NoError(t, tt.call(ctx, client, chat.ID))
-			require.Equal(t, wantAPIKeyID, <-seenAPIKeyID)
+			require.Equal(t, wantAPIKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 		})
 	}
 }

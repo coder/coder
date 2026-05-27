@@ -668,7 +668,7 @@ func TestGenerateManualTitleCandidate_ActiveAPIKeyIDFallback(t *testing.T) {
 			require.Equal(t, wantTitle, result.title)
 			require.True(t, result.hasMessages)
 			require.Equal(t, tt.wantAPIKeyID, result.activeAPIKeyID)
-			require.Equal(t, tt.wantAPIKeyID, <-seenAPIKeyID)
+			require.Equal(t, tt.wantAPIKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 		})
 	}
 }
