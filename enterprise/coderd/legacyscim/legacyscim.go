@@ -1,11 +1,13 @@
-// Package legacyscim contains the legacy SCIM 1.1-era (alleged 2.0) handler
-// implementation. For backwards compatibility during the transition, this package
-// is preserved in May 2026. Remove this package in it's entirely and rely on the
-// new Scim 2.0 implementation in enterprise/coderd/scim after the transition is complete.
+// Package legacyscim preserves the old imulab/go-scim based SCIM handler.
+// It was added in May 2026 to keep an opt-out path available during the
+// rollout of the new SCIM 2.0 implementation in
+// enterprise/coderd/scim. Once that implementation has run in production
+// for a while and the CODER_SCIM_USE_LEGACY default is flipped, remove
+// this package in its entirety.
 //
-// It can be enabled via the UseLegacySCIM option.
+// Enabled via the UseLegacySCIM option.
 //
-// Deprecated: Use the new enterprise/coderd/scim package instead.
+// Deprecated: Use the enterprise/coderd/scim package instead.
 package legacyscim
 
 import (

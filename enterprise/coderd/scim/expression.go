@@ -28,9 +28,9 @@ func userQuery(expr filter.Expression) (database.GetUsersParams, error) {
 	var getUsers database.GetUsersParams
 	switch attrExpr.AttributePath.AttributeName {
 	case "userName":
-		getUsers.Exactusername = attrValue
+		getUsers.ExactUsername = attrValue
 	case "email":
-		getUsers.Exactemail = attrValue
+		getUsers.ExactEmail = attrValue
 	default:
 		return database.GetUsersParams{}, xerrors.Errorf("unsupported filter attribute: %s", attrExpr.AttributePath.AttributeName)
 	}

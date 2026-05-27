@@ -488,14 +488,14 @@ WHERE
 	END
 	-- Filter by exact username
 	AND CASE
-	  WHEN @exactUsername :: text != '' THEN
-		  lower(username) = lower(@exactUsername)
+	  WHEN @exact_username :: text != '' THEN
+		  lower(username) = lower(@exact_username)
 	  ELSE true
 	END
   	-- Filter by exact email
   	AND CASE
-	  WHEN @exactEmail :: text != '' THEN
-		  lower(email) = lower(@exactEmail)
+	  WHEN @exact_email :: text != '' THEN
+		  lower(email) = lower(@exact_email)
 	  ELSE true
 	END
 	-- Filter by status
