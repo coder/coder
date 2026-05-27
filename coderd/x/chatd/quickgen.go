@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -69,7 +68,37 @@ var preferredTitleModels = []struct {
 type shortTextCandidate struct {
 	provider string
 	model    string
+	route    resolvedModelRoute
 	lm       fantasy.LanguageModel
+}
+
+func (p *Server) preferredShortTextCandidates(
+	chat database.Chat,
+	keys chatprovider.ProviderAPIKeys,
+) []shortTextCandidate {
+	if p.shouldUseAIGatewayRouting() {
+		return nil
+	}
+
+	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
+	userAgent := chatprovider.UserAgent()
+	extraHeaders := chatprovider.CoderHeaders(chat)
+	for _, candidate := range preferredTitleModels {
+		model, err := chatprovider.ModelFromConfig(
+			candidate.provider, candidate.model, keys, userAgent,
+			extraHeaders,
+			nil,
+		)
+		if err == nil {
+			candidates = append(candidates, shortTextCandidate{
+				provider: candidate.provider,
+				model:    candidate.model,
+				route:    newDirectModelRoute(candidate.provider, keys),
+				lm:       model,
+			})
+		}
+	}
+	return candidates
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
@@ -121,7 +150,9 @@ func (p *Server) maybeGenerateChatTitle(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
+	fallbackRoute resolvedModelRoute,
 	keys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
@@ -135,10 +166,11 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, _, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
 		keys,
+		modelOpts,
 	)
 	if overrideErr != nil {
 		if overrideSet {
@@ -161,29 +193,15 @@ func (p *Server) maybeGenerateChatTitle(
 		candidates = []shortTextCandidate{{
 			provider: overrideConfig.Provider,
 			model:    overrideConfig.Model,
+			route:    overrideRoute,
 			lm:       overrideModel,
 		}}
 	} else {
-		// Build candidate list: preferred lightweight models first,
-		// then the user's chat model as last resort.
-		candidates = make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-		for _, c := range preferredTitleModels {
-			m, err := chatprovider.ModelFromConfig(
-				c.provider, c.model, keys, chatprovider.UserAgent(),
-				chatprovider.CoderHeaders(chat),
-				nil,
-			)
-			if err == nil {
-				candidates = append(candidates, shortTextCandidate{
-					provider: c.provider,
-					model:    c.model,
-					lm:       m,
-				})
-			}
-		}
+		candidates = p.preferredShortTextCandidates(chat, keys)
 		candidates = append(candidates, shortTextCandidate{
 			provider: fallbackProvider,
 			model:    fallbackModelName,
+			route:    fallbackRoute,
 			lm:       fallbackModel,
 		})
 	}
@@ -214,12 +232,12 @@ func (p *Server) maybeGenerateChatTitle(
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
 		if debugEnabled {
-			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
+			candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
 				titleCtx,
 				chat,
-				keys,
 				debugSvc,
 				candidate,
+				modelOpts,
 				chatdebug.KindTitleGeneration,
 				triggerMessageID,
 				historyTipMessageID,
@@ -289,31 +307,25 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 }
 
-func newQuickgenDebugModel(
+func (p *Server) newQuickgenDebugModel(
+	ctx context.Context,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 	debugSvc *chatdebug.Service,
 	provider string,
 	model string,
+	route resolvedModelRoute,
+	modelOpts modelBuildOptions,
 ) (fantasy.LanguageModel, error) {
-	httpClient := &http.Client{Transport: &chatdebug.RecordingTransport{}}
-	debugModel, err := chatprovider.ModelFromConfig(
-		provider,
-		model,
-		keys,
-		chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-		httpClient,
-	)
+	debugOpts := modelOpts
+	debugOpts.RecordHTTP = true
+	debugModel, err := p.newModel(ctx, modelClientRequest{
+		Chat:         chat,
+		ModelName:    model,
+		UserAgent:    chatprovider.UserAgent(),
+		ExtraHeaders: chatprovider.CoderHeaders(chat),
+	}, route, debugOpts)
 	if err != nil {
 		return nil, err
-	}
-	if debugModel == nil {
-		return nil, xerrors.Errorf(
-			"create model for %s/%s returned nil",
-			provider,
-			model,
-		)
 	}
 
 	return chatdebug.WrapModel(debugModel, debugSvc, chatdebug.RecorderOptions{
@@ -324,12 +336,12 @@ func newQuickgenDebugModel(
 	}), nil
 }
 
-func prepareQuickgenDebugCandidate(
+func (p *Server) prepareQuickgenDebugCandidate(
 	ctx context.Context,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 	debugSvc *chatdebug.Service,
 	candidate shortTextCandidate,
+	modelOpts modelBuildOptions,
 	kind chatdebug.RunKind,
 	triggerMessageID int64,
 	historyTipMessageID int64,
@@ -341,12 +353,14 @@ func prepareQuickgenDebugCandidate(
 		return ctx, candidate.lm, finishDebugRun
 	}
 
-	debugModel, err := newQuickgenDebugModel(
+	debugModel, err := p.newQuickgenDebugModel(
+		ctx,
 		chat,
-		keys,
 		debugSvc,
 		candidate.provider,
 		candidate.model,
+		candidate.route,
+		modelOpts,
 	)
 	if err != nil {
 		logger.Warn(ctx, "failed to build short-text debug model",
@@ -389,18 +403,8 @@ func prepareQuickgenDebugCandidate(
 		return ctx, candidate.lm, finishDebugRun
 	}
 
-	runCtx := chatdebug.ContextWithRun(
-		ctx,
-		&chatdebug.RunContext{
-			RunID:               run.ID,
-			ChatID:              chat.ID,
-			TriggerMessageID:    triggerMessageID,
-			HistoryTipMessageID: historyTipMessageID,
-			Kind:                kind,
-			Provider:            candidate.provider,
-			Model:               candidate.model,
-		},
-	)
+	runContext := chatdebugRunContext(run)
+	runCtx := chatdebug.ContextWithRun(ctx, &runContext)
 	finishDebugRun = func(runErr error) {
 		if finalizeErr := debugSvc.FinalizeRun(ctx, chatdebug.FinalizeRunParams{
 			RunID:       run.ID,
@@ -820,7 +824,7 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 // message text. It follows the same candidate-selection strategy
 // as title generation: try preferred lightweight models first, then
 // fall back to the provided model. Returns "" on any failure.
-func generateTurnStatusLabel(
+func (p *Server) generateTurnStatusLabel(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
@@ -828,7 +832,9 @@ func generateTurnStatusLabel(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
+	fallbackRoute resolvedModelRoute,
 	keys chatprovider.ProviderAPIKeys,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 	triggerMessageID int64,
@@ -844,24 +850,11 @@ func generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-	for _, c := range preferredTitleModels {
-		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys, chatprovider.UserAgent(),
-			chatprovider.CoderHeaders(chat),
-			nil,
-		)
-		if err == nil {
-			candidates = append(candidates, shortTextCandidate{
-				provider: c.provider,
-				model:    c.model,
-				lm:       m,
-			})
-		}
-	}
+	candidates := p.preferredShortTextCandidates(chat, keys)
 	candidates = append(candidates, shortTextCandidate{
 		provider: fallbackProvider,
 		model:    fallbackModelName,
+		route:    fallbackRoute,
 		lm:       fallbackModel,
 	})
 
@@ -872,12 +865,12 @@ func generateTurnStatusLabel(
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
 		if debugEnabled {
-			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
+			candidateCtx, candidateModel, finishDebugRun = p.prepareQuickgenDebugCandidate(
 				labelCtx,
 				chat,
-				keys,
 				debugSvc,
 				candidate,
+				modelOpts,
 				chatdebug.KindQuickgen,
 				triggerMessageID,
 				historyTipMessageID,

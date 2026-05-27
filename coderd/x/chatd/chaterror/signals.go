@@ -62,13 +62,15 @@ var (
 		"unauthorized",
 		"invalid api key",
 		"invalid_api_key",
+	}
+	authWeakPatterns   = []string{"forbidden"}
+	usageLimitPatterns = []string{
 		"quota",
 		"billing",
 		"insufficient_quota",
 		"payment required",
 	}
-	authWeakPatterns = []string{"forbidden"}
-	configPatterns   = []string{
+	configPatterns = []string{
 		"invalid model",
 		"model not found",
 		"model_not_found",

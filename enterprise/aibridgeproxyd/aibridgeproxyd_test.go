@@ -678,14 +678,15 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allow list is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("EmptyDomainAllowlist", func(t *testing.T) {
@@ -694,15 +695,16 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      ":0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{""},
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{""},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allowlist is empty, at least one domain is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("InvalidDomainAllowlist", func(t *testing.T) {

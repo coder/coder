@@ -1723,315 +1723,325 @@ Hide AI tasks from the dashboard.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
-### --aibridge-enabled
+### --ai-gateway-enabled
 
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>bool</code>                    |
-| Environment | <code>$CODER_AIBRIDGE_ENABLED</code> |
-| YAML        | <code>aibridge.enabled</code>        |
-| Default     | <code>false</code>                   |
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>bool</code>                      |
+| Environment | <code>$CODER_AI_GATEWAY_ENABLED</code> |
+| YAML        | <code>ai_gateway.enabled</code>        |
+| Default     | <code>true</code>                      |
 
-Whether to start an in-memory aibridged instance.
+Whether to start an in-memory AI Gateway instance.
 
-### --aibridge-openai-base-url
+### --ai-gateway-openai-base-url
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_OPENAI_BASE_URL</code> |
+| YAML        | <code>ai_gateway.openai_base_url</code>        |
+| Default     | <code>https://api.openai.com/v1/</code>        |
+
+The base URL of the OpenAI API.
+
+### --ai-gateway-openai-key
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_AI_GATEWAY_OPENAI_KEY</code> |
+
+The key to authenticate against the OpenAI API.
+
+### --ai-gateway-anthropic-base-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_BASE_URL</code> |
+| YAML        | <code>ai_gateway.anthropic_base_url</code>        |
+| Default     | <code>https://api.anthropic.com/</code>           |
+
+The base URL of the Anthropic API.
+
+### --ai-gateway-anthropic-key
 
 |             |                                              |
 |-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_OPENAI_BASE_URL</code> |
-| YAML        | <code>aibridge.openai_base_url</code>        |
-| Default     | <code>https://api.openai.com/v1/</code>      |
+| Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_KEY</code> |
 
-The base URL of the OpenAI API.
+The key to authenticate against the Anthropic API.
 
-### --aibridge-openai-key
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_AIBRIDGE_OPENAI_KEY</code> |
-
-The key to authenticate against the OpenAI API.
-
-### --aibridge-anthropic-base-url
+### --ai-gateway-bedrock-base-url
 
 |             |                                                 |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_BASE_URL</code> |
-| YAML        | <code>aibridge.anthropic_base_url</code>        |
-| Default     | <code>https://api.anthropic.com/</code>         |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_BASE_URL</code> |
+| YAML        | <code>ai_gateway.bedrock_base_url</code>        |
 
-The base URL of the Anthropic API.
+The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 
-### --aibridge-anthropic-key
-
-|             |                                            |
-|-------------|--------------------------------------------|
-| Type        | <code>string</code>                        |
-| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
-
-The key to authenticate against the Anthropic API.
-
-### --aibridge-bedrock-base-url
+### --ai-gateway-bedrock-region
 
 |             |                                               |
 |-------------|-----------------------------------------------|
 | Type        | <code>string</code>                           |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_BASE_URL</code> |
-| YAML        | <code>aibridge.bedrock_base_url</code>        |
-
-The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
-
-### --aibridge-bedrock-region
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_REGION</code> |
-| YAML        | <code>aibridge.bedrock_region</code>        |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_REGION</code> |
+| YAML        | <code>ai_gateway.bedrock_region</code>        |
 
 The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
-### --aibridge-bedrock-access-key
+### --ai-gateway-bedrock-access-key
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>string</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY</code> |
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY</code> |
 
 The access key to authenticate against the AWS Bedrock API.
 
-### --aibridge-bedrock-access-key-secret
+### --ai-gateway-bedrock-access-key-secret
 
-|             |                                                        |
-|-------------|--------------------------------------------------------|
-| Type        | <code>string</code>                                    |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET</code> |
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>string</code>                                      |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET</code> |
 
 The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
-### --aibridge-bedrock-model
+### --ai-gateway-bedrock-model
 
 |             |                                                               |
 |-------------|---------------------------------------------------------------|
 | Type        | <code>string</code>                                           |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_MODEL</code>                    |
-| YAML        | <code>aibridge.bedrock_model</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_MODEL</code>                  |
+| YAML        | <code>ai_gateway.bedrock_model</code>                         |
 | Default     | <code>global.anthropic.claude-sonnet-4-5-20250929-v1:0</code> |
 
 The model to use when making requests to the AWS Bedrock API.
 
-### --aibridge-bedrock-small-fastmodel
+### --ai-gateway-bedrock-small-fastmodel
 
 |             |                                                              |
 |-------------|--------------------------------------------------------------|
 | Type        | <code>string</code>                                          |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL</code>        |
-| YAML        | <code>aibridge.bedrock_small_fast_model</code>               |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL</code>      |
+| YAML        | <code>ai_gateway.bedrock_small_fast_model</code>             |
 | Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
 
 The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
-### --aibridge-retention
+### --ai-gateway-retention
 
-|             |                                        |
-|-------------|----------------------------------------|
-| Type        | <code>duration</code>                  |
-| Environment | <code>$CODER_AIBRIDGE_RETENTION</code> |
-| YAML        | <code>aibridge.retention</code>        |
-| Default     | <code>60d</code>                       |
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>duration</code>                    |
+| Environment | <code>$CODER_AI_GATEWAY_RETENTION</code> |
+| YAML        | <code>ai_gateway.retention</code>        |
+| Default     | <code>60d</code>                         |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
 
-### --aibridge-max-concurrency
+### --ai-gateway-max-concurrency
 
-|             |                                              |
-|-------------|----------------------------------------------|
-| Type        | <code>int</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
-| YAML        | <code>aibridge.max_concurrency</code>        |
-| Default     | <code>0</code>                               |
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>int</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_MAX_CONCURRENCY</code> |
+| YAML        | <code>ai_gateway.max_concurrency</code>        |
+| Default     | <code>0</code>                                 |
 
-Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
+Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disable (unlimited).
 
-### --aibridge-rate-limit
+### --ai-gateway-rate-limit
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>int</code>                          |
+| Environment | <code>$CODER_AI_GATEWAY_RATE_LIMIT</code> |
+| YAML        | <code>ai_gateway.rate_limit</code>        |
+| Default     | <code>0</code>                            |
+
+Maximum number of AI Gateway requests per second per replica. Set to 0 to disable (unlimited).
+
+### --ai-gateway-structured-logging
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_AI_GATEWAY_STRUCTURED_LOGGING</code> |
+| YAML        | <code>ai_gateway.structured_logging</code>        |
+| Default     | <code>false</code>                                |
+
+Emit structured logs for AI Gateway interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --ai-gateway-send-actor-headers
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_AI_GATEWAY_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>ai_gateway.send_actor_headers</code>        |
+| Default     | <code>false</code>                                |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+
+### --ai-gateway-dump-dir
 
 |             |                                         |
 |-------------|-----------------------------------------|
-| Type        | <code>int</code>                        |
-| Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
-| YAML        | <code>aibridge.rate_limit</code>        |
-| Default     | <code>0</code>                          |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
+| YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
+Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
-### --aibridge-structured-logging
+### --ai-gateway-allow-byok
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>bool</code>                               |
-| Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
-| YAML        | <code>aibridge.structured_logging</code>        |
-| Default     | <code>false</code>                              |
-
-Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
-
-### --aibridge-send-actor-headers
-
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>bool</code>                               |
-| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
-| YAML        | <code>aibridge.send_actor_headers</code>        |
-| Default     | <code>false</code>                              |
-
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
-
-### --aibridge-allow-byok
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>bool</code>                       |
-| Environment | <code>$CODER_AIBRIDGE_ALLOW_BYOK</code> |
-| YAML        | <code>aibridge.allow_byok</code>        |
-| Default     | <code>true</code>                       |
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_AI_GATEWAY_ALLOW_BYOK</code> |
+| YAML        | <code>ai_gateway.allow_byok</code>        |
+| Default     | <code>true</code>                         |
 
 Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
 
-### --aibridge-circuit-breaker-enabled
+### --ai-gateway-circuit-breaker-enabled
 
-|             |                                                      |
-|-------------|------------------------------------------------------|
-| Type        | <code>bool</code>                                    |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
-| YAML        | <code>aibridge.circuit_breaker_enabled</code>        |
-| Default     | <code>false</code>                                   |
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED</code> |
+| YAML        | <code>ai_gateway.circuit_breaker_enabled</code>        |
+| Default     | <code>false</code>                                     |
 
 Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).
 
 ### --ai-budget-policy
 
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>highest</code>                 |
-| Environment | <code>$CODER_AI_BUDGET_POLICY</code> |
-| YAML        | <code>aibridge.budget_policy</code>  |
-| Default     | <code>highest</code>                 |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>highest</code>                  |
+| Environment | <code>$CODER_AI_BUDGET_POLICY</code>  |
+| YAML        | <code>ai_gateway.budget_policy</code> |
+| Default     | <code>highest</code>                  |
 
 Determines the effective group when a user belongs to multiple groups with AI budgets. "highest" selects the group with the largest spend limit, and is currently the only supported value.
 
 ### --ai-budget-period
 
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>month</code>                   |
-| Environment | <code>$CODER_AI_BUDGET_PERIOD</code> |
-| YAML        | <code>aibridge.budget_period</code>  |
-| Default     | <code>month</code>                   |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>month</code>                    |
+| Environment | <code>$CODER_AI_BUDGET_PERIOD</code>  |
+| YAML        | <code>ai_gateway.budget_period</code> |
+| Default     | <code>month</code>                    |
 
 Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only "month" is currently supported.
 
-### --aibridge-proxy-enabled
+### --ai-gateway-proxy-enabled
 
-|             |                                            |
-|-------------|--------------------------------------------|
-| Type        | <code>bool</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_ENABLED</code> |
-| YAML        | <code>aibridgeproxy.enabled</code>         |
-| Default     | <code>false</code>                         |
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_ENABLED</code> |
+| YAML        | <code>ai_gateway_proxy.enabled</code>        |
+| Default     | <code>false</code>                           |
 
-Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.
+Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider requests.
 
-### --aibridge-proxy-listen-addr
-
-|             |                                                |
-|-------------|------------------------------------------------|
-| Type        | <code>string</code>                            |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_LISTEN_ADDR</code> |
-| YAML        | <code>aibridgeproxy.listen_addr</code>         |
-| Default     | <code>:8888</code>                             |
-
-The address the AI Bridge Proxy will listen on.
-
-### --aibridge-proxy-tls-cert-file
+### --ai-gateway-proxy-listen-addr
 
 |             |                                                  |
 |-------------|--------------------------------------------------|
 | Type        | <code>string</code>                              |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_CERT_FILE</code> |
-| YAML        | <code>aibridgeproxy.tls_cert_file</code>         |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_LISTEN_ADDR</code> |
+| YAML        | <code>ai_gateway_proxy.listen_addr</code>        |
+| Default     | <code>:8888</code>                               |
 
-Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.
+The address the AI Gateway Proxy will listen on.
 
-### --aibridge-proxy-tls-key-file
+### --ai-gateway-proxy-tls-cert-file
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>string</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_KEY_FILE</code> |
-| YAML        | <code>aibridgeproxy.tls_key_file</code>         |
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.tls_cert_file</code>        |
 
-Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.
+Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.
 
-### --aibridge-proxy-cert-file
+### --ai-gateway-proxy-tls-key-file
 
-|             |                                              |
-|-------------|----------------------------------------------|
-| Type        | <code>string</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
-| YAML        | <code>aibridgeproxy.cert_file</code>         |
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.tls_key_file</code>        |
 
-Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
+Path to the TLS private key file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Certificate File.
 
-### --aibridge-proxy-key-file
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
-| YAML        | <code>aibridgeproxy.key_file</code>         |
-
-Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
-
-### --aibridge-proxy-upstream
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
-| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
-
-URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
-
-### --aibridge-proxy-upstream-ca
+### --ai-gateway-proxy-cert-file
 
 |             |                                                |
 |-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
-| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_CERT_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.cert_file</code>        |
+
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
+
+### --ai-gateway-proxy-key-file
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_KEY_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.key_file</code>        |
+
+Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
+
+### --ai-gateway-proxy-upstream
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_UPSTREAM</code> |
+| YAML        | <code>ai_gateway_proxy.upstream_proxy</code>  |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --ai-gateway-proxy-upstream-ca
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>ai_gateway_proxy.upstream_proxy_ca</code>  |
 
 Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
 
-### --aibridge-proxy-allowed-private-cidrs
+### --ai-gateway-proxy-allowed-private-cidrs
 
-|             |                                                          |
-|-------------|----------------------------------------------------------|
-| Type        | <code>string-array</code>                                |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS</code> |
-| YAML        | <code>aibridgeproxy.allowed_private_cidrs</code>         |
+|             |                                                            |
+|-------------|------------------------------------------------------------|
+| Type        | <code>string-array</code>                                  |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS</code> |
+| YAML        | <code>ai_gateway_proxy.allowed_private_cidrs</code>        |
 
 Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
 
-### --aibridge-proxy-dump-dir
+### --ai-gateway-proxy-dump-dir
 
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_DUMP_DIR</code> |
-| YAML        | <code>aibridgeproxy.api_dump_dir</code>     |
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_DUMP_DIR</code> |
+| YAML        | <code>ai_gateway_proxy.api_dump_dir</code>    |
 
 Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.
 

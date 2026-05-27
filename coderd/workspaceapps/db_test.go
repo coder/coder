@@ -218,17 +218,8 @@ func Test_ResolveRequest(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentAuthToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
-
-	agentID := uuid.Nil
-	for _, resource := range resources {
-		for _, agnt := range resource.Agents {
-			if agnt.Name == agentName {
-				agentID = agnt.ID
-				break
-			}
-		}
-	}
-	require.NotEqual(t, uuid.Nil, agentID)
+	agent := coderdtest.RequireWorkspaceAgentByName(t, resources, agentName)
+	agentID := agent.ID
 
 	// Reset audit logs so cleanup check can pass.
 	connLogger.Reset()

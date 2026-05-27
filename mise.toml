@@ -1,3 +1,7 @@
+# Keep in lockstep with MISE_VERSION in dogfood/coder/ubuntu-*/Dockerfile.base,
+# .github/workflows/dogfood.yaml, and scripts/dogfood/mise-oci-wrapper.sh.
+min_version = "2026.5.12"
+
 [settings]
 lockfile = true
 
@@ -28,6 +32,10 @@ protoc-gen-go = "1.30.0"
 # Infrastructure, release, and lint CLIs.
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
+# crane is the registry client `mise oci push` shells out to. Sourced
+# here so it travels with the rest of the mise toolset (one source of
+# truth, deterministic version, no apt drift across CI / wrapper).
+crane = "0.21.6"
 golangci-lint = "1.64.8"
 helm = "3.21.0"
 kubectx = "0.9.4"
@@ -61,3 +69,16 @@ lazygit = "0.61.1"
 [tools."go:github.com/coder/sqlc/cmd/sqlc"]
 version = "337309bfb9524f38466a5090e310040fc7af0203"
 install_env = { CGO_ENABLED = "1" }
+
+# Consumed by `mise oci build` to produce the dogfood image on top of
+# ghcr.io/coder/oss-dogfood-base. The `from` and `--tag` fields are
+# overridden by CLI args at build time per distro; `mount_point`,
+# `user`, and `workdir` always apply.
+#
+# mount_point MUST match the path the base image reserves and exposes
+# via `MISE_SHARED_INSTALL_DIRS`. Both Dockerfile.base files hardcode
+# /opt/mise/data in their `install --directory`, ENV, and PATH lines.
+[oci]
+mount_point = "/opt/mise/data"
+user = "coder"
+workdir = "/home/coder"

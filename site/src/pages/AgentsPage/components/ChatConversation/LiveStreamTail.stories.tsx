@@ -74,6 +74,40 @@ export const UsageLimitExceeded: Story = {
 	},
 };
 
+/**
+ * Provider quota errors use the standard ChatStatusCallout instead of the
+ * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * billing page).
+ */
+export const ProviderQuotaExceeded: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "usage_limit",
+				message:
+					"The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+				provider: "openai",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/usage quota for openai has been exceeded/i),
+		).toBeVisible();
+		// The "View Usage" link must NOT appear for provider-originated quota errors.
+		expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+		// Should render ChatStatusCallout instead.
+		expect(
+			canvas.getByRole("heading", { name: /usage limit reached/i }),
+		).toBeVisible();
+	},
+};
+
 /** Provider failures keep the footer-level terminal callout and status link. */
 export const TerminalOverloadedError: Story = {
 	args: {

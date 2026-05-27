@@ -589,16 +589,16 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 	{
 		id: "secret-env-and-file",
-		name: "GITHUB_TOKEN",
+		name: "SERVICE_API_KEY",
 		description: "Available as an environment variable and file.",
-		env_name: "GITHUB_TOKEN",
-		file_path: "/var/run/secrets/github-token",
+		env_name: "SERVICE_API_KEY",
+		file_path: "/var/run/secrets/service-api-key",
 		created_at: "2026-04-30T16:30:00Z",
 		updated_at: "2026-05-02T16:30:00Z",
 	},
 	{
 		id: "secret-not-injected",
-		name: "ANTHROPIC_API_KEY",
+		name: "SERVICE_PASSWORD",
 		description: "",
 		env_name: "",
 		file_path: "",
@@ -606,10 +606,10 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 		updated_at: "2026-05-03T16:30:00Z",
 	},
 	{
-		id: "secret-openai",
-		name: "OPENAI_API_KEY",
+		id: "secret-duplicate",
+		name: "DUPLICATE_API_KEY",
 		description: "Used to exercise duplicate validation.",
-		env_name: "OPENAI_API_KEY",
+		env_name: "DUPLICATE_API_KEY",
 		file_path: "",
 		created_at: "2026-05-01T18:30:00Z",
 		updated_at: "2026-05-03T18:30:00Z",
@@ -3298,6 +3298,7 @@ export const MockPermissions: Permissions = {
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3332,6 +3333,7 @@ export const MockNoPermissions: Permissions = {
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -5515,3 +5517,65 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIProviderOpenAI: TypesGen.AIProvider = {
+	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",
+	type: "openai",
+	name: "openai",
+	display_name: "OpenAI",
+	base_url: "https://api.openai.com",
+	enabled: false,
+	api_keys: [
+		{
+			id: "6d7c1f3a-1f0b-4a12-a1b5-0fb1f8e72e01",
+			masked: "sk-***\u2026***ABCD",
+			created_at: "2026-05-14T10:00:00Z",
+		},
+	],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderAnthropic: TypesGen.AIProvider = {
+	id: "4f81f1ee-37c1-4a37-a9d5-7e0c1c8c0c11",
+	type: "anthropic",
+	name: "anthropic",
+	display_name: "Anthropic",
+	base_url: "https://api.anthropic.com",
+	enabled: false,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+/**
+ * Bedrock providers come over the wire with `type: "anthropic"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
+ * backend (see `coderd/ai_providers.go`) enforce this convention.
+ */
+export const MockAIProviderBedrock: TypesGen.AIProvider = {
+	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
+	type: "anthropic",
+	name: "bedrock",
+	display_name: "Bedrock",
+	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "bedrock",
+		_version: 1,
+		region: "us-east-2",
+		model: "anthropic.claude-opus-4-7",
+		small_fast_model: "anthropic.claude-haiku-4-5",
+	} as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviders: TypesGen.AIProvider[] = [
+	MockAIProviderOpenAI,
+	MockAIProviderAnthropic,
+	MockAIProviderBedrock,
+];

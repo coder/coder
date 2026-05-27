@@ -10,6 +10,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -42,6 +43,8 @@ interface AgentsPageViewProps {
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	handleNewAgent: () => void;
+	isSearchDialogOpen: boolean;
+	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
@@ -73,8 +76,8 @@ interface AgentsPageViewProps {
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
-	archivedFilter: "active" | "archived";
-	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	sidebarFilters: AgentSidebarFilters;
+	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -83,6 +86,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	catalogModelOptions,
 	modelConfigs,
 	handleNewAgent,
+	isSearchDialogOpen,
+	onSearchDialogOpenChange,
 	isCreating,
 	isArchiving,
 	archivingChatId,
@@ -111,8 +116,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
-	archivedFilter,
-	onArchivedFilterChange,
+	sidebarFilters,
+	onSidebarFiltersChange,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -188,6 +193,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onProposeTitle={onProposeTitle}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
+					isSearchDialogOpen={isSearchDialogOpen}
+					onSearchDialogOpenChange={onSearchDialogOpenChange}
 					isCreating={isCreating}
 					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
@@ -197,8 +204,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
 					isFetchingNextPage={isFetchingNextPage}
-					archivedFilter={archivedFilter}
-					onArchivedFilterChange={onArchivedFilterChange}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
 					onCollapse={onCollapseSidebar}
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}

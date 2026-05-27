@@ -372,7 +372,7 @@
 					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				}
 			]
 		},
@@ -993,6 +993,12 @@
 							"title": "Getting Started",
 							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
 							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Search Syntax",
+							"description": "Filter conversations by title, status, and linked pull requests",
+							"path": "./ai-coder/agents/chat-search-syntax.md",
 							"state": ["beta"]
 						},
 						{

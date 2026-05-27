@@ -255,6 +255,30 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
 	});
 
+	it("propagates parsed_commands from a tool-call part", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "call-1",
+				args: { command: "cd /repo && git pull" },
+				parsed_commands: [
+					["cd", "/repo"],
+					["git", "pull"],
+				],
+			},
+		]);
+		expect(result.toolCalls[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+		const merged = mergeTools(result.toolCalls, result.toolResults);
+		expect(merged[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+	});
+
 	it("parses a tool-result block", () => {
 		const result = parseMessageContent([
 			{
