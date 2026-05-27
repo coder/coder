@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -65,9 +67,12 @@ func (r *RootCmd) restart() *serpent.Command {
 				//  It has to be manually sourced, as ephemeral parameters do not carry across
 				//  builds.
 				RichParameterValues: stopParamValues,
-			}
-			if bflags.provisionerLogDebug {
-				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
+				LogLevel:            startReq.LogLevel,
+				Reason:              startReq.Reason,
+				OnSuccess: &codersdk.CreateWorkspaceBuildOnSuccessRequest{
+					Transition:          startReq.Transition,
+					RichParameterValues: startReq.RichParameterValues,
+				},
 			}
 			build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, wbr)
 			if err != nil {
@@ -79,16 +84,8 @@ func (r *RootCmd) restart() *serpent.Command {
 				return err
 			}
 
-			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, startReq)
-			// It's possible for a workspace build to fail due to the template requiring starting
-			// workspaces with the active version.
-			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-				_, _ = fmt.Fprintln(inv.Stdout, "Unable to restart the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
-				if err != nil {
-					return xerrors.Errorf("start workspace with active template version: %w", err)
-				}
-			} else if err != nil {
+			build, err = waitForWorkspaceBuildByNumber(ctx, client, workspace, build.BuildNumber+1)
+			if err != nil {
 				return err
 			}
 
@@ -109,4 +106,36 @@ func (r *RootCmd) restart() *serpent.Command {
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
 
 	return cmd
+}
+
+func waitForWorkspaceBuildByNumber(
+	ctx context.Context,
+	client *codersdk.Client,
+	workspace codersdk.Workspace,
+	buildNumber int32,
+) (codersdk.WorkspaceBuild, error) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	buildNumberString := strconv.FormatInt(int64(buildNumber), 10)
+	for {
+		build, err := client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+			ctx,
+			workspace.OwnerName,
+			workspace.Name,
+			buildNumberString,
+		)
+		if err == nil {
+			return build, nil
+		}
+		if cerr, ok := codersdk.AsError(err); !ok || cerr.StatusCode() != http.StatusNotFound {
+			return codersdk.WorkspaceBuild{}, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return codersdk.WorkspaceBuild{}, ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
