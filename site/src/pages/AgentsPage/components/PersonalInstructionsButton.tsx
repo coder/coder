@@ -1,5 +1,5 @@
 import { UserPenIcon } from "lucide-react";
-import { type FC, useEffect, useId, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import {
@@ -47,19 +47,17 @@ export const PersonalInstructionsButton: FC<
 	const dirty = draft !== saved;
 	const invisibleCharCount = countInvisibleCharacters(draft);
 
-	// Re-seed the draft from the saved value whenever the popover opens or
-	// the saved value changes while the popover is closed. This keeps the
-	// editor in sync with edits made elsewhere (e.g. the settings page).
-	useEffect(() => {
-		if (isOpen) {
-			setDraft(saved);
-		}
-	}, [isOpen, saved]);
-
 	const handleOpenChange = (next: boolean) => {
 		// Prevent closing while a save is in flight so users see the spinner.
 		if (saveMutation.isPending) {
 			return;
+		}
+		if (next) {
+			// Re-seed the draft from the latest saved value on every open so
+			// the editor stays in sync with edits made elsewhere (e.g. the
+			// settings page). While open, the user owns the draft and external
+			// updates do not overwrite it.
+			setDraft(saved);
 		}
 		setIsOpen(next);
 	};
