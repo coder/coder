@@ -10,6 +10,7 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
@@ -2780,6 +2781,16 @@ export const AllToolIconsTranscript: Story = {
 				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
 			>
 				<div className="flex flex-col gap-2">
+					<BlockList
+						blocks={[
+							{
+								type: "thinking",
+								text: "Thinking\nReviewing the available tools and grouping them by category.",
+							},
+						]}
+						tools={[]}
+						keyPrefix="all-tool-icons-thinking"
+					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
