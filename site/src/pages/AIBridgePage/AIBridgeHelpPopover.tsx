@@ -22,7 +22,7 @@ export const AIBridgeHelpPopover: FC = () => {
 					management, auditing, and attribution for LLM usage.
 				</HelpPopoverText>
 				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/ai-coder/ai-bridge")}>
+					<HelpPopoverLink href={docs("/ai-coder/ai-gateway")}>
 						Read the docs
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>
