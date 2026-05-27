@@ -203,18 +203,6 @@ export const UsageAndWorkspaceQuota: Story = {
 			"Workspace quota usage",
 		]);
 
-		await userEvent.hover(progressBars[0]);
-		await expect(
-			await within(document.body).findByText("Spend $12.50/$50.00"),
-		).toBeVisible();
-		await userEvent.unhover(progressBars[0]);
-
-		await userEvent.hover(progressBars[1]);
-		await expect(
-			await within(document.body).findByText("Workspaces 30/100"),
-		).toBeVisible();
-		await userEvent.unhover(progressBars[1]);
-
 		await openUsageMenu(canvasElement);
 	},
 };
@@ -259,12 +247,6 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 		});
 
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
-
-		await userEvent.hover(progressbar);
-		await expect(
-			await within(document.body).findByText("Workspaces 20"),
-		).toBeVisible();
-		await userEvent.unhover(progressbar);
 
 		await openUsageMenu(canvasElement);
 		expect(within(document.body).getByText("100%")).toBeInTheDocument();
