@@ -58,7 +58,10 @@ import {
 	PromptHistoryPopover,
 } from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
-import { scrollToUserSentinelAfterClose } from "./scrollToUserSentinel";
+import {
+	scrollToUserSentinel,
+	scrollToUserSentinelAfterClose,
+} from "./scrollToUserSentinel";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
@@ -85,10 +88,45 @@ const getChatMessageTextContent = (
 	return textContent.length > 0 ? textContent : undefined;
 };
 
-const waitForNextPaint = () =>
-	new Promise<void>((resolve) => {
-		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+const getUserSentinel = (messageId: number): Element | null =>
+	document.querySelector(
+		`[data-user-sentinel][data-user-message-id="${messageId}"]`,
+	);
+
+const waitForUserSentinel = (messageId: number): Promise<boolean> => {
+	if (getUserSentinel(messageId)) {
+		return Promise.resolve(true);
+	}
+
+	return new Promise((resolve) => {
+		let settled = false;
+		let rafID: number | null = null;
+		const observer = new MutationObserver(() => {
+			if (!getUserSentinel(messageId)) {
+				return;
+			}
+			settle(true);
+		});
+		const settle = (found: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			observer.disconnect();
+			if (rafID !== null) {
+				cancelAnimationFrame(rafID);
+			}
+			resolve(found);
+		};
+
+		observer.observe(document.body, { childList: true, subtree: true });
+		rafID = requestAnimationFrame(() => {
+			rafID = requestAnimationFrame(() => {
+				settle(Boolean(getUserSentinel(messageId)));
+			});
+		});
 	});
+};
 
 const MAX_PROMPT_JUMP_PAGE_LOADS = 200;
 
@@ -1220,6 +1258,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		const hasMoreMessagesRef = useRef(Boolean(hasMoreMessages));
 		const onFetchMoreMessagesRef = useRef(onFetchMoreMessages);
+		const promptJumpRequestRef = useRef(0);
 		useLayoutEffect(() => {
 			hasMoreMessagesRef.current = Boolean(hasMoreMessages);
 			onFetchMoreMessagesRef.current = onFetchMoreMessages;
@@ -1228,6 +1267,14 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		const handlePromptHistoryEntrySelect = async (
 			entry: PromptHistoryEntry,
 		) => {
+			const requestID = promptJumpRequestRef.current + 1;
+			promptJumpRequestRef.current = requestID;
+
+			if (sentinelsRef.current.has(entry.id)) {
+				scrollToUserSentinelAfterClose(entry.id);
+				return;
+			}
+
 			let pageLoads = 0;
 			while (
 				!sentinelsRef.current.has(entry.id) &&
@@ -1243,12 +1290,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				} catch {
 					break;
 				}
+				if (promptJumpRequestRef.current !== requestID) {
+					return;
+				}
 				pageLoads++;
-				await waitForNextPaint();
+				await waitForUserSentinel(entry.id);
 			}
-			scrollToUserSentinelAfterClose(entry.id);
-		};
 
+			if (promptJumpRequestRef.current === requestID) {
+				scrollToUserSentinel(entry.id);
+			}
+		};
 		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
