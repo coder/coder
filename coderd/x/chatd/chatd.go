@@ -1673,13 +1673,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			chatprompt.CurrentContentVersion,
 		))
 
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		userMsg := newUserChatMessage(
+			opts.APIKeyID,
 			userContent,
 			database.ChatMessageVisibilityBoth,
 			opts.ModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.OwnerID).withAPIKeyID(opts.APIKeyID))
+		)
+		userMsg.chatMessage = userMsg.chatMessage.withCreatedBy(opts.OwnerID)
+		appendUserChatMessage(&msgParams, userMsg)
 
 		_, err = tx.InsertChatMessages(ctx, msgParams)
 		if err != nil {
@@ -2114,13 +2116,15 @@ func (p *Server) EditMessage(
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: opts.ChatID,
 		}
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		editUserMsg := newUserChatMessage(
+			opts.APIKeyID,
 			content,
 			editedMsg.Visibility,
 			messageModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.CreatedBy).withAPIKeyID(opts.APIKeyID))
+		)
+		editUserMsg.chatMessage = editUserMsg.chatMessage.withCreatedBy(opts.CreatedBy)
+		appendUserChatMessage(&msgParams, editUserMsg)
 		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
 		if err != nil {
 			return xerrors.Errorf("insert replacement message: %w", err)
@@ -3899,19 +3903,17 @@ func insertChatMessageWithStore(
 	return messages, nil
 }
 
-// chatMessage describes a single message to insert as part of a batch.
+// chatMessage describes a non-user message to insert as part of a batch.
 // Use newChatMessage to create one, then chain builder methods for
-// optional fields. For nullable UUID fields (ModelConfigID, CreatedBy),
-// use uuid.Nil to represent NULL — the SQL uses NULLIF to convert zero
-// UUIDs to NULL. For nullable int64 fields, use 0 to represent NULL —
-// the SQL uses NULLIF to convert zeros to NULL.
+// optional fields. For user messages, use userChatMessage instead.
+// For nullable UUID fields (ModelConfigID, CreatedBy), use uuid.Nil to
+// represent NULL. For nullable int64 fields, use 0 to represent NULL.
 type chatMessage struct {
 	role                database.ChatMessageRole
 	content             pqtype.NullRawMessage
 	visibility          database.ChatMessageVisibility
 	modelConfigID       uuid.UUID
 	createdBy           uuid.UUID
-	apiKeyID            string
 	contentVersion      int16
 	compressed          bool
 	inputTokens         int64
@@ -3924,6 +3926,13 @@ type chatMessage struct {
 	totalCostMicros     int64
 	runtimeMs           int64
 	providerResponseID  string
+}
+
+// userChatMessage describes a user message. The apiKeyID field is
+// required by newUserChatMessage so that omitting it is a compile error.
+type userChatMessage struct {
+	chatMessage
+	apiKeyID string
 }
 
 func newChatMessage(
@@ -3942,13 +3951,29 @@ func newChatMessage(
 	}
 }
 
-func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
-	m.createdBy = id
-	return m
+// newUserChatMessage creates a user message. apiKeyID is required so
+// that forgetting it is a compile error rather than a silent data bug.
+func newUserChatMessage(
+	apiKeyID string,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+) userChatMessage {
+	return userChatMessage{
+		chatMessage: newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			visibility,
+			modelConfigID,
+			contentVersion,
+		),
+		apiKeyID: apiKeyID,
+	}
 }
 
-func (m chatMessage) withAPIKeyID(id string) chatMessage {
-	m.apiKeyID = id
+func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
+	m.createdBy = id
 	return m
 }
 
@@ -3990,10 +4015,37 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
-// appendChatMessage appends a single message to the batch insert params.
+// appendChatMessage appends a non-user message to the batch insert params.
+// For user messages, use appendUserChatMessage instead.
 func appendChatMessage(
 	params *database.InsertChatMessagesParams,
 	msg chatMessage,
+) {
+	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
+	params.APIKeyID = append(params.APIKeyID, "")
+	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
+	params.Role = append(params.Role, msg.role)
+	params.Content = append(params.Content, string(msg.content.RawMessage))
+	params.ContentVersion = append(params.ContentVersion, msg.contentVersion)
+	params.Visibility = append(params.Visibility, msg.visibility)
+	params.InputTokens = append(params.InputTokens, msg.inputTokens)
+	params.OutputTokens = append(params.OutputTokens, msg.outputTokens)
+	params.TotalTokens = append(params.TotalTokens, msg.totalTokens)
+	params.ReasoningTokens = append(params.ReasoningTokens, msg.reasoningTokens)
+	params.CacheCreationTokens = append(params.CacheCreationTokens, msg.cacheCreationTokens)
+	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
+	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
+	params.Compressed = append(params.Compressed, msg.compressed)
+	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
+	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
+	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
+}
+
+// appendUserChatMessage appends a user message to the batch insert params.
+// The userChatMessage type guarantees that an apiKeyID was provided.
+func appendUserChatMessage(
+	params *database.InsertChatMessagesParams,
+	msg userChatMessage,
 ) {
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
 	params.APIKeyID = append(params.APIKeyID, msg.apiKeyID)
@@ -4037,6 +4089,28 @@ func BuildSingleChatMessageInsertParams(
 	return params
 }
 
+// BuildSingleUserChatMessageInsertParams creates batch insert params for
+// one user message, requiring an apiKeyID for AI Gateway attribution.
+func BuildSingleUserChatMessageInsertParams(
+	chatID uuid.UUID,
+	apiKeyID string,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	createdBy uuid.UUID,
+) database.InsertChatMessagesParams {
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
+		ChatID: chatID,
+	}
+	msg := newUserChatMessage(apiKeyID, content, visibility, modelConfigID, contentVersion)
+	if createdBy != uuid.Nil {
+		msg.chatMessage = msg.chatMessage.withCreatedBy(createdBy)
+	}
+	appendUserChatMessage(&params, msg)
+	return params
+}
+
 // insertUserMessageAndSetPending inserts a user message, transitions the
 // chat to pending when needed, and returns the refreshed chat row.
 func insertUserMessageAndSetPending(
@@ -4051,13 +4125,15 @@ func insertUserMessageAndSetPending(
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 		ChatID: lockedChat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	insertUserMsg := newUserChatMessage(
+		apiKeyID,
 		content,
 		database.ChatMessageVisibilityBoth,
 		modelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(createdBy).withAPIKeyID(apiKeyID))
+	)
+	insertUserMsg.chatMessage = insertUserMsg.chatMessage.withCreatedBy(createdBy)
+	appendUserChatMessage(&msgParams, insertUserMsg)
 	messages, err := insertChatMessageWithStore(ctx, store, msgParams)
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
@@ -5873,8 +5949,8 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 		ChatID: chat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	queuedUserMsg := newUserChatMessage(
+		nextQueued.APIKeyID.String,
 		pqtype.NullRawMessage{
 			RawMessage: nextQueued.Content,
 			Valid:      len(nextQueued.Content) > 0,
@@ -5882,7 +5958,9 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		database.ChatMessageVisibilityBoth,
 		effectiveModelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(chat.OwnerID).withAPIKeyID(nextQueued.APIKeyID.String))
+	)
+	queuedUserMsg.chatMessage = queuedUserMsg.chatMessage.withCreatedBy(chat.OwnerID)
+	appendUserChatMessage(&msgParams, queuedUserMsg)
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
 		return nil, nil, false, xerrors.Errorf("insert promoted message: %w", err)
@@ -8462,13 +8540,16 @@ func (p *Server) persistChatContextSummary(
 		}
 
 		// Hidden summary user message (not published to subscribers).
-		appendChatMessage(&summaryParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		summaryAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		summaryUserMsg := newUserChatMessage(
+			summaryAPIKeyID,
 			systemContent,
 			database.ChatMessageVisibilityModel,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCompressed())
+		)
+		summaryUserMsg.chatMessage = summaryUserMsg.chatMessage.withCompressed()
+		appendUserChatMessage(&summaryParams, summaryUserMsg)
 
 		// Assistant tool-call message.
 		appendChatMessage(&summaryParams, newChatMessage(
@@ -8999,11 +9080,12 @@ func (p *Server) persistInstructionFiles(
 		if err != nil {
 			return "", nil, nil
 		}
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		blankAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: chat.ID,
 		}
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		appendUserChatMessage(&msgParams, newUserChatMessage(
+			blankAPIKeyID,
 			content,
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
@@ -9022,11 +9104,12 @@ func (p *Server) persistInstructionFiles(
 		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	contentAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 		ChatID: chat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	appendUserChatMessage(&msgParams, newUserChatMessage(
+		contentAPIKeyID,
 		content,
 		database.ChatMessageVisibilityBoth,
 		modelConfigID,
