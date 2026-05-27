@@ -43,6 +43,11 @@ const (
 // reference a valid resource in the expected scope.
 var errInvalidCursor = xerrors.New("invalid pagination cursor")
 
+// This name is raised by a trigger function with USING CONSTRAINT.
+// It is not a table CHECK constraint, so dbgen does not emit it in
+// check_constraint.go.
+const userAIBudgetOverridesMustBeGroupMemberConstraint database.CheckConstraint = "user_ai_budget_overrides_must_be_group_member"
+
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	// Build the overload protection middleware chain for the aibridged handler.
@@ -884,10 +889,10 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		GroupID:          req.GroupID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
-	// The CHECK constraint on the table enforces that the user must be a
-	// member of the attributed group; map the resulting check_violation
-	// to a structured 400.
-	if database.IsCheckViolation(err, database.CheckUserAiBudgetOverridesMustBeGroupMember) {
+	// A trigger enforces that the user must be a member of the attributed
+	// group; it raises check_violation with this constraint name. Map
+	// the violation to a structured 400.
+	if database.IsCheckViolation(err, userAIBudgetOverridesMustBeGroupMemberConstraint) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "User is not a member of the referenced group.",
 			Validations: []codersdk.ValidationError{{
