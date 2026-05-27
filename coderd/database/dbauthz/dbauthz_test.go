@@ -6927,6 +6927,10 @@ func TestAsChatd(t *testing.T) {
 		// User read_personal (needed for GetUserChatCustomPrompt).
 		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
 		require.NoError(t, err, "user read_personal should be allowed")
+
+		// API key read (needed for backfilling legacy chat message api_key_id).
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceApiKey)
+		require.NoError(t, err, "api key read should be allowed")
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
@@ -6940,9 +6944,9 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)
 		require.Error(t, err, "user read should be denied")
 
-		// Cannot access API keys.
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceApiKey)
-		require.Error(t, err, "api key read should be denied")
+		// Cannot write API keys.
+		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceApiKey)
+		require.Error(t, err, "api key update should be denied")
 
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
