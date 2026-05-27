@@ -340,17 +340,27 @@ func TestConfig_Tiers(t *testing.T) {
 		t.Parallel()
 		cfg := dataprotection.NewConfig(0, nil, 5)
 		assert.False(t, cfg.IsTier1OrAbove())
+		assert.False(t, cfg.IsTier2OrAbove())
 		assert.False(t, cfg.Enabled())
 		assert.False(t, cfg.ShouldObfuscate("anyone@example.com"))
 	})
 
-	t.Run("Tier1EnablesAll", func(t *testing.T) {
+	t.Run("Tier1EnablesReadTimeObfuscation", func(t *testing.T) {
 		t.Parallel()
 		cfg := dataprotection.NewConfig(1, []string{"auditor@co.de"}, 5)
 		assert.True(t, cfg.IsTier1OrAbove())
+		assert.False(t, cfg.IsTier2OrAbove())
 		assert.True(t, cfg.Enabled())
 		assert.True(t, cfg.ShouldObfuscate("manager@co.de"))
 		assert.False(t, cfg.ShouldObfuscate("auditor@co.de"))
+	})
+
+	t.Run("Tier2EnablesStorageLevelProtection", func(t *testing.T) {
+		t.Parallel()
+		cfg := dataprotection.NewConfig(2, []string{"auditor@co.de"}, 5)
+		assert.True(t, cfg.IsTier1OrAbove())
+		assert.True(t, cfg.IsTier2OrAbove())
+		assert.True(t, cfg.Enabled())
 	})
 }
 

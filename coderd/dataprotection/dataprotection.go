@@ -19,7 +19,7 @@ import (
 // Config holds runtime-resolved DPM configuration. It is created once
 // at server startup and is immutable for the lifetime of the process.
 type Config struct {
-	Tier         int             // 0=off, 1=on (all obfuscation active)
+	Tier         int             // 0=off, 1=tier-1, 2=tier-2
 	Auditors     map[string]bool // email → true
 	MinGroupSize int
 	instanceKey  []byte   // random per-startup key for pseudonym generation
@@ -75,8 +75,15 @@ func (c *Config) ShouldObfuscate(email string) bool {
 	return !c.Auditors[email]
 }
 
-// IsTier1OrAbove returns true when Data Protection Mode is active.
+// IsTier1OrAbove returns true when Data Protection Mode is active
+// (any tier).
 func (c *Config) IsTier1OrAbove() bool { return c != nil && c.Tier >= 1 }
+
+// IsTier2OrAbove returns true when storage-level data protection is
+// active. In tier-2, user-identifying data is not persisted to
+// analytics/audit tables and build initiator IDs are replaced with
+// a sentinel UUID.
+func (c *Config) IsTier2OrAbove() bool { return c != nil && c.Tier >= 2 }
 
 // Enabled is an alias for IsTier1OrAbove.
 func (c *Config) Enabled() bool { return c.IsTier1OrAbove() }

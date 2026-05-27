@@ -496,7 +496,11 @@ func New(options *Options) *API {
 	}
 
 	if options.DatabaseRolluper == nil {
-		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
+		options.DatabaseRolluper = dbrollup.New(
+			options.Logger.Named("dbrollup"),
+			options.Database,
+			dbrollup.WithDataProtection(options.DataProtection),
+		)
 	}
 
 	if options.WorkspaceUsageTracker == nil {

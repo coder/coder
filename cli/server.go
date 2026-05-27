@@ -683,17 +683,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			dpTier := 0
 			dpMode := vals.DataProtection.Mode.Value()
 			switch dpMode {
-			case "tier-1", "tier-2", "on":
-				// "tier-2" and "on" are accepted as aliases for
-					// backward compatibility.
+			case "tier-1", "on":
 				dpTier = 1
+				case "tier-2":
+				dpTier = 2
 			case "off", "":
 				// Fall back to deprecated boolean flag.
 				if vals.DataProtection.Enabled.Value() {
 					dpTier = 1
 				}
 			default:
-				return xerrors.Errorf("invalid --data-protection-mode value: %q (must be off or tier-1)", dpMode)
+				return xerrors.Errorf("invalid --data-protection-mode value: %q (must be off, tier-1, or tier-2)", dpMode)
 			}
 			options.DataProtection = dataprotection.NewConfig(
 				dpTier,
@@ -1172,7 +1172,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments, coderAPI.WorkspaceBuilderMetrics)
+				ctx, options.Database, options.Pubsub, coderAPI.FileCache, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, coderAPI.BuildUsageChecker, logger, autobuildTicker.C, options.NotificationsEnqueuer, coderAPI.Experiments, coderAPI.WorkspaceBuilderMetrics, options.DataProtection)
 			autobuildExecutor.Run()
 
 			jobReaperTicker := time.NewTicker(vals.JobReaperDetectorInterval.Value())

@@ -175,6 +175,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
 		LifecycleMetrics:          api.lifecycleMetrics,
+		DataProtection:            api.DataProtection,
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,

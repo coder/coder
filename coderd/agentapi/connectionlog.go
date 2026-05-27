@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 )
 
 type ConnLogAPI struct {
@@ -23,9 +24,15 @@ type ConnLogAPI struct {
 	Workspace        *CachedWorkspaceFields
 	Database         database.Store
 	Log              slog.Logger
+	DataProtection   *dataprotection.Config
 }
 
 func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.ReportConnectionRequest) (*emptypb.Empty, error) {
+	// When DPM tier-2 is active, suppress all connection log writes.
+	if a.DataProtection.IsTier2OrAbove() {
+		return &emptypb.Empty{}, nil
+	}
+
 	// We use the connection ID to identify which connection log event to mark
 	// as closed, when we receive a close action for that ID.
 	connectionID, err := uuid.FromBytes(req.GetConnection().GetId())

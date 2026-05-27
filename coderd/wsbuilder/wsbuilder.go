@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -63,6 +64,7 @@ type Builder struct {
 	initiator               uuid.UUID
 	reason                  database.BuildReason
 	templateVersionPresetID uuid.UUID
+	dataProtection          *dataprotection.Config
 
 	// used during build, makes function arguments less verbose
 	ctx       context.Context
@@ -203,6 +205,12 @@ func (b Builder) Initiator(u uuid.UUID) Builder {
 func (b Builder) Reason(r database.BuildReason) Builder {
 	// nolint: revive
 	b.reason = r
+	return b
+}
+
+func (b Builder) SetDataProtection(dp *dataprotection.Config) Builder {
+	// nolint: revive
+	b.dataProtection = dp
 	return b
 }
 
@@ -404,6 +412,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// if we haven't been told specifically who initiated, default to owner
 	if b.initiator == uuid.Nil {
 		b.initiator = b.workspace.OwnerID
+	}
+	// In tier-2 Data Protection Mode, replace the real initiator
+	// with a sentinel UUID so no user identity is persisted in
+	// build records.
+	if b.dataProtection.IsTier2OrAbove() {
+		b.initiator = uuid.Nil
 	}
 	// default reason is initiator
 	if b.reason == "" {

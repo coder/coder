@@ -717,6 +717,15 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// In tier-2 Data Protection Mode, per-user cost data is not
+	// available because user-identifying analytics are not stored.
+	if api.DataProtection.IsTier2OrAbove() {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
+			Users: []codersdk.ChatCostUserRollup{},
+		})
+		return
+	}
+
 	now := time.Now()
 	defaultStart := now.AddDate(0, 0, -30)
 

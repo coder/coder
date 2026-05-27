@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -84,11 +85,12 @@ type Server struct {
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	dataProtection    *dataprotection.Config
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
-	aiSeatTracker aiseats.SeatTracker,
+	aiSeatTracker aiseats.SeatTracker, dataProtection *dataprotection.Config,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
@@ -107,6 +109,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
 		aiSeatTracker:       aiSeatTracker,
+		dataProtection:      dataProtection,
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
@@ -135,6 +138,14 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 	if in.ApiKeyId == "" {
 		return nil, xerrors.Errorf("empty API key ID")
+	}
+
+	// When DPM tier-2 is active, skip all DB writes for AI Bridge
+	// tables but still record the AI seat usage for billing.
+	if s.dataProtection.IsTier2OrAbove() {
+		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
+		return &proto.RecordInterceptionResponse{}, nil
 	}
 
 	metadata := metadataToMap(in.GetMetadata())
@@ -195,6 +206,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 }
 
 func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+	// When DPM tier-2 is active, the parent interception was not
+	// stored so there is nothing to update.
+	if s.dataProtection.IsTier2OrAbove() {
+		return &proto.RecordInterceptionEndedResponse{}, nil
+	}
+
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -223,6 +240,12 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 }
 
 func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsageRequest) (*proto.RecordTokenUsageResponse, error) {
+	// When DPM tier-2 is active, the parent interception was not
+	// stored so skip child table writes.
+	if s.dataProtection.IsTier2OrAbove() {
+		return &proto.RecordTokenUsageResponse{}, nil
+	}
+
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -267,6 +290,12 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
+	// When DPM tier-2 is active, the parent interception was not
+	// stored so skip child table writes.
+	if s.dataProtection.IsTier2OrAbove() {
+		return &proto.RecordPromptUsageResponse{}, nil
+	}
+
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -309,6 +338,12 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 }
 
 func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+	// When DPM tier-2 is active, the parent interception was not
+	// stored so skip child table writes.
+	if s.dataProtection.IsTier2OrAbove() {
+		return &proto.RecordToolUsageResponse{}, nil
+	}
+
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -361,6 +396,12 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 }
 
 func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+	// When DPM tier-2 is active, the parent interception was not
+	// stored so skip child table writes.
+	if s.dataProtection.IsTier2OrAbove() {
+		return &proto.RecordModelThoughtResponse{}, nil
+	}
+
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 

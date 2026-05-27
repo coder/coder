@@ -188,7 +188,9 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
 
 			ownerLabel := w.OwnerUsername
-			if dpCfg.IsTier1OrAbove() {
+			if dpCfg.IsTier2OrAbove() {
+				ownerLabel = ""
+			} else if dpCfg.IsTier1OrAbove() {
 				ownerLabel = dpCfg.PseudoSlug(w.OwnerID)
 			}
 
@@ -348,7 +350,9 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				}
 
 				ownerLabel := agent.OwnerUsername
-				if dpCfg.IsTier1OrAbove() {
+				if dpCfg.IsTier2OrAbove() {
+					ownerLabel = ""
+				} else if dpCfg.IsTier1OrAbove() {
 					ownerLabel = dpCfg.PseudoSlug(agent.OwnerID)
 				}
 
