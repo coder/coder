@@ -518,6 +518,11 @@ resource "coder_agent" "dev" {
       # (non-MISE keys flow through). Move this back to `[oci.env]`
       # once upstream mise fixes that.
       MISE_CONFIG_DIR : "/home/coder/.config/mise",
+      # Keep user-installed mise tools on the persistent home volume.
+      # The image still exposes baked tools from /opt/mise/data via
+      # MISE_SHARED_INSTALL_DIRS, but /opt itself is image-resident
+      # and is recreated with the container on workspace restart.
+      MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
