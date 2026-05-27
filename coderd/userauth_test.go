@@ -1636,48 +1636,61 @@ func TestUserOIDC(t *testing.T) {
 			}),
 			oidctest.WithServing(),
 		)
-		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-			// Signups disabled: the attacker appears as a new user and
-			// is rejected because signups are not allowed.
-			cfg.AllowSignups = false
-		})
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			OIDCConfig: cfg,
-			Logger:     &logger,
-		})
+		for _, tc := range []struct {
+			name         string
+			allowSignups bool
+		}{
+			{"SignupsDisabled", false},
+			{"SignupsEnabled", true},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		// Create a victim user with an existing OIDC link.
-		victim := dbgen.User(t, db, database.User{
-			LoginType: database.LoginTypeOIDC,
-		})
-		victimLinkedID := "test-issuer||victim-subject"
-		dbgen.UserLink(t, db, database.UserLink{
-			UserID:    victim.ID,
-			LoginType: database.LoginTypeOIDC,
-			LinkedID:  victimLinkedID,
-		})
+				cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = tc.allowSignups
+				})
 
-		// Attacker tries to login with a different subject but the
-		// same email. The email fallback is blocked because the victim
-		// already has a user_link with a different linked_id. The
-		// attacker is treated as a new unknown user.
-		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
-			"email": victim.Email,
-			"sub":   "attacker-subject",
-		})
-		require.Equal(t, http.StatusForbidden, resp.StatusCode,
-			"attacker must not authenticate as the victim")
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					OIDCConfig: cfg,
+					Logger:     &logger,
+				})
 
-		// Verify the victim's link is unchanged.
-		victimLink, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    victim.ID,
-			LoginType: database.LoginTypeOIDC,
-		})
-		require.NoError(t, err)
-		require.Equal(t, victimLinkedID, victimLink.LinkedID,
-			"victim's linked_id must remain unchanged")
+				// Create a victim user with an existing OIDC link.
+				// Use the fake IDP's issuer so the linked_id format is
+				// realistic (same issuer, different subject).
+				victim := dbgen.User(t, db, database.User{
+					LoginType: database.LoginTypeOIDC,
+				})
+				victimLinkedID := fake.IssuerURL().String() + "||" + "victim-subject"
+				dbgen.UserLink(t, db, database.UserLink{
+					UserID:    victim.ID,
+					LoginType: database.LoginTypeOIDC,
+					LinkedID:  victimLinkedID,
+				})
+
+				// Attacker tries to login with a different subject but the
+				// same email. The email fallback is blocked because the victim
+				// already has a user_link with a different linked_id.
+				_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+					"email": victim.Email,
+					"sub":   "attacker-subject",
+				})
+				require.Equal(t, http.StatusForbidden, resp.StatusCode,
+					"attacker must not authenticate as the victim")
+
+				// Verify the victim's link is unchanged.
+				victimLink, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+					UserID:    victim.ID,
+					LoginType: database.LoginTypeOIDC,
+				})
+				require.NoError(t, err)
+				require.Equal(t, victimLinkedID, victimLink.LinkedID,
+					"victim's linked_id must remain unchanged")
+			})
+		}
 	})
 
 	// Tests that a first-time OIDC user can still link via email when no
@@ -1710,9 +1723,10 @@ func TestUserOIDC(t *testing.T) {
 
 		// Login with a new OIDC subject and matching email.
 		// This should succeed because no user_link exists.
+		sub := uuid.NewString()
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
-			"sub":   uuid.NewString(),
+			"sub":   sub,
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1720,10 +1734,22 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, user.ID, me.ID,
 			"should authenticate as the existing user")
+
+		// Verify the created link has a populated linked_id.
+		link, err := db.GetUserLinkByUserIDLoginType(
+			dbauthz.AsSystemRestricted(context.Background()),
+			database.GetUserLinkByUserIDLoginTypeParams{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+		require.NoError(t, err)
+		expectedLinkedID := fake.IssuerURL().String() + "||" + sub
+		require.Equal(t, expectedLinkedID, link.LinkedID,
+			"link should have the correct linked_id after first-time linking")
 	})
 
 	// Tests that a legacy user with an empty linked_id can still login
-	// and that their linked_id is backfilled.
+	// and that their linked_id is backfilled with the correct value.
 	t.Run("OIDCLegacyLinkBackfill", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -1754,9 +1780,10 @@ func TestUserOIDC(t *testing.T) {
 			LinkedID:  "", // Legacy: empty linked_id
 		})
 
+		sub := uuid.NewString()
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
-			"sub":   uuid.NewString(),
+			"sub":   sub,
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1765,7 +1792,7 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, user.ID, me.ID,
 			"legacy user should still be able to login via email fallback")
 
-		// Verify the linked_id was backfilled.
+		// Verify the linked_id was backfilled with the correct value.
 		link, err := db.GetUserLinkByUserIDLoginType(
 			dbauthz.AsSystemRestricted(context.Background()),
 			database.GetUserLinkByUserIDLoginTypeParams{
@@ -1773,8 +1800,9 @@ func TestUserOIDC(t *testing.T) {
 				LoginType: database.LoginTypeOIDC,
 			})
 		require.NoError(t, err)
-		require.NotEmpty(t, link.LinkedID,
-			"linked_id should be backfilled after login")
+		expectedLinkedID := fake.IssuerURL().String() + "||" + sub
+		require.Equal(t, expectedLinkedID, link.LinkedID,
+			"linked_id should be backfilled with the correct value after login")
 	})
 
 	t.Run("OIDCConvert", func(t *testing.T) {
