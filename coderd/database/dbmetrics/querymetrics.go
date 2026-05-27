@@ -105,14 +105,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetLastUsedNonExpiredAPIKeyIDByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetLastUsedNonExpiredAPIKeyIDByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUsedNonExpiredAPIKeyIDByUserID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -2014,6 +2006,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUpdateCheck").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastUsedNonExpiredAPIKeyIDByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetLastUsedNonExpiredAPIKeyIDByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUsedNonExpiredAPIKeyIDByUserID").Inc()
 	return r0, r1
 }
 
