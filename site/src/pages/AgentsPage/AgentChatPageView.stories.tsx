@@ -1511,7 +1511,7 @@ export const ArchivedWithSharing: Story = {
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Chat Sharing")).toBeVisible();
+			expect(body.getByText("Chat sharing")).toBeVisible();
 		});
 		await waitFor(() => {
 			expect(body.getByText("No shared members or groups yet")).toBeVisible();
@@ -1543,7 +1543,7 @@ export const ShareChatPopoverFromTopBar: Story = {
 		await userEvent.click(canvas.getByLabelText("Share chat"));
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Chat Sharing")).toBeVisible();
+			expect(body.getByText("Chat sharing")).toBeVisible();
 		});
 		await waitFor(() => {
 			expect(body.getByText("No shared members or groups yet")).toBeVisible();
