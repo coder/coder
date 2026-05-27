@@ -328,15 +328,14 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			Name: name,
 		}
 		providerType := database.AIProviderType(p.Type)
-		if providerType.Valid() {
-			dp.Type = providerType
-		} else {
+		if !providerType.Valid() {
 			logger.Warn(ctx, "skipping indexed AI provider with unsupported type",
 				slog.F("name", name),
 				slog.F("type", p.Type),
 			)
 			continue
 		}
+		dp.Type = providerType
 
 		dp.BaseURL = p.BaseURL
 		// Bedrock fields apply to Anthropic and the dedicated Bedrock

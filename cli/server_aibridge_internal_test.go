@@ -705,8 +705,8 @@ func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 }
 
 func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
-
 	data, err := json.Marshal(s)
+
 	if err != nil {
 		panic(err)
 	}
