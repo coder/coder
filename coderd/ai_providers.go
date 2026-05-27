@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -235,6 +236,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = row
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
+	api.publishAIProvidersChanged(ctx)
 
 	sdk, err := db2sdk.AIProvider(row, keys)
 	if err != nil {
@@ -400,6 +402,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
+	api.publishAIProvidersChanged(ctx)
 
 	sdk, err := db2sdk.AIProvider(updated, keys)
 	if err != nil {
@@ -453,7 +456,23 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.publishAIProvidersChanged(ctx)
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// publishAIProvidersChanged notifies subscribers (aibridged,
+// aibridgeproxyd) that the live provider set changed and they should
+// refetch from the database. Pubsub failures are logged but not
+// propagated: subscribers refresh authoritatively from the DB, so a
+// dropped notification only delays convergence.
+func (api *API) publishAIProvidersChanged(ctx context.Context) {
+	if api.Pubsub == nil {
+		return
+	}
+	if err := api.Pubsub.Publish(coderpubsub.AIProvidersChangedChannel, nil); err != nil {
+		api.Logger.Warn(ctx, "publish ai providers changed event", slog.Error(err))
+	}
 }
 
 // errBedrockRejectsAPIKeys is the sentinel returned from inside the
