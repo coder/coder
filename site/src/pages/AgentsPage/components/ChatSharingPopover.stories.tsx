@@ -128,7 +128,7 @@ const closeChatSharing = async (canvasElement: HTMLElement) => {
 	const body = within(canvasElement.ownerDocument.body);
 	await userEvent.click(canvas.getByRole("button", { name: "Share" }));
 	await waitFor(() => {
-		expect(body.queryByText("Chat Sharing")).not.toBeInTheDocument();
+		expect(body.queryByText("Chat sharing")).not.toBeInTheDocument();
 	});
 };
 
