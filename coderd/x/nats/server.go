@@ -41,7 +41,7 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	if clusterEnabled(opts) {
 		clusterHost := opts.ClusterHost
 		if clusterHost == "" {
-			clusterHost = "127.0.0.1"
+			clusterHost = natsserver.DEFAULT_HOST
 		}
 		clusterPort := opts.ClusterPort
 		if clusterPort == 0 {

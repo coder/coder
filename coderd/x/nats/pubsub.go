@@ -74,7 +74,7 @@ type Options struct {
 	SubscribeConns int
 
 	// ClusterHost is the embedded NATS route listener host. Empty means
-	// 127.0.0.1 when cluster mode is enabled.
+	// all interfaces when cluster mode is enabled.
 	ClusterHost string
 
 	// ClusterPort is the embedded NATS route listener port. Zero means

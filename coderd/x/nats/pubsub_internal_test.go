@@ -508,7 +508,10 @@ func TestPubsubCluster(t *testing.T) {
 
 func newClusterTestOptions(t *testing.T) Options {
 	t.Helper()
-	return Options{ClusterPort: freeTCPPort(t)}
+	return Options{
+		ClusterHost: "127.0.0.1",
+		ClusterPort: freeTCPPort(t),
+	}
 }
 
 func freeTCPPort(t *testing.T) int {
