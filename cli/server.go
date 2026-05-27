@@ -783,8 +783,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
 				ps, err := natspubsub.New(ctx, logger.Named("pubsub"), natspubsub.Options{
-					ClusterHost:      "0.0.0.0",
-					ClusterPort:      6222,
 					ClusterAuthToken: token,
 				})
 				if err != nil {
