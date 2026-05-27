@@ -36,7 +36,9 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 		user = "Coder automatically";
 	}
 
-	const truncatedDescription = auditLog.description
+	const description =
+		getAuditLogDescriptionOverride(auditLog) ?? auditLog.description;
+	const truncatedDescription = description
 		.replace("{user}", `${user}`)
 		.replace("{target}", "");
 
@@ -63,6 +65,43 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 			{onBehalfOf}
 		</span>
 	);
+};
+
+export const getAuditLogDescriptionOverride = (
+	auditLog: AuditLog,
+): string | undefined => {
+	if (
+		auditLog.resource_type !== "chat" ||
+		auditLog.action !== "write" ||
+		auditLog.status_code >= 400 ||
+		auditLog.status_code === 303
+	) {
+		return undefined;
+	}
+
+	const diffEntries = Object.entries(auditLog.diff);
+	if (diffEntries.length === 1) {
+		const [fieldName, diff] = diffEntries[0];
+		if (fieldName === "archived") {
+			if (diff.old === false && diff.new === true) {
+				return "{user} archived chat {target}";
+			}
+			if (diff.old === true && diff.new === false) {
+				return "{user} unarchived chat {target}";
+			}
+		}
+	}
+
+	if (
+		diffEntries.length > 0 &&
+		diffEntries.every(
+			([fieldName]) => fieldName === "user_acl" || fieldName === "group_acl",
+		)
+	) {
+		return "{user} updated sharing for chat {target}";
+	}
+
+	return undefined;
 };
 
 function AppSessionAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {

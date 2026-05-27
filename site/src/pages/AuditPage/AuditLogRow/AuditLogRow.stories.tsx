@@ -250,13 +250,12 @@ export const WithArchivedChatDescription: Story = {
 	},
 };
 
-export const WithSharedChatDescription: Story = {
+export const WithUpdatedChatSharingDescription: Story = {
 	args: {
 		auditLog: {
 			...MockChatAuditLog,
 			id: "8f26cabf-8867-4d2f-942d-77e759a16c1c",
 			action: "write",
-			description: "{user} shared chat with 1 user {target}",
 			diff: {
 				user_acl: {
 					old: {},
@@ -265,28 +264,6 @@ export const WithSharedChatDescription: Story = {
 							permissions: ["read"],
 						},
 					},
-					secret: false,
-				},
-			},
-		},
-	},
-};
-
-export const WithUnsharedChatDescription: Story = {
-	args: {
-		auditLog: {
-			...MockChatAuditLog,
-			id: "ae510ae2-c10b-4d5e-bf51-2eb69a83d72d",
-			action: "write",
-			description: "{user} unshared chat with 1 user {target}",
-			diff: {
-				user_acl: {
-					old: {
-						"9a68e35d-bf3a-43bd-8e68-130df721cc71": {
-							permissions: ["read"],
-						},
-					},
-					new: {},
 					secret: false,
 				},
 			},
