@@ -83,7 +83,7 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
-			hoverLabel: `Spend ${formatCostMicros(currentSpend)}/${formatCostMicros(spendLimit)}`,
+			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
