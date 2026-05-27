@@ -3,7 +3,6 @@ package aibridgeproxyd
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -13,22 +12,62 @@ import (
 	"cdr.dev/slog/v3"
 )
 
+// ProviderStatus describes the lifecycle state of a configured AI
+// provider for observability and routing purposes.
+type ProviderStatus string
+
+const (
+	// ProviderStatusEnabled means the provider is configured, valid, and
+	// included in the active routing snapshot.
+	ProviderStatusEnabled ProviderStatus = "enabled"
+	// ProviderStatusDisabled means the provider exists in configuration
+	// but is intentionally turned off by an operator.
+	ProviderStatusDisabled ProviderStatus = "disabled"
+	// ProviderStatusError means the provider exists in configuration but
+	// cannot be routed to because of a validation failure (missing or
+	// invalid base URL, duplicate host, etc.).
+	ProviderStatusError ProviderStatus = "error"
+)
+
+// ReloadedProvider is one row from the provider configuration together
+// with the outcome of evaluating it for routing. Host is populated only
+// when Status == ProviderStatusEnabled; Err is populated only when
+// Status == ProviderStatusError.
+type ReloadedProvider struct {
+	Name   string
+	Type   string
+	Host   string
+	Status ProviderStatus
+	Err    error
+}
+
+// ProviderReload is the result of a single refresh pass: every
+// configured provider with its classification.
+type ProviderReload struct {
+	Reloaded []ReloadedProvider
+}
+
+// RefreshProvidersFunc returns the live provider classification used by
+// Reload to rebuild the proxy's routing snapshot.
+type RefreshProvidersFunc func(ctx context.Context) (ProviderReload, error)
+
 // Reload refreshes proxy routing from the configured provider source.
 // A refresh failure leaves the previous snapshot in place.
 func (s *Server) Reload(ctx context.Context) error {
 	if s.refreshProviders == nil {
 		return nil
 	}
-	providers, err := s.refreshProviders(ctx)
+	reload, err := s.refreshProviders(ctx)
 	if err != nil {
 		return xerrors.Errorf("refresh ai providers for proxy routing: %w", err)
 	}
-	router, err := buildProviderRouter(ctx, s.logger, providers, s.allowedPorts)
+	router, err := buildProviderRouter(reload, s.allowedPorts)
 	if err != nil {
-		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(providers), err)
+		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(reload.Reloaded), err)
 	}
 	s.providerRouter.Store(router)
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",
+		slog.F("provider_count", len(reload.Reloaded)),
 		slog.F("mitm_host_count", len(router.mitmHosts)),
 	)
 	return nil
@@ -42,7 +81,7 @@ func (s *Server) loadProviderRouter() *providerRouter {
 }
 
 // mitmHostsCondition returns a goproxy ReqConditionFunc that reads the
-// allowlist from the atomic router on every match. Using a closure
+// MITM host set from the atomic router on every match. Using a closure
 // instead of goproxy.ReqHostIs(...) lets Reload affect every later
 // CONNECT without re-registering handlers.
 func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
@@ -54,35 +93,23 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 	}
 }
 
-// buildProviderRouter constructs a router snapshot from a refreshed
-// provider list. First provider wins on duplicate hostnames.
-func buildProviderRouter(ctx context.Context, logger slog.Logger, providers []ProviderRoute, allowedPorts []string) (*providerRouter, error) {
-	nameByHost := make(map[string]string, len(providers))
-	var domains []string
-	for _, p := range providers {
-		if p.BaseURL == "" {
-			logger.Warn(ctx, "skipping ai provider without base url",
-				slog.F("provider_name", p.Name),
-			)
+// buildProviderRouter constructs a router snapshot from a classified
+// provider reload. Only providers with Status == ProviderStatusEnabled
+// are included in the active routing tables; the refresh function is
+// responsible for classifying disabled and errored rows. First entry
+// wins on duplicate hostnames as a defense-in-depth measure even though
+// the refresh function should mark duplicates as errors.
+func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
+	nameByHost := make(map[string]string, len(reload.Reloaded))
+	domains := make([]string, 0, len(reload.Reloaded))
+	for _, p := range reload.Reloaded {
+		if p.Status != ProviderStatusEnabled {
 			continue
 		}
-		u, err := url.Parse(p.BaseURL)
-		if err != nil {
-			logger.Warn(ctx, "skipping ai provider with invalid base url",
-				slog.F("provider_name", p.Name),
-				slog.F("base_url", p.BaseURL),
-				slog.Error(err),
-			)
+		host := strings.ToLower(p.Host)
+		if host == "" {
 			continue
 		}
-		if u.Hostname() == "" {
-			logger.Warn(ctx, "skipping ai provider base url without hostname",
-				slog.F("provider_name", p.Name),
-				slog.F("base_url", p.BaseURL),
-			)
-			continue
-		}
-		host := strings.ToLower(u.Hostname())
 		if _, exists := nameByHost[host]; exists {
 			continue
 		}
@@ -92,33 +119,6 @@ func buildProviderRouter(ctx context.Context, logger slog.Logger, providers []Pr
 	mitmHosts, err := convertDomainsToHosts(domains, allowedPorts)
 	if err != nil {
 		return nil, err
-	}
-	return &providerRouter{mitmHosts: mitmHosts, nameByHost: nameByHost}, nil
-}
-
-// buildBootRouter seeds the providerRouter from the boot-time inputs.
-// The lookup function is consulted only for hosts in the allowlist; a
-// nil function with an empty allowlist is fine and yields an empty
-// router (the proxy fails closed until Reload populates it).
-func buildBootRouter(domainAllowlist []string, providerFromHost func(string) string, allowedPorts []string) (*providerRouter, error) {
-	mitmHosts, err := convertDomainsToHosts(domainAllowlist, allowedPorts)
-	if err != nil {
-		return nil, xerrors.Errorf("invalid domain allowlist: %w", err)
-	}
-	nameByHost := make(map[string]string, len(domainAllowlist))
-	for _, domain := range domainAllowlist {
-		domain = strings.TrimSpace(strings.ToLower(domain))
-		if domain == "" {
-			continue
-		}
-		var name string
-		if providerFromHost != nil {
-			name = providerFromHost(domain)
-		}
-		if name == "" {
-			return nil, xerrors.Errorf("domain %q is in allowlist but has no provider mapping", domain)
-		}
-		nameByHost[domain] = name
 	}
 	return &providerRouter{mitmHosts: mitmHosts, nameByHost: nameByHost}, nil
 }
