@@ -360,29 +360,29 @@ func TestPubsubCluster(t *testing.T) {
 		waitForRoutes(t, b, 1)
 
 		globalEvent := uniqueSubject("global")
-		bMsg := make(chan []byte, 8)
+		bGlobal := make(chan []byte, 8)
 		cancelBGlobal, err := b.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
-			bMsg <- msg
+			bGlobal <- msg
 		})
 		require.NoError(t, err)
 		defer cancelBGlobal()
 
 		waitForRouteSubscription(t, a, globalEvent)
 		publishAndFlush(t, a, globalEvent, "from-a-to-b")
-		require.Equal(t, "from-a-to-b", string(receiveMessage(t, bMsg)))
+		require.Equal(t, "from-a-to-b", string(receiveMessage(t, bGlobal)))
 
 		// Add C's subscriptions before adding C as an extra peer to A.
-		cMsg := make(chan []byte, 8)
+		cGlobal := make(chan []byte, 8)
 		cancelCGlobal, err := c.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
-			cMsg <- msg
+			cGlobal <- msg
 		})
 		require.NoError(t, err)
 		defer cancelCGlobal()
 
 		cSubject := uniqueSubject("c-only-subscriber")
-		cUniqueMsg := make(chan []byte, 8)
+		cUnique := make(chan []byte, 8)
 		cancelCUnique, err := c.Subscribe(cSubject, func(_ context.Context, msg []byte) {
-			cUniqueMsg <- msg
+			cUnique <- msg
 		})
 		require.NoError(t, err)
 		defer cancelCUnique()
@@ -397,21 +397,21 @@ func TestPubsubCluster(t *testing.T) {
 		waitForRouteSubscription(t, a, cSubject)
 
 		publishAndFlush(t, a, globalEvent, "new-global-msg")
-		require.Equal(t, "new-global-msg", string(receiveMessage(t, bMsg)))
-		require.Equal(t, "new-global-msg", string(receiveMessage(t, cMsg)))
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, bGlobal)))
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, cGlobal)))
 
 		publishAndFlush(t, a, cSubject, "c-unique-msg")
-		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUniqueMsg)))
+		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUnique)))
 
 		// Remove B from A's peer list. Only C should receive the next messages.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
 		requireRoutesEqual(t, a.currentRoutes, addrC)
 
 		publishAndFlush(t, a, globalEvent, "no-b-peer")
-		require.Equal(t, "no-b-peer", string(receiveMessage(t, cMsg)))
+		require.Equal(t, "no-b-peer", string(receiveMessage(t, cGlobal)))
 
 		publishAndFlush(t, a, cSubject, "c-messages-still-work")
-		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUniqueMsg)))
+		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
 }
 

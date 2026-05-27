@@ -77,7 +77,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 }
 
 //nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
-func Test_SetPeerAddresses(t *testing.T) {
+func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		a := newTestPubsub(t, newClusterTestOptions(t))
 		b := newTestPubsub(t, newClusterTestOptions(t))
