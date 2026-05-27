@@ -3108,8 +3108,7 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		// Subtests run sequentially: they share the same deployment and group,
-		// and parallel PatchGroup calls on the same group race.
+		//nolint:paralleltest // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
 		t.Run(tc.Name, func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
