@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	ChunkSize = 2 << 20 // 2 MiB
+	ChunkSize   = 2 << 20         // 2 MiB
+	MaxFileSize = 10 * (10 << 20) // 100 MiB, matches coderd HTTPFileMaxBytes
 )
 
 type DataBuilder struct {
@@ -27,6 +28,16 @@ type DataBuilder struct {
 func NewDataBuilder(req *DataUpload) (*DataBuilder, error) {
 	if len(req.DataHash) != 32 {
 		return nil, xerrors.Errorf("data hash must be 32 bytes, got %d bytes", len(req.DataHash))
+	}
+
+	if req.FileSize < 0 {
+		return nil, xerrors.Errorf("file size must not be negative, got %d", req.FileSize)
+	}
+	if req.FileSize > MaxFileSize {
+		return nil, xerrors.Errorf("file size %d exceeds maximum allowed %d", req.FileSize, MaxFileSize)
+	}
+	if req.Chunks < 0 {
+		return nil, xerrors.Errorf("chunk count must not be negative, got %d", req.Chunks)
 	}
 
 	return &DataBuilder{
