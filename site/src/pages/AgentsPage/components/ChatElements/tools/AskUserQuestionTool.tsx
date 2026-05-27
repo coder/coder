@@ -557,7 +557,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
+					<TranscriptRow
+						role="status"
+						aria-live="polite"
+						className="gap-1.5 text-content-secondary"
+					>
 						<ToolIcon
 							name="ask_user_question"
 							isError={false}
@@ -684,7 +688,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
+				<TranscriptRow
+					role="status"
+					aria-live="polite"
+					className="gap-1.5 text-content-secondary"
+				>
 					<ToolIcon
 						name="ask_user_question"
 						isError={false}
