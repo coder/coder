@@ -167,10 +167,10 @@ func isGeminiModelID(modelID string) bool {
 	return strings.HasPrefix(modelID, "gemini-") || strings.Contains(modelID, "/gemini-")
 }
 
-// addGoogleOpenAICompatThoughtSignatures adds a dummy thought signature to
-// assistant tool calls in the latest user turn. Gemini validates tool-call
-// history with thought signatures, but OpenAI-compatible serialization can drop
-// the original provider metadata.
+// addGoogleOpenAICompatThoughtSignatures adds a dummy thought signature to the
+// first tool call on each assistant tool-call message in the latest user turn.
+// Gemini validates tool-call history with thought signatures, but
+// OpenAI-compatible serialization can drop the original provider metadata.
 func addGoogleOpenAICompatThoughtSignatures(payload map[string]any) bool {
 	messages, ok := payload["messages"].([]any)
 	if !ok {
