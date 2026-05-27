@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -408,25 +407,33 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
 
-	// MismatchedTokenRejectsRoute asserts the route handshake is rejected
-	// when peers have different ClusterAuthTokens. Authentication failures
-	// surface immediately on the rejecting server's error logger.
-	t.Run("MismatchedTokenRejectsRoute", func(t *testing.T) {
+	// InvalidAuthRejected asserts the cluster route listener rejects
+	// connections that do not present the configured ClusterAuthToken.
+	// We dial the route listener directly with the nats.go client, which
+	// surfaces a typed nats.ErrAuthorization for protocol-level -ERR
+	// 'Authorization Violation' responses.
+	t.Run("InvalidAuthRejected", func(t *testing.T) {
 		t.Parallel()
 
-		c := newTestPubsub(t, newAuthClusterOptions(t, "left-token"))
-		d := newTestPubsub(t, newAuthClusterOptions(t, "right-token"))
-		cLog := captureNATSErrors(c.ns)
-		dLog := captureNATSErrors(d.ns)
+		ps := newTestPubsub(t, newAuthClusterOptions(t, "real-token"))
+		routeURL := clusterRouteAddress(t, ps)
 
-		require.NoError(t, c.SetPeerAddresses([]string{clusterRouteAddress(t, d)}))
+		_, err := natsgo.Connect(routeURL,
+			natsgo.Token("wrong-token"),
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"route dial with wrong token must be rejected")
 
-		require.Eventually(t, func() bool {
-			return cLog.containsError("authentication error") || dLog.containsError("authentication error")
-		}, testutil.WaitShort, testutil.IntervalFast,
-			"expected at least one peer to log an authentication error")
-		require.Zero(t, c.ns.NumRoutes())
-		require.Zero(t, d.ns.NumRoutes())
+		_, err = natsgo.Connect(routeURL,
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"unauthenticated route dial must be rejected")
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
@@ -1083,3 +1090,10 @@ func routeStrings(routes []*url.URL) []string {
 	}
 	return out
 }
+<<<<<<< HEAD
+=======
+
+func uniqueSubject(prefix string) string {
+	return fmt.Sprintf("cluster.%s.%d", prefix, time.Now().UnixNano())
+}
+>>>>>>> 5b256546e3 (test(coderd/x/nats): assert auth rejection via nats.ErrAuthorization)
