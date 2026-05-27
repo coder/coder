@@ -51,10 +51,6 @@ import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-/**
- * Display info for the chat owner. Both fields may be absent if the
- * API response omitted them, so the view falls back to "another user".
- */
 type ChatOwnerInfo = {
 	name?: string;
 	username?: string;
