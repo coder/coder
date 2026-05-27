@@ -45,6 +45,22 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
+          # Marker embedded in the comment body so we can find this
+          # workflow's own comments later. Keep this in one place so
+          # later refactors don't drift between the body construction
+          # and the jq selectors used to find existing comments.
+          DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
+
+          # Returns IDs of github-actions[bot] comments on the PR whose
+          # body contains DOCS_PREVIEW_MARKER. Used by both the stale-
+          # comment-cleanup branch (when this push has no Markdown
+          # changes) and the upsert branch below.
+          list_docs_preview_comments() {
+            gh api --paginate \
+              "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${DOCS_PREVIEW_MARKER}\")) | .id"
+          }
+
           # Fetch the list of non-deleted files from the PR.  This is
           # intentionally not piped into grep so that a gh-api failure
           # (network, auth, rate-limit) propagates immediately instead
@@ -73,9 +89,7 @@ jobs:
             # Intentionally not piped into head so that a gh-api failure
             # propagates immediately instead of being swallowed by
             # `|| true`, matching the all_files pattern above.
-            stale_comment_ids=$(gh api --paginate \
-              "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-              --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | contains("<!-- docs-preview -->")) | .id')
+            stale_comment_ids=$(list_docs_preview_comments)
             stale_id=$(printf '%s\n' "$stale_comment_ids" | head -n 1) || true
 
             if [ -n "$stale_id" ]; then
@@ -131,12 +145,13 @@ jobs:
             url="${url}/${page_path}"
           fi
 
-          # Build the comment body using concatenated printf pieces to
-          # avoid shellcheck SC2016 (single-quoted backticks).
-          comment_body=$(printf '%s\n%s\n\n%s' \
-            '## Docs preview' \
-            "[:book: View docs preview](${url}) for \`${first_doc}\`" \
-            '<!-- docs-preview -->')
+          # The literal backticks around ${first_doc} are escaped so
+          # they survive the double-quoted string as Markdown inline
+          # code; ${url} and ${first_doc} expand normally.
+          comment_body="## Docs preview
+          [:book: View docs preview](${url}) for \`${first_doc}\`
+
+          ${DOCS_PREVIEW_MARKER}"
 
           # Upsert: update the existing docs-preview comment if one
           # exists, otherwise create a new one.  This prevents duplicate
@@ -145,9 +160,7 @@ jobs:
           # Intentionally not piped into head so that a gh-api failure
           # (network, auth, rate-limit) propagates immediately instead
           # of being swallowed by `|| true`.
-          all_comment_ids=$(gh api --paginate \
-            "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-            --jq '.[] | select(.user.login == "github-actions[bot]") | select(.body | contains("<!-- docs-preview -->")) | .id')
+          all_comment_ids=$(list_docs_preview_comments)
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           if [ -n "$existing_id" ]; then
