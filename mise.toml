@@ -1,5 +1,5 @@
-# Keep in lockstep with MISE_VERSION in dogfood/coder/ubuntu-*/Dockerfile.base,
-# .github/workflows/dogfood.yaml, and scripts/dogfood/mise-oci-wrapper.sh.
+# Keep in lockstep with .github/actions/setup-mise/action.yml, flake.nix,
+# dogfood/coder/ubuntu-*/Dockerfile.base, and scripts/dogfood/mise-oci-wrapper.sh.
 min_version = "2026.5.12"
 
 [settings]
@@ -21,6 +21,8 @@ protoc-gen-go = "1.30.0"
 # Go development tools.
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
+"go:github.com/slsyy/mtimehash/cmd/mtimehash" = "v1.0.0"
+"go:github.com/tc-hib/go-winres" = "v0.3.3"
 "go:github.com/mikefarah/yq/v4" = "v4.44.3"
 "go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
 "go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
@@ -30,6 +32,7 @@ protoc-gen-go = "1.30.0"
 "go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
+actionlint = "1.7.10"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
 # crane is the registry client `mise oci push` shells out to. Sourced
@@ -39,8 +42,9 @@ crane = "0.21.6"
 golangci-lint = "1.64.8"
 helm = "3.21.0"
 kubectx = "0.9.4"
-syft = "1.20.0"
+syft = "1.26.1"
 terraform = "1.15.5"
+zizmor = "1.11.0"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood
 # users who run `mise install` here will pull these too; they are

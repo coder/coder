@@ -1,0 +1,147 @@
+name: Setup mise
+description: Install mise tools with an optional trusted cache.
+inputs:
+  install_args:
+    description: Arguments passed to mise install.
+    required: true
+  cache-key-prefix:
+    description: Prefix for mise tool cache keys.
+    required: false
+    default: mise-ci-v1
+  mise-version:
+    description: mise version to install.
+    required: false
+    default: "2026.5.12"
+  mise-sha256:
+    description: SHA256 checksum for the mise installer.
+    required: false
+    default: ""
+  use-cache:
+    description: Whether to restore and save mise tool caches.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Compute mise cache key
+      id: cache-key
+      shell: bash
+      env:
+        CACHE_KEY_PREFIX: ${{ inputs.cache-key-prefix }}
+        INSTALL_ARGS: ${{ inputs.install_args }}
+        MISE_VERSION: ${{ inputs.mise-version }}
+        RUNNER_ARCH: ${{ runner.arch }}
+        RUNNER_OS: ${{ runner.os }}
+      run: |
+        set -euo pipefail
+
+        install_args_hash="$(printf '%s' "$INSTALL_ARGS" | git hash-object --stdin)"
+        files_hash="$(git hash-object mise.toml mise.lock | git hash-object --stdin)"
+        key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-${files_hash}"
+        restore_key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-"
+
+        {
+          echo "key=$key"
+          echo "restore-key=$restore_key"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Select mise checksum
+      id: checksum
+      shell: bash
+      env:
+        CHECKSUMS_FILE: ${{ github.action_path }}/checksums.toml
+        INPUT_MISE_SHA256: ${{ inputs.mise-sha256 }}
+        MISE_VERSION: ${{ inputs.mise-version }}
+        RUNNER_ARCH: ${{ runner.arch }}
+        RUNNER_OS: ${{ runner.os }}
+      run: |
+        set -euo pipefail
+
+        checksum="${INPUT_MISE_SHA256}"
+        if [[ -z "${checksum}" ]]; then
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Linux-X64)
+              target="linux-x64"
+              ;;
+            Linux-ARM64)
+              target="linux-arm64"
+              ;;
+            macOS-X64)
+              target="macos-x64"
+              ;;
+            macOS-ARM64)
+              target="macos-arm64"
+              ;;
+            Windows-X64)
+              target="windows-x64"
+              ;;
+            *)
+              echo "::error::No mise checksum is pinned for ${RUNNER_OS}-${RUNNER_ARCH}."
+              exit 1
+              ;;
+          esac
+
+          checksum="$(
+            awk -F= -v version="${MISE_VERSION}" -v target="${target}" '
+              $0 == "[\"" version "\"]" { in_table = 1; next }
+              /^\[/ { in_table = 0 }
+              in_table {
+                key = $1
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+                if (key == target) {
+                  value = $2
+                  gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                  gsub(/^"|"$/, "", value)
+                  print value
+                  exit
+                }
+              }
+            ' "${CHECKSUMS_FILE}"
+          )"
+          if [[ -z "${checksum}" ]]; then
+            echo "::error::No mise checksum is pinned for mise ${MISE_VERSION} on ${target}."
+            exit 1
+          fi
+        fi
+
+        echo "sha256=${checksum}" >> "$GITHUB_OUTPUT"
+
+    - name: Configure mise data directory
+      shell: bash
+      run: | # zizmor: ignore[github-env] MISE_DATA_DIR is a static runner path.
+        printf '%s\n' 'MISE_DATA_DIR=${{ runner.temp }}/mise-data' >> "$GITHUB_ENV"
+
+    - name: Cache mise tools
+      if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cache/mise
+          ${{ runner.temp }}/mise-data
+        key: ${{ steps.cache-key.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.restore-key }}
+
+    - name: Restore mise tools
+      if: ${{ inputs.use-cache == 'true' && github.ref != 'refs/heads/main' }}
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cache/mise
+          ${{ runner.temp }}/mise-data
+        key: ${{ steps.cache-key.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.restore-key }}
+
+    - name: Install mise tools
+      uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      with:
+        version: ${{ inputs.mise-version }}
+        sha256: ${{ steps.checksum.outputs.sha256 }}
+        mise_dir: ${{ runner.temp }}/mise-data
+        install_args: ${{ inputs.install_args }}
+        cache: "false"
+
+    - name: Clear mise GitHub token
+      shell: bash
+      run: echo "MISE_GITHUB_TOKEN=" >> "$GITHUB_ENV"

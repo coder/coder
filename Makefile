@@ -728,11 +728,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -790,15 +790,24 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	go tool github.com/rhysd/actionlint/cmd/actionlint
+	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
 
 lint/actions/zizmor:
-	./scripts/zizmor.sh \
+	@set -euo pipefail; \
+	if [ -z "$${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
+		GH_TOKEN="$$(gh auth token 2>/dev/null || true)"; \
+		export GH_TOKEN; \
+	fi; \
+	mise exec zizmor -- zizmor \
 		--strict-collection \
 		--persona=regular \
 		.
 .PHONY: lint/actions/zizmor
+
+lint/mise-versions:
+	./scripts/check_mise_versions.sh
+.PHONY: lint/mise-versions
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -811,7 +820,7 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
-TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github/workflows/ci.yaml)
+TYPOS_VERSION := $(shell mise current aqua:crate-ci/typos)
 
 # Map uname values to typos release asset names.
 TYPOS_ARCH := $(shell uname -m)

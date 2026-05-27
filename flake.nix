@@ -61,6 +61,30 @@
           inherit nodejs; # Ensure it points to the above nodejs version
         };
 
+        mise = pkgs.stdenvNoCC.mkDerivation rec {
+          pname = "mise";
+          version = "2026.5.12";
+          target = {
+            x86_64-linux = "linux-x64";
+            aarch64-linux = "linux-arm64";
+            x86_64-darwin = "macos-x64";
+            aarch64-darwin = "macos-arm64";
+          }.${system};
+          src = pkgs.fetchurl {
+            url = "https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${target}";
+            hash = {
+              x86_64-linux = "sha256-ojiXKjFi1xC4WyjDJDculspOS0hsgf54aVAA2fvHfEg=";
+              aarch64-linux = "sha256-/S1SJ6itCx41nHBSeoNFqa2nIHf43LtVk3FlPD2VRk8=";
+              x86_64-darwin = "sha256-3lfo3IK72ICmnJvIruBrncxXgYSz5c+G/O+AY11qkLQ=";
+              aarch64-darwin = "sha256-53cHBUD/4iz4srn4iu2ItGHQiH2UDE8cGpc1lGPN5uE=";
+            }.${system};
+          };
+          dontUnpack = true;
+          installPhase = ''
+            install -Dm755 "$src" "$out/bin/mise"
+          '';
+        };
+
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -188,6 +212,7 @@
             lazydocker
             lazygit
             less
+            mise
             unstablePkgs.mockgen
             moreutils
             nfpm
