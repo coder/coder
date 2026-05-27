@@ -248,7 +248,7 @@ func TestBooleanValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := BooleanValue(tt.input)
+			got, err := booleanValue(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -280,7 +280,7 @@ func TestAttribute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			val, ok := Attribute(tt.attrs, tt.key)
+			val, ok := attribute(tt.attrs, tt.key)
 			assert.Equal(t, tt.wantOK, ok)
 			assert.Equal(t, tt.wantVal, val)
 		})
@@ -308,7 +308,7 @@ func TestAttributeAsBool(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := AttributeAsBool(tt.attrs, tt.key)
+			got, ok := attributeAsBool(tt.attrs, tt.key)
 			assert.Equal(t, tt.wantOK, ok)
 			assert.Equal(t, tt.want, got)
 		})
@@ -336,7 +336,7 @@ func TestAttributeAsString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := AttributeAsString(tt.attrs, tt.key)
+			got, ok := attributeAsString(tt.attrs, tt.key)
 			assert.Equal(t, tt.wantOK, ok)
 			assert.Equal(t, tt.want, got)
 		})
@@ -349,31 +349,31 @@ func TestAttributeEqual(t *testing.T) {
 	t.Run("exact match same value", func(t *testing.T) {
 		t.Parallel()
 		attrs := scim.ResourceAttributes{"userName": "alice"}
-		assert.True(t, AttributeEqual("alice", attrs, "userName"))
+		assert.True(t, attributeEqual("alice", attrs, "userName"))
 	})
 
 	t.Run("mixed case same value", func(t *testing.T) {
 		t.Parallel()
 		attrs := scim.ResourceAttributes{"userName": "alice"}
-		assert.True(t, AttributeEqual("alice", attrs, "UserName"))
+		assert.True(t, attributeEqual("alice", attrs, "UserName"))
 	})
 
 	t.Run("mixed case different value", func(t *testing.T) {
 		t.Parallel()
 		attrs := scim.ResourceAttributes{"userName": "bob"}
-		assert.False(t, AttributeEqual("alice", attrs, "USERNAME"))
+		assert.False(t, attributeEqual("alice", attrs, "USERNAME"))
 	})
 
 	t.Run("missing key means no change", func(t *testing.T) {
 		t.Parallel()
 		attrs := scim.ResourceAttributes{}
-		assert.True(t, AttributeEqual("alice", attrs, "userName"))
+		assert.True(t, attributeEqual("alice", attrs, "userName"))
 	})
 
 	t.Run("type mismatch", func(t *testing.T) {
 		t.Parallel()
 		attrs := scim.ResourceAttributes{"userName": 42}
-		assert.False(t, AttributeEqual("alice", attrs, "userName"))
+		assert.False(t, attributeEqual("alice", attrs, "userName"))
 	})
 }
 

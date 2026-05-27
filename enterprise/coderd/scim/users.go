@@ -26,11 +26,11 @@ import (
 
 var _ scim.ResourceHandler = (*ResourceUser)(nil)
 
-// scimAudit emits an audit log for a SCIM operation. This uses
+// auditUser emits an audit log for a SCIM operation. This uses
 // BackgroundAudit instead of InitRequest because the elimity-com/scim
 // library owns the http.ResponseWriter and does not expose it to
 // resource handlers.
-func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action database.AuditAction, old, changed database.User) {
+func (ru *ResourceUser) auditUser(ctx context.Context, r *http.Request, action database.AuditAction, old, changed database.User) {
 	raw, _ := json.Marshal(map[string]string{
 		"automatic_actor":     "coder",
 		"automatic_subsystem": "scim",
@@ -67,7 +67,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 
 	// Extract fields from the SCIM attributes.
 	// Do our best to match what the OIDC signup flow also does.
-	username, _ := AttributeAsString(attributes, "userName")
+	username, _ := attributeAsString(attributes, "userName")
 	email := primaryEmail(attributes)
 	if email == "" {
 		// email is required
@@ -88,8 +88,8 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 	//   We should consider whether we want to support that for SCIM as well, and if so, apply that validation here.
 
 	active := true
-	if a, ok := Attribute(attributes, "active"); ok {
-		v, err := BooleanValue(a)
+	if a, ok := attribute(attributes, "active"); ok {
+		v, err := booleanValue(a)
 		if err != nil {
 			return scim.Resource{}, scimErrors.ScimErrorBadRequest(
 				fmt.Sprintf("invalid boolean value for 'active' field: %v", a))
@@ -174,7 +174,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		return scim.Resource{}, xerrors.Errorf("create user: %w", err)
 	}
 
-	ru.scimAudit(ctx, r, database.AuditActionCreate, database.User{}, dbUser)
+	ru.auditUser(ctx, r, database.AuditActionCreate, database.User{}, dbUser)
 	return userResource(dbUser), nil
 }
 
@@ -246,18 +246,18 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 	}
 
 	// All of our fields except for active are immutable.
-	if !AttributeEqual(dbUser.Username, attributes, "userName") {
+	if !attributeEqual(dbUser.Username, attributes, "userName") {
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("changing the 'userName' field is not supported (current value: %q)", dbUser.Username))
 	}
 
 	// TODO: Check if the primary email has changed. If it has, should we do something?
 
-	activeInterface, ok := Attribute(attributes, "active")
+	activeInterface, ok := attribute(attributes, "active")
 	if !ok {
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest("missing required 'active' field")
 	}
 
-	active, err := BooleanValue(activeInterface)
+	active, err := booleanValue(activeInterface)
 	if err != nil {
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", activeInterface))
 	}
@@ -296,7 +296,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 
 	uid, err := uuid.Parse(idStr)
 	if err != nil {
-		return scim.Resource{}, BadUUID(idStr, err)
+		return scim.Resource{}, badUUID(idStr, err)
 	}
 
 	dbUser, err := ru.store.GetUserByID(ctx, uid)
@@ -326,14 +326,14 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 			// 1. Path set: {"op":"replace","path":"active","value":false}
 			// 2. No path, value is a map: {"op":"replace","value":{"active":false}}
 			if op.Path != nil && strings.EqualFold(op.Path.String(), "active") {
-				v, err := BooleanValue(op.Value)
+				v, err := booleanValue(op.Value)
 				if err != nil {
 					return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", op.Value))
 				}
 				activeSet = &v
 			} else if m, ok := op.Value.(map[string]interface{}); ok {
-				if actV, ok := Attribute(m, "active"); ok {
-					v, err := BooleanValue(actV)
+				if actV, ok := attribute(m, "active"); ok {
+					v, err := booleanValue(actV)
 					if err != nil {
 						return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", actV))
 					}
@@ -356,7 +356,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 func (ru *ResourceUser) user(ctx context.Context, idStr string) (database.User, error) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return database.User{}, BadUUID(idStr, err)
+		return database.User{}, badUUID(idStr, err)
 	}
 
 	usr, err := ru.store.GetUserByID(ctx, id)
@@ -381,7 +381,7 @@ func (ru *ResourceUser) updateUserStatus(ctx context.Context, r *http.Request, u
 	if err != nil {
 		return database.User{}, err
 	}
-	ru.scimAudit(ctx, r, database.AuditActionWrite, u, newUser)
+	ru.auditUser(ctx, r, database.AuditActionWrite, u, newUser)
 	return newUser, nil
 }
 
@@ -466,8 +466,8 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 	}
 }
 
-func AttributeAsBool(attrs scim.ResourceAttributes, key string) (value bool, exists bool) {
-	val, ok := Attribute(attrs, key)
+func attributeAsBool(attrs scim.ResourceAttributes, key string) (value bool, exists bool) {
+	val, ok := attribute(attrs, key)
 	if !ok {
 		return false, false
 	}
@@ -483,8 +483,8 @@ func AttributeAsBool(attrs scim.ResourceAttributes, key string) (value bool, exi
 	}
 }
 
-func AttributeAsString(attrs scim.ResourceAttributes, key string) (string, bool) {
-	val, ok := Attribute(attrs, key)
+func attributeAsString(attrs scim.ResourceAttributes, key string) (string, bool) {
+	val, ok := attribute(attrs, key)
 	if !ok {
 		return "", false
 	}
@@ -499,7 +499,7 @@ func AttributeAsString(attrs scim.ResourceAttributes, key string) (string, bool)
 	}
 }
 
-func Attribute(attrs scim.ResourceAttributes, key string) (interface{}, bool) {
+func attribute(attrs scim.ResourceAttributes, key string) (interface{}, bool) {
 	// attribute names are case-insensitive per SCIM spec
 	val, ok := attrs[key]
 	if ok {
@@ -520,14 +520,17 @@ func Attribute(attrs scim.ResourceAttributes, key string) (interface{}, bool) {
 	return nil, false
 }
 
-// BadUUID returns a 404 not-found error for non-UUID identifiers.
+// badUUID returns a 404 not-found error for non-UUID identifiers.
 // SCIM clients may send arbitrary strings as IDs; returning 404
 // (rather than 400) signals that no resource matches.
-func BadUUID(idStr string, _ error) scimErrors.ScimError {
-	return scimErrors.ScimErrorResourceNotFound(idStr)
+func badUUID(idStr string, _ error) scimErrors.ScimError {
+	return scimErrors.ScimError{
+		Detail: fmt.Sprintf("%q is not a valid uuid; resource not found", idStr),
+		Status: http.StatusNotFound,
+	}
 }
 
-func BooleanValue(v interface{}) (bool, error) {
+func booleanValue(v interface{}) (bool, error) {
 	switch b := v.(type) {
 	case bool:
 		return b, nil
@@ -538,8 +541,8 @@ func BooleanValue(v interface{}) (bool, error) {
 	}
 }
 
-func AttributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key string) bool {
-	found, ok := Attribute(attrs, key)
+func attributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key string) bool {
+	found, ok := attribute(attrs, key)
 	if !ok {
 		return true // No change if the attribute is not present in the request
 	}
@@ -554,7 +557,7 @@ func AttributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key
 
 // primaryEmail extracts the primary email from SCIM resource attributes.
 func primaryEmail(attributes scim.ResourceAttributes) string {
-	emailsRaw, ok := Attribute(attributes, "emails")
+	emailsRaw, ok := attribute(attributes, "emails")
 	if !ok {
 		return ""
 	}
@@ -570,11 +573,11 @@ func primaryEmail(attributes scim.ResourceAttributes) string {
 		if !ok {
 			continue
 		}
-		val, ok := AttributeAsString(emailMap, "value")
+		val, ok := attributeAsString(emailMap, "value")
 		if !ok {
 			continue
 		}
-		if primary, _ := AttributeAsBool(emailMap, "primary"); primary {
+		if primary, _ := attributeAsBool(emailMap, "primary"); primary {
 			return val
 		}
 		fallback = val

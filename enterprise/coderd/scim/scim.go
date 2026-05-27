@@ -20,10 +20,10 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 )
 
-// Server wraps the elimity-com/scim library's Server to implement
+// Handler wraps the elimity-com/scim library's Server to implement
 // SCIM 2.0 endpoints. The library auto-serves /Schemas, /ResourceTypes,
 // and /ServiceProviderConfig from schema definitions.
-type Server struct {
+type Handler struct {
 	opts *Options
 	srv  *scim.Server
 }
@@ -42,7 +42,7 @@ type Options struct {
 	SCIMAPIKey []byte
 }
 
-func New(opts *Options) (*Server, error) {
+func New(opts *Options) (*Handler, error) {
 	userHandler := &ResourceUser{
 		store: opts.DB,
 		opts:  opts,
@@ -87,13 +87,13 @@ func New(opts *Options) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{
+	return &Handler{
 		opts: opts,
 		srv:  &srv,
 	}, nil
 }
 
-func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
+func (s *Handler) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if !s.verifyAuthHeader(r) {
 			scimUnauthorized(rw)
@@ -109,11 +109,11 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) Handler() http.Handler {
-	return s.AuthMiddleware(s.srv)
+func (s *Handler) Handler() http.Handler {
+	return s.authMiddleware(s.srv)
 }
 
-func (s *Server) verifyAuthHeader(r *http.Request) bool {
+func (s *Handler) verifyAuthHeader(r *http.Request) bool {
 	bearer := []byte("bearer ")
 	hdr := []byte(r.Header.Get("Authorization"))
 
