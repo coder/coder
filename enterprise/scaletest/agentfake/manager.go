@@ -29,11 +29,10 @@ const (
 // TokenInfo is a single workspace-agent auth token retrieved for a coder external agent, along with the identifying
 // metadata needed to report the agent in metrics and logs.
 type TokenInfo struct {
-	WorkspaceID   uuid.UUID
-	WorkspaceName string
-	AgentID       uuid.UUID
-	AgentName     string
-	Token         string
+	WorkspaceID uuid.UUID
+	AgentID     uuid.UUID
+	AgentName   string
+	Token       string
 }
 
 // ManagerOptions configures a Manager. Authentication is supplied via the *codersdk.Client passed to NewManager rather
@@ -204,30 +203,23 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 	}
 	workspaces := page.Workspaces
 
-	workspacesByID := make(map[uuid.UUID]codersdk.Workspace, len(workspaces))
 	wsIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, ws := range workspaces {
-		workspacesByID[ws.ID] = ws
 		wsIDs = append(wsIDs, ws.ID)
 	}
 
-	tokens := make([]TokenInfo, 0, len(workspaces))
 	resp, err := m.client.ExternalAgentTokensByWorkspaceIDs(ctx, wsIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external-agent tokens: %w", err)
 	}
 
+	tokens := make([]TokenInfo, 0, len(resp.Agents))
 	for _, row := range resp.Agents {
-		ws, ok := workspacesByID[row.WorkspaceID]
-		if !ok {
-			continue
-		}
 		tokens = append(tokens, TokenInfo{
-			WorkspaceID:   row.WorkspaceID,
-			WorkspaceName: ws.Name,
-			AgentID:       row.AgentID,
-			AgentName:     row.AgentName,
-			Token:         row.AgentToken,
+			WorkspaceID: row.WorkspaceID,
+			AgentID:     row.AgentID,
+			AgentName:   row.AgentName,
+			Token:       row.AgentToken,
 		})
 	}
 	m.logger.Info(ctx, "enumerated external-agent workspaces",

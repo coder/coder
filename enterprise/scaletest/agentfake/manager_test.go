@@ -42,20 +42,18 @@ func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
 	first := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
 	templateID := first.Workspace.TemplateID
 	want := []agentfake.TokenInfo{{
-		WorkspaceID:   first.Workspace.ID,
-		WorkspaceName: first.Workspace.Name,
-		AgentID:       first.Agents[0].ID,
-		AgentName:     first.Agents[0].Name,
-		Token:         first.AgentToken,
+		WorkspaceID: first.Workspace.ID,
+		AgentID:     first.Agents[0].ID,
+		AgentName:   first.Agents[0].Name,
+		Token:       first.AgentToken,
 	}}
 	for i := 1; i < numWorkspaces; i++ {
 		r := buildExternalAgentWorkspace(t, db, user, templateID)
 		want = append(want, agentfake.TokenInfo{
-			WorkspaceID:   r.Workspace.ID,
-			WorkspaceName: r.Workspace.Name,
-			AgentID:       r.Agents[0].ID,
-			AgentName:     r.Agents[0].Name,
-			Token:         r.AgentToken,
+			WorkspaceID: r.Workspace.ID,
+			AgentID:     r.Agents[0].ID,
+			AgentName:   r.Agents[0].Name,
+			Token:       r.AgentToken,
 		})
 	}
 
