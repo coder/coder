@@ -37,6 +37,10 @@ OPTIONS:
           creating a token without specifying a duration, such as when
           authenticating the CLI or an IDE plugin.
 
+      --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
+          Disable chat sharing. Chat ACL checking is disabled and only owners
+          can access their chats.
+
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
           on all workspaces. This prevents the 'owner' from ssh, apps, and
@@ -100,80 +104,7 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
-AI BRIDGE OPTIONS: 
-      --aibridge-allow-byok bool, $CODER_AIBRIDGE_ALLOW_BYOK (default: true)
-          Allow users to provide their own LLM API keys or subscriptions. When
-          disabled, only centralized key authentication is permitted.
-
-      --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
-          The base URL of the Anthropic API.
-
-      --aibridge-anthropic-key string, $CODER_AIBRIDGE_ANTHROPIC_KEY
-          The key to authenticate against the Anthropic API.
-
-      --aibridge-bedrock-access-key string, $CODER_AIBRIDGE_BEDROCK_ACCESS_KEY
-          The access key to authenticate against the AWS Bedrock API.
-
-      --aibridge-bedrock-access-key-secret string, $CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET
-          The access key secret to use with the access key to authenticate
-          against the AWS Bedrock API.
-
-      --aibridge-bedrock-base-url string, $CODER_AIBRIDGE_BEDROCK_BASE_URL
-          The base URL to use for the AWS Bedrock API. Use this setting to
-          specify an exact URL to use. Takes precedence over
-          CODER_AIBRIDGE_BEDROCK_REGION.
-
-      --aibridge-bedrock-model string, $CODER_AIBRIDGE_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
-          The model to use when making requests to the AWS Bedrock API.
-
-      --aibridge-bedrock-region string, $CODER_AIBRIDGE_BEDROCK_REGION
-          The AWS Bedrock API region to use. Constructs a base URL to use for
-          the AWS Bedrock API in the form of
-          'https://bedrock-runtime.<region>.amazonaws.com'.
-
-      --aibridge-bedrock-small-fastmodel string, $CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
-          The small fast model to use when making requests to the AWS Bedrock
-          API. Claude Code uses Haiku-class models to perform background tasks.
-          See
-          https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-
-      --aibridge-circuit-breaker-enabled bool, $CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED (default: false)
-          Enable the circuit breaker to protect against cascading failures from
-          upstream AI provider overload (503, 529).
-
-      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 60d)
-          Length of time to retain data such as interceptions and all related
-          records (token, prompt, tool use).
-
-      --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
-          Whether to start an in-memory aibridged instance.
-
-      --aibridge-max-concurrency int, $CODER_AIBRIDGE_MAX_CONCURRENCY (default: 0)
-          Maximum number of concurrent AI Bridge requests per replica. Set to 0
-          to disable (unlimited).
-
-      --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
-          The base URL of the OpenAI API.
-
-      --aibridge-openai-key string, $CODER_AIBRIDGE_OPENAI_KEY
-          The key to authenticate against the OpenAI API.
-
-      --aibridge-rate-limit int, $CODER_AIBRIDGE_RATE_LIMIT (default: 0)
-          Maximum number of AI Bridge requests per second per replica. Set to 0
-          to disable (unlimited).
-
-      --aibridge-send-actor-headers bool, $CODER_AIBRIDGE_SEND_ACTOR_HEADERS (default: false)
-          Once enabled, extra headers will be added to upstream requests to
-          identify the user (actor) making requests to AI Bridge. This is only
-          needed if you are using a proxy between AI Bridge and an upstream AI
-          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
-          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
-          username).
-
-      --aibridge-structured-logging bool, $CODER_AIBRIDGE_STRUCTURED_LOGGING (default: false)
-          Emit structured logs for AI Bridge interception records. Use this for
-          exporting these records to external SIEM or observability systems.
-
+AI GATEWAY OPTIONS: 
       --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
           Determines when accumulated AI spend resets to zero, aligned to UTC
           calendar boundaries. Only "month" is currently supported.
@@ -183,49 +114,128 @@ AI BRIDGE OPTIONS:
           with AI budgets. "highest" selects the group with the largest spend
           limit, and is currently the only supported value.
 
-AI BRIDGE PROXY OPTIONS: 
-      --aibridge-proxy-dump-dir string, $CODER_AIBRIDGE_PROXY_DUMP_DIR
+      --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
+          Base directory for dumping AI Bridge request/response pairs to disk
+          for debugging. When set, each provider writes under a subdirectory
+          named after the provider. Sensitive headers are redacted. Leave empty
+          to disable.
+
+      --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
+          Allow users to provide their own LLM API keys or subscriptions. When
+          disabled, only centralized key authentication is permitted.
+
+      --ai-gateway-anthropic-base-url string, $CODER_AI_GATEWAY_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
+          The base URL of the Anthropic API.
+
+      --ai-gateway-anthropic-key string, $CODER_AI_GATEWAY_ANTHROPIC_KEY
+          The key to authenticate against the Anthropic API.
+
+      --ai-gateway-bedrock-access-key string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY
+          The access key to authenticate against the AWS Bedrock API.
+
+      --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
+          The access key secret to use with the access key to authenticate
+          against the AWS Bedrock API.
+
+      --ai-gateway-bedrock-base-url string, $CODER_AI_GATEWAY_BEDROCK_BASE_URL
+          The base URL to use for the AWS Bedrock API. Use this setting to
+          specify an exact URL to use. Takes precedence over
+          CODER_AI_GATEWAY_BEDROCK_REGION.
+
+      --ai-gateway-bedrock-model string, $CODER_AI_GATEWAY_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
+          The model to use when making requests to the AWS Bedrock API.
+
+      --ai-gateway-bedrock-region string, $CODER_AI_GATEWAY_BEDROCK_REGION
+          The AWS Bedrock API region to use. Constructs a base URL to use for
+          the AWS Bedrock API in the form of
+          'https://bedrock-runtime.<region>.amazonaws.com'.
+
+      --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
+          The small fast model to use when making requests to the AWS Bedrock
+          API. Claude Code uses Haiku-class models to perform background tasks.
+          See
+          https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+
+      --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider overload (503, 529).
+
+      --ai-gateway-retention duration, $CODER_AI_GATEWAY_RETENTION (default: 60d)
+          Length of time to retain data such as interceptions and all related
+          records (token, prompt, tool use).
+
+      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
+          Whether to start an in-memory AI Gateway instance.
+
+      --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
+          Maximum number of concurrent AI Gateway requests per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-openai-base-url string, $CODER_AI_GATEWAY_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
+          The base URL of the OpenAI API.
+
+      --ai-gateway-openai-key string, $CODER_AI_GATEWAY_OPENAI_KEY
+          The key to authenticate against the OpenAI API.
+
+      --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)
+          Maximum number of AI Gateway requests per second per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
+          Once enabled, extra headers will be added to upstream requests to
+          identify the user (actor) making requests to AI Gateway. This is only
+          needed if you are using a proxy between AI Gateway and an upstream AI
+          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
+          username).
+
+      --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
+          Emit structured logs for AI Gateway interception records. Use this for
+          exporting these records to external SIEM or observability systems.
+
+AI GATEWAY PROXY OPTIONS: 
+      --ai-gateway-proxy-dump-dir string, $CODER_AI_GATEWAY_PROXY_DUMP_DIR
           Directory for dumping MITM request/response pairs to disk for
           debugging. When set, each proxied request produces .req.txt and
           .resp.txt files organized by provider. Sensitive headers are redacted.
           Leave empty to disable.
 
-      --aibridge-proxy-allowed-private-cidrs string-array, $CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS
+      --ai-gateway-proxy-allowed-private-cidrs string-array, $CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS
           Comma-separated list of CIDR ranges that are permitted even though
           they fall within blocked private/reserved IP ranges. By default all
           private ranges are blocked to prevent SSRF attacks. Use this to allow
           access to specific internal networks.
 
-      --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
-          Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
+      --ai-gateway-proxy-enabled bool, $CODER_AI_GATEWAY_PROXY_ENABLED (default: false)
+          Enable the AI Gateway MITM Proxy for intercepting and decrypting AI
           provider requests.
 
-      --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
-          The address the AI Bridge Proxy will listen on.
+      --ai-gateway-proxy-listen-addr string, $CODER_AI_GATEWAY_PROXY_LISTEN_ADDR (default: :8888)
+          The address the AI Gateway Proxy will listen on.
 
-      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
+      --ai-gateway-proxy-cert-file string, $CODER_AI_GATEWAY_PROXY_CERT_FILE
           Path to the CA certificate file used to intercept (MITM) HTTPS traffic
           from AI clients. This CA must be trusted by AI clients for the proxy
           to decrypt their requests.
 
-      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
+      --ai-gateway-proxy-key-file string, $CODER_AI_GATEWAY_PROXY_KEY_FILE
           Path to the CA private key file used to intercept (MITM) HTTPS traffic
           from AI clients.
 
-      --aibridge-proxy-tls-cert-file string, $CODER_AIBRIDGE_PROXY_TLS_CERT_FILE
-          Path to the TLS certificate file for the AI Bridge Proxy listener.
-          Must be set together with AI Bridge Proxy TLS Key File.
+      --ai-gateway-proxy-tls-cert-file string, $CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE
+          Path to the TLS certificate file for the AI Gateway Proxy listener.
+          Must be set together with AI Gateway Proxy TLS Key File.
 
-      --aibridge-proxy-tls-key-file string, $CODER_AIBRIDGE_PROXY_TLS_KEY_FILE
-          Path to the TLS private key file for the AI Bridge Proxy listener.
-          Must be set together with AI Bridge Proxy TLS Certificate File.
+      --ai-gateway-proxy-tls-key-file string, $CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE
+          Path to the TLS private key file for the AI Gateway Proxy listener.
+          Must be set together with AI Gateway Proxy TLS Certificate File.
 
-      --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
+      --ai-gateway-proxy-upstream string, $CODER_AI_GATEWAY_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or
           https://[user:pass@]host:port.
 
-      --aibridge-proxy-upstream-ca string, $CODER_AIBRIDGE_PROXY_UPSTREAM_CA
+      --ai-gateway-proxy-upstream-ca string, $CODER_AI_GATEWAY_PROXY_UPSTREAM_CA
           Path to a PEM-encoded CA certificate to trust for the upstream proxy's
           TLS connection. Only needed for HTTPS upstream proxies with
           certificates not trusted by the system. If not provided, the system

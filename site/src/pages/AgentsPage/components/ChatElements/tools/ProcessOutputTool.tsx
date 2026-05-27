@@ -94,7 +94,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 				hasHeaderActions ? (
 					<>
 						{isRunning && (
-							<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+							<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 						)}
 						{killedBySignal && !isRunning && (
 							<Tooltip>
@@ -111,7 +111,13 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 								exit {exitCode}
 							</span>
 						)}
-						{hasOutput && <CopyButton text={output} label="Copy output" />}
+						{hasOutput && (
+							<CopyButton
+								text={output}
+								label="Copy output"
+								className="-my-0.5 size-6 p-0"
+							/>
+						)}
 					</>
 				) : undefined
 			}
@@ -150,7 +156,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 				>
 					<ChevronDownIcon
 						className={cn(
-							"h-3 w-3 transition-transform",
+							"size-3 transition-transform",
 							outputFullyExpanded && "rotate-180",
 						)}
 					/>

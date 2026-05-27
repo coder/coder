@@ -82,6 +82,7 @@ var chatActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat messages and metadata",
 	ActionUpdate: "update chat title or settings",
 	ActionDelete: "delete a chat",
+	ActionShare:  "share a chat with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -376,6 +377,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read user secret metadata and value",
 			ActionUpdate: "update user secret metadata and value",
 			ActionDelete: "delete a user secret",
+		},
+	},
+	"user_skill": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a user skill",
+			ActionRead:   "read user skill metadata and content",
+			ActionUpdate: "update user skill metadata and content",
+			ActionDelete: "delete a user skill",
 		},
 	},
 	"usage_event": {

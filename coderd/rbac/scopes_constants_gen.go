@@ -39,6 +39,7 @@ const (
 	ScopeChatCreate                          ScopeName = "chat:create"
 	ScopeChatDelete                          ScopeName = "chat:delete"
 	ScopeChatRead                            ScopeName = "chat:read"
+	ScopeChatShare                           ScopeName = "chat:share"
 	ScopeChatUpdate                          ScopeName = "chat:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
@@ -133,6 +134,10 @@ const (
 	ScopeUserSecretDelete                    ScopeName = "user_secret:delete"
 	ScopeUserSecretRead                      ScopeName = "user_secret:read"
 	ScopeUserSecretUpdate                    ScopeName = "user_secret:update"
+	ScopeUserSkillCreate                     ScopeName = "user_skill:create"
+	ScopeUserSkillDelete                     ScopeName = "user_skill:delete"
+	ScopeUserSkillRead                       ScopeName = "user_skill:read"
+	ScopeUserSkillUpdate                     ScopeName = "user_skill:update"
 	ScopeWebpushSubscriptionCreate           ScopeName = "webpush_subscription:create"
 	ScopeWebpushSubscriptionDelete           ScopeName = "webpush_subscription:delete"
 	ScopeWebpushSubscriptionRead             ScopeName = "webpush_subscription:read"
@@ -211,6 +216,7 @@ func (e ScopeName) Valid() bool {
 		ScopeChatCreate,
 		ScopeChatDelete,
 		ScopeChatRead,
+		ScopeChatShare,
 		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
@@ -305,6 +311,10 @@ func (e ScopeName) Valid() bool {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,
@@ -384,6 +394,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatCreate,
 		ScopeChatDelete,
 		ScopeChatRead,
+		ScopeChatShare,
 		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
@@ -478,6 +489,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,

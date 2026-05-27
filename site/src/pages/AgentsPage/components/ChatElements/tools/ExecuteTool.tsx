@@ -6,7 +6,6 @@ import {
 	LayersIcon,
 	LoaderIcon,
 	OctagonXIcon,
-	TerminalIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
@@ -21,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
 	isAgentDisplayOpen,
@@ -28,7 +28,9 @@ import {
 } from "./displayMode";
 import {
 	formatShellDurationMs,
+	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
+	summarizeParsedCommands,
 	type ToolStatus,
 } from "./utils";
 
@@ -40,6 +42,8 @@ type ExecuteToolProps = {
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -76,16 +80,15 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
+	modelIntent,
+	parsedCommands,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
-	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const outputToggleLabel = outputOpen
-		? "Collapse command output"
-		: "Expand command output";
+	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	if (!hasCommand) {
@@ -93,39 +96,29 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	}
 
 	return (
-		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono font-normal text-xs leading-5">
-			<Tooltip delayDuration={300}>
-				<TooltipTrigger asChild>
-					{hasOutput ? (
-						<button
-							type="button"
-							aria-expanded={outputOpen}
-							aria-label={outputToggleLabel}
-							onClick={() => setOutputOpen((value) => !value)}
-							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
-						>
-							<ShellCommandLine
-								command={command}
-								durationLabel={durationLabel}
-								expanded={outputOpen}
-							/>
-						</button>
-					) : (
-						<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 font-normal text-content-secondary">
-							<ShellCommandLine
-								command={command}
-								durationLabel={durationLabel}
-							/>
-						</div>
-					)}
-				</TooltipTrigger>
-				<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono font-normal">
-					{command}
-				</TooltipContent>
-			</Tooltip>
-			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
+		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
+			<TranscriptRow
+				asChild
+				className="col-start-1 row-start-1 m-0 w-full min-w-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+			>
+				<button
+					type="button"
+					aria-expanded={outputOpen}
+					aria-label={outputToggleLabel}
+					onClick={() => setOutputOpen((value) => !value)}
+				>
+					<ShellCommandLine
+						command={command}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						durationLabel={durationLabel}
+						expanded={outputOpen}
+					/>
+				</button>
+			</TranscriptRow>
+			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
 				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
 				{showFailureIndicator && (
 					<Tooltip>
@@ -135,10 +128,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 								role="img"
 								className="flex shrink-0 text-content-destructive"
 							>
-								<TriangleAlertIcon
-									aria-hidden
-									className="h-3.5 w-3.5 shrink-0"
-								/>
+								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent>Command failed</TooltipContent>
@@ -152,7 +142,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 								role="img"
 								className="flex shrink-0 text-content-secondary"
 							>
-								<LayersIcon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+								<LayersIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent>Running in background</TooltipContent>
@@ -173,9 +163,13 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					label="Copy command"
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
-			</div>
-			{hasOutput && outputOpen && (
-				<ShellOutputBody output={output} isError={isError} />
+			</TranscriptRow>
+			{outputOpen && (
+				<ShellTranscriptBody
+					command={command}
+					output={output}
+					isError={isError}
+				/>
 			)}
 		</div>
 	);
@@ -183,24 +177,37 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 const ShellCommandLine: React.FC<{
 	command: string;
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
+	const summary =
+		parsedCommands && parsedCommands.length > 0
+			? summarizeParsedCommands(parsedCommands)
+			: "";
+	const commandDisplay = summary || command;
 	return (
 		<>
-			<TerminalIcon aria-hidden className="size-3.5 shrink-0 text-current" />
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				{command}
+				{intentLabel ? (
+					<>
+						{intentLabel} using {commandDisplay}
+					</>
+				) : (
+					<>Ran {commandDisplay}</>
+				)}
 			</span>
 			{durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{durationLabel}
+					{intentLabel ? ` for ${durationLabel}` : durationLabel}
 				</span>
 			)}
 			{expanded !== undefined && (
 				<ChevronDownIcon
 					className={cn(
-						"h-3 w-3 shrink-0 text-current transition-transform",
+						"size-3 shrink-0 text-current transition-transform",
 						expanded ? "rotate-0" : "-rotate-90",
 					)}
 				/>
@@ -209,24 +216,35 @@ const ShellCommandLine: React.FC<{
 	);
 };
 
-const ShellOutputBody: React.FC<{
+const ShellTranscriptBody: React.FC<{
+	command: string;
 	output: string;
 	isError: boolean;
-}> = ({ output, isError }) => {
+}> = ({ command, output, isError }) => {
 	return (
 		<ScrollArea
-			className="col-start-1 col-span-2 mt-1 rounded-md border border-solid border-border-default/50 bg-surface-secondary/30 text-2xs"
+			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 			viewportClassName="max-h-64"
 			scrollBarClassName="w-1.5"
 		>
-			<pre
-				className={cn(
-					"m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-5",
-					isError ? "text-content-destructive" : "text-content-secondary",
+			<div className="px-3 py-2.5">
+				<pre className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+					<span aria-hidden className="select-none">
+						$
+					</span>{" "}
+					{command}
+				</pre>
+				{output.length > 0 && (
+					<pre
+						className={cn(
+							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+							isError ? "text-content-destructive" : "text-content-secondary",
+						)}
+					>
+						{output}
+					</pre>
 				)}
-			>
-				{output}
-			</pre>
+			</div>
 		</ScrollArea>
 	);
 };
@@ -243,7 +261,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 	return (
 		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
-				<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+				<CircleAlertIcon className="size-4 shrink-0 text-content-warning" />
 				<span className="text-[13px] text-content-primary">
 					Authenticate with {providerLabel} to continue this command.
 				</span>
@@ -257,7 +275,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 					}
 					className="inline-flex cursor-pointer items-center gap-1 text-xs"
 				>
-					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					<ExternalLinkIcon className="size-3.5 shrink-0" />
 					Authenticate with {providerLabel}
 				</Button>
 				<a
@@ -266,7 +284,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 					rel="noreferrer"
 					className="inline-flex items-center gap-1 text-xs text-content-link no-underline hover:underline"
 				>
-					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					<ExternalLinkIcon className="size-3.5 shrink-0" />
 					Open authentication link
 				</a>
 			</div>
@@ -310,23 +328,23 @@ export const WaitForExternalAuthTool: React.FC<{
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
 	let icon: React.ReactNode = (
-		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
+		<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 	);
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
 		icon = (
-			<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+			<TriangleAlertIcon className="size-3.5 shrink-0 text-content-secondary" />
 		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
 		icon = (
-			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-warning" />
+			<CircleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
 		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
-		icon = <CheckIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />;
+		icon = <CheckIcon className="size-3.5 shrink-0 text-content-success" />;
 	}
 
 	return (

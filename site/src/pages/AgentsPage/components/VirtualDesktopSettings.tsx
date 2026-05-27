@@ -81,7 +81,7 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 						Virtual Desktop
 					</h3>
 					<Badge size="sm" variant="warning" className="cursor-default">
-						<TriangleAlertIcon className="h-3 w-3" />
+						<TriangleAlertIcon className="size-3" />
 						Experimental feature
 					</Badge>
 				</div>

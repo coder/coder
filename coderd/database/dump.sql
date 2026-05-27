@@ -12,7 +12,14 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
-    'anthropic'
+    'anthropic',
+    'azure',
+    'bedrock',
+    'google',
+    'openai-compat',
+    'openrouter',
+    'vercel',
+    'copilot'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (
@@ -236,7 +243,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_provider:create',
     'ai_provider:delete',
     'ai_provider:read',
-    'ai_provider:update'
+    'ai_provider:update',
+    'chat:share',
+    'user_skill:create',
+    'user_skill:read',
+    'user_skill:update',
+    'user_skill:delete',
+    'user_skill:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -545,7 +558,9 @@ CREATE TYPE resource_type AS ENUM (
     'chat',
     'user_secret',
     'ai_provider',
-    'ai_provider_key'
+    'ai_provider_key',
+    'group_ai_budget',
+    'user_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -763,31 +778,43 @@ CREATE FUNCTION delete_deleted_user_resources() RETURNS trigger
     AS $$
 DECLARE
 BEGIN
-	IF (NEW.deleted) THEN
-		-- Remove their api_keys
-		DELETE FROM api_keys
-		WHERE user_id = OLD.id;
+    IF (NEW.deleted) THEN
+        -- Remove their api_keys.
+        DELETE FROM api_keys
+        WHERE user_id = OLD.id;
 
-		-- Remove their user_links
-		-- Their login_type is preserved in the users table.
-		-- Matching this user back to the link can still be done by their
-		-- email if the account is undeleted. Although that is not a guarantee.
-		DELETE FROM user_links
-		WHERE user_id = OLD.id;
+        -- Remove their user_links.
+        -- Their login_type is preserved in the users table.
+        -- Matching this user back to the link can still be done by their
+        -- email if the account is undeleted. Although that is not a guarantee.
+        DELETE FROM user_links
+        WHERE user_id = OLD.id;
 
-		-- Remove their user_secrets.
-		-- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
-		-- does not remove the users row so the FK cascade never fires.
-		DELETE FROM user_secrets
-		WHERE user_id = OLD.id;
+        -- Remove their user_secrets.
+        -- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_secrets
+        WHERE user_id = OLD.id;
 
-		-- Remove their organization memberships.
-		-- This also triggers group membership cleanup via
-		-- trigger_delete_group_members_on_org_member_delete.
-		DELETE FROM organization_members
-		WHERE user_id = OLD.id;
-	END IF;
-	RETURN NEW;
+        -- Remove their user AI provider keys.
+        -- user_ai_provider_keys.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_ai_provider_keys
+        WHERE user_id = OLD.id;
+
+        -- Remove their organization memberships.
+        -- This also triggers group membership cleanup via
+        -- trigger_delete_group_members_on_org_member_delete.
+        DELETE FROM organization_members
+        WHERE user_id = OLD.id;
+
+        -- Remove their user_skills.
+        -- user_skills.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_skills
+        WHERE user_id = OLD.id;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -807,6 +834,93 @@ BEGIN
 			WHERE organization_id = OLD.organization_id
 		);
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_secrets_per_user_limits() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    existing_count       int;
+    existing_total_bytes bigint;
+    existing_env_bytes   bigint;
+
+    new_count       int;
+    new_total_bytes bigint;
+    new_env_bytes   bigint;
+
+    count_limit       constant int    := 50;
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
+    env_bytes_limit   constant bigint := 24576;    -- 24 KiB
+BEGIN
+    -- Serialize cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert aggregates and exceed the cap.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+
+    -- Sum existing rows excluding the row being updated (so UPDATE statements
+    -- don't double-count NEW). On INSERT, no row matches NEW.id, so
+    -- the FILTER is a no-op.
+    SELECT
+        count(*) FILTER (WHERE id IS DISTINCT FROM NEW.id),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id AND env_name <> ''), 0)
+    INTO existing_count, existing_total_bytes, existing_env_bytes
+    FROM user_secrets
+    WHERE user_id = NEW.user_id;
+
+    new_count       := existing_count + 1;
+    new_total_bytes := existing_total_bytes + octet_length(NEW.value);
+    new_env_bytes   := existing_env_bytes
+                       + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
+
+    IF new_count > count_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets count limit (% > %)',
+            new_count, count_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_count_limit';
+    END IF;
+
+    IF new_total_bytes > total_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets total value bytes limit (% > %)',
+            new_total_bytes, total_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_total_bytes_limit';
+    END IF;
+
+    IF new_env_bytes > env_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the env-injected user secrets bytes limit (% > %)',
+            new_env_bytes, env_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    skill_count int;
+    skill_limit constant int := 100;
+BEGIN
+    -- Serialize skill-cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit.
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+    FOR UPDATE;
+
+    SELECT count(*) INTO skill_count
+    FROM user_skills
+    WHERE user_id = NEW.user_id;
+    IF skill_count >= skill_limit THEN
+        RAISE EXCEPTION 'user has reached the personal skill limit'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skills_per_user_limit';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -924,6 +1038,25 @@ BEGIN
 		END IF;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+BEGIN
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+      AND deleted = true
+    LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1305,6 +1438,57 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_logs (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    sequence_number integer NOT NULL,
+    captured_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    proto text DEFAULT ''::text NOT NULL,
+    method text DEFAULT ''::text NOT NULL,
+    detail text DEFAULT ''::text NOT NULL,
+    matched_rule text,
+    CONSTRAINT boundary_logs_sequence_number_check CHECK ((sequence_number >= 0))
+);
+
+COMMENT ON TABLE boundary_logs IS 'Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.';
+
+COMMENT ON COLUMN boundary_logs.session_id IS 'The session ID generated by the Boundary process on startup. Groups all events from one invocation.';
+
+COMMENT ON COLUMN boundary_logs.sequence_number IS 'Monotonically increasing integer assigned by Boundary, starting at 0 per session. Primary ordering key when Boundary is in use.';
+
+COMMENT ON COLUMN boundary_logs.captured_at IS 'When the log was sent to the DB.';
+
+COMMENT ON COLUMN boundary_logs.created_at IS 'When the event happened on the workspace.';
+
+COMMENT ON COLUMN boundary_logs.proto IS 'The protocol of the audited action. e.g. http, dns, git, fs.';
+
+COMMENT ON COLUMN boundary_logs.method IS 'The operation within the protocol. e.g. GET/POST for http, clone for git, A for dns, read/write for fs.';
+
+COMMENT ON COLUMN boundary_logs.detail IS 'Protocol-specific detail. e.g. the full URL for http, the hostname for dns, the path for fs.';
+
+COMMENT ON COLUMN boundary_logs.matched_rule IS 'The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.';
+
+CREATE TABLE boundary_sessions (
+    id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    confined_process_name text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE boundary_sessions IS 'Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.';
+
+COMMENT ON COLUMN boundary_sessions.id IS 'The unique session ID generated by the Boundary process on startup.';
+
+COMMENT ON COLUMN boundary_sessions.workspace_agent_id IS 'The workspace agent that this Boundary session is associated with.';
+
+COMMENT ON COLUMN boundary_sessions.confined_process_name IS 'Name of the confined process (e.g. claude-code, codex, copilot).';
+
+COMMENT ON COLUMN boundary_sessions.started_at IS 'Time when the first log for this session was received by coderd.';
+
+COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was last updated.';
+
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
     unique_workspaces_count bigint DEFAULT 0 NOT NULL,
@@ -1431,7 +1615,8 @@ CREATE TABLE chat_messages (
     total_cost_micros bigint,
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
-    provider_response_id text
+    provider_response_id text,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1459,36 +1644,19 @@ CREATE TABLE chat_model_configs (
     context_limit bigint NOT NULL,
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
+    ai_provider_id uuid,
+    CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
-
-CREATE TABLE chat_providers (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    provider text NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
-    api_key text DEFAULT ''::text NOT NULL,
-    api_key_key_id text,
-    created_by uuid,
-    enabled boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    base_url text DEFAULT ''::text NOT NULL,
-    central_api_key_enabled boolean DEFAULT true NOT NULL,
-    allow_user_api_key boolean DEFAULT false NOT NULL,
-    allow_central_api_key_fallback boolean DEFAULT false NOT NULL,
-    CONSTRAINT chat_providers_provider_check CHECK ((provider = ANY (ARRAY['anthropic'::text, 'azure'::text, 'bedrock'::text, 'google'::text, 'openai'::text, 'openai-compat'::text, 'openrouter'::text, 'vercel'::text]))),
-    CONSTRAINT valid_credential_policy CHECK (((central_api_key_enabled OR allow_user_api_key) AND ((NOT allow_central_api_key_fallback) OR (central_api_key_enabled AND allow_user_api_key))))
-);
-
-COMMENT ON COLUMN chat_providers.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted';
 
 CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    model_config_id uuid
+    model_config_id uuid,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -1551,6 +1719,11 @@ CREATE TABLE chats (
     plan_mode chat_plan_mode,
     client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
     last_turn_summary text,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
+    CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
+    CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
@@ -1635,9 +1808,12 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    COALESCE(root.user_acl, c.user_acl) AS user_acl,
+    COALESCE(root.group_acl, c.group_acl) AS group_acl,
     owner.username AS owner_username,
     owner.name AS owner_name
-   FROM (chats c
+   FROM ((chats c
+     LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
 
 CREATE TABLE connection_logs (
@@ -2943,16 +3119,22 @@ COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of 
 
 COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
 
-CREATE TABLE user_chat_provider_keys (
+CREATE TABLE user_ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
-    chat_provider_id uuid NOT NULL,
+    ai_provider_id uuid NOT NULL,
     api_key text NOT NULL,
     api_key_key_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_chat_provider_keys_api_key_check CHECK ((api_key <> ''::text))
+    CONSTRAINT user_ai_provider_keys_api_key_check CHECK ((api_key <> ''::text))
 );
+
+COMMENT ON TABLE user_ai_provider_keys IS 'User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.';
+
+COMMENT ON COLUMN user_ai_provider_keys.api_key IS 'User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
+
+COMMENT ON COLUMN user_ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.';
 
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
@@ -2997,6 +3179,20 @@ CREATE TABLE user_secrets (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     value_key_id text
+);
+
+CREATE TABLE user_skills (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_skills_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT user_skills_description_size CHECK ((octet_length(description) <= 4096)),
+    CONSTRAINT user_skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
+    CONSTRAINT user_skills_name_size CHECK ((octet_length(name) <= 256))
 );
 
 CREATE TABLE user_status_changes (
@@ -3532,6 +3728,12 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY boundary_logs
+    ADD CONSTRAINT boundary_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
@@ -3555,12 +3757,6 @@ ALTER TABLE ONLY chat_messages
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -3772,11 +3968,11 @@ ALTER TABLE ONLY usage_events_daily
 ALTER TABLE ONLY usage_events
     ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_user_id_chat_provider_id_key UNIQUE (user_id, chat_provider_id);
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_user_id_ai_provider_id_key UNIQUE (user_id, ai_provider_id);
 
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
@@ -3789,6 +3985,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY user_skills
+    ADD CONSTRAINT user_skills_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
@@ -3944,6 +4143,10 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (captured_at);
+
+CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number);
+
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
@@ -3982,6 +4185,8 @@ CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id
 
 CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
+CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING btree (ai_provider_id);
+
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
@@ -3989,8 +4194,6 @@ CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (
 CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
-
-CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -4072,6 +4275,8 @@ CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, 
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 
+CREATE INDEX idx_user_ai_provider_keys_ai_provider_id ON user_ai_provider_keys USING btree (ai_provider_id);
+
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -4125,6 +4330,8 @@ CREATE UNIQUE INDEX user_secrets_user_env_name_idx ON user_secrets USING btree (
 CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree (user_id, file_path) WHERE (file_path <> ''::text);
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
+
+CREATE UNIQUE INDEX user_skills_user_id_name_idx ON user_skills USING btree (user_id, name);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
@@ -4250,6 +4457,12 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
+CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
+
+CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
+
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
@@ -4278,6 +4491,12 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY boundary_logs
+    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4300,10 +4519,16 @@ ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id);
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
@@ -4311,11 +4536,8 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
-
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -4545,14 +4767,14 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_chat_provider_id_fkey FOREIGN KEY (chat_provider_id) REFERENCES chat_providers(id) ON DELETE CASCADE;
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY user_ai_provider_keys
+    ADD CONSTRAINT user_ai_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
@@ -4574,6 +4796,9 @@ ALTER TABLE ONLY user_secrets
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_skills
+    ADD CONSTRAINT user_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

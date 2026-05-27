@@ -185,6 +185,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -213,7 +214,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -275,6 +275,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,

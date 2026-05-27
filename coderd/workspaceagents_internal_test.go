@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -37,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -738,8 +740,9 @@ func TestWatchAgentContainers(t *testing.T) {
 		// response to this issue: https://github.com/coder/coder/issues/19449
 
 		var (
-			ctx    = testutil.Context(t, testutil.WaitLong)
+			ctx    = testutil.Context(t, testutil.WaitShort)
 			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			mClock = quartz.NewMock(t)
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -766,11 +769,15 @@ func TestWatchAgentContainers(t *testing.T) {
 					AgentInactiveDisconnectTimeout: testutil.WaitShort,
 					Database:                       mDB,
 					Logger:                         logger,
+					Clock:                          mClock,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
 			}
 		)
+
+		trap := mClock.Trap().NewTicker("HeartbeatClose")
+		defer trap.Close()
 
 		var tailnetCoordinator tailnet.Coordinator = mCoordinator
 		api.TailnetCoordinator.Store(&tailnetCoordinator)
@@ -817,6 +824,8 @@ func TestWatchAgentContainers(t *testing.T) {
 			defer resp.Body.Close()
 		}
 
+		trap.MustWait(ctx).MustRelease(ctx)
+
 		// And: Create a streaming decoder
 		decoder := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 		defer decoder.Close()
@@ -836,6 +845,7 @@ func TestWatchAgentContainers(t *testing.T) {
 
 		// When: We close the WebSocket
 		conn.Close(websocket.StatusNormalClosure, "test closing connection")
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 
 		// Then: We expect `containersCh` to be closed.
 		select {
@@ -883,6 +893,7 @@ func TestWatchAgentContainers(t *testing.T) {
 					AgentInactiveDisconnectTimeout: testutil.WaitShort,
 					Database:                       mDB,
 					Logger:                         logger,
+					Clock:                          quartz.NewReal(),
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},

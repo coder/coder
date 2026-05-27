@@ -20,7 +20,7 @@ any supporting files the skill needs.
 On the first turn of a workspace-attached chat, the agent scans
 `.agents/skills/` and builds an `<available-skills>` block in its system
 prompt listing each skill's name and description. Only frontmatter is read
-during discovery — the full skill content is loaded lazily when the agent
+during discovery. The full skill content is loaded lazily when the agent
 calls a tool.
 
 Two tools are registered when skills are present:
@@ -75,6 +75,37 @@ Instructions for the skill go here...
 references to hidden files. All paths are resolved relative to the skill
 directory.
 
+## Personal skills
+
+Personal skills are user-owned skills that are available to all of your
+chats. They are not tied to a specific workspace. Manage them from the
+**Agents** page, under **Settings** > **Personal Skills**.
+
+Personal skills use the same `SKILL.md` format as workspace skills: YAML
+frontmatter with a kebab-case `name`, an optional `description`, and a
+markdown body. This keeps content portable between personal skills and
+workspace skills.
+
+```markdown
+---
+name: personal-reviewer
+description: "Personal review guidance"
+---
+
+# Personal Reviewer
+
+Instructions for the skill go here...
+```
+
+Each personal skill is stored as a single `SKILL.md` file containing
+frontmatter and body content. Supporting files are not supported. Each
+`SKILL.md` file can be up to 64 KB, and each user can create up to 100
+personal skills.
+
+If you need richer skills with supporting files or multiple files, use
+workspace skills instead. Store them in the repo under
+`.agents/skills/<name>/`, or load them from a workspace.
+
 ## Workspace MCP tools
 
 Workspace templates can expose custom
@@ -106,17 +137,17 @@ whether `command` or `url` is present, or you can set it explicitly with
 }
 ```
 
-**Stdio transport** — set `command`, and optionally `args` and `env`. The
+**Stdio transport**: set `command`, and optionally `args` and `env`. The
 agent spawns the process in the workspace.
 
-**HTTP transport** — set `url`, and optionally `headers`. The agent connects
+**HTTP transport**: set `url`, and optionally `headers`. The agent connects
 to the HTTP endpoint from the workspace.
 
 ### How discovery works
 
 The agent reads `.mcp.json` via the workspace agent connection on each chat
 turn. Discovery uses a 5-second timeout. Servers that fail to
-respond are skipped — partial success is acceptable. Empty results are not
+respond are skipped. Partial success is acceptable. Empty results are not
 cached because the MCP servers may still be starting.
 
 ### Tool naming

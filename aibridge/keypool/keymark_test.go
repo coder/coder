@@ -91,8 +91,8 @@ func TestMarkKeyOnStatus(t *testing.T) {
 			clk := quartz.NewMock(t)
 			pool, err := keypool.New([]string{"key-0"}, clk)
 			require.NoError(t, err)
-			key, err := pool.Walker().Next()
-			require.NoError(t, err)
+			key, keyPoolErr := pool.Walker().Next()
+			require.Nil(t, keyPoolErr)
 
 			resp := &http.Response{
 				StatusCode: tc.statusCode,

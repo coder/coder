@@ -372,7 +372,7 @@
 					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				}
 			]
 		},
@@ -996,6 +996,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Search Syntax",
+							"description": "Filter conversations by title, status, and linked pull requests",
+							"path": "./ai-coder/agents/chat-search-syntax.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
@@ -1141,6 +1147,11 @@
 									"path": "./ai-coder/ai-gateway/setup.md"
 								},
 								{
+									"title": "Authentication",
+									"description": "Learn how to authenticate against AI Gateway",
+									"path": "./ai-coder/ai-gateway/auth.md"
+								},
+								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Gateway",
 									"path": "./ai-coder/ai-gateway/clients/index.md",
@@ -1184,11 +1195,6 @@
 											"title": "Kilo Code",
 											"description": "Configure Kilo Code to use AI Gateway",
 											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
-										},
-										{
-											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/roo-code.md"
 										},
 										{
 											"title": "VS Code",
@@ -1481,6 +1487,10 @@
 						{
 							"title": "AI Bridge",
 							"path": "./reference/api/aibridge.md"
+						},
+						{
+							"title": "AI Providers",
+							"path": "./reference/api/aiproviders.md"
 						},
 						{
 							"title": "Agents",

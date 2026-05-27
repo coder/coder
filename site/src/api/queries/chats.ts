@@ -10,7 +10,9 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -22,6 +24,53 @@ export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
+
+export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
+
+export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
+export type ChatListStatusFilter = "read" | "unread";
+
+type InfiniteChatsFilters = Readonly<{
+	archived?: boolean;
+	prStatuses?: readonly ChatListPRStatusFilter[];
+	chatStatus?: ChatListStatusFilter;
+}>;
+
+export const infiniteChatsKey = (filters?: {
+	archived?: boolean;
+	prStatuses?: readonly ChatListPRStatusFilter[];
+	chatStatus?: ChatListStatusFilter;
+}) => [...chatsKey, filters] as const;
+
+export const CHAT_LIST_PR_STATUS_ORDER = [
+	"draft",
+	"open",
+	"merged",
+	"closed",
+] as const satisfies readonly ChatListPRStatusFilter[];
+
+const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(
+	CHAT_LIST_PR_STATUS_ORDER,
+);
+
+type InfiniteChatsCacheData = InfiniteData<TypesGen.Chat[]>;
+
+/** Shared ordering keeps URL serialization stable. */
+export const canonicalizeChatListPRStatuses = (
+	prStatuses: Iterable<unknown>,
+): readonly ChatListPRStatusFilter[] => {
+	const selected = new Set<ChatListPRStatusFilter>();
+	for (const prStatus of prStatuses) {
+		if (
+			typeof prStatus === "string" &&
+			chatListPRStatusSet.has(prStatus as ChatListPRStatusFilter)
+		) {
+			selected.add(prStatus as ChatListPRStatusFilter);
+		}
+	}
+
+	return CHAT_LIST_PR_STATUS_ORDER.filter((status) => selected.has(status));
+};
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
@@ -44,17 +93,16 @@ export const updateInfiniteChatsCache = (
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
 	// Update ALL infinite chat queries regardless of their filter opts.
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev) return prev;
-		if (!prev.pages) return prev;
-		const nextPages = prev.pages.map((page) => updater(page));
-		// Only return a new reference if something actually changed.
-		const changed = nextPages.some((page, i) => page !== prev.pages[i]);
-		return changed ? { ...prev, pages: nextPages } : prev;
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			const nextPages = prev.pages.map((page) => updater(page));
+			// Only return a new reference if something actually changed.
+			const changed = nextPages.some((page, i) => page !== prev.pages[i]);
+			return changed ? { ...prev, pages: nextPages } : prev;
+		},
+	);
 };
 
 /**
@@ -68,22 +116,22 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev?.pages) return prev;
-		// Check across ALL pages to avoid duplicates.
-		const exists = prev.pages.some((page) =>
-			page.some((c) => c.id === chat.id),
-		);
-		if (exists) return prev;
-		// Only prepend to the first page.
-		const nextPages = prev.pages.map((page, i) =>
-			i === 0 ? [chat, ...page] : page,
-		);
-		return { ...prev, pages: nextPages };
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			// Check across ALL pages to avoid duplicates.
+			const exists = prev.pages.some((page) =>
+				page.some((c) => c.id === chat.id),
+			);
+			if (exists) return prev;
+			// Only prepend to the first page.
+			const nextPages = prev.pages.map((page, i) =>
+				i === 0 ? [chat, ...page] : page,
+			);
+			return { ...prev, pages: nextPages };
+		},
+	);
 };
 
 /**
@@ -93,10 +141,10 @@ export const prependToInfiniteChatsCache = (
 export const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
-	const queries = queryClient.getQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery });
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -479,6 +527,7 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -499,21 +548,28 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
-export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
-	const limit = DEFAULT_CHAT_PAGE_LIMIT;
-
-	// Build the search query string including the archived filter.
+const getInfiniteChatsQueryString = (
+	filters: InfiniteChatsFilters | undefined,
+): string | undefined => {
 	const qParts: string[] = [];
-	if (opts?.q) {
-		qParts.push(opts.q);
+	if (filters?.archived !== undefined) {
+		qParts.push(`archived:${filters.archived}`);
 	}
-	if (opts?.archived !== undefined) {
-		qParts.push(`archived:${opts.archived}`);
+	if (filters?.prStatuses?.length) {
+		qParts.push(`pr_status:${filters.prStatuses.join(",")}`);
 	}
-	const q = qParts.length > 0 ? qParts.join(" ") : undefined;
+	if (filters?.chatStatus) {
+		qParts.push(`has_unread:${filters.chatStatus === "unread"}`);
+	}
+	return qParts.length > 0 ? qParts.join(" ") : undefined;
+};
+
+export const infiniteChats = (filters?: InfiniteChatsFilters) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+	const q = getInfiniteChatsQueryString(filters);
 
 	return {
-		queryKey: [...chatsKey, opts],
+		queryKey: infiniteChatsKey(filters),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
@@ -536,9 +592,24 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
+export const chatSearch = (q: string) =>
+	queryOptions({
+		queryKey: [...chatsKey, "search", { q }],
+		queryFn: () =>
+			API.experimental.getChats({
+				limit: CHAT_SEARCH_LIMIT,
+				q,
+			}),
+	});
+
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+});
+
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
 });
 
 const MESSAGES_PAGE_SIZE = 50;
@@ -1589,10 +1660,29 @@ export const chatModels = () => ({
 
 const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
+const toChatProviderConfig = (
+	provider: TypesGen.AIProvider,
+): TypesGen.ChatProviderConfig => ({
+	id: provider.id,
+	provider: provider.type,
+	display_name: provider.display_name || provider.type,
+	enabled: provider.enabled,
+	has_api_key: provider.api_keys.length > 0,
+	central_api_key_enabled: true,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: true,
+	base_url: provider.base_url,
+	source: "database",
+	created_at: provider.created_at,
+	updated_at: provider.updated_at,
+});
+
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.ChatProviderConfig[]> =>
-		API.experimental.getChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.ChatProviderConfig[]> => {
+		const providers = await API.experimental.listAIProviders();
+		return providers.map(toChatProviderConfig);
+	},
 });
 
 const chatModelConfigsKey = ["chat-model-configs"] as const;
@@ -1609,8 +1699,17 @@ export const userChatProviderConfigsKey = [
 
 export const userChatProviderConfigs = () => ({
 	queryKey: userChatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
-		API.experimental.getUserChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.UserChatProviderConfig[]> => {
+		const configs = await API.experimental.getUserAIProviderKeyConfigs();
+		return configs.map((config) => ({
+			provider_id: config.provider.id,
+			provider: config.provider.type,
+			display_name: config.provider.display_name || config.provider.type,
+			has_user_api_key: config.has_user_api_key,
+			byok_enabled: config.byok_enabled,
+			has_central_api_key_fallback: config.has_provider_api_key,
+		}));
+	},
 });
 
 type UpsertUserChatProviderKeyArgs = {
@@ -1620,7 +1719,7 @@ type UpsertUserChatProviderKeyArgs = {
 
 export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
-		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+		API.experimental.upsertUserAIProviderKey(providerConfigId, req),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1633,7 +1732,7 @@ export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 
 export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteUserChatProviderKey(providerConfigId),
+		API.experimental.deleteUserAIProviderKey(providerConfigId),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1652,9 +1751,41 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
+const generatedAIProviderName = (provider: string): string => {
+	const suffix =
+		globalThis.crypto?.randomUUID?.() ??
+		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+	return `${provider}-${suffix}`;
+};
+
+const normalizeAIProviderType = (provider: string): AIProviderType => {
+	const normalized = provider.trim().toLowerCase();
+	const aliased =
+		normalized === "openai-compatible" || normalized === "openai_compatible"
+			? "openai-compat"
+			: normalized;
+	const providerType = AIProviderTypes.find(
+		(candidate) => candidate === aliased,
+	);
+	if (!providerType) {
+		throw new Error(`Unsupported AI provider type "${provider}".`);
+	}
+	return providerType;
+};
+
 export const createChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) =>
-		API.experimental.createChatProviderConfig(req),
+	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
+		const providerType = normalizeAIProviderType(req.provider);
+		const apiKey = req.api_key;
+		return API.experimental.createAIProvider({
+			type: providerType,
+			name: generatedAIProviderName(providerType),
+			display_name: req.display_name || formatProviderLabel(providerType),
+			base_url: req.base_url ?? "",
+			enabled: req.enabled ?? true,
+			api_keys: apiKey ? [apiKey] : undefined,
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1666,11 +1797,23 @@ type UpdateChatProviderConfigMutationArgs = {
 };
 
 export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({
+	mutationFn: async ({
 		providerConfigId,
 		req,
-	}: UpdateChatProviderConfigMutationArgs) =>
-		API.experimental.updateChatProviderConfig(providerConfigId, req),
+	}: UpdateChatProviderConfigMutationArgs) => {
+		const apiKey = req.api_key;
+		return API.experimental.updateAIProvider(providerConfigId, {
+			display_name: req.display_name,
+			base_url: req.base_url,
+			enabled: req.enabled,
+			api_keys:
+				req.api_key === undefined
+					? undefined
+					: apiKey
+						? [{ api_key: apiKey }]
+						: [],
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1678,7 +1821,7 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 
 export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteChatProviderConfig(providerConfigId),
+		API.experimental.deleteAIProvider(providerConfigId),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1891,5 +2034,43 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	role: TypesGen.ChatRole;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	role: TypesGen.ChatRole;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, role }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, role }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });
