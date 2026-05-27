@@ -26,6 +26,7 @@ import {
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { ToolIcon } from "./ToolIcon";
 import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
@@ -190,7 +191,8 @@ const ShellCommandLine: React.FC<{
 	const commandDisplay = summary || command;
 	return (
 		<>
-			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
+			<ToolIcon name="execute" isError={false} />
+			<span className="block min-w-0 truncate text-[13px] font-normal leading-6 text-current">
 				{intentLabel ? (
 					<>
 						{intentLabel} using {commandDisplay}
