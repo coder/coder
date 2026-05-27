@@ -119,7 +119,7 @@ const openChatSharing = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	await userEvent.click(canvas.getByRole("button", { name: "Share" }));
 	const body = within(canvasElement.ownerDocument.body);
-	await body.findByText("Chat Sharing");
+	await body.findByText("Chat sharing");
 	return body;
 };
 

@@ -18,7 +18,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
@@ -283,7 +282,7 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
 		>
 			<div className="flex items-center gap-2 mb-4">
-				<h3 className="text-lg font-semibold m-0">Chat Sharing</h3>
+				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
 			</div>
 
 			<div className="flex flex-col gap-4">
@@ -312,11 +311,14 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 						</AddChatMemberForm>
 
 						{isEmpty ? (
-							<EmptyState
-								message="No shared members or groups yet"
-								description="Add a member or group using the controls above."
-								isCompact
-							/>
+							<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
+								<h4 className="m-0 text-sm font-medium text-content-secondary">
+									No shared members or groups yet
+								</h4>
+								<p className="m-0 mt-2 text-sm text-content-secondary">
+									Add a member or group using the controls above.
+								</p>
+							</div>
 						) : (
 							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
 								{groups.map((group) => (
