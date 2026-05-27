@@ -1371,7 +1371,6 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		gomock.Any(),
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
-	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Cond(func(x any) bool {
 		params, ok := x.(database.InsertChatMessagesParams)
 		if !ok {
