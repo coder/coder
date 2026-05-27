@@ -76,7 +76,7 @@ jobs:
           gotestsum-json-file: default
 
       - name: Publish Go test failure report
-        if: ${{ steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+        if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
         uses: ./.github/actions/go-test-failure-report
         with:
           artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
