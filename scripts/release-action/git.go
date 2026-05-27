@@ -20,11 +20,10 @@ func gitOutput(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// gitRun runs a git command with stdout/stderr connected to the
-// terminal.
+// gitRun runs a git command, discarding stdout/stderr. Use this
+// for commands where only the exit code matters (e.g. merge-base
+// --is-ancestor).
 func gitRun(args ...string) error {
 	cmd := exec.Command("git", args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
 	return cmd.Run()
 }

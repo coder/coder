@@ -92,8 +92,10 @@ func checkOpenPRs(branch string) error {
 	var rawPRs []struct {
 		Number int    `json:"number"`
 		Title  string `json:"title"`
-		Author string `json:"author"`
-		URL    string `json:"url"`
+		Author struct {
+			Login string `json:"login"`
+		} `json:"author"`
+		URL string `json:"url"`
 	}
 	if err := json.Unmarshal([]byte(out), &rawPRs); err != nil {
 		return xerrors.Errorf("failed to parse open PRs response: %w", err)
@@ -106,7 +108,7 @@ func checkOpenPRs(branch string) error {
 	var b strings.Builder
 	_, _ = fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(rawPRs), branch)
 	for _, pr := range rawPRs {
-		_, _ = fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author, pr.URL)
+		_, _ = fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author.Login, pr.URL)
 	}
 	_, _ = fmt.Fprintf(&b, "\nMerge or close these pull requests, then re-run the release workflow.")
 	return xerrors.New(b.String())
