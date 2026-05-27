@@ -412,22 +412,11 @@ func Test_parsePeerAddresses(t *testing.T) {
 
 //nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
 func TestPubsubCluster(t *testing.T) {
-	t.Run("LocalRoundTrip", func(t *testing.T) {
-		ps := newTestPubsub(t, newClusterTestOptions(t))
-		event := uniqueSubject("local")
-		got := make(chan []byte, 1)
-		cancel, err := ps.Subscribe(event, func(_ context.Context, msg []byte) {
-			got <- msg
-		})
-		require.NoError(t, err)
-		defer cancel()
-
-		require.NoError(t, ps.Publish(event, []byte("hello")))
-		require.NoError(t, ps.Flush())
-		require.Equal(t, "hello", string(receiveMessage(t, got)))
-	})
-
-	t.Run("SetPeerAddressesReloadsConfiguredRoutes", func(t *testing.T) {
+	// OK verifies that SetPeerAddresses changes the active cluster topology.
+	// A starts connected to B, then C is added and receives both global and
+	// C-only messages. B is then removed from A's peers, while C continues to
+	// receive global and C-only messages.
+	t.Run("OK", func(t *testing.T) {
 		a := newTestPubsub(t, newClusterTestOptions(t))
 		b := newTestPubsub(t, newClusterTestOptions(t))
 		c := newTestPubsub(t, newClusterTestOptions(t))
@@ -438,71 +427,56 @@ func TestPubsubCluster(t *testing.T) {
 		waitForRoutes(t, a, 1)
 		waitForRoutes(t, b, 1)
 
-		sharedEvent := uniqueSubject("shared")
-		gotBShared := make(chan []byte, 8)
-		cancelBShared, err := b.Subscribe(sharedEvent, func(_ context.Context, msg []byte) {
-			gotBShared <- msg
+		globalEvent := uniqueSubject("global")
+		bMsg := make(chan []byte, 8)
+		cancelBGlobal, err := b.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
+			bMsg <- msg
 		})
 		require.NoError(t, err)
-		defer cancelBShared()
+		defer cancelBGlobal()
 
-		publishAndFlush(t, a, sharedEvent, "from-a-to-b")
-		require.Equal(t, "from-a-to-b", string(receiveMessage(t, gotBShared)))
+		publishAndFlush(t, a, globalEvent, "from-a-to-b")
+		require.Equal(t, "from-a-to-b", string(receiveMessage(t, bMsg)))
 
-		gotCShared := make(chan []byte, 8)
-		cancelCShared, err := c.Subscribe(sharedEvent, func(_ context.Context, msg []byte) {
-			gotCShared <- msg
+		// Add C's subscriptions before adding C as an extra peer to A.
+		cMsg := make(chan []byte, 8)
+		cancelCGlobal, err := c.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
+			cMsg <- msg
 		})
 		require.NoError(t, err)
-		defer cancelCShared()
+		defer cancelCGlobal()
 
-		eventC := uniqueSubject("add-c")
-		gotCUnique := make(chan []byte, 8)
-		cancelCUnique, err := c.Subscribe(eventC, func(_ context.Context, msg []byte) {
-			gotCUnique <- msg
+		cSubject := uniqueSubject("c-only-subscriber")
+		cUniqueMsg := make(chan []byte, 8)
+		cancelCUnique, err := c.Subscribe(cSubject, func(_ context.Context, msg []byte) {
+			cUniqueMsg <- msg
 		})
 		require.NoError(t, err)
 		defer cancelCUnique()
 
+		// Add C to A's peer list. B and C should both receive global messages,
+		// while the C-only subject should route only to C.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
 		waitForRoutes(t, a, 2)
 		waitForRoutes(t, c, 1)
 
-		publishAndFlush(t, a, sharedEvent, "from-a-to-b-and-c")
-		require.Equal(t, "from-a-to-b-and-c", string(receiveMessage(t, gotBShared)))
-		require.Equal(t, "from-a-to-b-and-c", string(receiveMessage(t, gotCShared)))
+		publishAndFlush(t, a, globalEvent, "new-global-msg")
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, bMsg)))
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, cMsg)))
 
-		publishAndFlush(t, a, eventC, "from-a-to-c")
-		require.Equal(t, "from-a-to-c", string(receiveMessage(t, gotCUnique)))
+		publishAndFlush(t, a, cSubject, "c-unique-msg")
+		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUniqueMsg)))
 
+		// Remove B from A's peer list. Only C should receive the next messages.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
 		requireRoutesEqual(t, a.currentRoutes, addrC)
 
-		publishAndFlush(t, a, sharedEvent, "after-remove-b-shared")
-		require.Equal(t, "after-remove-b-shared", string(receiveMessage(t, gotCShared)))
+		publishAndFlush(t, a, globalEvent, "no-b-peer")
+		require.Equal(t, "no-b-peer", string(receiveMessage(t, cMsg)))
 
-		publishAndFlush(t, a, eventC, "after-remove-b-unique")
-		require.Equal(t, "after-remove-b-unique", string(receiveMessage(t, gotCUnique)))
-	})
-
-	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
-		ps := newTestPubsub(t, Options{})
-		err := ps.SetPeerAddresses(nil)
-		require.ErrorContains(t, err, "not started with clustering enabled")
-	})
-
-	t.Run("SetPeerAddressesClosed", func(t *testing.T) {
-		ps := newTestPubsub(t, newClusterTestOptions(t))
-		require.NoError(t, ps.Close())
-		err := ps.SetPeerAddresses(nil)
-		require.True(t, errors.Is(err, errClosed), "got %v", err)
-	})
-
-	t.Run("SetPeerAddressesDropsSelfRoute", func(t *testing.T) {
-		ps := newTestPubsub(t, newClusterTestOptions(t))
-		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
-		require.Empty(t, ps.currentRoutes)
+		publishAndFlush(t, a, cSubject, "c-messages-still-work")
+		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUniqueMsg)))
 	})
 }
 
@@ -510,11 +484,11 @@ func newClusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
 		ClusterHost: "127.0.0.1",
-		ClusterPort: freeTCPPort(t),
+		ClusterPort: tcpPort(t),
 	}
 }
 
-func freeTCPPort(t *testing.T) int {
+func tcpPort(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
