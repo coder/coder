@@ -14,8 +14,19 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
+
+// rpcDialer is the subset of agentsdk.Client agentfake uses. Defined
+// locally so tests can plug in *agent/agenttest.Client (or any other
+// test double) without depending on the rest of the agentsdk.Client
+// surface.
+type rpcDialer interface {
+	ConnectRPC29WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+	)
+}
 
 const (
 	reconnectBackoff = 1 * time.Second
@@ -43,6 +54,7 @@ type Agent struct {
 	token    string
 	logger   slog.Logger
 	clock    quartz.Clock
+	dialer   rpcDialer // nil → built from coderURL+token in Run
 
 	cancel context.CancelFunc
 }
@@ -57,6 +69,16 @@ type Option func(*Agent)
 func WithClock(c quartz.Clock) Option {
 	return func(a *Agent) {
 		a.clock = c
+	}
+}
+
+// WithDialer injects a custom RPC dialer. Defaults to a real
+// agentsdk.Client built from coderURL + token. Tests use this to
+// substitute *agent/agenttest.Client and avoid standing up a real
+// coderd.
+func WithDialer(d rpcDialer) Option {
+	return func(a *Agent) {
+		a.dialer = d
 	}
 }
 
@@ -83,7 +105,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.cancel = cancel
 	defer a.cancel()
 
-	client := agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
+	client := a.dialer
+	if client == nil {
+		client = agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
+	}
 	for {
 		if err := runCtx.Err(); err != nil {
 			return nil
@@ -105,8 +130,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 // connectAndServe opens one dRPC websocket, announces lifecycle = READY, then blocks until ctx is canceled or the
 // connection is closed by either side. Returns the underlying error, if any.
-func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) error {
-	rpc, _, err := client.ConnectRPC28WithRole(ctx, "agent")
+func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
+	rpc, _, err := client.ConnectRPC29WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
@@ -179,7 +204,7 @@ func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) er
 // Errors from BatchUpdateMetadata are logged and ignored. Tearing the
 // connection down over a metadata RPC blip would be wasteful; real agents
 // behave the same way (see agent.reportMetadata).
-func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, workspaceID uuid.UUID, descs []*proto.WorkspaceAgentMetadata_Description) {
+func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, workspaceID uuid.UUID, descs []*proto.WorkspaceAgentMetadata_Description) {
 	// Resolve declared intervals once, applying a floor so a malformed
 	// manifest can't spin us. Initialize all keys as immediately due so
 	// the first tick fires every description.

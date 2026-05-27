@@ -11,13 +11,15 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
-	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -83,143 +85,75 @@ func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 
 // Assert that, when the workspace agent manifest declares metadata
 // descriptions, the fake agent sends synthetic values for each key via
-// BatchUpdateMetadata. We verify end-to-end by subscribing to the same SSE
-// watch-metadata endpoint coderd uses to surface metadata in the UI.
+// BatchUpdateMetadata. The test drives the agent against
+// agent/agenttest.Client (an in-process fake of the agent-side coderd
+// API) rather than a real coderd, so the only quartz mock involved is
+// the agentfake clock that drives the metadata ticker.
 func TestAgent_SendsMetadata(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Drive both the fake agent's metadata ticker AND coderd's
-	// metadatabatcher off the same mock clock so we don't wait on
-	// wall-clock time for either. Without this the test takes ~5s
-	// (the batcher's default scheduled flush interval); with it the
-	// test bottoms out at the SSE handler's stdlib 1s ticker.
 	mClock := quartz.NewMock(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		Clock: mClock,
-		MetadataBatcherOptions: []metadatabatcher.Option{
-			metadatabatcher.WithClock(mClock),
-			// Shorten the scheduled flush so we don't have to advance
-			// the mock by 5s every time; 100ms is small enough to feel
-			// instant but large enough that we're not racing the agent
-			// tick when we advance below.
-			metadatabatcher.WithInterval(100 * time.Millisecond),
+	agentID := uuid.New()
+	manifest := agentsdk.Manifest{
+		AgentID:     agentID,
+		WorkspaceID: uuid.New(),
+		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+			{Key: "01_meta", DisplayName: "Meta 01", Script: "noop", Interval: 1, Timeout: 10},
+			{Key: "02_meta", DisplayName: "Meta 02", Script: "noop", Interval: 1, Timeout: 10},
 		},
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-
-	// Declare two metadata descriptions on the workspace agent. Both at
-	// interval=1 so the test budget stays small. The script value is
-	// irrelevant; agentfake never runs it, it synthesizes a value
-	// directly.
-	descs := []*sdkproto.Agent_Metadata{
-		{Key: "01_meta", DisplayName: "Meta 01", Script: "noop", Interval: 1, Timeout: 10},
-		{Key: "02_meta", DisplayName: "Meta 02", Script: "noop", Interval: 1, Timeout: 10},
 	}
 
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
-		agents[0].Metadata = descs
-		return agents
-	}).Do()
+	// statsCh and coord are required by agenttest.NewClient but
+	// unused by agentfake. The dialer is the standin for the real
+	// agentsdk.Client; it records every RPC the agent makes so we
+	// can assert against the metadata batch directly.
+	statsCh := make(chan *agentproto.Stats, 1)
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() { _ = coord.Close() })
+	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
+	t.Cleanup(dialer.Close)
 
-	// dbfake.WorkspaceBuild drives provisionerdserver.InsertWorkspaceResource
-	// under the hood, which inserts the metadata description rows for each
-	// metadata block on the agent. BatchUpdateMetadata's UPDATE will match
-	// the rows that path created. No manual seeding needed.
-	agentID := workspaceAgentID(ctx, t, client, r.Workspace.ID)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	a := agentfake.NewAgent(client.URL, r.AgentToken, logger, agentfake.WithClock(mClock))
-	t.Cleanup(func() { a.Close() })
+	a := agentfake.NewAgent(nil, "", logger,
+		agentfake.WithDialer(dialer),
+		agentfake.WithClock(mClock),
+	)
+	t.Cleanup(a.Close)
 
 	// Trap the agent's runMetadata TickerFunc registration so we know
 	// the goroutine is parked on the mock clock before we Advance.
-	// Otherwise Advance could race the goroutine startup and the first
-	// tick would be missed.
+	// Otherwise Advance could race the goroutine startup and the
+	// first tick would be missed.
 	tickerTrap := mClock.Trap().TickerFunc("agentfake", "runMetadata")
 	defer tickerTrap.Close()
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
-
 	runErr := make(chan error, 1)
-	go func() {
-		runErr <- a.Run(runCtx)
-	}()
+	go func() { runErr <- a.Run(runCtx) }()
 
-	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
-		WithContext(ctx).
-		Wait()
-
-	// Wait for the agent to register its metadata ticker on the mock,
-	// then release the trapped call so the TickerFunc proceeds.
 	tickerTrap.MustWait(ctx).Release(ctx)
 
-	// Watch metadata via SSE. This exercises the same path coderd uses to
-	// surface metadata in the UI: BatchUpdate -> pubsub flush -> watcher.
-	// We wait for both declared keys to receive a non-empty, validly-encoded
-	// base64 value.
-	watchCtx, watchCancel := context.WithCancel(ctx)
-	t.Cleanup(watchCancel)
-	mdChan, mdErrChan := client.WatchWorkspaceAgentMetadata(watchCtx, agentID)
+	// One tick fires runMetadata's tick func, which calls
+	// BatchUpdateMetadata against agenttest.Client. The fake records
+	// it synchronously in-process; no pubsub, batcher, or SSE involved.
+	mClock.Advance(time.Second).MustWait(ctx)
 
-	// Advance the mock clock past the agent's 1s metadata tick and
-	// the batcher's 100ms scheduled flush. coderd registers other
-	// tickers on this clock too (cache refresh, etc.), so we use
-	// AdvanceNext in a loop to fire the soonest pending event each
-	// iteration until we've covered our 2-second window. This is
-	// robust regardless of which internal timers are registered.
-	target := mClock.Now().Add(2 * time.Second)
-	for mClock.Now().Before(target) {
-		d, w := mClock.AdvanceNext()
-		w.MustWait(ctx)
-		if d == 0 {
-			break
-		}
-	}
-
-	wantKeys := map[string]bool{"01_meta": false, "02_meta": false}
-waitLoop:
-	for {
-		select {
-		case <-ctx.Done():
-			t.Fatalf("timeout waiting for metadata; remaining keys: %v (%v)", wantKeys, ctx.Err())
-		case err := <-mdErrChan:
-			require.NoError(t, err, "metadata watcher errored")
-		case md := <-mdChan:
-			for _, m := range md {
-				if _, want := wantKeys[m.Description.Key]; !want {
-					continue
-				}
-				// coderd truncates the agent-reported value to 2048 chars
-				// (see coderd/agentapi/metadata.go maxValueLen). Our
-				// synthetic payload is larger than that on purpose, so we
-				// only check that we received a non-empty value and that
-				// the surviving chars are valid base64.
-				if m.Result.Value == "" {
-					continue
-				}
-				if _, err := base64.StdEncoding.DecodeString(m.Result.Value); err != nil {
-					continue
-				}
-				wantKeys[m.Description.Key] = true
+	require.Eventually(t, func() bool {
+		md := dialer.GetMetadata()
+		for _, key := range []string{"01_meta", "02_meta"} {
+			m, ok := md[key]
+			if !ok || m.Value == "" {
+				return false
 			}
-			allSeen := true
-			for _, ok := range wantKeys {
-				if !ok {
-					allSeen = false
-					break
-				}
-			}
-			if allSeen {
-				break waitLoop
+			if _, err := base64.StdEncoding.DecodeString(m.Value); err != nil {
+				return false
 			}
 		}
-	}
-	watchCancel()
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	cancel()
 	select {
@@ -228,17 +162,4 @@ waitLoop:
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for Agent.Run to return: %v", ctx.Err())
 	}
-}
-
-func workspaceAgentID(ctx context.Context, t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) uuid.UUID {
-	t.Helper()
-	ws, err := client.Workspace(ctx, workspaceID)
-	require.NoError(t, err)
-	for _, res := range ws.LatestBuild.Resources {
-		for _, agent := range res.Agents {
-			return agent.ID
-		}
-	}
-	t.Fatalf("no agent on workspace %s", workspaceID)
-	return uuid.Nil
 }
