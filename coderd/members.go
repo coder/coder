@@ -259,7 +259,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
@@ -386,7 +386,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Count:   int(paginatedMemberRows[0].Count),
 	}
 
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)

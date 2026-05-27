@@ -354,10 +354,10 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 
 	sdkUsers := convertUsers(users, organizationIDsByUserID, aiSeatSet)
 
-	// Apply Data Protection Mode Tier 2 obfuscation to user
+	// Apply Data Protection Mode obfuscation to user
 	// identities in listings. Admin CRUD still uses real names;
 	// this only affects statistical/browsing contexts.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
@@ -773,10 +773,10 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	sdkUser := db2sdk.User(user, organizationIDs)
 	api.enrichUserAISeat(ctx, &sdkUser)
 
-	// Apply Data Protection Mode Tier 2 obfuscation to single
+	// Apply Data Protection Mode obfuscation to single
 	// user detail. The requesting user can always see their own
 	// identity; other identities are obfuscated for non-auditors.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)

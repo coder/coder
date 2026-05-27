@@ -100,7 +100,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
@@ -232,7 +232,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
@@ -334,7 +334,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)

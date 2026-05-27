@@ -4045,7 +4045,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Data Protection Mode",
-			Description: "Set the Data Protection Mode tier. 'off' disables protection, 'tier-1' obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API endpoints with statistical data. Requires a server restart to change.",
+			Description: "Set the Data Protection Mode. 'off' disables protection, 'tier-1' (or 'on') obfuscates individual user identifiers across all UI and API reporting surfaces. Requires a server restart to change.",
 			Flag:        "data-protection-mode",
 			Env:         "CODER_DATA_PROTECTION_MODE",
 			Default:     "off",

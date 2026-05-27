@@ -132,9 +132,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply Data Protection Mode Tier 2 obfuscation to
+	// Apply Data Protection Mode obfuscation to
 	// workspace owner identity.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
@@ -272,9 +272,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply Data Protection Mode Tier 2 obfuscation to
+	// Apply Data Protection Mode obfuscation to
 	// workspace owner identities.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
@@ -390,9 +390,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Apply Data Protection Mode Tier 2 obfuscation to
+	// Apply Data Protection Mode obfuscation to
 	// workspace owner identity.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {

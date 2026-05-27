@@ -340,24 +340,17 @@ func TestConfig_Tiers(t *testing.T) {
 		t.Parallel()
 		cfg := dataprotection.NewConfig(0, nil, 5)
 		assert.False(t, cfg.IsTier1OrAbove())
-		assert.False(t, cfg.IsTier2OrAbove())
+		assert.False(t, cfg.Enabled())
 		assert.False(t, cfg.ShouldObfuscate("anyone@example.com"))
 	})
 
-	t.Run("Tier1", func(t *testing.T) {
+	t.Run("Tier1EnablesAll", func(t *testing.T) {
 		t.Parallel()
 		cfg := dataprotection.NewConfig(1, []string{"auditor@co.de"}, 5)
 		assert.True(t, cfg.IsTier1OrAbove())
-		assert.False(t, cfg.IsTier2OrAbove())
+		assert.True(t, cfg.Enabled())
 		assert.True(t, cfg.ShouldObfuscate("manager@co.de"))
 		assert.False(t, cfg.ShouldObfuscate("auditor@co.de"))
-	})
-
-	t.Run("Tier2", func(t *testing.T) {
-		t.Parallel()
-		cfg := dataprotection.NewConfig(2, []string{"auditor@co.de"}, 5)
-		assert.True(t, cfg.IsTier1OrAbove())
-		assert.True(t, cfg.IsTier2OrAbove())
 	})
 }
 
@@ -365,7 +358,7 @@ func TestConfig_PseudoSlug(t *testing.T) {
 	t.Parallel()
 
 	fixedKey := []byte("test-key-for-deterministic-tests")
-	cfg := dataprotection.NewConfigForTest(2, nil, 5, fixedKey)
+	cfg := dataprotection.NewConfigForTest(1, nil, 5, fixedKey)
 
 	uid := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000001")
 	slug := cfg.PseudoSlug(uid)
@@ -399,7 +392,7 @@ func TestConfig_ObfuscateMinimalUser(t *testing.T) {
 	t.Parallel()
 
 	fixedKey := []byte("test-key-for-deterministic-tests")
-	cfg := dataprotection.NewConfigForTest(2, nil, 5, fixedKey)
+	cfg := dataprotection.NewConfigForTest(1, nil, 5, fixedKey)
 
 	selfID := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000001")
 	otherID := uuid.MustParse("aaaaaaaa-0000-0000-0000-000000000002")

@@ -442,7 +442,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	}, users, int(memberCount))
 
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg.IsTier2OrAbove() {
+	if dpCfg.IsTier1OrAbove() {
 		apiKey := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
@@ -646,7 +646,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dpCfg := api.AGPL.DataProtection
-	if dpCfg.IsTier2OrAbove() {
+	if dpCfg.IsTier1OrAbove() {
 		apiKey := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)

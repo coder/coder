@@ -677,23 +677,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
-			// Resolve Data Protection Mode tier from config.
+			// Resolve Data Protection Mode from config.
 			// --data-protection-mode takes precedence over the
 			// deprecated --data-protection-enabled flag.
 			dpTier := 0
 			dpMode := vals.DataProtection.Mode.Value()
 			switch dpMode {
-			case "tier-1":
+			case "tier-1", "tier-2", "on":
+				// "tier-2" and "on" are accepted as aliases for
+					// backward compatibility.
 				dpTier = 1
-			case "tier-2":
-				dpTier = 2
 			case "off", "":
 				// Fall back to deprecated boolean flag.
 				if vals.DataProtection.Enabled.Value() {
 					dpTier = 1
 				}
 			default:
-				return xerrors.Errorf("invalid --data-protection-mode value: %q (must be off, tier-1, or tier-2)", dpMode)
+				return xerrors.Errorf("invalid --data-protection-mode value: %q (must be off or tier-1)", dpMode)
 			}
 			options.DataProtection = dataprotection.NewConfig(
 				dpTier,

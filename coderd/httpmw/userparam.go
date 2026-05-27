@@ -72,8 +72,8 @@ func ExtractUserParamOptional(db database.Store, dpCfg *dataprotection.Config) f
 
 // ExtractUserContext queries the database for the parameterized
 // `{user}` from the request URL. When a username lookup fails and
-// Data Protection Mode Tier 2 is active, it falls back to resolving
-// the value as a pseudonym slug.
+// Data Protection Mode is active, it falls back to resolving the
+// value as a pseudonym slug.
 func ExtractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request, dpCfg *dataprotection.Config) (user database.User, ok bool) {
 	// userQuery is either a uuid, a username, or 'me'
 	userQuery := chi.URLParam(r, "user")
@@ -128,9 +128,9 @@ func ExtractUserContext(ctx context.Context, db database.Store, rw http.Response
 		Username: userQuery,
 	})
 	if err != nil {
-		// If normal lookup fails and DPM Tier 2 is active, try
+		// If normal lookup fails and DPM is active, try
 		// pseudonym slug resolution.
-		if dpCfg != nil && dpCfg.IsTier2OrAbove() {
+		if dpCfg != nil && dpCfg.IsTier1OrAbove() {
 			if realID, resolved := dpCfg.ResolveSlug(userQuery); resolved {
 				user, err = db.GetUserByID(ctx, realID)
 				if err == nil {

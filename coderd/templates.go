@@ -52,9 +52,9 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 
 	sdkTemplate := api.convertTemplate(template)
 
-	// Apply Data Protection Mode Tier 2 obfuscation to the
+	// Apply Data Protection Mode obfuscation to the
 	// template creator identity.
-	if api.DataProtection.IsTier2OrAbove() {
+	if api.DataProtection.IsTier1OrAbove() {
 		key := httpmw.APIKey(r)
 		//nolint:gocritic // System lookup to resolve email for DPM check.
 		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
@@ -623,9 +623,9 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 
 		sdkTemplates := api.convertTemplates(templates)
 
-		// Apply Data Protection Mode Tier 2 obfuscation to
+		// Apply Data Protection Mode obfuscation to
 		// template creator identities in listings.
-		if api.DataProtection.IsTier2OrAbove() {
+		if api.DataProtection.IsTier1OrAbove() {
 			//nolint:gocritic // System lookup to resolve email for DPM check.
 			reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
 			if uerr == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
