@@ -4549,14 +4549,13 @@ type BoundarySession struct {
 	ID uuid.UUID `db:"id" json:"id"`
 	// The workspace agent that this Boundary session is associated with.
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	// The workspace owner at the time the session was created. Denormalized for efficient RBAC checks.
-	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 	// Name of the confined process (e.g. claude-code, codex, copilot).
 	ConfinedProcessName string `db:"confined_process_name" json:"confined_process_name"`
 	// Time when the first log for this session was received by coderd.
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// Time when the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.

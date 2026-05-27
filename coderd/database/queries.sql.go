@@ -3627,7 +3627,7 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, owner_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id FROM boundary_sessions WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
@@ -3636,10 +3636,10 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceAgentID,
-		&i.OwnerID,
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
@@ -3802,7 +3802,7 @@ INSERT INTO boundary_sessions (
     $4,
     $5,
     $6
-) RETURNING id, workspace_agent_id, owner_id, confined_process_name, started_at, updated_at
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id
 `
 
 type InsertBoundarySessionParams struct {
@@ -3827,10 +3827,10 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceAgentID,
-		&i.OwnerID,
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
