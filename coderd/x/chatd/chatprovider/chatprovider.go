@@ -1243,6 +1243,7 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
+		httpClient = withGeminiOpenAICompatThoughtSignatures(httpClient, baseURL, modelID)
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),
