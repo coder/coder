@@ -1588,7 +1588,10 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	if err != nil {
+		return fail(xerrors.Errorf("prepare file upload: %w", err))
+	}
 
 	err = stream.Send(&sdkproto.FileUpload{
 		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},
