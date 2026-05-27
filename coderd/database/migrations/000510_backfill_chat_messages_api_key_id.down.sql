@@ -1,3 +1,3 @@
--- Migration 000508 drops the api_key_id columns, so migration 000510 has
+-- Rolling back migration 000508 drops the api_key_id columns, so migration 000510 has
 -- nothing safe to reverse. Leave existing values intact when rolling back this
 -- data-only migration in isolation.

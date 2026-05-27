@@ -1873,7 +1873,7 @@ func TestMigration000510BackfillChatMessagesAPIKeyID(t *testing.T) {
 
 	require.NoError(t, tx.Commit())
 
-	// Run migration 509.
+	// Run migration 510.
 	version, more, err := next()
 	require.NoError(t, err)
 	require.True(t, more)
