@@ -153,8 +153,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		compressionThreshold: undefined as number | undefined,
-		canUpdateOtherUserChat: false,
-		canUpdateOtherUserChatLoading: false,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -231,7 +229,7 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/^This is not your chat/),
+			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
 	},
 };
@@ -241,38 +239,20 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
-export const AdminViewingOtherUserChat: Story = {
+export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canUpdateOtherUserChat
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This is not your chat. Prompting here will use Other User's identity.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-	},
-};
-
-export const OtherUserChatOwnerPending: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			canUpdateOtherUserChat
-			canUpdateOtherUserChatLoading
 			chatOwner={{ username: "OtherUser", name: "Other User" }}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This is not your chat/),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		const banner = canvas.getByText(
+			"This chat is owned by Other User. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
 			"aria-disabled",
 			"true",
@@ -280,32 +260,20 @@ export const OtherUserChatOwnerPending: Story = {
 	},
 };
 
-export const ReadOnlyOtherUserChatOwner: Story = {
-	render: () => (
-		<StoryAgentChatPageView chatOwner={{ username: "OtherUser" }} />
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by @OtherUser. You have read-only access.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-	},
-};
-
-export const ReadOnlyOtherUserChatOwnerPending: Story = {
+export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			chatOwner={{ username: "OtherUser" }}
-			canUpdateOtherUserChatLoading
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/^This chat is owned/)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		const banner = canvas.getByText(
+			"This chat is owned by @OtherUser. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
 			"aria-disabled",
 			"true",
@@ -313,7 +281,23 @@ export const ReadOnlyOtherUserChatOwnerPending: Story = {
 	},
 };
 
-/** Archived chats stay read-only without the identity warning banner. */
+export const OtherUserChatOwnerFallback: Story = {
+	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This chat is owned by another user. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+/** Archived chats stay read-only without the owner banner. */
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -325,7 +309,7 @@ export const ArchivedOtherUserChat: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/^This is not your chat/),
+			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
@@ -775,17 +759,24 @@ export const LoadingSidebarCollapsed: Story = {
 // Helpers for seeding stores with messages
 // ---------------------------------------------------------------------------
 
-const buildMessage = (
+const buildMessageWithContent = (
 	id: number,
 	role: TypesGen.ChatMessageRole,
-	text: string,
+	content: TypesGen.ChatMessagePart[],
 ): TypesGen.ChatMessage => ({
 	id,
 	chat_id: AGENT_ID,
 	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
 	role,
-	content: [{ type: "text", text }],
+	content,
 });
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage =>
+	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
@@ -795,6 +786,52 @@ const buildStoreWithMessages = (
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
 	return store;
+};
+
+const otherUserActionMessages: TypesGen.ChatMessage[] = [
+	buildMessage(1, "user", "Please review this plan."),
+	buildMessageWithContent(2, "assistant", [
+		{ type: "text", text: "I prepared a plan." },
+		{
+			type: "tool-call",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			args: { path: "/home/coder/PLAN.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			result: {
+				file_id: "other-user-plan-file",
+				content: "# Plan\n\n1. Keep this chat read-only.",
+			},
+		},
+	]),
+];
+
+export const OtherUserChatHidesInlineActions: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			isInputDisabled
+			onImplementPlan={fn()}
+			store={buildStoreWithMessages(otherUserActionMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This chat is owned by Other User. It is read-only."),
+		).toBeVisible();
+		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Edit message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // ---------------------------------------------------------------------------

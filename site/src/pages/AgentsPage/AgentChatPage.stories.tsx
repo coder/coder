@@ -190,15 +190,13 @@ const extractPromptsFromMessages = (
 	return prompts;
 };
 type ChatAuthorizationFixture = {
-	action: "share" | "update";
+	action: "share";
 	allowed: boolean;
 };
 
 const buildChatAuthorizationQuery = (
 	chat: Pick<TypesGen.Chat, "owner_id" | "organization_id">,
-	checks: Partial<
-		Record<"canShareChat" | "canUpdateChat", ChatAuthorizationFixture>
-	>,
+	checks: Partial<Record<"canShareChat", ChatAuthorizationFixture>>,
 ) => {
 	const authorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
 	const authorizationResponse: TypesGen.AuthorizationResponse = {};
@@ -1181,9 +1179,6 @@ export const WithMessageHistory: Story = {
 		).toBeVisible();
 		await waitFor(() => {
 			expect(
-				canvas.queryByText(/^This is not your chat/),
-			).not.toBeInTheDocument();
-			expect(
 				canvas.queryByText(/^This chat is owned by/),
 			).not.toBeInTheDocument();
 		});
@@ -1246,87 +1241,106 @@ export const Loading: Story = {
 	},
 };
 
-export const AdminViewingOtherUserChat: Story = {
+export const OtherUserChatReadOnly: Story = {
 	parameters: {
-		queries: [
-			...buildQueries(
-				{
-					id: CHAT_ID,
-					...baseChatFields,
-					owner_id: "other-user-id",
-					owner_username: "OtherUser",
-					owner_name: "Other User",
-					title: "Other user's chat",
-					status: "completed",
-				},
-				{ messages: [], queued_messages: [], has_more: false },
-				{ diffUrl: undefined },
-			),
-			buildChatAuthorizationQuery(
-				{
-					owner_id: "other-user-id",
-					organization_id: baseChatFields.organization_id,
-				},
-				{
-					canUpdateChat: { action: "update", allowed: true },
-					canShareChat: { action: "share", allowed: false },
-				},
-			),
-		],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+				title: "Other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = await canvas.findByText(
-			"This is not your chat. Prompting here will use Other User's identity.",
+			"This chat is owned by Other User. It is read-only.",
 		);
 		expect(banner).toBeVisible();
 		expect(banner).toHaveAttribute("role", "status");
 		expect(canvas.getByRole("textbox")).toHaveAttribute(
 			"aria-disabled",
-			"false",
+			"true",
 		);
 	},
 };
 
-export const SharedReadOnlyChat: Story = {
+export const OtherUserChatWithMessages: Story = {
 	parameters: {
-		queries: [
-			...buildQueries(
-				{
-					id: CHAT_ID,
-					...baseChatFields,
-					owner_id: "other-user-id",
-					owner_username: "OtherUser",
-					owner_name: "Other User",
-					title: "Shared read-only chat",
-					status: "completed",
-				},
-				{ messages: [], queued_messages: [], has_more: false },
-				{ diffUrl: undefined },
-			),
-			buildChatAuthorizationQuery(
-				{
-					owner_id: "other-user-id",
-					organization_id: baseChatFields.organization_id,
-				},
-				{
-					canUpdateChat: { action: "update", allowed: false },
-					canShareChat: { action: "share", allowed: false },
-				},
-			),
-		],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+				title: "Other user's chat with messages",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Please review this plan." }],
+					},
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:02.000Z",
+						role: "assistant",
+						content: [
+							{ type: "text", text: "I prepared a plan." },
+							{
+								type: "tool-call",
+								tool_call_id: "other-user-plan",
+								tool_name: "propose_plan",
+								args: { path: "/home/coder/PLAN.md" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "other-user-plan",
+								tool_name: "propose_plan",
+								result: {
+									file_id: "other-user-plan-file",
+									content: "# Plan\n\n1. Keep this chat read-only.",
+								},
+							},
+						],
+					},
+				] as TypesGen.ChatMessage[],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByText(
-				"This chat is owned by Other User. You have read-only access.",
+				"This chat is owned by Other User. It is read-only.",
 			),
 		).toBeVisible();
+		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
 		expect(canvas.getByRole("textbox")).toHaveAttribute(
 			"aria-disabled",
 			"true",
 		);
+		expect(
+			canvas.queryByRole("button", { name: "Edit message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -1352,9 +1366,6 @@ export const ArchivedOtherUserChat: Story = {
 		expect(
 			await canvas.findByText("This agent has been archived and is read-only."),
 		).toBeVisible();
-		expect(
-			canvas.queryByText(/^This is not your chat/),
-		).not.toBeInTheDocument();
 		expect(
 			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
