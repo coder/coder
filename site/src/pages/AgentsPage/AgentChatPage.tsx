@@ -845,8 +845,6 @@ const AgentChatPage: FC = () => {
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
 	const isRootChat =
 		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
-	const shouldCheckCanUpdateOtherUserChat =
-		isViewerNotOwner && !isArchived && chatRecord !== undefined;
 	const shouldCheckCanShareChat = isRootChat;
 	const chatAuthorizationObject =
 		chatRecord !== undefined
@@ -857,15 +855,6 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (
-		chatAuthorizationObject !== undefined &&
-		shouldCheckCanUpdateOtherUserChat
-	) {
-		chatAuthorizationChecks.canUpdateChat = {
-			object: chatAuthorizationObject,
-			action: "update",
-		};
-	}
 	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
 		chatAuthorizationChecks.canShareChat = {
 			object: chatAuthorizationObject,
@@ -876,20 +865,16 @@ const AgentChatPage: FC = () => {
 		...checkAuthorization({ checks: chatAuthorizationChecks }),
 		enabled: Object.keys(chatAuthorizationChecks).length > 0,
 	});
-	const canUpdateOtherUserChat = Boolean(
-		chatAuthorizationQuery.data?.canUpdateChat,
-	);
-	const canUpdateOtherUserChatLoading =
-		shouldCheckCanUpdateOtherUserChat && chatAuthorizationQuery.isLoading;
 	const canShareChat =
 		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
-	const chatOwner =
-		isViewerNotOwner && chatRecord?.owner_username
-			? {
-					username: chatRecord.owner_username,
-					...(chatRecord.owner_name ? { name: chatRecord.owner_name } : {}),
-				}
-			: undefined;
+	const chatOwner = isViewerNotOwner
+		? {
+				...(chatRecord?.owner_username
+					? { username: chatRecord.owner_username }
+					: {}),
+				...(chatRecord?.owner_name ? { name: chatRecord.owner_name } : {}),
+			}
+		: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1144,11 +1129,7 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions ||
-		isArchived ||
-		isChatSettingsPending ||
-		(isViewerNotOwner &&
-			(canUpdateOtherUserChatLoading || !canUpdateOtherUserChat));
+		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1598,8 +1579,6 @@ const AgentChatPage: FC = () => {
 			persistedError={persistedError}
 			isArchived={isArchived}
 			chatOwner={chatOwner}
-			canUpdateOtherUserChat={canUpdateOtherUserChat}
-			canUpdateOtherUserChatLoading={canUpdateOtherUserChatLoading}
 			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}

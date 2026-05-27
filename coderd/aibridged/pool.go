@@ -3,7 +3,10 @@ package aibridged
 import (
 	"context"
 	"net/http"
+	"slices"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/ristretto/v2"
@@ -26,6 +29,9 @@ const (
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
 	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
+	// ReplaceProviders swaps the providers used to construct future
+	// RequestBridge instances and clears the cache.
+	ReplaceProviders(providers []aibridge.Provider)
 	Shutdown(ctx context.Context) error
 }
 
@@ -46,10 +52,12 @@ var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
 var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
-	cache     *ristretto.Cache[string, *aibridge.RequestBridge]
-	providers []aibridge.Provider
-	logger    slog.Logger
-	options   PoolOptions
+	cache *ristretto.Cache[string, *aibridge.RequestBridge]
+	// providers is the live provider set used by new RequestBridge instances.
+	providers       atomic.Pointer[[]aibridge.Provider]
+	providerVersion atomic.Int64
+	logger          slog.Logger
+	options         PoolOptions
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
@@ -71,13 +79,16 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 			if item == nil || item.Value == nil {
 				return
 			}
-
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second*5)
-			defer shutdownCancel()
-
-			// Run the eviction in the background since ristretto blocks sets until a free slot is available.
+			// Capture the value synchronously: ristretto reuses the
+			// item slot after OnEvict returns, so reading item.Value
+			// from the goroutine below races with the caller of
+			// Clear/Set. The shutdown still runs in the background to
+			// avoid blocking ristretto's eviction loop.
+			bridge := item.Value
 			go func() {
-				_ = item.Value.Shutdown(shutdownCtx)
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				_ = bridge.Shutdown(shutdownCtx)
 			}()
 		},
 	})
@@ -85,18 +96,53 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		return nil, xerrors.Errorf("create cache: %w", err)
 	}
 
-	return &CachedBridgePool{
-		cache:     cache,
-		providers: providers,
-		options:   options,
-		metrics:   metrics,
-		tracer:    tracer,
-		logger:    logger,
+	pool := &CachedBridgePool{
+		cache:   cache,
+		options: options,
+		metrics: metrics,
+		tracer:  tracer,
+		logger:  logger,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
 		shuttingDownCh: make(chan struct{}),
-	}, nil
+	}
+	initial := slices.Clone(providers)
+	pool.providers.Store(&initial)
+	return pool, nil
+}
+
+// ReplaceProviders swaps the provider snapshot used by future Acquires.
+// It is safe to call concurrently with Acquire and is a no-op after
+// Shutdown.
+func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
+	select {
+	case <-p.shuttingDownCh:
+		return
+	default:
+	}
+	snapshot := slices.Clone(providers)
+	p.providers.Store(&snapshot)
+	version := time.Now().UnixNano()
+	p.providerVersion.Store(version)
+	// Clear evicts every cached bridge; OnEvict shuts each one down in
+	// the background. Wait for buffered writes to drain so a replacement
+	// immediately followed by an Acquire always sees the cleared cache.
+	p.cache.Clear()
+	p.cache.Wait()
+	p.logger.Info(context.Background(), "request bridge pool reloaded",
+		slog.F("provider_count", len(snapshot)),
+		slog.F("provider_version", version),
+	)
+}
+
+// loadProviders returns the current providers snapshot. The returned
+// slice must not be mutated.
+func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
+	if ptr := p.providers.Load(); ptr != nil {
+		return *ptr
+	}
+	return nil
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.
@@ -140,6 +186,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	}
 
 	span.AddEvent("cache_miss")
+	providerVersion := p.providerVersion.Load()
 	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), p.tracer, func() (aibridge.Recorder, error) {
 		client, err := clientFn()
 		if err != nil {
@@ -152,7 +199,8 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
 	// TODO: track startup time since it adds latency to first request (histogram count will also help us see how often this occurs).
-	instance, err, _ := p.singleflight.Do(req.InitiatorID.String(), func() (*aibridge.RequestBridge, error) {
+	singleflightKey := cacheKey + "|" + strconv.FormatInt(providerVersion, 10)
+	instance, err, _ := p.singleflight.Do(singleflightKey, func() (*aibridge.RequestBridge, error) {
 		var (
 			mcpServers mcp.ServerProxier
 			err        error
@@ -171,12 +219,14 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, recorder, mcpServers, p.logger, p.metrics, p.tracer)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
 
-		p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
+		if p.providerVersion.Load() == providerVersion {
+			p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
+		}
 
 		return bridge, nil
 	})
