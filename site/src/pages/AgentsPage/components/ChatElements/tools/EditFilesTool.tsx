@@ -16,6 +16,7 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import {
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
@@ -69,7 +70,8 @@ export const EditFilesTool: React.FC<{
 			autoDisplayState={EDIT_FILES_AUTO_DISPLAY_STATE}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon name="edit_files" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

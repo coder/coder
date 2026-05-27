@@ -10,6 +10,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { asRecord, asString } from "../runtimeTypeUtils";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import {
 	DIFFS_FONT_STYLE,
 	getFileViewerOptionsMinimal,
@@ -96,7 +97,8 @@ export const ReadFileTool: React.FC<{
 			onExpandedChange={onExpandedChange}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon name="read_file" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

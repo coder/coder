@@ -8,6 +8,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { ImageLightbox } from "../../ImageLightbox";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -39,7 +40,8 @@ export const ComputerTool: React.FC<{
 			defaultExpanded={hasImage}
 			header={
 				<>
-					<span className="text-[13px]">
+					<ToolIcon name="computer" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">
 						{isRunning ? "Taking screenshot…" : "Screenshot"}
 					</span>
 					{isError && (

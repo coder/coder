@@ -16,6 +16,7 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { COLLAPSED_OUTPUT_HEIGHT, signalTooltipLabel } from "./utils";
 
 type ProcessOutputToolProps = {
@@ -89,7 +90,16 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			ariaLabel={(expanded) =>
 				expanded ? "Collapse process output" : "Expand process output"
 			}
-			header={<span className="text-[13px]">Process output</span>}
+			header={
+				<>
+					<ToolIcon
+						name="process_output"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">Process output</span>
+				</>
+			}
 			headerActions={
 				hasHeaderActions ? (
 					<>

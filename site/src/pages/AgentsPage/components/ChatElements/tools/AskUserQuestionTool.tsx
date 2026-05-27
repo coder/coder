@@ -10,6 +10,7 @@ import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
 import { TranscriptRow } from "../TranscriptRow";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -541,6 +542,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					role="alert"
 					className="gap-1.5 text-[13px] text-content-secondary"
 				>
+					<ToolIcon name="ask_user_question" isError={isError} />
 					<TriangleAlertIcon
 						aria-label="Error"
 						className="size-3.5 shrink-0 text-content-secondary"
@@ -556,6 +558,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			<div className="w-full">
 				{isRunning ? (
 					<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
+						<ToolIcon
+							name="ask_user_question"
+							isError={false}
+							isRunning={isRunning}
+						/>
 						<span className="text-[13px] text-content-secondary">
 							Asking for clarification...
 						</span>
@@ -678,6 +685,11 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		<div className="w-full">
 			{isRunning && (
 				<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
+					<ToolIcon
+						name="ask_user_question"
+						isError={false}
+						isRunning={isRunning}
+					/>
 					<span className="text-[13px] text-content-secondary">
 						Asking for clarification...
 					</span>

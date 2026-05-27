@@ -8,6 +8,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -29,7 +30,12 @@ export const ChatSummarizedTool: React.FC<{
 			hasContent={hasSummary}
 			header={
 				<>
-					<span className="text-[13px]">
+					<ToolIcon
+						name="chat_summarized"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">
 						{isRunning ? "Summarizing…" : "Summarized"}
 					</span>
 					{isError && (

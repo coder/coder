@@ -7,6 +7,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { asRecord, asString, type ToolStatus } from "./utils";
 
 /**
@@ -36,7 +37,12 @@ export const ListTemplatesTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon
+						name="list_templates"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

@@ -1,9 +1,4 @@
-import {
-	ExternalLinkIcon,
-	LoaderIcon,
-	MonitorIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import {
@@ -12,6 +7,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { asRecord, asString, type ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -72,8 +68,12 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const header = (
 		<>
-			<MonitorIcon className="size-4 shrink-0 text-current" />
-			<span className="text-[13px]">{label}</span>
+			<ToolIcon
+				name="create_workspace"
+				isError={isError}
+				isRunning={isRunning}
+			/>
+			<span className="text-[13px] leading-6">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>

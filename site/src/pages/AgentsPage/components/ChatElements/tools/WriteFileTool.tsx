@@ -16,6 +16,7 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
@@ -53,7 +54,8 @@ export const WriteFileTool: React.FC<{
 			autoDisplayState={WRITE_FILE_AUTO_DISPLAY_STATE}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon name="write_file" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">{label}</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>

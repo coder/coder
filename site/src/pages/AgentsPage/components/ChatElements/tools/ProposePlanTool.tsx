@@ -11,6 +11,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
 import { TranscriptRow } from "../TranscriptRow";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
@@ -74,7 +75,12 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<TranscriptRow className="gap-1.5 text-content-secondary">
-				<span className="text-[13px]">
+				<ToolIcon
+					name="propose_plan"
+					isError={effectiveError}
+					isRunning={isRunning}
+				/>
+				<span className="text-[13px] leading-6">
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
