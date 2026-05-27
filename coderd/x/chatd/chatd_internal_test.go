@@ -6674,9 +6674,10 @@ func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
 	msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 
-	// GetChatMessagesForPromptByChatID applies compaction boundaries,
-	// so only the compressed user summary is returned. The assistant
-	// and tool messages have non-model visibility and are filtered.
+	// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
+	// that selects compressed=true, visibility='model'. Only the user
+	// summary qualifies; the assistant (visibility=user) and tool
+	// result (visibility=both) are excluded by the CTE filter.
 	require.NotEmpty(t, msgs)
 
 	var foundUserSummary bool
