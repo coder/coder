@@ -514,10 +514,9 @@ export function useDesktopConnection({
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: rfbInstance triggers re-run on connect/disconnect
 	useEffect(() => {
-		if (rfbRef.current) {
-			rfbRef.current.scaleViewport = scaleViewport;
+		if (rfbInstance) {
+			rfbInstance.scaleViewport = scaleViewport;
 		}
 	}, [rfbInstance, scaleViewport]);
 
