@@ -3735,6 +3735,21 @@ func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
 }
 
+// GetLastUsedNonExpiredAPIKeyIDByUserID mocks base method.
+func (m *MockStore) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastUsedNonExpiredAPIKeyIDByUserID", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastUsedNonExpiredAPIKeyIDByUserID indicates an expected call of GetLastUsedNonExpiredAPIKeyIDByUserID.
+func (mr *MockStoreMockRecorder) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUsedNonExpiredAPIKeyIDByUserID", reflect.TypeOf((*MockStore)(nil).GetLastUsedNonExpiredAPIKeyIDByUserID), ctx, userID)
+}
+
 // GetLatestCryptoKeyByFeature mocks base method.
 func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -3958,21 +3973,6 @@ func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID u
 func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
-}
-
-// GetMostRecentNonExpiredAPIKeyByUserID mocks base method.
-func (m *MockStore) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMostRecentNonExpiredAPIKeyByUserID", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetMostRecentNonExpiredAPIKeyByUserID indicates an expected call of GetMostRecentNonExpiredAPIKeyByUserID.
-func (mr *MockStoreMockRecorder) GetMostRecentNonExpiredAPIKeyByUserID(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMostRecentNonExpiredAPIKeyByUserID", reflect.TypeOf((*MockStore)(nil).GetMostRecentNonExpiredAPIKeyByUserID), ctx, userID)
 }
 
 // GetNotificationMessagesByStatus mocks base method.

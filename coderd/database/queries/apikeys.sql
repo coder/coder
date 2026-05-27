@@ -136,7 +136,7 @@ WHERE id IN (
 	SELECT id FROM unnamed_prebuilds_api_keys
 );
 
--- name: GetMostRecentNonExpiredAPIKeyByUserID :one
+-- name: GetLastUsedNonExpiredAPIKeyIDByUserID :one
 SELECT
 	id
 FROM

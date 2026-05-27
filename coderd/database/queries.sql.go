@@ -2960,7 +2960,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 	return items, nil
 }
 
-const getMostRecentNonExpiredAPIKeyByUserID = `-- name: GetMostRecentNonExpiredAPIKeyByUserID :one
+const getLastUsedNonExpiredAPIKeyIDByUserID = `-- name: GetLastUsedNonExpiredAPIKeyIDByUserID :one
 SELECT
 	id
 FROM
@@ -2974,8 +2974,8 @@ LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getMostRecentNonExpiredAPIKeyByUserID, userID)
+func (q *sqlQuerier) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLastUsedNonExpiredAPIKeyIDByUserID, userID)
 	var id string
 	err := row.Scan(&id)
 	return id, err

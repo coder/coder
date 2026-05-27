@@ -12105,7 +12105,21 @@ func TestProcessChat_BackfillsLegacyAPIKeyID(t *testing.T) {
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 	})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:   user.ID,
+		LastUsed: time.Now().Add(-1 * time.Hour),
+	})
+	// Create an older valid key and an expired key to verify the query
+	// picks the most recently used non-expired key.
+	dbgen.APIKey(t, db, database.APIKey{
+		UserID:   user.ID,
+		LastUsed: time.Now().Add(-48 * time.Hour),
+	})
+	dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LastUsed:  time.Now().Add(-30 * time.Minute),
+		ExpiresAt: time.Now().Add(-10 * time.Minute),
+	})
 	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
 		ID:           uuid.New(),
 		UserID:       user.ID,

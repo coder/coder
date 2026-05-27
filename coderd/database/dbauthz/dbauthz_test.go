@@ -361,9 +361,9 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(keyA, policy.ActionRead, keyB, policy.ActionRead).
 			Returns(slice.New(keyA, keyB))
 	}))
-	s.Run("GetMostRecentNonExpiredAPIKeyByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetLastUsedNonExpiredAPIKeyIDByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypeToken})
-		dbm.EXPECT().GetMostRecentNonExpiredAPIKeyByUserID(gomock.Any(), key.UserID).Return(key.ID, nil).AnyTimes()
+		dbm.EXPECT().GetLastUsedNonExpiredAPIKeyIDByUserID(gomock.Any(), key.UserID).Return(key.ID, nil).AnyTimes()
 		check.Args(key.UserID).Asserts(rbac.ResourceApiKey.WithOwner(key.UserID.String()), policy.ActionRead).Returns(key.ID)
 	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
