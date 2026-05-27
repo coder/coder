@@ -9,7 +9,7 @@ type Client string
 
 const (
 	// Possible values for the "client" field in interception records.
-	// Must be kept in sync with documentation: https://github.com/coder/coder/blob/90c11f3386578da053ec5cd9f1475835b980e7c7/docs/ai-coder/ai-bridge/monitoring.md?plain=1#L36-L44
+	// Must be kept in sync with documentation: https://github.com/coder/coder/blob/3cf867f84aa32d2febf7a26dc7e52be6beb8a2ac/docs/ai-coder/ai-gateway/monitoring.md?plain=1#L47-L57
 	ClientClaudeCode  Client = "Claude Code"
 	ClientCodex       Client = "Codex"
 	ClientZed         Client = "Zed"
@@ -31,7 +31,7 @@ func GuessClient(r *http.Request) Client {
 	userAgent := strings.ToLower(r.UserAgent())
 	originator := r.Header.Get("originator")
 
-	// Must be kept in sync with documentation: https://github.com/coder/coder/blob/90c11f3386578da053ec5cd9f1475835b980e7c7/docs/ai-coder/ai-bridge/monitoring.md?plain=1#L36-L44
+	// Must be kept in sync with documentation: https://github.com/coder/coder/blob/3cf867f84aa32d2febf7a26dc7e52be6beb8a2ac/docs/ai-coder/ai-gateway/monitoring.md?plain=1#L47-L57
 	switch {
 	case strings.HasPrefix(userAgent, "mux/"):
 		return ClientMux
