@@ -340,7 +340,7 @@ export const ExecuteModelIntentLeadingUsing: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand} for 2.3s`);
 		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
@@ -363,7 +363,7 @@ export const ExecuteSuccess: Story = {
 		expect(
 			canvas.queryByRole("img", { name: "Running in background" }),
 		).not.toBeInTheDocument();
-		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
 };
@@ -474,7 +474,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
 		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
-		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
 		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
 	},
 };
