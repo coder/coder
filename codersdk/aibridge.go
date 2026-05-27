@@ -175,9 +175,12 @@ type AIBridgeListSessionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the provider type column (openai, anthropic,
-	// copilot). Retained for backward compatibility; new clients should
-	// prefer ProviderName, which scopes to a specific configured row.
+	// Provider matches the runtime provider type column (openai,
+	// anthropic, copilot). The runtime type collapses the configured
+	// ai_provider_type: azure, google, openai-compat, openrouter, and
+	// vercel route through openai; bedrock routes through anthropic.
+	// Retained for backward compatibility; new clients should prefer
+	// ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`
@@ -202,9 +205,12 @@ type AIBridgeListInterceptionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the provider type column (openai, anthropic,
-	// copilot). Retained for backward compatibility; new clients should
-	// prefer ProviderName, which scopes to a specific configured row.
+	// Provider matches the runtime provider type column (openai,
+	// anthropic, copilot). The runtime type collapses the configured
+	// ai_provider_type: azure, google, openai-compat, openrouter, and
+	// vercel route through openai; bedrock routes through anthropic.
+	// Retained for backward compatibility; new clients should prefer
+	// ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`

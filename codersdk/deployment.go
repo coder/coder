@@ -4684,7 +4684,9 @@ type AIBridgeBedrockConfig struct {
 // CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
 // This follows the same indexed pattern as ExternalAuthConfig.
 type AIProviderConfig struct {
-	// Type is the provider type: "openai", "anthropic", or "copilot".
+	// Type is the provider type. Valid values are: "openai",
+	// "anthropic", "azure", "bedrock", "google", "openai-compat",
+	// "openrouter", "vercel", "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.

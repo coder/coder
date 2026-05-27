@@ -1352,14 +1352,14 @@
 
 ### Properties
 
-| Name                       | Type   | Required | Restrictions | Description                                                                                |
-|----------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                     |
-| `bedrock_model`            | string | false    |              |                                                                                            |
-| `bedrock_region`           | string | false    |              |                                                                                            |
-| `bedrock_small_fast_model` | string | false    |              |                                                                                            |
-| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
-| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
+| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
+|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
+| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
+| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
+| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
 
 ## codersdk.AIProviderKey
 

@@ -320,10 +320,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
-		// Bedrock settings are only meaningful for anthropic-typed
-		// providers; rejecting the mismatch keeps a misconfiguration
-		// from sitting silently in the encrypted blob.
-		if existing.Bedrock != nil && old.Type != database.AiProviderTypeAnthropic {
+		// Bedrock settings are only meaningful for anthropic- or
+		// bedrock-typed providers; rejecting the mismatch keeps a
+		// misconfiguration from sitting silently in the encrypted
+		// blob.
+		if existing.Bedrock != nil &&
+			old.Type != database.AiProviderTypeAnthropic &&
+			old.Type != database.AiProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
 		settings, err := encodeAIProviderSettings(existing)
@@ -382,7 +385,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Bedrock settings are only valid for type=anthropic.",
+			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
 		})
 		return
 	}
@@ -482,9 +485,9 @@ var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_
 
 // errAIProviderBedrockTypeMismatch is the sentinel returned from
 // inside the update transaction when the post-merge settings carry a
-// Bedrock block but the provider is not anthropic-typed; the outer
-// handler translates it into a 400.
-var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic")
+// Bedrock block but the provider is not anthropic- or bedrock-typed;
+// the outer handler translates it into a 400.
+var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.

@@ -15071,7 +15071,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
                     "type": "string"
                 }
             }
