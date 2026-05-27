@@ -779,7 +779,6 @@ func TestWatchAgentContainers(t *testing.T) {
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
 				wsWatcher: httpapi.NewWSWatcher(mClock, nil),
-
 			}
 		)
 
