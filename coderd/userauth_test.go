@@ -1102,20 +1102,6 @@ func TestUserOIDC(t *testing.T) {
 			},
 		},
 		{
-			Name: "EmailVerifiedMissingIgnored",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": false,
-				"sub":            uuid.NewString(),
-			},
-			AllowSignups:        true,
-			IgnoreEmailVerified: true,
-			StatusCode:          http.StatusOK,
-			AssertUser: func(t testing.TB, u codersdk.User) {
-				assert.Equal(t, "kyle", u.Username)
-			},
-		},
-		{
 			Name: "EmailVerifiedAsStringTrue",
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
@@ -1620,6 +1606,57 @@ func TestUserOIDC(t *testing.T) {
 			}
 		})
 	}
+
+	// Absent email_verified claim tests use a FakeIDP that suppresses the
+	// default email_verified=true injection so the handler's absent-claim
+	// branch is exercised end-to-end.
+	t.Run("EmailVerifiedMissing", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("EmailVerifiedMissingIgnored", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.IgnoreEmailVerified = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		userClient, _ := fake.Login(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user, err := userClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle", user.Username)
+	})
 
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
