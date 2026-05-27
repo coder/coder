@@ -1,4 +1,4 @@
-package nats //nolint:testpackage // Exercises internal pubsub state and helpers.
+package nats
 
 import (
 	"context"
