@@ -48,6 +48,7 @@ type WorkspaceTerminalProps = {
 	renderer?: string;
 	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
+	onTitleChange?: (title: string) => void;
 	loading?: boolean;
 	errorMessage?: string;
 	testId?: string;
@@ -78,6 +79,7 @@ export const WorkspaceTerminal = ({
 	renderer,
 	backgroundColor,
 	onOpenLink,
+	onTitleChange,
 	loading = false,
 	errorMessage,
 	testId,
@@ -91,6 +93,9 @@ export const WorkspaceTerminal = ({
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
+	});
+	const handleTitleChange = useEffectEvent((title: string) => {
+		onTitleChange?.(title);
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
@@ -243,6 +248,13 @@ export const WorkspaceTerminal = ({
 		// right-click paste anyway.
 		nextTerminal.onSelectionChange(() => {
 			copySelection();
+		});
+
+		// Forward xterm title change events (triggered by shell escape
+		// sequences like \033]0;...\007) to the parent component so it
+		// can update the browser tab title.
+		nextTerminal.onTitleChange((title) => {
+			handleTitleChange(title);
 		});
 
 		nextTerminal.open(mountNode);

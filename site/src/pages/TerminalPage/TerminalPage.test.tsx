@@ -298,4 +298,42 @@ describe("TerminalPage", () => {
 		expect(resizeReq.height).toBeGreaterThan(0);
 		expect(resizeReq.width).toBeGreaterThan(0);
 	});
+
+	it("includes agent name in the browser tab title", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal(
+			`/some-user/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal`,
+		);
+		await waitFor(() => {
+			expect(document.title).toContain(`Terminal (${MockWorkspaceAgent.name})`);
+		});
+	});
+
+	it("includes container name in the browser tab title", async () => {
+		const websocketProtocol =
+			window.location.protocol === "https:" ? "wss" : "ws";
+		new WS(
+			`${websocketProtocol}://${window.location.host}/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty?reconnect=${reconnectToken}&container=my-container&height=24&width=80`,
+		);
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}.${MockWorkspaceAgent.name}/terminal?container=my-container`,
+		);
+		await waitFor(() => {
+			expect(document.title).toContain(
+				`Terminal (${MockWorkspaceAgent.name}/my-container)`,
+			);
+		});
+	});
+
+	it("uses default terminal title without agent suffix", async () => {
+		createWorkspaceTerminalWebSocket();
+		await renderTerminal(
+			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
+		);
+		await waitFor(() => {
+			// When no explicit agent is selected, the first agent is used.
+			// The title should include that agent's name.
+			expect(document.title).toContain(`Terminal (${MockWorkspaceAgent.name})`);
+		});
+	});
 });

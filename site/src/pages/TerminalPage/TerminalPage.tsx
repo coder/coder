@@ -44,6 +44,7 @@ const TerminalPage: FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
+	const [xtermTitle, setXtermTitle] = useState<string | undefined>();
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -115,6 +116,10 @@ const TerminalPage: FC = () => {
 		console.error("WebSocket failed:", error);
 	}, []);
 
+	const handleTerminalTitleChange = useCallback((title: string) => {
+		setXtermTitle(title);
+	}, []);
+
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
@@ -124,6 +129,21 @@ const TerminalPage: FC = () => {
 		appearanceSettingsQuery.data,
 		proxy.preferredPathAppURL,
 	);
+	// Build the terminal label for the browser tab title. If the shell
+	// has emitted a title escape sequence, prefer that. Otherwise,
+	// include agent and container context so users can distinguish
+	// multiple terminal tabs.
+	const terminalLabel = useMemo(() => {
+		if (xtermTitle) {
+			return xtermTitle;
+		}
+		const parts = [workspaceAgent?.name, containerName].filter(Boolean);
+		if (parts.length > 0) {
+			return `Terminal (${parts.join("/")})`;
+		}
+		return "Terminal";
+	}, [xtermTitle, workspaceAgent?.name, containerName]);
+
 	const terminalErrorMessage =
 		workspace.error instanceof Error
 			? `Unable to fetch workspace: ${workspace.error.message}`
@@ -152,7 +172,7 @@ const TerminalPage: FC = () => {
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						"Terminal",
+						terminalLabel,
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>
@@ -175,6 +195,7 @@ const TerminalPage: FC = () => {
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}
+					onTitleChange={handleTerminalTitleChange}
 					reconnectionToken={reconnectionToken}
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
