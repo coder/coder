@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"io"
 	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,11 +19,25 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
 
-// newAIBridgeProxyDaemon starts the enterprise aibridge proxy daemon
-// and subscribes to ai_providers changes so the proxy's routing
-// snapshot tracks the database. The returned unsubscribe function
-// must be invoked alongside Server.Close on shutdown.
-func newAIBridgeProxyDaemon(coderAPI *coderd.API) (*aibridgeproxyd.Server, func(), error) {
+// aiBridgeProxyDaemon bundles the proxy server and its pubsub
+// subscription so both are torn down by a single Close call.
+type aiBridgeProxyDaemon struct {
+	server      *aibridgeproxyd.Server
+	unsubscribe func()
+}
+
+func (d *aiBridgeProxyDaemon) Close() error {
+	if d.unsubscribe != nil {
+		d.unsubscribe()
+	}
+	return d.server.Close()
+}
+
+// newAIBridgeProxyDaemon starts the enterprise aibridge proxy daemon,
+// subscribes to ai_providers changes so the proxy's routing snapshot
+// tracks the database, and registers the HTTP handler on the API.
+// The returned io.Closer tears down both the subscription and server.
+func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridgeproxy daemon")
 
@@ -53,7 +68,7 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (*aibridgeproxyd.Server, func(
 		RefreshProviders:    refreshProxyProviders(coderAPI.Database),
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("failed to start in-memory aibridgeproxy daemon: %w", err)
+		return nil, xerrors.Errorf("failed to start in-memory aibridgeproxy daemon: %w", err)
 	}
 
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, srv, logger.Named("provider-reload"))
@@ -62,7 +77,13 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (*aibridgeproxyd.Server, func(
 		unsubscribe = func() {}
 	}
 
-	return srv, unsubscribe, nil
+	// Register the handler so coderd can serve the proxy endpoints.
+	coderAPI.RegisterInMemoryAIBridgeProxydHTTPHandler(srv.Handler())
+
+	return &aiBridgeProxyDaemon{
+		server:      srv,
+		unsubscribe: unsubscribe,
+	}, nil
 }
 
 func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFunc {

@@ -45,7 +45,7 @@ func TestAIProvidersChangedPubsub(t *testing.T) {
 	//nolint:gocritic // Owner role is the audience for this endpoint.
 	created, err := client.CreateAIProvider(ctx, req)
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return count.Load() >= 1 }, testutil.WaitShort, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 1 }, testutil.IntervalFast)
 
 	// Update.
 	newKey := "k2"
@@ -53,10 +53,10 @@ func TestAIProvidersChangedPubsub(t *testing.T) {
 		APIKeys: &[]codersdk.AIProviderKeyMutation{{APIKey: &newKey}},
 	})
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return count.Load() >= 2 }, testutil.WaitShort, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 2 }, testutil.IntervalFast)
 
 	// Delete.
 	err = client.DeleteAIProvider(ctx, created.ID.String())
 	require.NoError(t, err)
-	require.Eventually(t, func() bool { return count.Load() >= 3 }, testutil.WaitShort, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 3 }, testutil.IntervalFast)
 }

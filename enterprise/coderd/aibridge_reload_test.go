@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
@@ -43,7 +44,7 @@ func newMockUpstream(t *testing.T, name string) *mockUpstream {
 		m.hits.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]string{"upstream": name})
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]string{"upstream": name}))
 	}))
 	t.Cleanup(m.server.Close)
 	return m

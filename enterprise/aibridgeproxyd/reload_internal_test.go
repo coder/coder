@@ -9,12 +9,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestServerReloadSwapsProviderRouter(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	providers := []ProviderRoute{{Name: "old", BaseURL: "https://old.example.com/"}}
 	srv := &Server{
 		ctx:          ctx,
@@ -42,7 +43,7 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 func TestServerReloadPreservesProviderRouterOnRefreshError(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	refreshErr := xerrors.New("refresh failed")
 	providers := []ProviderRoute{{Name: "old", BaseURL: "https://old.example.com/"}}
 	failRefresh := false
@@ -86,7 +87,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "custom", BaseURL: "https://custom-llm.example.com:8443/api"},
 		}
 
-		router, err := buildProviderRouter(t.Context(), slogtest.Make(t, nil), providers, []string{"443"})
+		router, err := buildProviderRouter(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "openai", router.providerFromHost("api.openai.com"))
@@ -106,7 +107,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "second", BaseURL: "https://api.example.com/v2"},
 		}
 
-		router, err := buildProviderRouter(t.Context(), slogtest.Make(t, nil), providers, []string{"443"})
+		router, err := buildProviderRouter(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		// First provider wins on duplicate host.
@@ -120,7 +121,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "provider", BaseURL: "https://API.Example.COM/v1"},
 		}
 
-		router, err := buildProviderRouter(t.Context(), slogtest.Make(t, nil), providers, []string{"443"})
+		router, err := buildProviderRouter(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "provider", router.providerFromHost("API.Example.COM"))
@@ -136,7 +137,7 @@ func TestBuildProviderRouter(t *testing.T) {
 			{Name: "good", BaseURL: "https://api.good.example.com/"},
 		}
 
-		router, err := buildProviderRouter(t.Context(), slogtest.Make(t, nil), providers, []string{"443"})
+		router, err := buildProviderRouter(testutil.Context(t, testutil.WaitShort), slogtest.Make(t, nil), providers, []string{"443"})
 		require.NoError(t, err)
 
 		assert.Equal(t, "good", router.providerFromHost("api.good.example.com"))

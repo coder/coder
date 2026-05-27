@@ -185,16 +185,12 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			); err != nil {
 				return nil, nil, xerrors.Errorf("seed ai providers from env: %w", err)
 			}
-			aiBridgeProxyServer, unsubscribeProxyReload, err := newAIBridgeProxyDaemon(api)
+			aiBridgeProxyCloser, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()
 				return nil, nil, xerrors.Errorf("create aibridgeproxyd: %w", err)
 			}
-			closers.Add(funcCloser(unsubscribeProxyReload))
-			closers.Add(aiBridgeProxyServer)
-
-			// Register the handler so coderd can serve the proxy endpoints.
-			api.RegisterInMemoryAIBridgeProxydHTTPHandler(aiBridgeProxyServer.Handler())
+			closers.Add(aiBridgeProxyCloser)
 		}
 
 		return api.AGPL, closers, nil
@@ -211,17 +207,6 @@ type multiCloser struct {
 }
 
 var _ io.Closer = &multiCloser{}
-
-// funcCloser adapts a parameterless cleanup function into an io.Closer
-// so it can be added to multiCloser alongside real Closers.
-type funcCloser func()
-
-func (f funcCloser) Close() error {
-	if f != nil {
-		f()
-	}
-	return nil
-}
 
 func (m *multiCloser) Add(closer io.Closer) {
 	m.closers = append(m.closers, closer)
