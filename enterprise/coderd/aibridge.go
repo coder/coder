@@ -872,9 +872,10 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Look up the group first so a missing or forbidden group_id returns
-	// 404, distinct from the 400 "not a member" case handled below.
-	if _, err := api.Database.GetGroupByID(ctx, req.GroupID); err != nil {
+	// Look up the new group first so a missing or forbidden group_id
+	// returns 404. We also need the group for the audit log.
+	newGroup, err := api.Database.GetGroupByID(ctx, req.GroupID)
+	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -883,6 +884,32 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	auditor := api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: newGroup.OrganizationID,
+	})
+	defer commitAudit()
+
+	// Capture the existing override (if any) so the audit log records the
+	// before-state. An absent row leaves aReq.Old as the zero value.
+	oldOverride, err := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "fetch existing user AI budget override for audit", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	var oldGroupName string
+	if err == nil {
+		if oldGroup, gerr := api.Database.GetGroupByID(ctx, oldOverride.GroupID); gerr == nil {
+			oldGroupName = oldGroup.Name
+		}
+	}
+	aReq.Old = oldOverride.Auditable(user.Username, oldGroupName)
 
 	override, err := api.Database.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
 		UserID:           user.ID,
@@ -911,6 +938,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.New = override.Auditable(user.Username, newGroup.Name)
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserAIBudgetOverride(override))
 }
@@ -926,7 +954,38 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	_, err := api.Database.DeleteUserAIBudgetOverride(ctx, user.ID)
+	// Fetch the existing override first for audit purposes.
+	userOverride, err := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "fetch user AI budget override for delete", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	group, err := api.Database.GetGroupByID(ctx, userOverride.GroupID)
+	if err != nil {
+		api.Logger.Error(ctx, "get group for user AI budget override delete audit", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	auditor := api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionDelete,
+		OrganizationID: group.OrganizationID,
+	})
+	defer commitAudit()
+
+	aReq.Old = userOverride.Auditable(user.Username, group.Name)
+
+	_, err = api.Database.DeleteUserAIBudgetOverride(ctx, user.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
