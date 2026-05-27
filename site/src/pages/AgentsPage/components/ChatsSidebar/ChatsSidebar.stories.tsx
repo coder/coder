@@ -761,12 +761,12 @@ export const SidebarFilterMenu: Story = {
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: /Archived/i }),
+			await body.findByRole("radio", { name: /Archived/i }),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
 			expect(
-				body.queryByRole("menuitem", { name: /Archived/i }),
+				body.queryByRole("radio", { name: /Archived/i }),
 			).not.toBeInTheDocument();
 		});
 	},
@@ -791,6 +791,20 @@ export const SearchDialogKeyboardShortcut: Story = {
 		await expect(searchButton).toHaveTextContent("Search");
 		await expect(searchButton).toHaveTextContent("Ctrl");
 		await expect(searchButton).toHaveTextContent("K");
+
+		await userEvent.click(searchButton);
+		const clickedSearchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		await waitFor(() => {
+			expect(clickedSearchInput).toHaveFocus();
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("combobox", { name: "Search chats" }),
+			).not.toBeInTheDocument();
+		});
 
 		await userEvent.keyboard("{Control>}k{/Control}");
 

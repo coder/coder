@@ -40,10 +40,7 @@ import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
-import {
-	navItemBaseClassName,
-	SettingsNavItem,
-} from "../settings/SettingsNavItem";
+import { SettingsNavItem } from "../settings/SettingsNavItem";
 import {
 	ChatTreeContext,
 	type ChatTreeContextValue,
@@ -399,22 +396,20 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					disabled={isCreating}
 				/>
 				{onOpenSearchDialog && (
-					<button
-						type="button"
-						aria-label="Search chats"
+					<SettingsNavItem
+						icon={SearchIcon}
+						label="Search"
+						active={false}
+						ariaLabel="Search chats"
 						onClick={onOpenSearchDialog}
-						className={cn(
-							navItemBaseClassName,
-							"group bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary",
-						)}
-					>
-						<SearchIcon className="h-4 w-4 shrink-0" />
-						<span className="min-w-0 flex-1">Search</span>
-						<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-							<Kbd>{getOSKey()}</Kbd>
-							<Kbd>K</Kbd>
-						</KbdGroup>
-					</button>
+						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
+						trailing={
+							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+								<Kbd>{getOSKey()}</Kbd>
+								<Kbd>K</Kbd>
+							</KbdGroup>
+						}
+					/>
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
