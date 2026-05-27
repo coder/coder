@@ -19,9 +19,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1339,6 +1342,8 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	testAPIKeyID := uuid.NewString()
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 
@@ -1367,6 +1372,18 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
 	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Cond(func(x any) bool {
+		params, ok := x.(database.InsertChatMessagesParams)
+		if !ok {
+			return false
+		}
+		for i, role := range params.Role {
+			if role == database.ChatMessageRoleUser && params.APIKeyID[i] != testAPIKeyID {
+				return false
+			}
+		}
+		return true
+	})).Return(nil, nil).AnyTimes()
 	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
 		gomock.Cond(func(x any) bool {
 			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
@@ -6615,4 +6632,61 @@ func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
 
 	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.False(t, ok, "primer must not cache anything when canceled")
+}
+
+func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           user.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID,
+	})
+
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+
+	server := &Server{db: db}
+
+	err := server.persistChatContextSummary(
+		ctx,
+		chat.ID,
+		modelConfig.ID,
+		"tool-call-id-1",
+		chatloop.CompactionResult{
+			SystemSummary:    "summarized context",
+			SummaryReport:    "context was summarized",
+			ThresholdPercent: 70,
+			UsagePercent:     85.0,
+			ContextTokens:    8500,
+			ContextLimit:     10000,
+		},
+	)
+	require.NoError(t, err)
+
+	msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	// GetChatMessagesForPromptByChatID applies compaction boundaries,
+	// so only the compressed user summary is returned. The assistant
+	// and tool messages have non-model visibility and are filtered.
+	require.NotEmpty(t, msgs)
+
+	var foundUserSummary bool
+	for _, msg := range msgs {
+		if msg.Role == database.ChatMessageRoleUser {
+			foundUserSummary = true
+			require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
+			require.Equal(t, apiKey.ID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+		}
+	}
+	require.True(t, foundUserSummary, "expected to find compressed user summary message")
 }
