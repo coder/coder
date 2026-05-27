@@ -3960,6 +3960,21 @@ func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
 }
 
+// GetMostRecentNonExpiredAPIKeyByUserID mocks base method.
+func (m *MockStore) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMostRecentNonExpiredAPIKeyByUserID", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMostRecentNonExpiredAPIKeyByUserID indicates an expected call of GetMostRecentNonExpiredAPIKeyByUserID.
+func (mr *MockStoreMockRecorder) GetMostRecentNonExpiredAPIKeyByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMostRecentNonExpiredAPIKeyByUserID", reflect.TypeOf((*MockStore)(nil).GetMostRecentNonExpiredAPIKeyByUserID), ctx, userID)
+}
+
 // GetNotificationMessagesByStatus mocks base method.
 func (m *MockStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	m.ctrl.T.Helper()
@@ -9144,6 +9159,20 @@ func (m *MockStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServerIDs", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServerIDs), ctx, arg)
+}
+
+// UpdateChatMessageAPIKeyID mocks base method.
+func (m *MockStore) UpdateChatMessageAPIKeyID(ctx context.Context, arg database.UpdateChatMessageAPIKeyIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatMessageAPIKeyID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatMessageAPIKeyID indicates an expected call of UpdateChatMessageAPIKeyID.
+func (mr *MockStoreMockRecorder) UpdateChatMessageAPIKeyID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMessageAPIKeyID", reflect.TypeOf((*MockStore)(nil).UpdateChatMessageAPIKeyID), ctx, arg)
 }
 
 // UpdateChatMessageByID mocks base method.

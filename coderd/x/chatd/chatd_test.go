@@ -12065,3 +12065,132 @@ func TestRunChat_PrepareToolsRetriesAfterEmptyDiscovery(t *testing.T) {
 			"steps; without the fix the first empty result would "+
 			"permanently block retries within the turn")
 }
+
+func TestProcessChat_BackfillsLegacyAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	// This test verifies that when chatd auto-resumes a pending chat whose
+	// user messages lack api_key_id (created before migration 000508),
+	// the lazy backfill stamps the owner's most recent valid API key on the
+	// triggering user message and the turn proceeds through AI Gateway.
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("hello from backfill test")...,
+			)
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title":"Backfill Chat"}`)
+	})
+	factory := newChatAIGatewayTestFactory(t, openAIURL)
+
+	// Seed user, org, AI provider, and model config.
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AiProviderTypeOpenai,
+		Name:    "backfill-openai-" + uuid.NewString(),
+		BaseUrl: openAIURL,
+	})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     string(database.AiProviderTypeOpenai),
+		Model:        "gpt-4o-mini",
+		IsDefault:    true,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: provider.ID,
+		APIKey:       "sk-user-backfill",
+	})
+	require.NoError(t, err)
+
+	// Create a chat in pending status with NO initial messages,
+	// simulating a legacy chat.
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "legacy-backfill",
+		Status:            database.ChatStatusPending,
+	})
+
+	// Insert a user message WITHOUT api_key_id to simulate a legacy message
+	// created before migration 000508 added the column.
+	msgContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("hello from legacy"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{user.ID},
+		APIKeyID:            []string{""},
+		ModelConfigID:       []uuid.UUID{uuid.Nil},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{string(msgContent)},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	// Verify the message was stored without api_key_id.
+	msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, msgs, 1)
+	require.False(t, msgs[0].APIKeyID.Valid, "legacy message should not have api_key_id")
+	legacyMsgID := msgs[0].ID
+
+	// Start an active server with AI Gateway routing enabled.
+	// This will pick up the pending chat and process it.
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AIGatewayRoutingEnabled = true
+		cfg.AllowBYOK = true
+		cfg.AllowBYOKSet = true
+	})
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.False(t, chatResult.LastError.Valid)
+
+	// Verify the legacy user message was backfilled with the API key ID.
+	backfilledMsg, err := db.GetChatMessageByID(ctx, legacyMsgID)
+	require.NoError(t, err)
+	require.True(t, backfilledMsg.APIKeyID.Valid, "backfill should have stamped api_key_id")
+	require.Equal(t, apiKey.ID, backfilledMsg.APIKeyID.String)
+
+	// Verify the AI provider received the correct delegated API key.
+	requests := factory.requestsSnapshot()
+	require.NotEmpty(t, requests)
+	for _, req := range requests {
+		require.Equal(t, provider.Name, req.ProviderName)
+		require.Equal(t, aibridge.SourceAgents, req.Source)
+		require.Equal(t, apiKey.ID, req.APIKeyID)
+		require.Equal(t, "Bearer sk-user-backfill", req.Authorization)
+		require.Equal(t, "delegated", req.CoderToken)
+		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+	}
+}

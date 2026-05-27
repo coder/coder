@@ -2960,6 +2960,27 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 	return items, nil
 }
 
+const getMostRecentNonExpiredAPIKeyByUserID = `-- name: GetMostRecentNonExpiredAPIKeyByUserID :one
+SELECT
+	id
+FROM
+	api_keys
+WHERE
+	user_id = $1
+	AND expires_at > now()
+ORDER BY
+	last_used DESC NULLS LAST
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getMostRecentNonExpiredAPIKeyByUserID, userID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
@@ -10155,6 +10176,22 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.OwnerName,
 	)
 	return i, err
+}
+
+const updateChatMessageAPIKeyID = `-- name: UpdateChatMessageAPIKeyID :exec
+UPDATE chat_messages
+SET api_key_id = $1
+WHERE id = $2
+`
+
+type UpdateChatMessageAPIKeyIDParams struct {
+	APIKeyID sql.NullString `db:"api_key_id" json:"api_key_id"`
+	ID       int64          `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMessageAPIKeyID(ctx context.Context, arg UpdateChatMessageAPIKeyIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatMessageAPIKeyID, arg.APIKeyID, arg.ID)
+	return err
 }
 
 const updateChatMessageByID = `-- name: UpdateChatMessageByID :one

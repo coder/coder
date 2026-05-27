@@ -2129,6 +2129,14 @@ func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetMostRecentNonExpiredAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMostRecentNonExpiredAPIKeyByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetMostRecentNonExpiredAPIKeyByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMostRecentNonExpiredAPIKeyByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -4831,6 +4839,14 @@ func (m queryMetricsStore) UpdateChatMCPServerIDs(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateChatMCPServerIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMCPServerIDs").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatMessageAPIKeyID(ctx context.Context, arg database.UpdateChatMessageAPIKeyIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatMessageAPIKeyID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatMessageAPIKeyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMessageAPIKeyID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {

@@ -6434,6 +6434,47 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 	return "", false
 }
 
+// backfillActiveTurnAPIKeyID looks up the chat owner's most recent valid API
+// key and stamps it on the triggering user message. This handles legacy
+// messages created before migration 000508 added the api_key_id column.
+func (p *Server) backfillActiveTurnAPIKeyID(
+	ctx context.Context,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) (string, error) {
+	// Find the triggering user message (last visible user message).
+	var triggeringMsgID int64
+	for i := len(messages) - 1; i >= 0; i-- {
+		m := messages[i]
+		if m.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if m.Visibility != database.ChatMessageVisibilityBoth &&
+			m.Visibility != database.ChatMessageVisibilityUser {
+			continue
+		}
+		triggeringMsgID = m.ID
+		break
+	}
+	if triggeringMsgID == 0 {
+		return "", xerrors.New("no triggering user message found")
+	}
+
+	apiKeyID, err := p.db.GetMostRecentNonExpiredAPIKeyByUserID(ctx, chat.OwnerID)
+	if err != nil {
+		return "", xerrors.Errorf("lookup valid API key for owner %s: %w", chat.OwnerID, err)
+	}
+
+	if err := p.db.UpdateChatMessageAPIKeyID(ctx, database.UpdateChatMessageAPIKeyIDParams{
+		ID:       triggeringMsgID,
+		APIKeyID: sql.NullString{String: apiKeyID, Valid: true},
+	}); err != nil {
+		return "", xerrors.Errorf("stamp api_key_id on message %d: %w", triggeringMsgID, err)
+	}
+
+	return apiKeyID, nil
+}
+
 func allToolNames(allTools []fantasy.AgentTool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
@@ -7065,6 +7106,26 @@ func (p *Server) runChat(
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
 	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+
+	// Lazy backfill for legacy messages created before migration 000508
+	// added the api_key_id column. Only fires during the deploy transition
+	// window; the warn log acts as a canary for missing stamps after that.
+	if modelOpts.ActiveAPIKeyID == "" && p.shouldUseAIGatewayRouting() {
+		backfilledKeyID, backfillErr := p.backfillActiveTurnAPIKeyID(ctx, chat, messages)
+		if backfillErr != nil {
+			logger.Warn(ctx, "legacy turn missing api_key_id; backfill failed, AI Gateway routing will fail closed",
+				slog.Error(backfillErr),
+				slog.F("chat_id", chat.ID),
+			)
+		} else {
+			modelOpts.ActiveAPIKeyID = backfilledKeyID
+			ctx = aibridge.WithDelegatedAPIKeyID(ctx, backfilledKeyID)
+			logger.Warn(ctx, "backfilled api_key_id on legacy user message",
+				slog.F("api_key_id", backfilledKeyID),
+				slog.F("chat_id", chat.ID),
+			)
+		}
+	}
 
 	// Load MCP server configs and user tokens in parallel with model
 	// resolution. These queries have no dependencies on each other and all

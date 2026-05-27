@@ -135,3 +135,16 @@ WHERE id IN (
 	UNION
 	SELECT id FROM unnamed_prebuilds_api_keys
 );
+
+-- name: GetMostRecentNonExpiredAPIKeyByUserID :one
+SELECT
+	id
+FROM
+	api_keys
+WHERE
+	user_id = @user_id
+	AND expires_at > now()
+ORDER BY
+	last_used DESC NULLS LAST
+LIMIT
+	1;
