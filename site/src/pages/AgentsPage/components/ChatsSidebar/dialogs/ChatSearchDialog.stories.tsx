@@ -91,6 +91,8 @@ const meta: Meta<typeof ChatSearchDialog> = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
+		onNewChat: fn(),
+		recentChats: mockChats,
 		location: {
 			pathname: "/agents",
 			search: "",
@@ -117,7 +119,65 @@ const meta: Meta<typeof ChatSearchDialog> = {
 export default meta;
 type Story = StoryObj<typeof ChatSearchDialog>;
 
-export const EmptyState: Story = {};
+export const DefaultView: Story = {
+	play: async ({ args }) => {
+		const body = within(document.body);
+		// Verify quick action buttons render.
+		const newChatButton = body.getByRole("button", { name: /new agent/i });
+		const settingsLink = body.getByRole("link", { name: /settings/i });
+		await expect(newChatButton).toBeInTheDocument();
+		await expect(settingsLink).toBeInTheDocument();
+
+		// Verify recent chats section renders.
+		await expect(
+			body.getByText("Fix race condition in auth middleware"),
+		).toBeInTheDocument();
+
+		// Clicking "new agent" calls onNewChat and closes the dialog.
+		await userEvent.click(newChatButton);
+		await waitFor(() => {
+			expect(args.onNewChat).toHaveBeenCalled();
+			expect(args.onOpenChange).toHaveBeenCalledWith(false);
+		});
+	},
+};
+
+export const DefaultViewNoRecentChats: Story = {
+	args: {
+		recentChats: [],
+	},
+	play: async () => {
+		const body = within(document.body);
+		// Quick actions should still render.
+		await expect(
+			body.getByRole("button", { name: /new agent/i }),
+		).toBeInTheDocument();
+		// Chats heading should not render.
+		expect(body.queryByText("Chats")).not.toBeInTheDocument();
+	},
+};
+
+export const DefaultViewSettingsClick: Story = {
+	play: async ({ args }) => {
+		const body = within(document.body);
+		const settingsLink = body.getByRole("link", { name: /settings/i });
+		await userEvent.click(settingsLink);
+		await waitFor(() => {
+			expect(args.onOpenChange).toHaveBeenCalledWith(false);
+		});
+	},
+};
+
+export const SearchTipsExpanded: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const tipsButton = body.getByRole("button", { name: /search tips/i });
+		await userEvent.click(tipsButton);
+		await expect(body.getByText("has_unread:true")).toBeInTheDocument();
+		await expect(body.getByText("archived:true")).toBeInTheDocument();
+		await expect(body.getByText("pr_status:open")).toBeInTheDocument();
+	},
+};
 
 export const LoadingState: Story = {
 	beforeEach: () => {

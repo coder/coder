@@ -1,8 +1,10 @@
+import { SettingsIcon, SquarePenIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -10,8 +12,17 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
+// `!block` overrides the Radix ScrollArea viewport wrapper's inline
+// `display: table` so that descendants using `truncate` can shrink
+// inside the scroll container instead of forcing the table to grow.
+const SCROLL_AREA_CLASS =
+	"min-h-0 flex-1 w-full [&_[data-radix-scroll-area-viewport]>div]:!block";
+const SCROLL_BAR_CLASS = "w-1.5";
+const VIEWPORT_CLASS = "pr-3";
+
 type ChatSearchResultsProps = {
 	readonly chats: readonly Chat[] | undefined;
+	readonly recentChats: readonly Chat[];
 	readonly error: unknown;
 	readonly hasQuery: boolean;
 	readonly location: Location;
@@ -19,11 +30,15 @@ type ChatSearchResultsProps = {
 	readonly selectedChatIndex: number | undefined;
 	readonly showLoading: boolean;
 	readonly isRefreshing: boolean;
-	readonly onSelectChat: () => void;
+	readonly onDismiss: () => void;
+	readonly onNewChat?: () => void;
 };
+
+const RECENT_CHATS_COUNT = 10;
 
 export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	chats,
+	recentChats,
 	error,
 	hasQuery,
 	location,
@@ -31,11 +46,12 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	selectedChatIndex,
 	showLoading,
 	isRefreshing,
-	onSelectChat,
+	onDismiss,
+	onNewChat,
 }) => {
 	if (error) {
 		return (
-			<div className="min-h-[260px]">
+			<div className="h-full">
 				<ErrorAlert error={error} />
 			</div>
 		);
@@ -43,13 +59,14 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 
 	if (!hasQuery) {
 		return (
-			<div className="min-h-[260px]">
-				<div className="pt-2 text-sm text-content-secondary">
-					Type to search by title, or use filters like{" "}
-					<code>has_unread:true</code>, <code>archived:true</code>,{" "}
-					<code>pr_status:open</code>, or <code>diff_url:"..."</code>.
-				</div>
-			</div>
+			<DefaultView
+				recentChats={recentChats}
+				location={location}
+				listboxId={listboxId}
+				selectedChatIndex={selectedChatIndex}
+				onDismiss={onDismiss}
+				onNewChat={onNewChat}
+			/>
 		);
 	}
 
@@ -69,9 +86,9 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 		);
 
 	return (
-		<div className="min-h-[260px]">
-			<div className="space-y-3">
-				<p className="inline-flex items-center gap-1.5 text-sm text-content-secondary">
+		<div className="flex h-full flex-col">
+			<div className="flex min-h-0 flex-1 flex-col gap-3">
+				<p className="inline-flex shrink-0 items-center gap-1.5 text-sm text-content-secondary">
 					<span>{resultSummary}</span>
 					{isRefreshing && (
 						<Spinner
@@ -83,12 +100,9 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 					)}
 				</p>
 				<ScrollArea
-					// `!block` overrides the Radix ScrollArea viewport wrapper's inline
-					// `display: table` so that descendants using `truncate` can shrink
-					// inside the scroll container instead of forcing the table to grow.
-					className="h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:!block"
-					scrollBarClassName="w-[0.375rem]"
-					viewportClassName="pr-3"
+					className={SCROLL_AREA_CLASS}
+					scrollBarClassName={SCROLL_BAR_CLASS}
+					viewportClassName={VIEWPORT_CLASS}
 					viewportTabIndex={-1}
 				>
 					<ChatSearchResultsList
@@ -97,7 +111,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 						listboxId={listboxId}
 						selectedChatIndex={selectedChatIndex}
 						showLoading={showLoading}
-						onSelectChat={onSelectChat}
+						onDismiss={onDismiss}
 					/>
 				</ScrollArea>
 			</div>
@@ -105,13 +119,91 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	);
 };
 
+// ---------------------------------------------------------------------------
+// Default view: quick actions + recent chats (shown when no query is active).
+// ---------------------------------------------------------------------------
+
+type DefaultViewProps = {
+	readonly recentChats: readonly Chat[];
+	readonly location: Location;
+	readonly listboxId: string;
+	readonly selectedChatIndex: number | undefined;
+	readonly onDismiss: () => void;
+	readonly onNewChat?: () => void;
+};
+
+const DefaultView: FC<DefaultViewProps> = ({
+	recentChats,
+	location,
+	listboxId,
+	selectedChatIndex,
+	onDismiss,
+	onNewChat,
+}) => {
+	const visibleRecentChats = recentChats.slice(0, RECENT_CHATS_COUNT);
+
+	return (
+		<div className="flex h-full flex-col gap-4">
+			<div className="shrink-0">
+				<h3 className="m-0 mb-2 text-xs font-medium text-content-secondary">
+					Quick actions
+				</h3>
+				<div className="flex flex-wrap gap-2">
+					{onNewChat && (
+						<Button variant="outline" size="sm" onClick={onNewChat}>
+							<SquarePenIcon className="size-4" />
+							New agent
+						</Button>
+					)}
+					<Button asChild variant="outline" size="sm">
+						<Link to="/agents/settings" onClick={onDismiss}>
+							<SettingsIcon className="size-4" />
+							Settings
+						</Link>
+					</Button>
+				</div>
+			</div>
+			{visibleRecentChats.length > 0 && (
+				<div className="flex min-h-0 flex-1 flex-col">
+					<h3 className="m-0 mb-2 shrink-0 text-xs font-medium text-content-secondary">
+						Chats
+					</h3>
+					<ScrollArea
+						className={SCROLL_AREA_CLASS}
+						scrollBarClassName={SCROLL_BAR_CLASS}
+						viewportClassName={VIEWPORT_CLASS}
+						viewportTabIndex={-1}
+					>
+						<div id={listboxId} className="space-y-1">
+							{visibleRecentChats.map((chat, index) => (
+								<ChatSearchResultRow
+									key={chat.id}
+									chat={chat}
+									id={`${listboxId}-option-${index}`}
+									isSelected={selectedChatIndex === index}
+									location={location}
+									onSelect={onDismiss}
+								/>
+							))}
+						</div>
+					</ScrollArea>
+				</div>
+			)}
+		</div>
+	);
+};
+
+// ---------------------------------------------------------------------------
+// Results list and row components.
+// ---------------------------------------------------------------------------
+
 type ChatSearchResultsListProps = {
 	readonly chats: readonly Chat[] | undefined;
 	readonly location: Location;
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
 	readonly showLoading: boolean;
-	readonly onSelectChat: () => void;
+	readonly onDismiss: () => void;
 };
 
 const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
@@ -120,7 +212,7 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 	listboxId,
 	selectedChatIndex,
 	showLoading,
-	onSelectChat,
+	onDismiss,
 }) => {
 	if (showLoading) {
 		return <ChatSearchResultsSkeleton />;
@@ -128,9 +220,9 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 
 	if ((chats?.length ?? 0) === 0) {
 		return (
-			<p className="px-1.5 py-2 text-sm text-content-secondary">
-				No matching chats
-			</p>
+			<div className="flex h-full items-center justify-center">
+				<p className="text-sm text-content-secondary">No matching chats</p>
+			</div>
 		);
 	}
 
@@ -148,7 +240,7 @@ const ChatSearchResultsList: FC<ChatSearchResultsListProps> = ({
 					id={`${listboxId}-option-${index}`}
 					isSelected={selectedChatIndex === index}
 					location={location}
-					onSelect={onSelectChat}
+					onSelect={onDismiss}
 				/>
 			))}
 		</div>

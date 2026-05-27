@@ -1,8 +1,15 @@
+import { ChevronRightIcon } from "lucide-react";
 import type { FC, RefObject } from "react";
 import { type KeyboardEventHandler, useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
+import type { Chat } from "#/api/typesGenerated";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/Collapsible/Collapsible";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput } from "./ChatSearchInput";
@@ -13,27 +20,32 @@ type ChatSearchDialogProps = {
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly location: Location;
+	readonly recentChats?: readonly Chat[];
+	readonly onNewChat?: () => void;
 };
 
 const SEARCH_DEBOUNCE_MS = 500;
+
+// Height of the tips + results area below the search input. Derived from
+// p-6 (48px padding) + input (40px) + gap-4 (16px) = 104px of chrome,
+// leaving ~370px for content in the ~480px dialog.
+const CONTENT_AREA_HEIGHT = "h-[370px]";
 
 export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	open,
 	onOpenChange,
 	location,
+	recentChats = [],
+	onNewChat,
 }) => {
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				// `top` is pinned (rather than the default `top-1/2 -translate-y-1/2`)
-				// so the dialog doesn't re-center when its content height changes
-				// between the empty hint, loading skeleton, and results states.
-				// 218px is half of the tallest content height (~436px: p-6 padding +
-				// input + gap-4 + summary + space-y-3 + the 300px scroll area in
-				// ChatSearchResults). The max(1rem, ...) clamp keeps the dialog
-				// fully visible on short viewports.
+				// `top` is pinned so the dialog doesn't re-center when its
+				// content height changes between states. The max(1rem, ...)
+				// clamp keeps the dialog fully visible on short viewports.
 				className="top-[max(1rem,_calc(50%_-_218px))] w-[calc(100vw-2rem)] max-w-[560px] translate-y-0 gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
 				// Suppress the open/close animation. The `animate-in`/`animate-out`
 				// rules applied via CVA in `dialogVariants` outrank Tailwind class
@@ -53,6 +65,8 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 					onOpenChange={onOpenChange}
 					location={location}
 					inputRef={inputRef}
+					recentChats={recentChats}
+					onNewChat={onNewChat}
 				/>
 			</DialogContent>
 		</Dialog>
@@ -68,6 +82,8 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	onOpenChange,
 	location,
 	inputRef,
+	recentChats = [],
+	onNewChat,
 }) => {
 	const navigate = useNavigate();
 	const [inputValue, setInputValue] = useState("");
@@ -85,7 +101,11 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		placeholderData: keepPreviousData,
 	});
 
-	const resultCount = searchQuery.data?.length ?? 0;
+	// Guard against stale keepPreviousData: only count results when an
+	// active query exists. Without this, arrow+Enter after clearing the
+	// input would navigate to a stale search result while the DOM shows
+	// the recent chats default view.
+	const resultCount = hasQuery ? (searchQuery.data?.length ?? 0) : 0;
 	const safeSelectedChatIndex =
 		selectedChatIndex !== undefined && selectedChatIndex < resultCount
 			? selectedChatIndex
@@ -142,6 +162,13 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		}
 	};
 
+	const handleNewChat = onNewChat
+		? () => {
+				onNewChat();
+				closeDialog();
+			}
+		: undefined;
+
 	return (
 		<>
 			<DialogTitle className="sr-only">Search chats</DialogTitle>
@@ -158,17 +185,55 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				onKeyDown={handleInputKeyDown}
 			/>
 
-			<ChatSearchResults
-				chats={searchQuery.data}
-				error={searchQuery.error}
-				hasQuery={hasQuery}
-				location={location}
-				listboxId={listboxId}
-				selectedChatIndex={safeSelectedChatIndex}
-				showLoading={showResultsLoading}
-				isRefreshing={isRefreshing}
-				onSelectChat={closeDialog}
-			/>
+			{/* Fixed-height wrapper so expanding SearchTips shrinks the
+			   results scroll area instead of growing the dialog. */}
+			<div className={`flex ${CONTENT_AREA_HEIGHT} flex-col gap-3`}>
+				<SearchTips />
+				<div className="min-h-0 flex-1">
+					<ChatSearchResults
+						chats={searchQuery.data}
+						recentChats={recentChats}
+						error={searchQuery.error}
+						hasQuery={hasQuery}
+						location={location}
+						listboxId={listboxId}
+						selectedChatIndex={safeSelectedChatIndex}
+						showLoading={showResultsLoading}
+						isRefreshing={isRefreshing}
+						onDismiss={closeDialog}
+						onNewChat={handleNewChat}
+					/>
+				</div>
+			</div>
 		</>
 	);
 };
+
+// Collapsible search tips using the shared Radix Collapsible primitive.
+const SearchTips: FC = () => (
+	<Collapsible>
+		<CollapsibleTrigger className="group inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary">
+			Search tips
+			<ChevronRightIcon className="size-3 transition-transform group-data-[state=open]:rotate-90" />
+		</CollapsibleTrigger>
+		<CollapsibleContent>
+			<div className="mt-2 text-sm text-content-secondary">
+				<p className="mb-1">Type to search chat titles, or use filters like:</p>
+				<ul className="m-0 list-inside list-disc space-y-0.5 pl-1 text-xs">
+					<li>
+						<code>has_unread:true</code>
+					</li>
+					<li>
+						<code>archived:true</code>
+					</li>
+					<li>
+						<code>pr_status:open</code>
+					</li>
+					<li>
+						<code>diff_url:"..."</code>
+					</li>
+				</ul>
+			</div>
+		</CollapsibleContent>
+	</Collapsible>
+);
