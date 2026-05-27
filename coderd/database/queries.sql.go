@@ -2962,21 +2962,25 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 
 const getLastUsedNonExpiredAPIKeyIDByUserID = `-- name: GetLastUsedNonExpiredAPIKeyIDByUserID :one
 SELECT
-	id
+	ak.id
 FROM
-	api_keys
+	api_keys ak
+JOIN
+	users u ON u.id = ak.user_id
 WHERE
-	user_id = $1
-	AND expires_at > now()
+	ak.user_id = $1
+	AND ak.expires_at > now()
+	AND u.status != 'suspended'
+	AND u.deleted = false
 ORDER BY
-	last_used DESC NULLS LAST
+	ak.last_used DESC NULLS LAST
 LIMIT
 	1
 `
 
 // Returns any non-expired key regardless of login_type (password, OIDC,
-// token, etc.). This is intentional: a user may only have a session key,
-// and the backfill is inherently approximate since the original key is lost.
+// token, etc.). Excludes suspended and soft-deleted users so that chatd
+// does not need a separate user lookup.
 func (q *sqlQuerier) GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
 	row := q.db.QueryRowContext(ctx, getLastUsedNonExpiredAPIKeyIDByUserID, userID)
 	var id string

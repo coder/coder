@@ -6504,8 +6504,8 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 	return msg.APIKeyID.String, true
 }
 
-// backfillActiveTurnAPIKeyID handles legacy messages from before migration
-// 000508 added the api_key_id column.
+// backfillActiveTurnAPIKeyID performs a best-effort attempt to set a valid
+// api_key_id on the most recent visible user message in messages.
 func (p *Server) backfillActiveTurnAPIKeyID(
 	ctx context.Context,
 	chat database.Chat,
@@ -6514,14 +6514,6 @@ func (p *Server) backfillActiveTurnAPIKeyID(
 	msg, ok := triggeringUserMessage(messages)
 	if !ok {
 		return "", xerrors.New("no triggering user message found")
-	}
-
-	owner, err := p.db.GetUserByID(ctx, chat.OwnerID)
-	if err != nil {
-		return "", xerrors.Errorf("lookup chat owner %s: %w", chat.OwnerID, err)
-	}
-	if owner.Status == database.UserStatusSuspended {
-		return "", xerrors.New("chat owner is suspended")
 	}
 
 	apiKeyID, err := p.db.GetLastUsedNonExpiredAPIKeyIDByUserID(ctx, chat.OwnerID)
@@ -7171,21 +7163,27 @@ func (p *Server) runChat(
 	modelOpts := modelBuildOptionsFromMessages(messages)
 	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
 
-	// Backfill for messages without api_key_id. Expected during the deploy
-	// transition after migration 000508, but may also fire if a previously
-	// stamped API key is deleted (ON DELETE SET NULL).
+	// Attempt to set api_key_id for messages without api_key_id when
+	// AI Gateway routing is enabled. This should only happen once per
+	// conversation after upgrading from 2.33 to 2.34. Hitting this more
+	// often is indicative of a bug elsewhere, hence the warn log.
 	if modelOpts.ActiveAPIKeyID == "" && p.shouldUseAIGatewayRouting() {
 		backfilledKeyID, backfillErr := p.backfillActiveTurnAPIKeyID(ctx, chat, messages)
 		if backfillErr != nil {
-			return result, xerrors.Errorf("backfill api_key_id for legacy turn: %w", backfillErr)
+			logger.Warn(ctx, "backfill api_key_id failed; aibridged will reject the turn",
+				slog.Error(backfillErr),
+				slog.F("chat_id", chat.ID),
+				slog.F("owner_id", chat.OwnerID),
+			)
+		} else {
+			modelOpts.ActiveAPIKeyID = backfilledKeyID
+			ctx = aibridge.WithDelegatedAPIKeyID(ctx, backfilledKeyID)
+			logger.Warn(ctx, "backfilled api_key_id on legacy user message",
+				slog.F("api_key_id", backfilledKeyID),
+				slog.F("chat_id", chat.ID),
+				slog.F("owner_id", chat.OwnerID),
+			)
 		}
-		modelOpts.ActiveAPIKeyID = backfilledKeyID
-		ctx = aibridge.WithDelegatedAPIKeyID(ctx, backfilledKeyID)
-		logger.Warn(ctx, "backfilled api_key_id on legacy user message",
-			slog.F("api_key_id", backfilledKeyID),
-			slog.F("chat_id", chat.ID),
-			slog.F("owner_id", chat.OwnerID),
-		)
 	}
 
 	// Load MCP server configs and user tokens in parallel with model

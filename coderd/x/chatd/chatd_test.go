@@ -12364,4 +12364,52 @@ func TestProcessChat_BackfillsLegacyAPIKeyID(t *testing.T) {
 		errMsg := chatLastErrorMessage(chatResult.LastError)
 		require.NotEmpty(t, errMsg, "expected a meaningful error message")
 	})
+
+	t.Run("FailsSuspendedUser", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks("should not reach here")...,
+				)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title":"Suspended User Chat"}`)
+		})
+		factory := newChatAIGatewayTestFactory(t, openAIURL)
+
+		user, org, _, model := seedBase(ctx, t, db, openAIURL)
+
+		// Create a valid API key, then suspend the user. The query
+		// joins users and excludes suspended status, so the key should
+		// not be returned despite being non-expired.
+		dbgen.APIKey(t, db, database.APIKey{
+			UserID:   user.ID,
+			LastUsed: time.Now().Add(-1 * time.Hour),
+		})
+		_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusSuspended,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		chat, _ := insertLegacyChat(ctx, t, db, user, org, model)
+
+		_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+			cfg.AIGatewayRoutingEnabled = true
+			cfg.AllowBYOK = true
+			cfg.AllowBYOKSet = true
+		})
+
+		chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+		require.Equal(t, database.ChatStatusError, chatResult.Status)
+		require.True(t, chatResult.LastError.Valid, "expected error to be set")
+		errMsg := chatLastErrorMessage(chatResult.LastError)
+		require.NotEmpty(t, errMsg, "expected a meaningful error message")
+	})
 }

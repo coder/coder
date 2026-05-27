@@ -502,8 +502,8 @@ type sqlcQuerier interface {
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	// Returns any non-expired key regardless of login_type (password, OIDC,
-	// token, etc.). This is intentional: a user may only have a session key,
-	// and the backfill is inherently approximate since the original key is lost.
+	// token, etc.). Excludes suspended and soft-deleted users so that chatd
+	// does not need a separate user lookup.
 	GetLastUsedNonExpiredAPIKeyIDByUserID(ctx context.Context, userID uuid.UUID) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
