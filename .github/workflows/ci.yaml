@@ -286,7 +286,7 @@ jobs:
     # Only run this job if changes to CI workflow files are detected. This job
     # can flake as it reaches out to GitHub to check referenced actions.
     if: needs.changes.outputs.ci == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
