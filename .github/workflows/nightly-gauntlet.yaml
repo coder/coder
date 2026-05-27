@@ -65,7 +65,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install_args: "--locked go terraform"
+          install-args: "--locked go terraform"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache

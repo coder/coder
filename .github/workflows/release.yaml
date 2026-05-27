@@ -175,10 +175,13 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install_args: "--locked go node pnpm helm go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm cosign syft"
+          install-args: "--locked go node pnpm helm cosign syft"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       # Necessary for signing Windows binaries.
       - name: Setup Java

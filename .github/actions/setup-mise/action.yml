@@ -1,7 +1,7 @@
 name: Setup mise
-description: Install mise tools with an optional trusted cache.
+description: Install mise tools from SHA256-pinned binaries, with CI-layer caching.
 inputs:
-  install_args:
+  install-args:
     description: Arguments passed to mise install.
     required: true
   cache-key-prefix:
@@ -13,7 +13,7 @@ inputs:
     required: false
     default: "2026.5.12"
   mise-sha256:
-    description: SHA256 checksum for the mise installer.
+    description: SHA256 checksum for the mise binary.
     required: false
     default: ""
   use-cache:
@@ -28,7 +28,7 @@ runs:
       shell: bash
       env:
         CACHE_KEY_PREFIX: ${{ inputs.cache-key-prefix }}
-        INSTALL_ARGS: ${{ inputs.install_args }}
+        INSTALL_ARGS: ${{ inputs.install-args }}
         MISE_VERSION: ${{ inputs.mise-version }}
         RUNNER_ARCH: ${{ runner.arch }}
         RUNNER_OS: ${{ runner.os }}
@@ -51,6 +51,7 @@ runs:
       env:
         CHECKSUMS_FILE: ${{ github.action_path }}/checksums.toml
         INPUT_MISE_SHA256: ${{ inputs.mise-sha256 }}
+        MISE_CHECKSUM_SCRIPT: ${{ github.workspace }}/scripts/mise_checksum.sh
         MISE_VERSION: ${{ inputs.mise-version }}
         RUNNER_ARCH: ${{ runner.arch }}
         RUNNER_OS: ${{ runner.os }}
@@ -81,23 +82,7 @@ runs:
               ;;
           esac
 
-          checksum="$(
-            awk -F= -v version="${MISE_VERSION}" -v target="${target}" '
-              $0 == "[\"" version "\"]" { in_table = 1; next }
-              /^\[/ { in_table = 0 }
-              in_table {
-                key = $1
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
-                if (key == target) {
-                  value = $2
-                  gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-                  gsub(/^"|"$/, "", value)
-                  print value
-                  exit
-                }
-              }
-            ' "${CHECKSUMS_FILE}"
-          )"
+          checksum="$("${MISE_CHECKSUM_SCRIPT}" "${CHECKSUMS_FILE}" "${MISE_VERSION}" "${target}")"
           if [[ -z "${checksum}" ]]; then
             echo "::error::No mise checksum is pinned for mise ${MISE_VERSION} on ${target}."
             exit 1
@@ -153,9 +138,5 @@ runs:
         version: ${{ inputs.mise-version }}
         sha256: ${{ steps.checksum.outputs.sha256 }}
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
-        install_args: ${{ inputs.install_args }}
+        install_args: ${{ inputs.install-args }}
         cache: "false"
-
-    - name: Clear mise GitHub token
-      shell: bash
-      run: echo "MISE_GITHUB_TOKEN=" >> "$GITHUB_ENV"

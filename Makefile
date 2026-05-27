@@ -731,7 +731,7 @@ LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
 lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
-# Subset of lint that does not require Go or Node toolchains.
+# Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
 lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
 .PHONY: lint-light
 
@@ -745,9 +745,8 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	linter_ver=$$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
+	golangci-lint run
+	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -793,6 +792,8 @@ lint/actions/actionlint:
 	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
 
+# zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
+# external action references are skipped silently.
 lint/actions/zizmor:
 	@set -euo pipefail; \
 	if [ -z "$${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
@@ -820,28 +821,8 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
-TYPOS_VERSION := $(shell mise current aqua:crate-ci/typos)
-
-# Map uname values to typos release asset names.
-TYPOS_ARCH := $(shell uname -m)
-# typos release assets use aarch64, but macOS ARM reports arm64 via uname -m.
-ifeq ($(TYPOS_ARCH),arm64)
-TYPOS_ARCH := aarch64
-endif
-ifeq ($(shell uname -s),Darwin)
-TYPOS_OS := apple-darwin
-else
-TYPOS_OS := unknown-linux-musl
-endif
-
-build/typos-$(TYPOS_VERSION):
-	mkdir -p build/
-	curl -sSfL "https://github.com/crate-ci/typos/releases/download/v$(TYPOS_VERSION)/typos-v$(TYPOS_VERSION)-$(TYPOS_ARCH)-$(TYPOS_OS).tar.gz" \
-		| tar -xzf - -C build/ ./typos
-	mv build/typos "$@"
-
-lint/typos: build/typos-$(TYPOS_VERSION)
-	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
+lint/typos:
+	typos --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
 # pre-commit and pre-push mirror CI checks locally.

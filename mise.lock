@@ -480,6 +480,10 @@ url = "https://dl.google.com/go/go1.26.2.windows-amd64.zip"
 checksum = "sha256:98eb3570bade15cb826b0909338df6cc6d2cf590bc39c471142002db3832b708"
 url = "https://dl.google.com/go/go1.26.2.windows-amd64.zip"
 
+[[tools."go:github.com/coder/paralleltestctx/cmd/paralleltestctx"]]
+version = "0.0.2"
+backend = "go:github.com/coder/paralleltestctx/cmd/paralleltestctx"
+
 [[tools."go:github.com/coder/sqlc/cmd/sqlc"]]
 version = "337309bfb9524f38466a5090e310040fc7af0203"
 backend = "go:github.com/coder/sqlc/cmd/sqlc"
@@ -487,6 +491,10 @@ backend = "go:github.com/coder/sqlc/cmd/sqlc"
 [[tools."go:github.com/golang-migrate/migrate/v4/cmd/migrate"]]
 version = "v4.19.0"
 backend = "go:github.com/golang-migrate/migrate/v4/cmd/migrate"
+
+[[tools."go:github.com/golangci/golangci-lint/cmd/golangci-lint"]]
+version = "1.64.8"
+backend = "go:github.com/golangci/golangci-lint/cmd/golangci-lint"
 
 [[tools."go:github.com/goreleaser/nfpm/v2/cmd/nfpm"]]
 version = "v2.35.1"
@@ -535,54 +543,6 @@ backend = "go:mvdan.cc/sh/v3/cmd/shfmt"
 [[tools."go:storj.io/drpc/cmd/protoc-gen-go-drpc"]]
 version = "v0.0.34"
 backend = "go:storj.io/drpc/cmd/protoc-gen-go-drpc"
-
-[[tools.golangci-lint]]
-version = "1.64.8"
-backend = "aqua:golangci/golangci-lint"
-
-[tools.golangci-lint."platforms.linux-arm64"]
-checksum = "sha256:a6ab58ebcb1c48572622146cdaec2956f56871038a54ed1149f1386e287789a5"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-arm64.tar.gz"
-
-[tools.golangci-lint."platforms.linux-arm64-musl"]
-checksum = "sha256:a6ab58ebcb1c48572622146cdaec2956f56871038a54ed1149f1386e287789a5"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-arm64.tar.gz"
-
-[tools.golangci-lint."platforms.linux-x64"]
-checksum = "sha256:b6270687afb143d019f387c791cd2a6f1cb383be9b3124d241ca11bd3ce2e54e"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.linux-x64-baseline"]
-checksum = "sha256:b6270687afb143d019f387c791cd2a6f1cb383be9b3124d241ca11bd3ce2e54e"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.linux-x64-musl"]
-checksum = "sha256:b6270687afb143d019f387c791cd2a6f1cb383be9b3124d241ca11bd3ce2e54e"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:b6270687afb143d019f387c791cd2a6f1cb383be9b3124d241ca11bd3ce2e54e"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-linux-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.macos-arm64"]
-checksum = "sha256:70543d21e5b02a94079be8aa11267a5b060865583e337fe768d39b5d3e2faf1f"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-darwin-arm64.tar.gz"
-
-[tools.golangci-lint."platforms.macos-x64"]
-checksum = "sha256:b52aebb8cb51e00bfd5976099083fbe2c43ef556cef9c87e58a8ae656e740444"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-darwin-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.macos-x64-baseline"]
-checksum = "sha256:b52aebb8cb51e00bfd5976099083fbe2c43ef556cef9c87e58a8ae656e740444"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-darwin-amd64.tar.gz"
-
-[tools.golangci-lint."platforms.windows-x64"]
-checksum = "sha256:54c2ed3a6b4f2f5da1056fb6e83d6b73b592e06684b65a5999174fabbb251a8f"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-windows-amd64.zip"
-
-[tools.golangci-lint."platforms.windows-x64-baseline"]
-checksum = "sha256:54c2ed3a6b4f2f5da1056fb6e83d6b73b592e06684b65a5999174fabbb251a8f"
-url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-windows-amd64.zip"
 
 [[tools.helm]]
 version = "3.21.0"

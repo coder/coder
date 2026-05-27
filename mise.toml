@@ -19,6 +19,8 @@ protoc = "23.4"
 protoc-gen-go = "1.30.0"
 
 # Go development tools.
+"go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "v1.64.8"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
 "go:github.com/slsyy/mtimehash/cmd/mtimehash" = "v1.0.0"
@@ -39,7 +41,6 @@ cosign = "2.4.3"
 # here so it travels with the rest of the mise toolset (one source of
 # truth, deterministic version, no apt drift across CI / wrapper).
 crane = "0.21.6"
-golangci-lint = "1.64.8"
 helm = "3.21.0"
 kubectx = "0.9.4"
 syft = "1.26.1"
