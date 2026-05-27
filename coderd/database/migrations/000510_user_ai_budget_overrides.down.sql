@@ -3,3 +3,4 @@ DROP FUNCTION IF EXISTS delete_user_ai_budget_overrides_on_org_member_delete;
 DROP TRIGGER IF EXISTS trigger_delete_user_ai_budget_overrides_on_group_member_delete ON group_members;
 DROP FUNCTION IF EXISTS delete_user_ai_budget_overrides_on_group_member_delete;
 DROP TABLE user_ai_budget_overrides;
+DROP FUNCTION IF EXISTS is_group_member(uuid, uuid);

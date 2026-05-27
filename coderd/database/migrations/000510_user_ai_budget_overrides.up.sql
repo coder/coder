@@ -1,16 +1,28 @@
+-- Membership predicate used by CHECK constraints. Reads from
+-- group_members_expanded so the "Everyone" group (whose membership
+-- lives in organization_members) is correctly handled.
+CREATE FUNCTION is_group_member(uid uuid, gid uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+	SELECT EXISTS (
+		SELECT 1 FROM group_members_expanded
+		WHERE user_id = uid AND group_id = gid
+	);
+$$;
+
 CREATE TABLE user_ai_budget_overrides (
     user_id            UUID        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     group_id           UUID        NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     -- Spend limit applied to the user, in micro-units (1 unit = 1,000,000).
     spend_limit_micros BIGINT      NOT NULL CHECK (spend_limit_micros >= 0),
     created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     -- The membership invariant (user must be a member of the attributed
     -- group, including when that group is "Everyone") would naturally be
     -- a composite FK to group_members_expanded, but PostgreSQL does not
-    -- allow FKs to views. It's enforced instead by a conditional INSERT
-    -- in UpsertUserAIBudgetOverride and triggers on the underlying
-    -- membership tables.
+    -- allow FKs to views. It's enforced instead by the CHECK below and
+    -- triggers on the underlying membership tables.
+    CONSTRAINT user_ai_budget_overrides_must_be_group_member
+        CHECK (is_group_member(user_id, group_id))
 );
 
 COMMENT ON TABLE user_ai_budget_overrides IS 'Per-user AI spend override that supersedes group budget resolution.';
