@@ -29,8 +29,8 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 		);
 	}
 
-	// Admin: no providers and no models
-	if (!hasProvider && !hasModel) {
+	// Admin: missing provider (with or without models)
+	if (!hasProvider) {
 		return (
 			<NoticeContainer>
 				To chat with Coder Agents, set up a{" "}
@@ -39,14 +39,19 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 					className="text-content-link transition-colors hover:text-content-link/80"
 				>
 					provider
-				</Link>{" "}
-				then add a{" "}
-				<Link
-					to="/agents/settings/models"
-					className="text-content-link transition-colors hover:text-content-link/80"
-				>
-					model
 				</Link>
+				{!hasModel && (
+					<>
+						{" "}
+						then add a{" "}
+						<Link
+							to="/agents/settings/models"
+							className="text-content-link transition-colors hover:text-content-link/80"
+						>
+							model
+						</Link>
+					</>
+				)}
 				.
 			</NoticeContainer>
 		);

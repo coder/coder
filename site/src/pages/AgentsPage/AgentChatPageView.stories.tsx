@@ -578,7 +578,7 @@ export const MissingProviderSetup: Story = {
 				canvas.getByText((_content, element) => {
 					return (
 						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
+						"To chat with Coder Agents, set up a provider."
 					);
 				}),
 			).toBeVisible();
