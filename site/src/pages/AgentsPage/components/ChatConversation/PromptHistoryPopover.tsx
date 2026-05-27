@@ -1,4 +1,4 @@
-import { HistoryIcon } from "lucide-react";
+import { HistoryIcon, LoaderCircleIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
@@ -32,7 +32,7 @@ export interface PromptHistoryEntry {
 
 interface PromptHistoryPopoverProps {
 	entries: readonly PromptHistoryEntry[];
-	onSelectEntry?: (entry: PromptHistoryEntry) => void | Promise<void>;
+	onSelectEntry?: (entry: PromptHistoryEntry) => unknown;
 	/** Called when the popover opens/closes so the parent action bar
 	 *  can stay visible while the dropdown is active. */
 	onOpenChange?: (open: boolean) => void;
@@ -48,10 +48,28 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 	onOpenChange,
 }) => {
 	const [open, setOpen] = useState(false);
+	const [loadingEntryId, setLoadingEntryId] = useState<number | null>(null);
 
 	const handleOpenChange = (next: boolean) => {
 		setOpen(next);
 		onOpenChange?.(next);
+	};
+
+	const handleSelectEntry = (entry: PromptHistoryEntry) => {
+		if (loadingEntryId !== null) {
+			return;
+		}
+
+		void (async () => {
+			setLoadingEntryId(entry.id);
+			const result = await onSelectEntry?.(entry);
+			setLoadingEntryId(null);
+			if (result === false) {
+				return;
+			}
+			handleOpenChange(false);
+			scrollToUserSentinelAfterClose(entry.id);
+		})();
 	};
 
 	if (entries.length < 2) {
@@ -81,8 +99,11 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 				side="bottom"
 				className="w-[calc(100vw-2rem)] overflow-hidden p-0 sm:w-80"
 			>
-				<Command loop>
-					<CommandInput placeholder="Search prompts..." />
+				<Command loop aria-busy={loadingEntryId !== null || undefined}>
+					<CommandInput
+						placeholder="Search prompts..."
+						disabled={loadingEntryId !== null}
+					/>
 					<CommandList>
 						<CommandEmpty>No matching prompts</CommandEmpty>
 						<CommandGroup>
@@ -90,25 +111,31 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 								<CommandItem
 									key={entry.id}
 									value={`${entry.index} ${entry.label}`}
-									onSelect={() => {
-										handleOpenChange(false);
-										if (onSelectEntry) {
-											void onSelectEntry(entry);
-											return;
-										}
-										scrollToUserSentinelAfterClose(entry.id);
-									}}
+									disabled={loadingEntryId !== null}
+									onSelect={() => handleSelectEntry(entry)}
 								>
 									<span className="min-w-[1.5rem] text-sm tabular-nums text-content-disabled">
 										{entry.index}
 									</span>
-									<span className="min-w-0 truncate text-sm text-content-primary">
+									<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
 										{entry.label || "Empty message"}
 									</span>
+									{loadingEntryId === entry.id && (
+										<LoaderCircleIcon className="size-3 animate-spin text-content-secondary" />
+									)}
 								</CommandItem>
 							))}
 						</CommandGroup>
 					</CommandList>
+					{loadingEntryId !== null && (
+						<div
+							role="status"
+							className="flex items-center gap-2 border-0 border-t border-solid border-border px-3 py-2 text-xs text-content-secondary"
+						>
+							<LoaderCircleIcon className="size-3 animate-spin" />
+							Loading prompt...
+						</div>
+					)}
 				</Command>
 			</PopoverContent>
 		</Popover>

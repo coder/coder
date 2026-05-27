@@ -58,10 +58,6 @@ import {
 	PromptHistoryPopover,
 } from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
-import {
-	scrollToUserSentinel,
-	scrollToUserSentinelAfterClose,
-} from "./scrollToUserSentinel";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
@@ -580,9 +576,7 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 	promptHistory?: readonly PromptHistoryEntry[];
-	onPromptHistoryEntrySelect?: (
-		entry: PromptHistoryEntry,
-	) => void | Promise<void>;
+	onPromptHistoryEntrySelect?: (entry: PromptHistoryEntry) => unknown;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -844,9 +838,7 @@ const StickyUserMessage = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	promptHistory?: readonly PromptHistoryEntry[];
-	onPromptHistoryEntrySelect?: (
-		entry: PromptHistoryEntry,
-	) => void | Promise<void>;
+	onPromptHistoryEntrySelect?: (entry: PromptHistoryEntry) => unknown;
 	hasActiveStream?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
@@ -1266,13 +1258,12 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		const handlePromptHistoryEntrySelect = async (
 			entry: PromptHistoryEntry,
-		) => {
+		): Promise<boolean> => {
 			const requestID = promptJumpRequestRef.current + 1;
 			promptJumpRequestRef.current = requestID;
 
 			if (sentinelsRef.current.has(entry.id)) {
-				scrollToUserSentinelAfterClose(entry.id);
-				return;
+				return true;
 			}
 
 			let pageLoads = 0;
@@ -1291,15 +1282,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					break;
 				}
 				if (promptJumpRequestRef.current !== requestID) {
-					return;
+					return false;
 				}
 				pageLoads++;
-				await waitForUserSentinel(entry.id);
+				if (await waitForUserSentinel(entry.id)) {
+					return true;
+				}
 			}
 
-			if (promptJumpRequestRef.current === requestID) {
-				scrollToUserSentinel(entry.id);
-			}
+			return sentinelsRef.current.has(entry.id);
 		};
 		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);

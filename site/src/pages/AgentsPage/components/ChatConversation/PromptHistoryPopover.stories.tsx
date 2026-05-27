@@ -55,6 +55,33 @@ export const SelectEntry: Story = {
 	},
 };
 
+export const LoadingUnloadedEntry: Story = {
+	args: {
+		entries: sampleEntries,
+		onSelectEntry: fn(
+			() =>
+				new Promise<boolean>((resolve) => {
+					setTimeout(() => resolve(true), 250);
+				}),
+		),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: "Prompt history" });
+		await userEvent.click(trigger);
+
+		const item = await screen.findByText(
+			"What are the best practices for Terraform?",
+		);
+		await userEvent.click(item);
+
+		await expect(args.onSelectEntry).toHaveBeenCalledWith(sampleEntries[3]);
+		await expect(await screen.findByRole("status")).toHaveTextContent(
+			"Loading prompt...",
+		);
+	},
+};
+
 export const SearchFiltering: Story = {
 	args: {
 		entries: sampleEntries,
