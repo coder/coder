@@ -407,7 +407,9 @@ func TestPubsubCluster(t *testing.T) {
 	})
 
 	t.Run("ClusterAuthToken", func(t *testing.T) {
-		clusterPort := freeTCPPort(t)
+		t.Parallel()
+
+		clusterPort := tcpPort(t)
 		a := newTestPubsub(t, newClusterTestOptionsWithHostAndToken("127.0.0.1", clusterPort, "shared"))
 		b := newTestPubsub(t, newClusterTestOptionsWithHostAndToken("127.0.0.2", clusterPort, "shared"))
 		require.NoError(t, a.SetPeerAddresses([]string{clusterRouteAddress(t, b)}))
@@ -425,7 +427,7 @@ func TestPubsubCluster(t *testing.T) {
 		publishAndFlush(t, a, event, "with-shared-token")
 		require.Equal(t, "with-shared-token", string(receiveMessage(t, got)))
 
-		mismatchPort := freeTCPPort(t)
+		mismatchPort := tcpPort(t)
 		c := newTestPubsub(t, newClusterTestOptionsWithHostAndToken("127.0.0.3", mismatchPort, "left"))
 		d := newTestPubsub(t, newClusterTestOptionsWithHostAndToken("127.0.0.4", mismatchPort, "right"))
 		require.NoError(t, c.SetPeerAddresses([]string{clusterRouteAddress(t, d)}))
@@ -450,6 +452,8 @@ func TestPubsubCluster(t *testing.T) {
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
+		t.Parallel()
+
 		ps := newTestPubsub(t, Options{})
 		err := ps.SetPeerAddresses(nilpackage nats
 
@@ -1019,6 +1023,8 @@ func TestPubsubCluster(t *testing.T) {
 	})
 
 	t.Run("SetPeerAddressesClosed", func(t *testing.T) {
+		t.Parallel()
+
 		ps := newTestPubsub(t, newClusterTestOptions(t))
 		require.NoError(t, ps.Close())
 		err := ps.SetPeerAddresses(nil)
@@ -1026,6 +1032,8 @@ func TestPubsubCluster(t *testing.T) {
 	})
 
 	t.Run("SetPeerAddressesDropsSelfRoute", func(t *testing.T) {
+		t.Parallel()
+
 		ps := newTestPubsub(t, newClusterTestOptions(t))
 		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)

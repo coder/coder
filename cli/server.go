@@ -800,11 +800,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if options.DeploymentValues.Prometheus.Enable {
 					options.PrometheusRegistry.MustRegister(ps)
 				}
+				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
+				pubsubWatchdogTimeout = psWatchdog.Timeout()
+				defer psWatchdog.Close()
 			}
 			defer options.Pubsub.Close()
-			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
-			pubsubWatchdogTimeout = psWatchdog.Timeout()
-			defer psWatchdog.Close()
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
