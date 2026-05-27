@@ -67,6 +67,12 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 	);
 };
 
+/**
+ * Returns a semantic description override for successful chat write operations,
+ * or undefined to fall through to the backend description. Derives archive,
+ * unarchive, and sharing descriptions from the audit diff so they apply to
+ * historical logs without backfilling.
+ */
 export const getAuditLogDescriptionOverride = (
 	auditLog: AuditLog,
 ): string | undefined => {
@@ -74,6 +80,7 @@ export const getAuditLogDescriptionOverride = (
 		auditLog.resource_type !== "chat" ||
 		auditLog.action !== "write" ||
 		auditLog.status_code >= 400 ||
+		// 303 See Other: the backend treats redirects as failed attempts, not successful writes.
 		auditLog.status_code === 303
 	) {
 		return undefined;

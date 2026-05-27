@@ -238,7 +238,6 @@ export const WithArchivedChatDescription: Story = {
 			...MockChatAuditLog,
 			id: "57329396-084a-4074-9930-385a7eed858a",
 			action: "write",
-			description: "{user} archived chat {target}",
 			diff: {
 				archived: {
 					old: false,

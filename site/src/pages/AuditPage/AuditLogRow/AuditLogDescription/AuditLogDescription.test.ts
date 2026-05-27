@@ -99,4 +99,17 @@ describe("getAuditLogDescriptionOverride", () => {
 			),
 		).toBeUndefined();
 	});
+
+	it("does not override non-write chat actions", () => {
+		const diff = {
+			user_acl: {
+				old: {},
+				new: { "user-1": { permissions: ["read"] } },
+				secret: false,
+			},
+		};
+		expect(
+			getAuditLogDescriptionOverride(chatAuditLog(diff, { action: "create" })),
+		).toBeUndefined();
+	});
 });
