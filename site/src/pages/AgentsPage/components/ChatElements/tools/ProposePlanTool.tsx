@@ -74,7 +74,7 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<TranscriptRow className="gap-1.5 text-content-secondary">
+			<TranscriptRow className="gap-2 text-content-secondary">
 				<ToolIcon
 					name="propose_plan"
 					isError={effectiveError}
@@ -144,7 +144,7 @@ export const ProposePlanTool: React.FC<{
 				)
 			)}
 			{fetchLoading && (
-				<TranscriptRow className="gap-1.5 text-[13px] text-content-secondary">
+				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
 					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</TranscriptRow>

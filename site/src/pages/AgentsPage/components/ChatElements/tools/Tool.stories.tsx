@@ -2337,42 +2337,6 @@ export const WaitAgentComputerUseTimedOutNoRecording: Story = {
 	},
 };
 
-export const ReadFileCompleted: Story = {
-	args: {
-		name: "read_file",
-		status: "completed",
-		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
-		result: { content: "export const AgentChatPage = () => null;" },
-	},
-};
-
-export const ReadTemplateCompleted: Story = {
-	args: {
-		name: "read_template",
-		status: "completed",
-		args: { template_id: "template-123" },
-		result: {
-			template: { name: "ubuntu-dev", display_name: "Ubuntu Dev" },
-		},
-	},
-};
-
-export const AskUserQuestionRunning: Story = {
-	args: {
-		name: "ask_user_question",
-		status: "running",
-		args: { questions: [] },
-	},
-};
-
-export const ProposePlanRunning: Story = {
-	args: {
-		name: "propose_plan",
-		status: "running",
-		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
-	},
-};
-
 // ---------------------------------------------------------------------------
 // read_skill stories
 // ---------------------------------------------------------------------------

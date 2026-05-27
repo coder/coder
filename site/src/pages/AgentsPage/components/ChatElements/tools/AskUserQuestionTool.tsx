@@ -540,7 +540,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			<div className="w-full">
 				<TranscriptRow
 					role="alert"
-					className="gap-1.5 text-[13px] text-content-secondary"
+					className="gap-2 text-[13px] text-content-secondary"
 				>
 					<ToolIcon name="ask_user_question" isError={isError} />
 					<TriangleAlertIcon
@@ -560,7 +560,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					<TranscriptRow
 						role="status"
 						aria-live="polite"
-						className="gap-1.5 text-content-secondary"
+						className="gap-2 text-content-secondary"
 					>
 						<ToolIcon
 							name="ask_user_question"
@@ -691,7 +691,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 				<TranscriptRow
 					role="status"
 					aria-live="polite"
-					className="gap-1.5 text-content-secondary"
+					className="gap-2 text-content-secondary"
 				>
 					<ToolIcon
 						name="ask_user_question"

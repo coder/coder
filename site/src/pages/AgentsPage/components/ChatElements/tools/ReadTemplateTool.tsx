@@ -28,7 +28,7 @@ export const ReadTemplateTool: React.FC<{
 			: "Read template";
 
 	return (
-		<TranscriptRow className="gap-1.5 text-content-secondary">
+		<TranscriptRow className="gap-2 text-content-secondary">
 			<ToolIcon name="read_template" isError={isError} isRunning={isRunning} />
 			<span className="text-[13px] leading-6">{label}</span>
 			{isError && (
