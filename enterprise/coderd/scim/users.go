@@ -312,6 +312,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 	for _, op := range operations {
 		switch op.Op {
 		case "add":
+			// TODO: Currently we do not support the adding of attributes.
 		case "remove":
 			// TODO: If the path is unspecified, we should fail with the status code 400.
 			//  Today, we only accept the 'active' field and silently drop the rest.

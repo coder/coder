@@ -743,7 +743,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSCIM = rbac.Subject{
-		Type:         rbac.SubjectSCIMProvisioner,
+		Type:         rbac.SubjectTypeSCIMProvisioner,
 		FriendlyName: "SCIM Provisioner",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -894,7 +894,7 @@ func AsAIProviderMetadataReader(ctx context.Context) context.Context {
 	return As(ctx, subjectAIProviderMetadataReader)
 }
 
-// AsSubAgentAPI returns a context with an actor that has permissions required for
+// AsSCIMProvisioner returns a context with an actor that has permissions required for
 // handling the /scim/v2 routes and provisioning users via SCIM.
 func AsSCIMProvisioner(ctx context.Context) context.Context {
 	return As(ctx, subjectSCIM)
