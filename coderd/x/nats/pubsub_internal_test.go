@@ -411,7 +411,7 @@ func TestPubsubCluster(t *testing.T) {
 	// We dial the route listener directly with the nats.go client, which
 	// surfaces a typed nats.ErrAuthorization for protocol-level -ERR
 	// 'Authorization Violation' responses.
-	t.Run("InvalidAuthRejected", func(t *testing.T) {
+	t.Run("ClusterAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
 		ps := newTestPubsub(t, newAuthClusterOptions(t, "real-token"))
