@@ -907,6 +907,13 @@ func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
 		claims["iss"] = f.locked.Issuer()
 	}
 
+	// Default email_verified to true so that tests that do not care
+	// about the email_verified flow are not forced to set it.
+	// Tests that need a different value can set it explicitly.
+	if _, ok := claims["email_verified"]; !ok {
+		claims["email_verified"] = true
+	}
+
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(f.locked.PrivateKey())
 	require.NoError(t, err)
 

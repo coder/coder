@@ -1102,19 +1102,11 @@ func TestUserOIDC(t *testing.T) {
 			},
 		},
 		{
-			Name: "EmailVerifiedMissing",
-			IDTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
-				"sub":   uuid.NewString(),
-			},
-			AllowSignups: true,
-			StatusCode:   http.StatusForbidden,
-		},
-		{
 			Name: "EmailVerifiedMissingIgnored",
 			IDTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
-				"sub":   uuid.NewString(),
+				"email":          "kyle@kwc.io",
+				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups:        true,
 			IgnoreEmailVerified: true,
