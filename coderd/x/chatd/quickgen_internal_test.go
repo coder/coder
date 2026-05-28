@@ -688,7 +688,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	body := testutil.TryReceive(t.Context(), t, requests)
 	require.Equal(t, "required", body["tool_choice"])
-	requireOpenAICompatLastMessageRole(t, body, "assistant")
+	requireOpenAICompatAssistantFinalMessage(t, body)
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -773,7 +773,6 @@ func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInp
 	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
-	require.NotEqual(t, fantasy.MessageRoleUser, prompt[len(prompt)-1].Role)
 
 	require.NotEmpty(t, prompt[1].Content)
 	require.NotEmpty(t, prompt[2].Content)
@@ -787,7 +786,7 @@ func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInp
 	require.Equal(t, quickgenStructuredOutputReady, assistantText.Text)
 }
 
-func requireOpenAICompatLastMessageRole(t *testing.T, body map[string]any, want string) {
+func requireOpenAICompatAssistantFinalMessage(t *testing.T, body map[string]any) {
 	t.Helper()
 
 	messages, ok := body["messages"].([]any)
@@ -796,8 +795,7 @@ func requireOpenAICompatLastMessageRole(t *testing.T, body map[string]any, want 
 
 	lastMessage, ok := messages[len(messages)-1].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, want, lastMessage["role"])
-	require.NotEqual(t, "user", lastMessage["role"])
+	require.Equal(t, "assistant", lastMessage["role"])
 }
 
 func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
@@ -834,7 +832,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
-		requireOpenAICompatLastMessageRole(t, body, "assistant")
+		requireOpenAICompatAssistantFinalMessage(t, body)
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
