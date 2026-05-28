@@ -8,8 +8,8 @@ import {
 	type ScaleMode,
 } from "./components/RightPanel/DesktopToolbar";
 import {
-	useDesktopConnection,
 	type DesktopConnectionStatus,
+	useDesktopConnection,
 } from "./hooks/useDesktopConnection";
 import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
 

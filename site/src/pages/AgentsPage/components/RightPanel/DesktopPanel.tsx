@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
-	useDesktopConnection,
 	type DesktopConnectionStatus,
+	useDesktopConnection,
 } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
