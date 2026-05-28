@@ -1,7 +1,10 @@
 package httpmw_test
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,6 +62,51 @@ func TestWorkspaceAgent(t *testing.T) {
 		res := rw.Result()
 		t.Cleanup(func() { _ = res.Body.Close() })
 		require.Equal(t, http.StatusOK, res.StatusCode)
+	})
+
+	t.Run("InactiveOwner", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []database.UserStatus{
+			database.UserStatusSuspended,
+			database.UserStatusDormant,
+		} {
+			t.Run(string(status), func(t *testing.T) {
+				t.Parallel()
+
+				db, _ := dbtestutil.NewDB(t)
+				authToken := uuid.New()
+				req, rtr, ws, _ := setup(t, db, authToken, httpmw.ExtractWorkspaceAgentAndLatestBuild(
+					httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
+						DB:       db,
+						Optional: false,
+					}))
+
+				_, err := db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+					ID:        ws.OwnerID,
+					Status:    status,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+
+				rw := httptest.NewRecorder()
+				req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
+				rtr.ServeHTTP(rw, req)
+
+				//nolint:bodyclose // Closed in `t.Cleanup`.
+				res := rw.Result()
+				t.Cleanup(func() { _ = res.Body.Close() })
+				require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+				var resp codersdk.Response
+				err = json.NewDecoder(res.Body).Decode(&resp)
+				require.NoError(t, err)
+				require.Equal(t,
+					fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", status),
+					resp.Message,
+				)
+			})
+		}
 	})
 
 	t.Run("Latest", func(t *testing.T) {
