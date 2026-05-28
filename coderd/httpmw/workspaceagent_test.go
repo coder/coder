@@ -102,7 +102,7 @@ func TestWorkspaceAgent(t *testing.T) {
 				err = json.NewDecoder(res.Body).Decode(&resp)
 				require.NoError(t, err)
 				require.Equal(t,
-					fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", status),
+					fmt.Sprintf("User has status %q. Contact an admin to reactivate your account.", status),
 					resp.Message,
 				)
 			})
