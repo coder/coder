@@ -104,7 +104,10 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 						<TableHead className="w-1/4">Name</TableHead>
 						<TableHead className="w-1/4">Base URL</TableHead>
 						<TableHead className="w-22">Status</TableHead>
-						<TableHead className="w-1/4">Last modified</TableHead>
+						<TableHead>Last modified</TableHead>
+						<TableHead className="w-10">
+							<span className="sr-only">Open provider</span>
+						</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
