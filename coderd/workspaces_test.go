@@ -5713,7 +5713,14 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	}
 	require.Equal(t, codersdk.WorkspaceRoleUse, gotGroupRoles[sharedGroup.ID])
 	require.Empty(t, acl.Groups[0].Members)
-	require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
+	require.Equal(t, 0, acl.Groups[0].TotalMemberCount)
+
+	adminACL, err := client.WorkspaceACL(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, adminACL.Groups, 1)
+	require.Len(t, adminACL.Groups[0].Members, 1)
+	require.Equal(t, groupMember.ID, adminACL.Groups[0].Members[0].ID)
+	require.Equal(t, 1, adminACL.Groups[0].TotalMemberCount)
 }
 
 // nolint:tparallel,paralleltest // Subtests modify a package global (rbac.workspaceACLDisabled).

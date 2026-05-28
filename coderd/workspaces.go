@@ -2305,13 +2305,11 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This is largely based on the template ACL implementation, and is far from
-	// ideal. Usually, when we use the System context it's because we need to
-	// run some query that won't actually be exposed to the user. That is not
-	// the case here. This data goes directly to an unauthorized user. We are
-	// just straight up breaking security promises.
-	//
-	// TODO: This needs to be fixed before GA. Currently in beta.
+	// Shared user and group principal lookups use system context because
+	// workspace ACL readers should see principals shared on the workspace
+	// even if they cannot otherwise read those users or groups. Group
+	// members and counts use the caller context so normal group member
+	// RBAC still applies.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2366,10 +2364,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
-		var members []database.GroupMember
-		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 			GroupID:       it.Group.ID,
 			IncludeSystem: false,
 		})
