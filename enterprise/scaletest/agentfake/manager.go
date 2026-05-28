@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -16,6 +17,16 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// ExternalAgentClient is the subset of *codersdk.Client the Manager
+// uses to enumerate external-agent workspaces under a template and
+// fetch each agent's auth token. *codersdk.Client satisfies this
+// interface, so production callers pass their client directly; tests
+// substitute a fake without standing up a real coderd.
+type ExternalAgentClient interface {
+	Workspaces(ctx context.Context, filter codersdk.WorkspaceFilter) (codersdk.WorkspacesResponse, error)
+	WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (codersdk.ExternalAgentCredentials, error)
+}
 
 const (
 	enumeratePageSize        = 100
@@ -48,9 +59,10 @@ type ManagerOptions struct {
 // (via coder_external_agent tokens on workspaces matching opts.Template), then opens a dRPC stream per agent and keeps
 // them connected until ctx is canceled.
 type Manager struct {
-	client *codersdk.Client
-	logger slog.Logger
-	opts   ManagerOptions
+	coderURL *url.URL
+	client   ExternalAgentClient
+	logger   slog.Logger
+	opts     ManagerOptions
 
 	mu     sync.Mutex
 	agents []*Agent
@@ -58,12 +70,14 @@ type Manager struct {
 
 // NewManager returns an Agent Manager. The provided client must already be authenticated with sufficient privilege
 // to list workspaces by template and to call the enterprise-only WorkspaceExternalAgentCredentials endpoint
-// (template-admin or higher; FeatureWorkspaceExternalAgent must be enabled).
-func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions) *Manager {
+// (template-admin or higher; FeatureWorkspaceExternalAgent must be enabled). coderURL is the URL the spawned
+// fake agents will dial.
+func NewManager(coderURL *url.URL, client ExternalAgentClient, logger slog.Logger, opts ManagerOptions) *Manager {
 	return &Manager{
-		client: client,
-		logger: logger,
-		opts:   opts,
+		coderURL: coderURL,
+		client:   client,
+		logger:   logger,
+		opts:     opts,
 	}
 }
 
@@ -84,7 +98,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	agents := make([]*Agent, 0, len(tokens))
 	for i, ti := range tokens {
-		agents = append(agents, NewAgent(m.client.URL, ti.Token,
+		agents = append(agents, NewAgent(m.coderURL, ti.Token,
 			m.logger.Named("agent-"+strconv.Itoa(i))))
 	}
 	m.mu.Lock()
