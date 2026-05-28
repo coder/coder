@@ -2,6 +2,7 @@ package chaterror_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -218,15 +220,21 @@ func TestClassify(t *testing.T) {
 				StatusCode: 0,
 			},
 		},
+		// The next three cases model the error that fantasy produces
+		// when aibridge's disabledProviderHandler returns a 503
+		// plain-text sentinel. Fantasy sets Title from the HTTP
+		// status text and Message from the response body (including
+		// the trailing newline written by http.Error).
 		{
 			name: "ProviderDisabled503ClassifiesAsProviderDisabled",
 			err: &fantasy.ProviderError{
-				Message:    `provider_disabled: AI provider "openai" is disabled`,
-				StatusCode: 503,
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", aibridge.ErrorCodeProviderDisabled, "openai"),
+				StatusCode: http.StatusServiceUnavailable,
 			},
 			want: chaterror.ClassifiedError{
 				Message:    "The OpenAI provider has been disabled by an administrator.",
-				Detail:     `provider_disabled: AI provider "openai" is disabled`,
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "openai"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "openai",
 				Retryable:  false,
@@ -235,7 +243,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "ProviderDisabledPlainErrorString",
-			err:  xerrors.New(`provider_disabled: AI provider "anthropic" is disabled`),
+			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "anthropic")),
 			want: chaterror.ClassifiedError{
 				Message:    "The Anthropic provider has been disabled by an administrator.",
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
@@ -247,12 +255,13 @@ func TestClassify(t *testing.T) {
 		{
 			name: "ProviderDisabledBeatsTimeout503",
 			err: &fantasy.ProviderError{
-				Message:    "provider_disabled: AI provider \"google\" is disabled",
-				StatusCode: 503,
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", aibridge.ErrorCodeProviderDisabled, "google"),
+				StatusCode: http.StatusServiceUnavailable,
 			},
 			want: chaterror.ClassifiedError{
 				Message:    "The Google provider has been disabled by an administrator.",
-				Detail:     `provider_disabled: AI provider "google" is disabled`,
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "google"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "google",
 				Retryable:  false,
