@@ -1248,6 +1248,24 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Cross-user isolation: no subject can create boundary logs
+			// owned by a different user. The resource owner is a random
+			// UUID that does not match any test subject's ID.
+			Name:     "BoundaryLogCreateOther",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceBoundaryLog.WithOwner(uuid.New().String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					owner, memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor, auditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			// Boundary logs: only DBPurge can delete. No human role
 			// has delete; DBPurge is a system subject outside this matrix.
 			Name:     "BoundaryLogDelete",
@@ -1521,4 +1539,97 @@ func TestChangeSet(t *testing.T) {
 			require.ElementsMatch(t, convert(c.ExpRemove), remove, "expect removed")
 		})
 	}
+}
+
+// TestWorkspaceAgentScopeBoundaryLog verifies that a real workspace agent
+// scope (not ScopeAll) can create boundary logs for its own owner but
+// cannot create them for other users, and cannot read or delete them.
+func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
+	t.Parallel()
+
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+
+	ownerID := uuid.New()
+	otherOwnerID := uuid.New()
+	workspaceID := uuid.New()
+	templateID := uuid.New()
+	versionID := uuid.New()
+
+	agentScope := rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		TemplateID:  templateID,
+		VersionID:   versionID,
+	})
+
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+
+	agent := rbac.Subject{
+		ID:    ownerID.String(),
+		Roles: rbac.Roles{memberRole},
+		Scope: agentScope,
+	}.WithCachedASTValue()
+
+	// Agent can create boundary logs for its own owner.
+	err = auth.Authorize(context.Background(), agent, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(ownerID.String()))
+	require.NoError(t, err, "agent should create boundary logs for own owner")
+
+	// Agent cannot create boundary logs for a different owner.
+	err = auth.Authorize(context.Background(), agent, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
+	require.Error(t, err, "agent must not create boundary logs for other owner")
+
+	// Agent cannot read boundary logs.
+	err = auth.Authorize(context.Background(), agent, policy.ActionRead,
+		rbac.ResourceBoundaryLog)
+	require.Error(t, err, "agent must not read boundary logs")
+
+	// Agent cannot delete boundary logs.
+	err = auth.Authorize(context.Background(), agent, policy.ActionDelete,
+		rbac.ResourceBoundaryLog)
+	require.Error(t, err, "agent must not delete boundary logs")
+}
+
+// TestDBPurgeBoundaryLogDelete verifies that the DBPurge system subject
+// can delete boundary logs but cannot create or read them.
+func TestDBPurgeBoundaryLogDelete(t *testing.T) {
+	t.Parallel()
+
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+
+	// Build the DBPurge subject the same way dbauthz does.
+	dbPurge := rbac.Subject{
+		Type:         rbac.SubjectTypeDBPurge,
+		FriendlyName: "DB Purge",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
+				DisplayName: "DB Purge Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceBoundaryLog.Type: {policy.ActionDelete},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	// DBPurge can delete boundary logs.
+	err := auth.Authorize(context.Background(), dbPurge, policy.ActionDelete,
+		rbac.ResourceBoundaryLog)
+	require.NoError(t, err, "DBPurge should delete boundary logs")
+
+	// DBPurge cannot create boundary logs.
+	err = auth.Authorize(context.Background(), dbPurge, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(uuid.New().String()))
+	require.Error(t, err, "DBPurge must not create boundary logs")
+
+	// DBPurge cannot read boundary logs.
+	err = auth.Authorize(context.Background(), dbPurge, policy.ActionRead,
+		rbac.ResourceBoundaryLog)
+	require.Error(t, err, "DBPurge must not read boundary logs")
 }
