@@ -515,8 +515,8 @@ export function useDesktopConnection({
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
 	useEffect(() => {
-		if (rfbInstance) {
-			rfbInstance.scaleViewport = scaleViewport;
+		if (rfbInstance && rfbRef.current) {
+			rfbRef.current.scaleViewport = scaleViewport;
 		}
 	}, [rfbInstance, scaleViewport]);
 
