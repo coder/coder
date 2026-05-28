@@ -1,8 +1,9 @@
-import { BrainIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { Response, Shimmer } from "../ChatElements";
+import { Shimmer } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
@@ -22,26 +23,18 @@ const StatusPlaceholder: FC<{
 	showThinkingIcon?: boolean;
 }> = ({ text, shimmer = false, showThinkingIcon = false }) => {
 	return (
-		<div className="relative min-h-6">
-			{/* Reserve the final response height without exposing a selectable copy. */}
-			<Response aria-hidden className="invisible select-none">
-				{text}
-			</Response>
-			<div className="pointer-events-none absolute inset-0 flex items-center gap-2 text-content-secondary">
-				{showThinkingIcon && (
-					<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-				)}
-				{shimmer ? (
-					<Shimmer as="div" className="text-[13px] leading-relaxed">
-						{text}
-					</Shimmer>
-				) : (
-					<span className="text-[13px] leading-relaxed text-content-secondary">
-						{text}
-					</span>
-				)}
-			</div>
-		</div>
+		<TranscriptRow className="gap-2 text-content-secondary">
+			{showThinkingIcon && <ToolIcon name="thinking" isError={false} />}
+			{shimmer ? (
+				<Shimmer as="span" className="text-[13px] leading-6">
+					{text}
+				</Shimmer>
+			) : (
+				<span className="text-[13px] leading-6 text-content-secondary">
+					{text}
+				</span>
+			)}
+		</TranscriptRow>
 	);
 };
 
