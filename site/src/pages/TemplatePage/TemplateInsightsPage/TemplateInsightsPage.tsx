@@ -117,6 +117,7 @@ export default function TemplateInsightsPage() {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const dpTier = dpStatus.data?.tier;
 	const isAuditor = dpStatus.data?.auditor;
 
 	return (
@@ -274,7 +275,6 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					data={userLatency.data}
 					error={userLatency.error}
 					dataProtectionEnabled={dataProtectionEnabled}
-				tier={dpTier}
 				/>
 				<TemplateUsagePanel
 					className="col-span-2"
@@ -285,7 +285,6 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					data={userActivity.data}
 					error={userActivity.error}
 					dataProtectionEnabled={dataProtectionEnabled}
-				tier={dpTier}
 				/>
 				<TemplateParametersUsagePanel
 					className="col-span-3"

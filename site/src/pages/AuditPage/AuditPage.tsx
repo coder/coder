@@ -26,6 +26,7 @@ const AuditPage: FC = () => {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const dpTier = dpStatus.data?.tier;
 	const isAuditor = dpStatus.data?.auditor;
 
 	/**

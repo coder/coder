@@ -27,6 +27,7 @@ const ConnectionLogPage: FC = () => {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const dpTier = dpStatus.data?.tier;
 	const isAuditor = dpStatus.data?.auditor;
 
 	const [searchParams, setSearchParams] = useSearchParams();
