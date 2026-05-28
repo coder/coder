@@ -16,7 +16,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const workspaceSkillsDialTimeout = 5 * time.Second
+const (
+	workspaceSkillsAgentConnTimeout     = 30 * time.Second
+	workspaceSkillsContextConfigTimeout = 5 * time.Second
+)
 
 // @Summary List workspace skills
 // @ID list-workspace-skills
@@ -46,8 +49,16 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	if build.Transition == database.WorkspaceTransitionStop ||
-		build.Transition == database.WorkspaceTransitionDelete {
+	if build.Transition != database.WorkspaceTransitionStart {
+		writeWorkspaceSkills(ctx, rw, nil)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if job.JobStatus != database.ProvisionerJobStatusSucceeded {
 		writeWorkspaceSkills(ctx, rw, nil)
 		return
 	}
@@ -91,10 +102,9 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 		return
 	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, workspaceSkillsDialTimeout)
-	defer cancel()
-
+	dialCtx, cancel := context.WithTimeout(ctx, workspaceSkillsAgentConnTimeout)
 	conn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
+	cancel()
 	if err != nil {
 		logger.Debug(ctx, "failed to dial workspace skills agent", slog.F("agent_id", agent.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
@@ -105,7 +115,9 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	}
 	defer release()
 
-	cfg, err := conn.ContextConfig(dialCtx)
+	configCtx, cancel := context.WithTimeout(ctx, workspaceSkillsContextConfigTimeout)
+	cfg, err := conn.ContextConfig(configCtx)
+	cancel()
 	if err != nil {
 		logger.Debug(ctx, "failed to fetch workspace skills context config", slog.F("agent_id", agent.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
