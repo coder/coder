@@ -466,3 +466,12 @@ coderd_workspace_creation_total{organization_name="",template_name="",preset_nam
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner for all non-deleted workspaces.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="",template_name="",template_version="",workspace_owner="",workspace_transition=""} 0
+# HELP provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# TYPE provider_info gauge
+provider_info{provider_name="",provider_type="",status=""} 0
+# HELP providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against coder_aibridged_providers_last_reload_timestamp_seconds means the loop is firing but the refresh function is failing.
+# TYPE providers_last_reload_success_timestamp_seconds gauge
+providers_last_reload_success_timestamp_seconds 0
+# HELP providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
+# TYPE providers_last_reload_timestamp_seconds gauge
+providers_last_reload_timestamp_seconds 0
