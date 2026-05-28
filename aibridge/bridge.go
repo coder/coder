@@ -251,13 +251,16 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			slog.F("credential_kind", string(cred.Kind)),
 		)
 
-		// For centralized, the hint is set later by the failover
-		// loop, so it's unknown at start time.
-		credHint := cred.Hint
-		if cred.Kind == intercept.CredentialKindCentralized {
-			credHint = "<keypool-pending>"
+		// Log BYOK credentials. Centralized credentials are set by
+		// the key failover loop.
+		credLogFields := []slog.Field{}
+		if cred.Kind == intercept.CredentialKindBYOK {
+			credLogFields = append(credLogFields,
+				slog.F("credential_hint", cred.Hint),
+				slog.F("credential_length", cred.Length),
+			)
 		}
-		log.Debug(ctx, "interception started", slog.F("credential_hint", credHint), slog.F("credential_length", cred.Length))
+		log.Debug(ctx, "interception started", credLogFields...)
 		if m != nil {
 			m.InterceptionsInflight.WithLabelValues(p.Name(), interceptor.Model(), route).Add(1)
 			defer func() {
@@ -271,7 +274,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		})
 		// For centralized, the hint now reflects the last attempted
 		// key from the failover loop.
-		credHint = interceptor.Credential().Hint
+		credHint := interceptor.Credential().Hint
 		credLen := interceptor.Credential().Length
 		if execErr != nil {
 			if m != nil {
