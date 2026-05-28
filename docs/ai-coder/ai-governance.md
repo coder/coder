@@ -7,7 +7,9 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-The AI Governance Add-On is a per-user license that can be added to Premium seats. Each user with the add-on gets access to a set of features
+The AI Governance Add-On is a separate, per-user license for Premium customers.
+It is not included with a Premium subscription and must be purchased separately.
+Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
 - [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
@@ -15,9 +17,13 @@ that help organizations safely roll out AI tooling at scale:
 - [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for
   agents, restricting which domains can be accessed by AI agents
 
+> [!NOTE]
+> As of Coder v2.32, the AI Governance Add-On is required to use AI Gateway and Agent Firewall.
+> Deployments without the add-on cannot access these features.
+
 ## Who should use the AI Governance Add-On
 
-The AI Governance Add-On is for teams that want to extend that platform to
+The AI Governance Add-On is for teams that want to extend the Coder platform to
 support AI-powered IDEs and coding agents in a controlled, observable way.
 
 It's a good fit if you're:
@@ -76,10 +82,6 @@ rates, and usage patterns to inform decisions about AI strategy.
 
 Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
 generally available as part of the AI Governance Add-On.
-
-As of Coder v2.32, the AI Governance Add-On is required to use AI Gateway and
-Agent Firewall. Deployments without the add-on will not be able to access
-these features.
 
 To learn more about enabling the AI Governance Add-On, pricing, or trial
 options, reach out to your
