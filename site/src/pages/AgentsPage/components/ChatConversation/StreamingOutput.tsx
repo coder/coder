@@ -1,4 +1,3 @@
-import { BrainIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -10,6 +9,7 @@ import {
 } from "../ChatElements";
 import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -37,7 +37,7 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 const StreamingThinkingPlaceholder: FC = () => (
 	<div data-transcript-row="" className="text-content-secondary">
 		<TranscriptRow className="w-full gap-2">
-			<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+			<ToolIcon name="thinking" isError={false} />
 			<Shimmer as="span" className="text-[13px] leading-6">
 				Thinking
 			</Shimmer>

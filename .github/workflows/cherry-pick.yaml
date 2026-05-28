@@ -154,4 +154,5 @@ jobs:
           if [ "$CONFLICT" = true ]; then
             COMMENT="${COMMENT} (⚠️ conflicts need manual resolution)"
           fi
-          gh pr comment "$PR_NUMBER" --body "$COMMENT"
+          # Don't fail the job if commenting fails (e.g. the original PR is locked).
+          gh pr comment "$PR_NUMBER" --body "$COMMENT" || echo "::warning::Failed to comment on #${PR_NUMBER} (PR may be locked)."
