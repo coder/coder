@@ -418,7 +418,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
 							Chats
 						</h2>
-						<div className="flex items-center">
+						<div className="flex items-center gap-1">
 							{onOpenSearchDialog && (
 								<Button
 									variant="subtle"

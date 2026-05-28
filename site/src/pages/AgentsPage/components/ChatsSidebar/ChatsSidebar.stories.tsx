@@ -743,6 +743,39 @@ export const SectionHeadersCollapse: Story = {
 	},
 };
 
+export const MobileHeaderActions: Story = {
+	render: ChatsSidebarWithKeybindings,
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const searchButton = canvas.getByRole("button", { name: "Search chats" });
+		const filterButton = canvas.getByRole("button", { name: "Filter agents" });
+		const searchRect = searchButton.getBoundingClientRect();
+		const filterRect = filterButton.getBoundingClientRect();
+
+		await expect(searchButton).not.toHaveTextContent("Search");
+		expect(Math.round(searchRect.width)).toBeGreaterThanOrEqual(28);
+		expect(Math.round(filterRect.width)).toBeGreaterThanOrEqual(28);
+		expect(searchRect.right).toBeLessThan(filterRect.left);
+	},
+};
+
 export const SidebarFilterMenu: Story = {
 	args: {
 		chats: sectionHeaderChats,
