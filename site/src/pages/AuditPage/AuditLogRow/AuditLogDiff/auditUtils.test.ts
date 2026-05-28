@@ -125,6 +125,11 @@ describe("formatAuditDiffValue", () => {
 	it.each([
 		{ name: "string", value: "hello", expected: '"hello"' },
 		{
+			name: "string containing double quotes",
+			value: 'he said "hello"',
+			expected: '"he said \\"hello\\""',
+		},
+		{
 			name: "array of primitives",
 			value: ["admin", "auditor"],
 			expected: '["admin", "auditor"]',

@@ -31,7 +31,7 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
  */
 export const formatAuditDiffValue = (value: unknown): string => {
 	if (typeof value === "string") {
-		return `"${value}"`;
+		return JSON.stringify(value);
 	}
 
 	if (isTimeObject(value)) {
@@ -43,9 +43,6 @@ export const formatAuditDiffValue = (value: unknown): string => {
 	}
 
 	if (Array.isArray(value)) {
-		if (value.length === 0) {
-			return "[]";
-		}
 		const values = value.map((v) => formatAuditDiffValue(v));
 		return `[${values.join(", ")}]`;
 	}
@@ -80,9 +77,6 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
 
 const sortObjectKeys = (value: unknown): unknown => {
 	if (Array.isArray(value)) {
-		if (value.length === 0) {
-			return value;
-		}
 		return value.map(sortObjectKeys);
 	}
 
