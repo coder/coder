@@ -87,6 +87,8 @@ type Options struct {
 
 	// PeerAddresses are the initial nats://host:port cluster routes.
 	PeerAddresses []string
+
+	disableCluster bool
 }
 
 // Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.

@@ -18,9 +18,7 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	if p.ctx.Err() != nil {
 		return errClosed
 	}
-	if !p.clustered {
-		return xerrors.New("nats pubsub was not started with clustering enabled")
-	}
+
 	if p.serverOpts == nil || p.ns == nil {
 		return errClosed
 	}
@@ -45,13 +43,6 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	p.serverOpts = newOpts.Clone()
 	p.currentRoutes = cloneRouteURLs(routes)
 	return nil
-}
-
-func clusterEnabled(opts Options) bool {
-	return opts.ClusterHost != "" ||
-		opts.ClusterPort != 0 ||
-		opts.RoutePoolSize != 0 ||
-		len(opts.PeerAddresses) > 0
 }
 
 func parsePeerAddresses(addresses []string, selfAddresses ...string) ([]*url.URL, error) {
