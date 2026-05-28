@@ -298,8 +298,9 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 			return nil, keyPoolErr
 		}
 		// Record the key in use so the hint reflects the last attempted key.
-		i.setCredentialHint(key.Hint())
-		i.logger.Debug(ctx, "using centralized api key", slog.F("credential_hint", key.Hint()))
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

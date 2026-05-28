@@ -73,7 +73,7 @@ func TestBlockingInterception_KeyFailover(t *testing.T) {
 		// Expected key states after the request, by index in keys.
 		expectedKeyStates []keypool.KeyState
 		// Expected credential hint after ProcessRequest: last
-		// attempted key for centralized, request hint for BYOK.
+		// attempted key for centralized, user key from initial request for BYOK.
 		expectedCredentialHint string
 	}{
 		{
@@ -271,7 +271,7 @@ func TestBlockingInterception_KeyFailover(t *testing.T) {
 				cfg.KeyPool = pool
 			} else if tc.byokKey != "" {
 				cfg.Key = tc.byokKey
-				credInfo = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, utils.MaskSecret(tc.byokKey))
+				credInfo = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, tc.byokKey)
 			}
 
 			interceptor := NewBlockingInterceptor(

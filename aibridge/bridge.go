@@ -249,7 +249,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			slog.F("user_agent", r.UserAgent()),
 			slog.F("streaming", interceptor.Streaming()),
 			slog.F("credential_kind", string(cred.Kind)),
-			slog.F("credential_length", cred.Length),
 		)
 
 		// For centralized, the hint is set later by the failover
@@ -258,7 +257,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if cred.Kind == intercept.CredentialKindCentralized {
 			credHint = "<keypool-pending>"
 		}
-		log.Debug(ctx, "interception started", slog.F("credential_hint", credHint))
+		log.Debug(ctx, "interception started", slog.F("credential_hint", credHint), slog.F("credential_length", cred.Length))
 		if m != nil {
 			m.InterceptionsInflight.WithLabelValues(p.Name(), interceptor.Model(), route).Add(1)
 			defer func() {
@@ -273,24 +272,23 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// For centralized, the hint now reflects the last attempted
 		// key from the failover loop.
 		credHint = interceptor.Credential().Hint
+		credLen := interceptor.Credential().Length
 		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
-			log.Warn(ctx, "interception failed", slog.Error(execErr), slog.F("credential_hint", credHint))
+			log.Warn(ctx, "interception failed", slog.Error(execErr), slog.F("credential_hint", credHint), slog.F("credential_length", credLen))
 		} else {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
 			}
-			log.Debug(ctx, "interception ended", slog.F("credential_hint", credHint))
+			log.Debug(ctx, "interception ended", slog.F("credential_hint", credHint), slog.F("credential_length", credLen))
 		}
 
-		// For centralized, the hint reflects the last attempted key
-		// from the failover loop.
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
 			ID:             interceptor.ID().String(),
-			CredentialHint: interceptor.Credential().Hint,
+			CredentialHint: credHint,
 		})
 
 		// Ensure all recording have completed before completing request.

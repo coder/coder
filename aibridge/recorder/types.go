@@ -50,9 +50,8 @@ type InterceptionRecord struct {
 type InterceptionRecordEnded struct {
 	ID      string
 	EndedAt time.Time
-	// CredentialHint is set for centralized to the key that
-	// succeeded, or the last attempted key if all failed. Empty for
-	// BYOK, which sets it at the start.
+	// CredentialHint is the hint observed at end-of-interception.
+	// Only applied to the DB row for centralized; ignored for BYOK.
 	CredentialHint string
 }
 

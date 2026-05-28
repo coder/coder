@@ -93,13 +93,6 @@ func (i *interceptionBase) Credential() intercept.CredentialInfo {
 	return i.credential
 }
 
-// setCredentialHint updates the credential hint to reflect the key
-// currently in use. Called by the centralized key failover loop on
-// each attempt so the recorded hint matches the actually-used key.
-func (i *interceptionBase) setCredentialHint(hint string) {
-	i.credential.Hint = hint
-}
-
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
 	i.logger = logger
 	i.recorder = rec

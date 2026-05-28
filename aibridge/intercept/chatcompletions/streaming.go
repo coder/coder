@@ -165,8 +165,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			}
 			currentKey = key
 			// Record the key in use so the hint reflects the last attempted key.
-			i.setCredentialHint(key.Hint())
-			logger.Debug(ctx, "using centralized api key", slog.F("credential_hint", key.Hint()))
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
