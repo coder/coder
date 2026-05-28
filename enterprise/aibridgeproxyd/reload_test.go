@@ -236,85 +236,123 @@ func (h *reloadTestHarness) expectNotRouted(t *testing.T, targetURL string) {
 		"aibridged must not be reached for non-routed host %s", targetURL)
 }
 
-// TestProxy_DisabledProviderStopsRoutingOverExistingTunnel is the
+// TestProxy_StaleTunnelStopsRoutingAfterProviderChange is the
 // regression test for a bug where a long-lived CONNECT tunnel that was
 // established while a provider was enabled kept routing decrypted
-// requests to aibridged after the provider was disabled. The fix
-// re-validates the CONNECT-time provider against the live router on
-// every decrypted request.
-func TestProxy_DisabledProviderStopsRoutingOverExistingTunnel(t *testing.T) {
+// requests to aibridged after the provider was disabled or renamed. The
+// fix re-validates the CONNECT-time provider against the live router on
+// every decrypted request and covers both shapes of stale mapping:
+//
+//   - ProviderDisabled: liveProvider == "" (host no longer MITM'd).
+//   - ProviderRenamed: liveProvider != reqCtx.Provider (host MITM'd, but
+//     under a new provider name).
+func TestProxy_StaleTunnelStopsRoutingAfterProviderChange(t *testing.T) {
 	t.Parallel()
 
-	recorder := &aibridgedRecorder{}
-	bridged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recorder.record(r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("aibridged"))
-	}))
-	t.Cleanup(bridged.Close)
-
-	store := &providerStore{}
-	store.set([]rawProvider{
-		{name: "alpha", baseURL: "https://alpha.invalid/v1"},
-	})
-
-	srv := newTestProxy(t,
-		withCoderAccessURL(bridged.URL),
-		withAllowedPorts("443"),
-		withRefreshProviders(store.refresh),
-	)
-	// Populate the router with alpha so the initial CONNECT is MITM'd.
-	require.NoError(t, srv.Reload(t.Context()))
-
-	certPool := getProxyCertPool(t)
-	client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
-	// Keep-alives are required: the regression exists only when a
-	// subsequent request reuses the original CONNECT tunnel. A fresh
-	// CONNECT would correctly observe the post-reload router.
-	transport := client.Transport.(*http.Transport)
-	transport.DisableKeepAlives = false
-	transport.MaxConnsPerHost = 1
-	transport.MaxIdleConnsPerHost = 1
-
-	// First request: alpha is enabled, the proxy MITMs and routes to
-	// aibridged under the alpha namespace.
-	sendThroughTunnel := func(path string) (status int, err error) {
-		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
-		defer cancel()
-		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://alpha.invalid"+path, strings.NewReader(`{}`))
-		require.NoError(t, reqErr)
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := client.Do(req)
-		if err != nil {
-			return 0, err
-		}
-		defer resp.Body.Close()
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return resp.StatusCode, nil
+	testCases := []struct {
+		name string
+		// applyChange mutates the store to simulate the provider change
+		// after the initial routed request succeeds.
+		applyChange func(*providerStore)
+		// changeDescription is appended to the second-request assertion
+		// message so a failure points at the exercised branch.
+		changeDescription string
+	}{
+		{
+			name:              "ProviderDisabled",
+			applyChange:       func(s *providerStore) { s.set(nil) },
+			changeDescription: "after alpha was disabled",
+		},
+		{
+			name: "ProviderRenamed",
+			applyChange: func(s *providerStore) {
+				// Same host, new provider name: the live router still
+				// MITMs alpha.invalid, but as "alpha-v2". The stale
+				// CONNECT-time name "alpha" no longer matches.
+				s.set([]rawProvider{
+					{name: "alpha-v2", baseURL: "https://alpha.invalid/v1"},
+				})
+			},
+			changeDescription: "after alpha was renamed to alpha-v2",
+		},
 	}
 
-	recorder.reset()
-	status, err := sendThroughTunnel("/v1/messages")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
-	require.Equal(t, "/api/v2/aibridge/alpha/v1/messages", recorder.load(),
-		"first request must be routed to aibridged while alpha is enabled")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Disable alpha by clearing the store and reloading. The atomic
-	// router swap excludes alpha, but the client's connection (and the
-	// proxy's hijacked tunnel) remain open.
-	store.set(nil)
-	require.NoError(t, srv.Reload(t.Context()))
+			recorder := &aibridgedRecorder{}
+			bridged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				recorder.record(r.URL.Path)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("aibridged"))
+			}))
+			t.Cleanup(bridged.Close)
 
-	// Second request on the same tunnel: aibridged must NOT see it.
-	// The connection is hijacked so the request reaches the proxy's
-	// handleRequest with the stale CONNECT-time provider; the fix
-	// re-validates against the live router and passes through to the
-	// original upstream (alpha.invalid, which fails DNS).
-	recorder.reset()
-	_, _ = sendThroughTunnel("/v1/should-not-route")
-	require.Empty(t, recorder.load(),
-		"after alpha was disabled, aibridged must not receive the request even on a reused tunnel")
+			store := &providerStore{}
+			store.set([]rawProvider{
+				{name: "alpha", baseURL: "https://alpha.invalid/v1"},
+			})
+
+			// newTestProxy seeds the router from the store via the
+			// initial Reload, so the first CONNECT is MITM'd as alpha.
+			srv := newTestProxy(t,
+				withCoderAccessURL(bridged.URL),
+				withAllowedPorts("443"),
+				withRefreshProviders(store.refresh),
+			)
+
+			certPool := getProxyCertPool(t)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+			// Keep-alives are required: the regression exists only when a
+			// subsequent request reuses the original CONNECT tunnel. A fresh
+			// CONNECT would correctly observe the post-reload router.
+			transport := client.Transport.(*http.Transport)
+			transport.DisableKeepAlives = false
+			transport.MaxConnsPerHost = 1
+			transport.MaxIdleConnsPerHost = 1
+
+			sendThroughTunnel := func(path string) (status int, err error) {
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
+				defer cancel()
+				req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://alpha.invalid"+path, strings.NewReader(`{}`))
+				require.NoError(t, reqErr)
+				req.Header.Set("Content-Type", "application/json")
+				resp, err := client.Do(req)
+				if err != nil {
+					return 0, err
+				}
+				defer resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
+				return resp.StatusCode, nil
+			}
+
+			// First request: alpha is enabled, the proxy MITMs and routes to
+			// aibridged under the alpha namespace.
+			recorder.reset()
+			status, err := sendThroughTunnel("/v1/messages")
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, "/api/v2/aibridge/alpha/v1/messages", recorder.load(),
+				"first request must be routed to aibridged while alpha is enabled")
+
+			// Apply the provider change and reload. The atomic router swap
+			// takes effect immediately, but the client's connection (and
+			// the proxy's hijacked tunnel) remain open.
+			tc.applyChange(store)
+			require.NoError(t, srv.Reload(t.Context()))
+
+			// Second request on the same tunnel: aibridged must NOT see it.
+			// The connection is hijacked so the request reaches the proxy's
+			// handleRequest with the stale CONNECT-time provider; the fix
+			// re-validates against the live router and passes through to
+			// the original upstream (alpha.invalid, which fails DNS).
+			recorder.reset()
+			_, _ = sendThroughTunnel("/v1/should-not-route")
+			require.Empty(t, recorder.load(),
+				"%s, aibridged must not receive the request even on a reused tunnel", tc.changeDescription)
+		})
+	}
 }
 
 // TestProxy_HotReloadRoutingCRUD drives the proxy through a CRUD-style
