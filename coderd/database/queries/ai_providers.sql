@@ -48,7 +48,8 @@ INSERT INTO ai_providers (
     enabled,
     base_url,
     settings,
-    settings_key_id
+    settings_key_id,
+    updated_by
 ) VALUES (
     @id::uuid,
     @type::ai_provider_type,
@@ -57,7 +58,8 @@ INSERT INTO ai_providers (
     @enabled::boolean,
     @base_url::text,
     sqlc.narg('settings')::text,
-    sqlc.narg('settings_key_id')::text
+    sqlc.narg('settings_key_id')::text,
+    sqlc.narg('updated_by')::uuid
 )
 RETURNING
     *;
@@ -71,6 +73,7 @@ SET
     base_url = @base_url::text,
     settings = sqlc.narg('settings')::text,
     settings_key_id = sqlc.narg('settings_key_id')::text,
+    updated_by = sqlc.narg('updated_by')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid AND deleted = FALSE
@@ -83,6 +86,7 @@ UPDATE
 SET
     deleted = TRUE,
     enabled = FALSE,
+    updated_by = sqlc.narg('updated_by')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid AND deleted = FALSE;

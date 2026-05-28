@@ -35,7 +35,13 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
     "name": "string",
     "settings": {},
     "type": "openai",
-    "updated_at": "2019-08-24T14:15:22Z"
+    "updated_at": "2019-08-24T14:15:22Z",
+    "updated_by": {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "username": "string"
+    }
   }
 ]
 ```
@@ -66,6 +72,11 @@ Status Code **200**
 | `» settings`     | [codersdk.AIProviderSettings](schemas.md#codersdkaiprovidersettings) | false    |              |             |
 | `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype)         | false    |              |             |
 | `» updated_at`   | string(date-time)                                                    | false    |              |             |
+| `» updated_by`   | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)               | false    |              |             |
+| `»» avatar_url`  | string(uri)                                                          | false    |              |             |
+| `»» id`          | string(uuid)                                                         | true     |              |             |
+| `»» name`        | string                                                               | false    |              |             |
+| `»» username`    | string                                                               | true     |              |             |
 
 #### Enumerated Values
 
@@ -132,7 +143,13 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
   "name": "string",
   "settings": {},
   "type": "openai",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
 }
 ```
 
@@ -184,7 +201,13 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "name": "string",
   "settings": {},
   "type": "openai",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
 }
 ```
 
@@ -281,7 +304,13 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "name": "string",
   "settings": {},
   "type": "openai",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
 }
 ```
 

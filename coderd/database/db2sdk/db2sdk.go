@@ -49,7 +49,9 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 // store). Each api_key is masked via aibridge utils.MaskSecret and
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
-func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
+// The optional usersByID map resolves the updated_by column to a
+// MinimalUser; pass nil when user resolution is not needed.
+func AIProvider(row database.AIProvider, keys []database.AIProviderKey, usersByID map[uuid.UUID]database.User) (codersdk.AIProvider, error) {
 	display := row.Name
 	if row.DisplayName.Valid && row.DisplayName.String != "" {
 		display = row.DisplayName.String
@@ -64,6 +66,12 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		APIKeys:     maskAIProviderKeys(keys),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
+	}
+	if row.UpdatedBy.Valid && usersByID != nil {
+		if u, ok := usersByID[row.UpdatedBy.UUID]; ok {
+			mu := MinimalUser(u)
+			out.UpdatedBy = &mu
+		}
 	}
 	s, err := AIProviderSettings(row.Settings)
 	if err != nil {

@@ -216,6 +216,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
 		Settings:      seed.Settings,
 		SettingsKeyID: seed.SettingsKeyID,
+		UpdatedBy:     seed.UpdatedBy,
 	}
 	for _, fn := range munge {
 		fn(&params)

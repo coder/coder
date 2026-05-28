@@ -137,6 +137,7 @@ func SeedAIProvidersFromEnv(
 				BaseUrl:       dp.BaseURL,
 				Settings:      settings,
 				SettingsKeyID: sql.NullString{},
+				UpdatedBy:     uuid.NullUUID{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert ai provider %q: %w", dp.Name, err)

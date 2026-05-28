@@ -1318,7 +1318,13 @@
   "name": "string",
   "settings": {},
   "type": "openai",
-  "updated_at": "2019-08-24T14:15:22Z"
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
 }
 ```
 
@@ -1336,6 +1342,7 @@
 | `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
 | `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
 | `updated_at`   | string                                                     | false    |              |             |
+| `updated_by`   | [codersdk.MinimalUser](#codersdkminimaluser)               | false    |              |             |
 
 ## codersdk.AIProviderConfig
 

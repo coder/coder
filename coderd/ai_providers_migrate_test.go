@@ -413,7 +413,9 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
-		require.NoError(t, db.DeleteAIProviderByID(ctx, row.ID))
+		require.NoError(t, db.DeleteAIProviderByID(ctx, database.DeleteAIProviderByIDParams{
+			ID: row.ID,
+		}))
 
 		// Re-run seed; the soft-deleted row should remain soft-deleted
 		// and no new row should be created.

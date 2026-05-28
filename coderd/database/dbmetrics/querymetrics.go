@@ -377,7 +377,7 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id database.DeleteAIProviderByIDParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteAIProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIProviderByID").Observe(time.Since(start).Seconds())

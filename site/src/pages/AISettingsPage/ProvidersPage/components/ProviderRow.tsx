@@ -5,6 +5,7 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { relativeTime } from "#/utils/time";
 import { ProviderIcon } from "./ProviderIcon";
 import { getProviderDisplayType } from "./providerFormApiMap";
 
@@ -45,6 +46,9 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			<TableCell>
 				{provider.enabled && <Badge variant="default">Enabled</Badge>}
 			</TableCell>
+			<TableCell data-chromatic="ignore">
+				<LastModifiedCell provider={provider} />
+			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
@@ -54,5 +58,20 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				</div>
 			</TableCell>
 		</TableRow>
+	);
+};
+
+const LastModifiedCell: React.FC<{ provider: AIProvider }> = ({ provider }) => {
+	const time = relativeTime(provider.updated_at);
+	const user = provider.updated_by;
+
+	if (!user) {
+		return <span className="text-content-secondary text-sm">{time}</span>;
+	}
+
+	return (
+		<span className="text-content-secondary text-sm" title={user.username}>
+			{time} by {user.name || user.username}
+		</span>
 	);
 };

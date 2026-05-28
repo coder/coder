@@ -323,6 +323,7 @@ export interface AIProvider {
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly updated_by?: MinimalUser;
 }
 
 // From codersdk/aiproviders_bedrock.go

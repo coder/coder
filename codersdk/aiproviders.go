@@ -174,6 +174,7 @@ type AIProvider struct {
 	Settings    AIProviderSettings `json:"settings"`
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
+	UpdatedBy   *MinimalUser       `json:"updated_by,omitempty"`
 }
 
 // AIProviderKey is a single API key registered on a provider. The

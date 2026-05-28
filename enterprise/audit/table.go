@@ -391,6 +391,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"settings_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":      ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":      ActionIgnore, // Changes; not useful in a diff.
+		"updated_by":      ActionTrack,
 	},
 	&database.AIProviderKey{}: {
 		"id":             ActionTrack,

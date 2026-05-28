@@ -18,6 +18,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
 import { pageTitle } from "#/utils/page";
+import { relativeTime } from "#/utils/time";
 import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import {
@@ -149,6 +150,15 @@ const UpdateProviderPageView: React.FC = () => {
 					</SettingsHeaderTitle>
 					{!provider.enabled && <Badge variant="default">Disabled</Badge>}
 				</div>
+				{provider.updated_by && (
+					<p
+						className="text-xs text-content-secondary m-0"
+						data-chromatic="ignore"
+					>
+						Last modified {relativeTime(provider.updated_at)} by{" "}
+						{provider.updated_by.name || provider.updated_by.username}
+					</p>
+				)}
 				<div className="flex items-center justify-between w-full">
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}

@@ -1876,7 +1876,7 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteAIProviderByID(ctx context.Context, id database.DeleteAIProviderByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
 		return err
 	}

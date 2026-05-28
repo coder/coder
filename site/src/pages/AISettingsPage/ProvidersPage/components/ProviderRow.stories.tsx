@@ -11,6 +11,7 @@ import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
 	MockAIProviderOpenAI,
+	MockUserOwner,
 } from "#/testHelpers/entities";
 import { ProviderRow } from "./ProviderRow";
 
@@ -25,11 +26,10 @@ const meta: Meta<typeof ProviderRow> = {
 			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[42%]">Name</TableHead>
-						<TableHead className="w-[38%]">Base URL</TableHead>
-						<TableHead className="w-20 text-center">
-							<span className="sr-only">Enabled</span>
-						</TableHead>
+						<TableHead className="w-1/4">Name</TableHead>
+						<TableHead className="w-1/4">Base URL</TableHead>
+						<TableHead className="w-22">Status</TableHead>
+						<TableHead className="w-1/4">Last modified</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open provider</span>
 						</TableHead>
@@ -61,6 +61,20 @@ export const Anthropic: Story = {
 export const Bedrock: Story = {
 	args: {
 		provider: MockAIProviderBedrock,
+	},
+};
+
+export const WithUpdatedBy: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			updated_by: {
+				id: MockUserOwner.id,
+				username: MockUserOwner.username,
+				name: MockUserOwner.name,
+				avatar_url: MockUserOwner.avatar_url,
+			},
+		},
 	},
 };
 

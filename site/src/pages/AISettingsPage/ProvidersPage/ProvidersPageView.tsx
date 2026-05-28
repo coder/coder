@@ -101,9 +101,10 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-1/3">Name</TableHead>
-						<TableHead className="w-1/3">Base URL</TableHead>
+						<TableHead className="w-1/4">Name</TableHead>
+						<TableHead className="w-1/4">Base URL</TableHead>
 						<TableHead className="w-22">Status</TableHead>
+						<TableHead className="w-1/4">Last modified</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>

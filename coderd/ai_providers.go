@@ -78,9 +78,19 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usersByID, err := aiProviderUsersByID(ctx, api.Database, rows)
+	if err != nil {
+		api.Logger.Error(ctx, "fetch AI provider users", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading AI provider users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
-		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
+		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID], usersByID)
 		if err != nil {
 			api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -121,7 +131,17 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sdk, err := db2sdk.AIProvider(row, keys)
+	usersByID, err := aiProviderUsersByID(ctx, api.Database, []database.AIProvider{row})
+	if err != nil {
+		api.Logger.Error(ctx, "fetch AI provider users", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading AI provider users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdk, err := db2sdk.AIProvider(row, keys, usersByID)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -189,8 +209,9 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		row  database.AIProvider
-		keys []database.AIProviderKey
+		row     database.AIProvider
+		keys    []database.AIProviderKey
+		actorID = httpmw.APIKey(r).UserID
 	)
 	err = api.Database.InTx(func(tx database.Store) error {
 		var txErr error
@@ -204,6 +225,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 			Settings:    settings,
 			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
+			UpdatedBy:     uuid.NullUUID{UUID: actorID, Valid: true},
 		})
 		if txErr != nil {
 			return txErr
@@ -238,7 +260,17 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
 	api.publishAIProvidersChanged(ctx)
 
-	sdk, err := db2sdk.AIProvider(row, keys)
+	usersByID, err := aiProviderUsersByID(ctx, api.Database, []database.AIProvider{row})
+	if err != nil {
+		api.Logger.Error(ctx, "fetch AI provider users", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading AI provider users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdk, err := db2sdk.AIProvider(row, keys, usersByID)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -299,6 +331,8 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
+	actorID := httpmw.APIKey(r).UserID
+
 	var (
 		updated    database.AIProvider
 		keys       []database.AIProviderKey
@@ -353,6 +387,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			Settings:    settings,
 			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
+			UpdatedBy:     uuid.NullUUID{UUID: actorID, Valid: true},
 		}
 
 		updated, err = tx.UpdateAIProvider(ctx, params)
@@ -407,7 +442,17 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
 	api.publishAIProvidersChanged(ctx)
 
-	sdk, err := db2sdk.AIProvider(updated, keys)
+	usersByID, err := aiProviderUsersByID(ctx, api.Database, []database.AIProvider{updated})
+	if err != nil {
+		api.Logger.Error(ctx, "fetch AI provider users", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading AI provider users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sdk, err := db2sdk.AIProvider(updated, keys, usersByID)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", updated.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -441,6 +486,8 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
+	actorID := httpmw.APIKey(r).UserID
+
 	err := api.Database.InTx(func(tx database.Store) error {
 		row, err := lookupAIProvider(ctx, tx, idOrName)
 		if err != nil {
@@ -449,7 +496,10 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 		aReq.Old = row
 
 		// Soft-delete UPDATE; :exec, so re-deletion is a silent no-op.
-		if err := tx.DeleteAIProviderByID(ctx, row.ID); err != nil {
+		if err := tx.DeleteAIProviderByID(ctx, database.DeleteAIProviderByIDParams{
+			ID:        row.ID,
+			UpdatedBy: uuid.NullUUID{UUID: actorID, Valid: true},
+		}); err != nil {
 			return xerrors.Errorf("delete ai provider: %w", err)
 		}
 		return nil
@@ -757,4 +807,39 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 		}
 	}
 	return codersdk.AIProviderSettings{Bedrock: &merged}
+}
+
+// aiProviderUsersByID collects distinct updated_by user IDs from the
+// given providers and returns a map of user ID to database.User.
+// The result can be passed to db2sdk.AIProvider for user resolution.
+func aiProviderUsersByID(ctx context.Context, db database.Store, providers []database.AIProvider) (map[uuid.UUID]database.User, error) {
+	ids := make([]uuid.UUID, 0, len(providers))
+	seen := make(map[uuid.UUID]struct{}, len(providers))
+	for _, p := range providers {
+		if !p.UpdatedBy.Valid {
+			continue
+		}
+		if _, ok := seen[p.UpdatedBy.UUID]; ok {
+			continue
+		}
+		seen[p.UpdatedBy.UUID] = struct{}{}
+		ids = append(ids, p.UpdatedBy.UUID)
+	}
+	if len(ids) == 0 {
+		return make(map[uuid.UUID]database.User), nil
+	}
+	// GetUsersByIDs does not filter deleted users, which is correct here
+	// because we display historical user references (e.g. who last edited
+	// a provider that was later reassigned). The caller only reads display
+	// fields (name, username, avatar) so no privileged data leaks.
+	//nolint:gocritic // System-restricted needed to resolve users the caller may not have RBAC read on.
+	users, err := db.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[uuid.UUID]database.User, len(users))
+	for _, u := range users {
+		m[u.ID] = u
+	}
+	return m, nil
 }

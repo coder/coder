@@ -604,17 +604,17 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 }
 
 // DeleteAIProviderByID mocks base method.
-func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteAIProviderByID(ctx context.Context, arg database.DeleteAIProviderByIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAIProviderByID", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteAIProviderByID", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteAIProviderByID indicates an expected call of DeleteAIProviderByID.
-func (mr *MockStoreMockRecorder) DeleteAIProviderByID(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteAIProviderByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderByID", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderByID", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderByID), ctx, arg)
 }
 
 // DeleteAIProviderKey mocks base method.
