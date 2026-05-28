@@ -549,6 +549,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</div>
 				<Collapse in={shouldExpandLogs}>
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
+						{/*
+						  Collapse's `in` condition is needed here,
+							or else the Spinner will also show as Collapse is closing
+						*/}
 						{shouldExpandLogs && !shouldShowLogsTabs && (
 							<Spinner size="lg" loading className="block mx-auto" />
 						)}
