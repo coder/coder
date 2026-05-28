@@ -193,6 +193,41 @@ export const TerminalTimeoutErrorUnknownProvider: Story = {
 	},
 };
 
+/**
+ * Missing API key attribution shows "Chat interrupted" heading with
+ * an actionable message telling the user to resend.
+ */
+export const TerminalKeyAttributionError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "key_attribution",
+				message:
+					"This conversation was started with an API key that is no longer available. Send your message again to continue.",
+				retryable: false,
+				detail:
+					"If this error persists after resending, please report it as a bug.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /chat interrupted/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/this conversation was started with an api key that is no longer available/i,
+			),
+		).toBeVisible();
+		// Guard against the generic fallback.
+		expect(
+			canvas.queryByText(/the chat request failed unexpectedly/i),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Retrying a transport timeout shows attempt + countdown. */
 export const RetryingTimeoutAnthropic: Story = {
 	args: {

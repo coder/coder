@@ -90,6 +90,13 @@ func TestTerminalMessage(t *testing.T) {
 			retryable: false,
 			want:      "The usage quota for the AI provider has been exceeded. Check the billing and quota settings for the provider account.",
 		},
+		{
+			name:      "KeyAttribution",
+			kind:      codersdk.ChatErrorKindKeyAttribution,
+			provider:  "",
+			retryable: false,
+			want:      "This conversation was started with an API key that is no longer available. Send your message again to continue.",
+		},
 	}
 
 	for _, tt := range tests {

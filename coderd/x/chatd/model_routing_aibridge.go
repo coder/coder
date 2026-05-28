@@ -16,7 +16,9 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -98,7 +100,14 @@ func (p *Server) newAIGatewayModel(
 		return nil, xerrors.New("AI Gateway routing requires an AI provider name")
 	}
 	if opts.ActiveAPIKeyID == "" {
-		return nil, xerrors.New("AI Gateway routing requires the active turn API key ID")
+		return nil, chaterror.WithClassification(
+			xerrors.New("AI Gateway routing requires the active turn API key ID"),
+			chaterror.ClassifiedError{
+				Kind:      codersdk.ChatErrorKindKeyAttribution,
+				Retryable: false,
+				Detail:    "If this error persists after resending, please report it as a bug.",
+			},
+		)
 	}
 
 	factoryPtr := p.aibridgeTransportFactory

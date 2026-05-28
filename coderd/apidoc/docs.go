@@ -16554,7 +16554,8 @@ const docTemplate = `{
                 "startup_timeout",
                 "auth",
                 "config",
-                "usage_limit"
+                "usage_limit",
+                "key_attribution"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16564,7 +16565,8 @@ const docTemplate = `{
                 "ChatErrorKindStartupTimeout",
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
-                "ChatErrorKindUsageLimit"
+                "ChatErrorKindUsageLimit",
+                "ChatErrorKindKeyAttribution"
             ]
         },
         "codersdk.ChatFileMetadata": {

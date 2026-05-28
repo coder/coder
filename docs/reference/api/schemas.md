@@ -2732,9 +2732,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                             |
-|------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `key_attribution`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 

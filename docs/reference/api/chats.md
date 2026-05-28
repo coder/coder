@@ -292,13 +292,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                     |
-|---------------|--------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                  |
-| `kind`        | `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit`         |
-| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
-| `plan_mode`   | `plan`                                                                                                       |
-| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                           |
+| Property      | Value(s)                                                                                                                |
+|---------------|-------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                             |
+| `kind`        | `auth`, `config`, `generic`, `key_attribution`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`            |
+| `plan_mode`   | `plan`                                                                                                                  |
+| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
