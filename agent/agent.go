@@ -514,7 +514,12 @@ func (a *agent) runLoop() {
 			return
 		}
 		if errors.Is(err, io.EOF) {
-			a.logger.Info(ctx, "disconnected from coderd")
+			a.logger.Info(ctx, "disconnected from coderd",
+				codersdk.ConnectionDirectionServerToAgent.SlogField(),
+				codersdk.DisconnectReasonNetworkError.SlogField(),
+				codersdk.DisconnectReasonNetworkError.SlogExpectedField(),
+				codersdk.DisconnectInitiatorNetwork.SlogField(),
+			)
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
@@ -1878,16 +1883,43 @@ func (a *agent) createTailnet(
 	return network, nil
 }
 
+// classifyCoordinatorRPCExit determines the DisconnectReason and
+// DisconnectInitiator for a coordinator-style RPC (the coordination RPC
+// and the DERP map subscriber RPC) that has just returned. A canceled
+// local context means the agent itself is shutting down. A non-nil
+// return error without context cancellation means the stream broke
+// unexpectedly.
+func classifyCoordinatorRPCExit(ctx context.Context, retErr error) (codersdk.DisconnectReason, codersdk.DisconnectInitiator) {
+	localShutdown := ctx.Err() != nil
+	switch {
+	case localShutdown:
+		return codersdk.DisconnectReasonServerShutdown, codersdk.DisconnectInitiatorAgent
+	case retErr == nil:
+		return codersdk.DisconnectReasonGraceful, codersdk.DisconnectInitiatorServer
+	default:
+		return codersdk.DisconnectReasonNetworkError, codersdk.DisconnectInitiatorNetwork
+	}
+}
+
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
-func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTailnetClient24, network *tailnet.Conn) error {
-	defer a.logger.Debug(ctx, "disconnected from coordination RPC")
+func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTailnetClient24, network *tailnet.Conn) (retErr error) {
 	// we run the RPC on the hardCtx so that we have a chance to send the disconnect message if we
 	// gracefully shut down.
 	coordinate, err := tClient.Coordinate(a.hardCtx)
 	if err != nil {
 		return xerrors.Errorf("failed to connect to the coordinate endpoint: %w", err)
 	}
+	defer func() {
+		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
+		a.logger.Debug(ctx, "disconnected from coordination RPC",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
+			reason.SlogField(),
+			reason.SlogExpectedField(),
+			initiator.SlogField(),
+			slog.Error(retErr),
+		)
+	}()
 	defer func() {
 		cErr := coordinate.Close()
 		if cErr != nil {
@@ -1935,8 +1967,7 @@ func (a *agent) setCoordDisconnected() chan struct{} {
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
-func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.DRPCTailnetClient24, network *tailnet.Conn) error {
-	defer a.logger.Debug(ctx, "disconnected from derp map RPC")
+func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.DRPCTailnetClient24, network *tailnet.Conn) (retErr error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream, err := tClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
@@ -1948,6 +1979,15 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 		if cErr != nil {
 			a.logger.Debug(ctx, "error closing DERPMap stream", slog.Error(err))
 		}
+
+		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
+		a.logger.Debug(ctx, "disconnected from derp map RPC",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
+			reason.SlogField(),
+			reason.SlogExpectedField(),
+			initiator.SlogField(),
+			slog.Error(retErr),
+		)
 	}()
 	a.logger.Info(ctx, "connected to derp map RPC")
 	for {
@@ -2260,9 +2300,20 @@ lifecycleWaitLoop:
 	// Wait for graceful disconnect from the Coordinator RPC
 	select {
 	case <-a.hardCtx.Done():
-		a.logger.Warn(context.Background(), "timed out waiting for Coordinator RPC disconnect")
+		a.logger.Warn(context.Background(), "timed out waiting for Coordinator RPC disconnect",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+			codersdk.DisconnectInitiatorAgent.SlogField(),
+			codersdk.SlogDisconnectDetail("timed out waiting for coordinator RPC to disconnect"),
+		)
 	case <-coordDisconnected:
-		a.logger.Debug(context.Background(), "coordinator RPC disconnected")
+		a.logger.Debug(context.Background(), "coordinator RPC disconnected",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+			codersdk.DisconnectInitiatorAgent.SlogField(),
+		)
 	}
 
 	// Wait for logs to be sent

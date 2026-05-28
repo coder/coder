@@ -31,8 +31,8 @@ workspace infrastructure.
 [Coder Agents](./ai-coder/agents/index.md) is a native AI coding agent built
 into Coder. The agent loop runs in the Coder control plane on your
 infrastructure, not in the workspace and not in a vendor's cloud. Developers
-interact with agents through the web UI, the CLI (`coder agents`), or the REST
-API for programmatic and CI-driven workflows.
+interact with agents through the web UI or the REST API for programmatic and
+CI-driven workflows.
 
 - **Self-hosted agent loop**: The control plane handles planning, model
   calls, and tool dispatch. Workspaces have zero AI awareness.

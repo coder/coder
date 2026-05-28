@@ -39,10 +39,11 @@ const (
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
-	// defaultStartupTimeout bounds how long an individual
-	// model attempt may spend starting to respond before
+	// defaultStreamSilenceTimeout bounds how long an individual
+	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStartupTimeout = 60 * time.Second
+	defaultStreamSilenceTimeout = 10 * time.Minute
+	streamSilenceGuardTimerTag  = "streamSilenceGuard"
 )
 
 var (
@@ -53,8 +54,8 @@ var (
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
 
-	errStartupTimeout = xerrors.New(
-		"chat response did not start before the startup timeout",
+	errStreamSilenceTimeout = xerrors.New(
+		"chat stream was silent for longer than the configured timeout",
 	)
 )
 
@@ -97,6 +98,15 @@ type PersistedStep struct {
 	// Applied by the persistence layer to set CreatedAt
 	// on persisted tool-result ChatMessageParts.
 	ToolResultCreatedAt map[string]time.Time
+	// ReasoningStartedAt and ReasoningCompletedAt are parallel
+	// slices indexed by the occurrence order of reasoning
+	// content in Content. The persistence layer walks reasoning
+	// parts in order and applies these timestamps to the
+	// corresponding ChatMessageParts so the frontend can render
+	// reasoning duration. Reasoning parts have no provider-side
+	// stable ID, so order is the only correlation we have.
+	ReasoningStartedAt   []time.Time
+	ReasoningCompletedAt []time.Time
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -105,14 +115,14 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
-	// StartupTimeout bounds how long each model attempt may
-	// spend opening the provider stream and waiting for its
-	// first stream part before the attempt is canceled and
-	// retried. Zero uses the production default.
-	StartupTimeout time.Duration
-	// Clock creates startup guard timers. In production use a
-	// real clock; tests can inject quartz.NewMock(t) to make
-	// startup timeout behavior deterministic.
+	// StreamSilenceTimeout bounds how long each model attempt
+	// may go without receiving a stream part before the
+	// attempt is canceled and retried. Zero uses the
+	// production default.
+	StreamSilenceTimeout time.Duration
+	// Clock creates stream silence guard timers. In production
+	// use a real clock; tests can inject quartz.NewMock(t) to
+	// make timeout behavior deterministic.
 	Clock quartz.Clock
 
 	ActiveTools          []string
@@ -223,14 +233,16 @@ type ProviderTool struct {
 // step. Since we own the stream consumer, all content is tracked
 // directly here, no shadow draft state needed.
 type stepResult struct {
-	content             []fantasy.Content
-	usage               fantasy.Usage
-	providerMetadata    fantasy.ProviderMetadata
-	finishReason        fantasy.FinishReason
-	toolCalls           []fantasy.ToolCallContent
-	shouldContinue      bool
-	toolCallCreatedAt   map[string]time.Time
-	toolResultCreatedAt map[string]time.Time
+	content              []fantasy.Content
+	usage                fantasy.Usage
+	providerMetadata     fantasy.ProviderMetadata
+	finishReason         fantasy.FinishReason
+	toolCalls            []fantasy.ToolCallContent
+	shouldContinue       bool
+	toolCallCreatedAt    map[string]time.Time
+	toolResultCreatedAt  map[string]time.Time
+	reasoningStartedAt   []time.Time
+	reasoningCompletedAt []time.Time
 }
 
 // toResponseMessages converts step content into messages suitable
@@ -253,12 +265,16 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			})
 		case fantasy.ContentTypeReasoning:
 			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok || strings.TrimSpace(reasoning.Text) == "" {
+			if !ok {
+				continue
+			}
+			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
+			if strings.TrimSpace(reasoning.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
 				Text:            reasoning.Text,
-				ProviderOptions: fantasy.ProviderOptions(reasoning.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case fantasy.ContentTypeToolCall:
 			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
@@ -332,8 +348,9 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 // reasoningState accumulates reasoning content and provider
 // metadata while the stream is in flight.
 type reasoningState struct {
-	text    string
-	options fantasy.ProviderMetadata
+	text      string
+	options   fantasy.ProviderMetadata
+	startedAt time.Time
 }
 
 // Run executes the chat step-stream loop and delegates
@@ -348,8 +365,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
-	if opts.StartupTimeout <= 0 {
-		opts.StartupTimeout = defaultStartupTimeout
+	if opts.StreamSilenceTimeout <= 0 {
+		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -418,9 +435,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 			}
 			var prepared []fantasy.Message
-			messages, prepared = prepareMessagesForRequest(
+			var prepareErr error
+			messages, prepared, prepareErr = prepareMessagesForRequest(
 				ctx, opts, messages, provider, modelName, step, totalSteps,
 			)
+			if prepareErr != nil {
+				return xerrors.Errorf("prepare prompt: %w", prepareErr)
+			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -437,14 +458,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 
 			var result stepResult
+			var retryPrepareErr error
 			stepCtx := chatdebug.ReuseStep(ctx)
 			err := chatretry.Retry(stepCtx, func(retryCtx context.Context) error {
+				if retryPrepareErr != nil {
+					return retryPrepareErr
+				}
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					provider,
 					modelName,
 					opts.Clock,
-					opts.StartupTimeout,
+					opts.StreamSilenceTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
@@ -497,9 +522,21 @@ func Run(ctx context.Context, opts RunOptions) error {
 							// Reloaded history replaces the prompt prepared before
 							// the failed attempt, so run the same preparation
 							// pipeline used by normal provider requests.
-							messages, call.Prompt = prepareMessagesForRequest(
+							var (
+								reloadedCanonical []fantasy.Message
+								retryPrompt       []fantasy.Message
+								prepareErr        error
+							)
+							call.Prompt = nil
+							reloadedCanonical, retryPrompt, prepareErr = prepareMessagesForRequest(
 								ctx, opts, reloaded, provider, modelName, step, totalSteps,
 							)
+							if prepareErr != nil {
+								retryPrepareErr = prepareErr
+							} else {
+								messages = reloadedCanonical
+								call.Prompt = retryPrompt
+							}
 						}
 					}
 				}
@@ -511,6 +548,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
 					return ErrInterrupted
+				}
+				if retryPrepareErr != nil && errors.Is(err, retryPrepareErr) {
+					return xerrors.Errorf("prepare prompt: %w", err)
 				}
 				return xerrors.Errorf("stream response: %w", err)
 			}
@@ -548,13 +588,15 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:             result.content,
-				Usage:               result.usage,
-				ContextLimit:        contextLimit,
-				ProviderResponseID:  chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-				Runtime:             time.Since(stepStart),
-				ToolCallCreatedAt:   result.toolCallCreatedAt,
-				ToolResultCreatedAt: result.toolResultCreatedAt,
+				Content:              result.content,
+				Usage:                result.usage,
+				ContextLimit:         contextLimit,
+				ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				Runtime:              time.Since(stepStart),
+				ToolCallCreatedAt:    result.toolCallCreatedAt,
+				ToolResultCreatedAt:  result.toolResultCreatedAt,
+				ReasoningStartedAt:   result.reasoningStartedAt,
+				ReasoningCompletedAt: result.reasoningCompletedAt,
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -693,7 +735,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 // prepareMessagesForRequest applies the prompt preparation pipeline used
 // immediately before sending messages to a provider. It returns the
 // possibly updated canonical messages and an independent provider-ready
-// prompt.
+// prompt. When preparation fails, the prompt result is nil and err is the
+// terminal prompt-preparation failure.
 func prepareMessagesForRequest(
 	ctx context.Context,
 	opts RunOptions,
@@ -702,7 +745,7 @@ func prepareMessagesForRequest(
 	modelName string,
 	step int,
 	totalSteps int,
-) (canonical []fantasy.Message, prompt []fantasy.Message) {
+) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
 	if opts.PrepareMessages != nil {
 		if updated := opts.PrepareMessages(canonical); updated != nil {
@@ -718,18 +761,31 @@ func prepareMessagesForRequest(
 		slog.F("step_index", step),
 		slog.F("total_steps", totalSteps),
 	)
-	prompt = chatsanitize.ApplyAnthropicProviderToolGuard(
+	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
 		ctx, opts.Logger, provider, modelName, prompt,
 	)
+	if err != nil {
+		err = chaterror.WithClassification(
+			xerrors.Errorf("apply anthropic provider tool guard: %w", err),
+			chaterror.ClassifiedError{
+				Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
+				Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  provider,
+				Retryable: false,
+			},
+		)
+		return canonical, nil, err
+	}
 	if shouldApplyAnthropicPromptCaching(opts.Model) {
 		addAnthropicPromptCaching(prompt)
 	}
-	return canonical, prompt
+	return canonical, prompt, nil
 }
 
-// guardedAttempt owns an attempt-scoped context and startup guard
+// guardedAttempt owns an attempt-scoped context and silence guard
 // around a provider stream. release is idempotent and frees the
-// attempt-scoped timer/context. finish canonicalizes startup timeout
+// attempt-scoped timer/context. finish canonicalizes silence timeout
 // errors before the retry loop classifies them.
 type guardedAttempt struct {
 	ctx     context.Context
@@ -738,47 +794,77 @@ type guardedAttempt struct {
 	finish  func(error) error
 }
 
-// startupGuard arbitrates whether an attempt times out during
-// stream startup. Exactly one outcome wins: the timer cancels
-// the attempt, or the first-part path disarms the timer.
-type startupGuard struct {
-	timer  *quartz.Timer
-	cancel context.CancelCauseFunc
-	once   sync.Once
+// streamSilenceGuard arbitrates whether an attempt times out while
+// waiting for the next stream part. Exactly one outcome wins: the
+// timer cancels the attempt, or release disarms the timer.
+type streamSilenceGuard struct {
+	mu      sync.Mutex
+	timer   *quartz.Timer
+	cancel  context.CancelCauseFunc
+	timeout time.Duration
+	settled bool
 }
 
-func newStartupGuard(
+func newStreamSilenceGuard(
 	clock quartz.Clock,
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
-) *startupGuard {
-	guard := &startupGuard{cancel: cancel}
-	guard.timer = clock.AfterFunc(timeout, guard.onTimeout, "startupGuard")
+) *streamSilenceGuard {
+	guard := &streamSilenceGuard{
+		cancel:  cancel,
+		timeout: timeout,
+	}
+	guard.timer = clock.AfterFunc(
+		timeout,
+		guard.onTimeout,
+		streamSilenceGuardTimerTag,
+	)
 	return guard
 }
 
-func (g *startupGuard) onTimeout() {
-	g.once.Do(func() {
-		g.cancel(errStartupTimeout)
-	})
+func (g *streamSilenceGuard) settle() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return false
+	}
+	g.settled = true
+	return true
 }
 
-func (g *startupGuard) Disarm() {
-	g.once.Do(func() {
-		g.timer.Stop()
-	})
+func (g *streamSilenceGuard) onTimeout() {
+	if !g.settle() {
+		return
+	}
+	g.cancel(errStreamSilenceTimeout)
 }
 
-func classifyStartupTimeout(
+func (g *streamSilenceGuard) Reset() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return
+	}
+	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
+}
+
+func (g *streamSilenceGuard) Disarm() {
+	if !g.settle() {
+		return
+	}
+	g.timer.Stop()
+}
+
+func classifyStreamSilenceTimeout(
 	attemptCtx context.Context,
 	provider string,
 	err error,
 ) error {
-	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+	if !errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
 		return err
 	}
 	if err == nil {
-		err = errStartupTimeout
+		err = errStreamSilenceTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
 		Kind:      codersdk.ChatErrorKindStartupTimeout,
@@ -796,7 +882,7 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
-	guard := newStartupGuard(clock, timeout, cancelAttempt)
+	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -808,7 +894,7 @@ func guardedStream(
 	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
-		err = classifyStartupTimeout(attemptCtx, provider, err)
+		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		release()
 		return guardedAttempt{}, err
 	}
@@ -822,7 +908,7 @@ func guardedStream(
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
-				guard.Disarm()
+				guard.Reset()
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -831,7 +917,7 @@ func guardedStream(
 		}),
 		release: release,
 		finish: func(err error) error {
-			return classifyStartupTimeout(attemptCtx, provider, err)
+			return classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		},
 	}, nil
 }
@@ -874,21 +960,24 @@ func processStepStream(
 
 		case fantasy.StreamPartTypeReasoningStart:
 			activeReasoningContent[part.ID] = reasoningState{
-				text:    part.Delta,
-				options: part.ProviderMetadata,
+				text:      part.Delta,
+				options:   part.ProviderMetadata,
+				startedAt: dbtime.Now(),
 			}
 
 		case fantasy.StreamPartTypeReasoningDelta:
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
-				active.options = part.ProviderMetadata
+				if len(part.ProviderMetadata) > 0 {
+					active.options = part.ProviderMetadata
+				}
 				activeReasoningContent[part.ID] = active
 			}
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
-				if part.ProviderMetadata != nil {
+				if len(part.ProviderMetadata) > 0 {
 					active.options = part.ProviderMetadata
 				}
 				content := fantasy.ReasoningContent{
@@ -896,6 +985,8 @@ func processStepStream(
 					ProviderMetadata: active.options,
 				}
 				result.content = append(result.content, content)
+				result.reasoningStartedAt = append(result.reasoningStartedAt, active.startedAt)
+				result.reasoningCompletedAt = append(result.reasoningCompletedAt, dbtime.Now())
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
@@ -1333,6 +1424,8 @@ func persistPendingDynamicStep(
 		ProviderResponseID:      chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:                 time.Since(stepStart),
 		PendingDynamicToolCalls: pending,
+		ReasoningStartedAt:      result.reasoningStartedAt,
+		ReasoningCompletedAt:    result.reasoningCompletedAt,
 	}); err != nil {
 		if errors.Is(err, ErrInterrupted) {
 			persistInterruptedStep(ctx, opts, result)
@@ -1562,14 +1655,21 @@ func flushActiveState(
 		}
 	}
 
-	// Flush partial reasoning content.
+	// Flush partial reasoning content. The matching
+	// completedAt is filled in here with the interruption
+	// time so partial reasoning shows the time spent before
+	// the interruption.
+	flushedAt := dbtime.Now()
 	for _, rs := range activeReasoning {
-		if rs.text != "" {
-			result.content = append(result.content, fantasy.ReasoningContent{
-				Text:             rs.text,
-				ProviderMetadata: rs.options,
-			})
+		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
+			continue
 		}
+		result.content = append(result.content, fantasy.ReasoningContent{
+			Text:             rs.text,
+			ProviderMetadata: rs.options,
+		})
+		result.reasoningStartedAt = append(result.reasoningStartedAt, rs.startedAt)
+		result.reasoningCompletedAt = append(result.reasoningCompletedAt, flushedAt)
 	}
 
 	// Flush in-progress tool calls. These haven't received a
@@ -1599,8 +1699,9 @@ func flushActiveState(
 }
 
 // persistInterruptedStep saves durable content from a partial stream.
-// Provider-executed calls without results are removed because their
-// result metadata cannot be synthesized safely.
+// Provider-executed calls without results are removed because their result
+// metadata cannot be synthesized safely, except when removal would mutate
+// signed Anthropic replay state.
 func persistInterruptedStep(
 	ctx context.Context,
 	opts RunOptions,
@@ -1682,9 +1783,11 @@ func persistInterruptedStep(
 
 	persistCtx := context.WithoutCancel(ctx)
 	if err := opts.PersistStep(persistCtx, PersistedStep{
-		Content:             content,
-		ToolCallCreatedAt:   toolCallCreatedAt,
-		ToolResultCreatedAt: toolResultCreatedAt,
+		Content:              content,
+		ToolCallCreatedAt:    toolCallCreatedAt,
+		ToolResultCreatedAt:  toolResultCreatedAt,
+		ReasoningStartedAt:   result.reasoningStartedAt,
+		ReasoningCompletedAt: result.reasoningCompletedAt,
 	}); err != nil {
 		if opts.OnInterruptedPersistError != nil {
 			opts.OnInterruptedPersistError(err)

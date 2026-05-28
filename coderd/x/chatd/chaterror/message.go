@@ -32,6 +32,17 @@ func terminalMessage(classified ClassifiedError) string {
 			"%s did not start responding in time.", subject,
 		)
 
+	case codersdk.ChatErrorKindUsageLimit:
+		displayName := providerDisplayName(classified.Provider)
+		if displayName == "" {
+			displayName = "the AI provider"
+		}
+		return fmt.Sprintf(
+			"The usage quota for %s has been exceeded."+
+				" Check the billing and quota settings for the provider account.",
+			displayName,
+		)
+
 	case codersdk.ChatErrorKindAuth:
 		displayName := providerDisplayName(classified.Provider)
 		if displayName == "" {
@@ -39,7 +50,7 @@ func terminalMessage(classified ClassifiedError) string {
 		}
 		return fmt.Sprintf(
 			"Authentication with %s failed."+
-				" Check the API key, permissions, and billing settings.",
+				" Check the API key and permissions.",
 			displayName,
 		)
 
@@ -49,6 +60,10 @@ func terminalMessage(classified ClassifiedError) string {
 				" Check the selected model and provider settings.",
 			subject,
 		)
+
+	case codersdk.ChatErrorKindMissingKey:
+		return "This conversation was started with an API key that is no longer available." +
+			" Send your message again to continue."
 
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
@@ -91,6 +106,8 @@ func retryMessage(classified ClassifiedError) string {
 		return fmt.Sprintf(
 			"%s rejected the model configuration.", subject,
 		)
+	case codersdk.ChatErrorKindMissingKey:
+		return "The API key for this conversation is no longer available."
 	default:
 		return fmt.Sprintf(
 			"%s returned an unexpected error.", subject,

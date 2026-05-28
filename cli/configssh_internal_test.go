@@ -12,11 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	// For golden files, always show the flag.
-	hideForceUnixSlashes = false
-}
-
 func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 	t.Parallel()
 

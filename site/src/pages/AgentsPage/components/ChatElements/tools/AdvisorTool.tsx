@@ -53,55 +53,55 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			defaultExpanded
 			headerClassName="items-start"
 			header={(expanded) => (
-				<>
-					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-						<div className="flex min-w-0 items-center gap-2 leading-4">
-							<ToolIcon
-								name="advisor"
-								isError={showError}
-								isRunning={isRunning}
-							/>
-							<ToolLabel
-								name="advisor"
-								args={{ question: questionText }}
-								result={resultType ? { type: resultType } : undefined}
-							/>
-							{isRunning && (
-								<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
-									{RUNNING_MESSAGE}
-								</span>
-							)}
-							{advisorModelText && (
-								<span className="min-w-0 truncate rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
-									{advisorModelText}
-								</span>
-							)}
-							{remainingUses !== undefined && (
-								<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
-									{remainingUses.toLocaleString("en-US")} uses left
-								</span>
-							)}
-						</div>
-						<span
-							className={cn(
-								"ml-6 block whitespace-normal break-words text-[13px]",
-								"font-normal leading-5 text-content-primary",
-								"[overflow-wrap:anywhere]",
-								!expanded && "line-clamp-2",
-							)}
-						>
-							{questionText}
-						</span>
+				<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+					<div className="flex min-w-0 items-center gap-2 leading-4">
+						<ToolIcon
+							name="advisor"
+							isError={showError}
+							isRunning={isRunning}
+						/>
+						<ToolLabel
+							name="advisor"
+							args={{ question: questionText }}
+							result={resultType ? { type: resultType } : undefined}
+						/>
+						{isRunning && (
+							<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+								{RUNNING_MESSAGE}
+							</span>
+						)}
+						{advisorModelText && (
+							<span className="min-w-0 truncate rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+								{advisorModelText}
+							</span>
+						)}
+						{remainingUses !== undefined && (
+							<span className="shrink-0 rounded-full border border-solid border-border-default px-2 text-[13px] leading-4 text-content-secondary">
+								{remainingUses.toLocaleString("en-US")} uses left
+							</span>
+						)}
 					</div>
-					{showLimitReached ? (
-						<TriangleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-warning" />
-					) : showError ? (
-						<CircleAlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-destructive" />
-					) : isRunning ? (
-						<LoaderIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-					) : null}
-				</>
+					<span
+						className={cn(
+							"ml-6 block whitespace-normal break-words text-[13px]",
+							"font-normal leading-5 text-content-primary",
+							"[overflow-wrap:anywhere]",
+							!expanded && "line-clamp-2",
+						)}
+					>
+						{questionText}
+					</span>
+				</div>
 			)}
+			headerStatus={
+				showLimitReached ? (
+					<TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-content-warning" />
+				) : showError ? (
+					<CircleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-content-destructive" />
+				) : isRunning ? (
+					<LoaderIcon className="mt-0.5 size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				) : null
+			}
 		>
 			<ScrollArea
 				className="mt-1.5 rounded-md border border-solid border-border-default bg-surface-primary"
@@ -119,7 +119,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							role="status"
 							className="flex items-start gap-3 rounded-md border border-solid border-border-warning bg-surface-orange p-3 text-sm text-content-primary"
 						>
-							<TriangleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-warning" />
+							<TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-warning" />
 							<div className="space-y-1">
 								<p className="m-0 font-medium">Advisor limit reached.</p>
 								<p className="m-0 text-content-primary">
@@ -132,7 +132,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 							role="alert"
 							className="flex items-start gap-3 rounded-md border border-solid border-border-destructive bg-surface-red p-3 text-sm text-content-primary"
 						>
-							<CircleAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-destructive" />
+							<CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-content-destructive" />
 							<div className="space-y-1">
 								<p className="m-0 font-medium">Advisor request failed.</p>
 								<p className="m-0 text-content-primary [overflow-wrap:anywhere]">

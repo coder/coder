@@ -517,3 +517,38 @@ WHERE
 	AND workspaces.deleted = FALSE
 	AND users.deleted = FALSE
 LIMIT 1;
+
+-- name: SoftDeletePriorWorkspaceAgents :exec
+-- Marks agents from all prior builds of this workspace as deleted,
+-- preserving only agents belonging to @current_build_id. Called from
+-- provisionerdserver when a workspace build completes, after the new
+-- build's agents have been inserted, so running agents are not
+-- deleted while a build is still queued or provisioning.
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = @workspace_id
+      AND wb.id <> @current_build_id
+      AND wa.deleted = FALSE
+);
+
+-- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec
+-- Marks every non-deleted agent belonging to the given workspace as
+-- deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
+-- itself is soft-deleted, so the agent instance-identity auth path
+-- (which filters on workspace_agents.deleted) doesn't keep seeing
+-- orphaned rows.
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = @workspace_id
+      AND wa.deleted = FALSE
+);

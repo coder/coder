@@ -96,28 +96,28 @@
         # 5. Update the vendorHash
         sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
-          version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
+          version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "sqlc";
-            rev = "aab4e865a51df0c43e1839f81a9d349b41d14f05";
-            sha256 = "sha256-zXjTypEFWDOkoZMKHMMRtAz2coNHSCkQ+nuZ8rOnzZ8=";
+            rev = "337309bfb9524f38466a5090e310040fc7af0203";
+            sha256 = "sha256-i8hZaaMlNJyW0hUWYcuNqUcwRdQU747055OknZsJ9Es=";
           };
 
           subPackages = [ "cmd/sqlc" ];
-          vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
+          vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
 
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
-        terraform_1_15_2 =
+        terraform_1_15_5 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.15.2" {
+            pkgs.runCommand "terraform-1.15.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip";
-                hash = "sha256-xW/yvH5s6bOHmlA5KwPC6gdLR2iL9QP/lmyH+wGyqrg=";
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
               };
             } ''
               mkdir -p "$out/bin"
@@ -198,7 +198,6 @@
             pango
             pixman
             pkg-config
-            playwright-driver.browsers
             pnpm
             postgresql_16
             proto_gen_go_1_30
@@ -209,7 +208,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_15_2
+            terraform_1_15_5
             typos
             which
             # Needed for many LD system libs!
@@ -278,16 +277,6 @@
             '';
           };
       in
-      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
-      # - https://nixos.wiki/wiki/Playwright
-      assert pkgs.lib.assertMsg
-        (
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-          == pkgs.playwright-driver.version
-        )
-        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
@@ -300,9 +289,6 @@
             ))
             {
             buildInputs = devShellPackages;
-
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
 
             LOCALE_ARCHIVE =
               with pkgs;

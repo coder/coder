@@ -354,6 +354,16 @@ func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
+	return codersdk.UserAppearanceSettings{
+		ThemePreference: settings.ThemePreference,
+		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:      settings.ThemeLight,
+		ThemeDark:       settings.ThemeDark,
+		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
+	}
+}
+
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
 func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
@@ -396,8 +406,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 
 	var eg errgroup.Group
 	var user database.User
-	var themePreference string
-	var terminalFont string
+	var userAppearance codersdk.UserAppearanceSettings
 	orgIDs := []uuid.UUID{}
 	var userOrgs []database.Organization
 	eg.Go(func() error {
@@ -406,22 +415,12 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return err
 	})
 	eg.Go(func() error {
-		var err error
-		themePreference, err = h.opts.Database.GetUserThemePreference(ctx, apiKey.UserID)
-		if errors.Is(err, sql.ErrNoRows) {
-			themePreference = ""
-			return nil
+		settings, err := h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		if err != nil {
+			return err
 		}
-		return err
-	})
-	eg.Go(func() error {
-		var err error
-		terminalFont, err = h.opts.Database.GetUserTerminalFont(ctx, apiKey.UserID)
-		if errors.Is(err, sql.ErrNoRows) {
-			terminalFont = ""
-			return nil
-		}
-		return err
+		userAppearance = userAppearanceSettingsFromRow(settings)
+		return nil
 	})
 	eg.Go(func() error {
 		memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
@@ -446,7 +445,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	})
 	err := eg.Wait()
 	if err == nil {
-		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, userOrgs, themePreference, terminalFont)
+		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, userOrgs, userAppearance)
 	}
 
 	return execTmpl(tmpl, state)
@@ -463,8 +462,7 @@ func (h *Handler) populateHTMLState(
 	user database.User,
 	orgIDs []uuid.UUID,
 	userOrgs []database.Organization,
-	themePreference string,
-	terminalFont string,
+	userAppearance codersdk.UserAppearanceSettings,
 ) {
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -474,10 +472,7 @@ func (h *Handler) populateHTMLState(
 		}
 	})
 	wg.Go(func() {
-		data, err := json.Marshal(codersdk.UserAppearanceSettings{
-			ThemePreference: themePreference,
-			TerminalFont:    codersdk.TerminalFontName(terminalFont),
-		})
+		data, err := json.Marshal(userAppearance)
 		if err == nil {
 			state.UserAppearance = html.EscapeString(string(data))
 		}

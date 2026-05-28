@@ -29,11 +29,11 @@ export const CopyButton: FC<CopyButtonProps> = ({
 				<Button
 					size="icon"
 					variant="subtle"
+					aria-label={label}
 					onClick={() => copyToClipboard(text)}
 					{...buttonProps}
 				>
 					{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-					<span className="sr-only">{label}</span>
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent side={tooltipSide}>{label}</TooltipContent>

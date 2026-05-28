@@ -1,29 +1,107 @@
 -- name: ArchiveChatByID :many
-WITH chats AS (
+WITH updated_chats AS (
     UPDATE chats
     SET archived = true, pin_order = 0, updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chats.id,
+        updated_chats.owner_id,
+        updated_chats.workspace_id,
+        updated_chats.title,
+        updated_chats.status,
+        updated_chats.worker_id,
+        updated_chats.started_at,
+        updated_chats.heartbeat_at,
+        updated_chats.created_at,
+        updated_chats.updated_at,
+        updated_chats.parent_chat_id,
+        updated_chats.root_chat_id,
+        updated_chats.last_model_config_id,
+        updated_chats.archived,
+        updated_chats.last_error,
+        updated_chats.mode,
+        updated_chats.mcp_server_ids,
+        updated_chats.labels,
+        updated_chats.build_id,
+        updated_chats.agent_id,
+        updated_chats.pin_order,
+        updated_chats.last_read_message_id,
+        updated_chats.last_injected_context,
+        updated_chats.dynamic_tools,
+        updated_chats.organization_id,
+        updated_chats.plan_mode,
+        updated_chats.client_type,
+        updated_chats.last_turn_summary,
+        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chats
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
-FROM chats
-ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
+FROM chats_expanded
+ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
 
 -- name: UnarchiveChatByID :many
 -- Unarchives a chat (and its children). Stale file references are
 -- handled automatically by FK cascades on chat_file_links: when
 -- dbpurge deletes a chat_files row, the corresponding
 -- chat_file_links rows are cascade-deleted by PostgreSQL.
-WITH chats AS (
+WITH updated_chats AS (
     UPDATE chats SET
         archived = false,
         updated_at = NOW()
     WHERE id = @id::uuid OR root_chat_id = @id::uuid
     RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chats.id,
+        updated_chats.owner_id,
+        updated_chats.workspace_id,
+        updated_chats.title,
+        updated_chats.status,
+        updated_chats.worker_id,
+        updated_chats.started_at,
+        updated_chats.heartbeat_at,
+        updated_chats.created_at,
+        updated_chats.updated_at,
+        updated_chats.parent_chat_id,
+        updated_chats.root_chat_id,
+        updated_chats.last_model_config_id,
+        updated_chats.archived,
+        updated_chats.last_error,
+        updated_chats.mode,
+        updated_chats.mcp_server_ids,
+        updated_chats.labels,
+        updated_chats.build_id,
+        updated_chats.agent_id,
+        updated_chats.pin_order,
+        updated_chats.last_read_message_id,
+        updated_chats.last_injected_context,
+        updated_chats.dynamic_tools,
+        updated_chats.organization_id,
+        updated_chats.plan_mode,
+        updated_chats.client_type,
+        updated_chats.last_turn_summary,
+        COALESCE(root.user_acl, updated_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chats.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chats
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
-FROM chats
-ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
+FROM chats_expanded
+ORDER BY (chats_expanded.id = @id::uuid) DESC, chats_expanded.created_at ASC, chats_expanded.id ASC;
 
 -- name: PinChatByID :exec
 WITH target_chat AS (
@@ -211,10 +289,25 @@ WHERE
     id = @id::bigint;
 
 -- name: GetChatByID :one
+SELECT *
+FROM chats_expanded
+WHERE id = @id::uuid;
+
+-- name: GetChatACLByID :one
 SELECT
-    *
+    user_acl AS users,
+    group_acl AS groups
 FROM
     chats
+WHERE
+    id = @id::uuid;
+
+-- name: UpdateChatACLByID :exec
+UPDATE
+    chats
+SET
+    user_acl = @user_acl,
+    group_acl = @group_acl
 WHERE
     id = @id::uuid;
 
@@ -277,6 +370,38 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
+-- name: GetChatUserPromptsByChatID :many
+-- Returns the concatenated text of each user-visible user prompt in a
+-- chat, newest first. Used by the composer to populate the up/down
+-- arrow prompt-history cycle. Non-text parts (tool calls, files,
+-- attachments, ...) are excluded; messages whose text payload is
+-- entirely whitespace are dropped so cycling never lands on a blank
+-- entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+-- a scalar JSON string (predates migration 000434) so the lateral
+-- jsonb_array_elements never raises "cannot extract elements from a
+-- scalar". Backed by idx_chat_messages_user_prompts.
+SELECT
+    cm.id,
+    string_agg(part->>'text', '' ORDER BY ordinality)::text AS text
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = @chat_id::uuid
+    AND cm.role = 'user'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND part->>'type' = 'text'
+GROUP BY
+    cm.id
+HAVING
+    string_agg(part->>'text', '') ~ '\S'
+ORDER BY
+    cm.id DESC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 500);
+
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
@@ -336,25 +461,37 @@ ORDER BY
     id ASC;
 
 -- name: GetChats :many
+WITH cursor_chat AS (
+    SELECT
+        pin_order,
+        updated_at,
+        id
+    FROM chats
+    WHERE id = @after_id
+)
 SELECT
-    sqlc.embed(chats),
+    sqlc.embed(chats_expanded),
     EXISTS (
         SELECT 1 FROM chat_messages cm
-        WHERE cm.chat_id = chats.id
+        WHERE cm.chat_id = chats_expanded.id
             AND cm.role = 'assistant'
             AND cm.deleted = false
-            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+            AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
     ) AS has_unread
 FROM
-    chats
+    chats_expanded
 WHERE
     CASE
-        WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
+        WHEN @owned_only::boolean THEN chats_expanded.owner_id = @viewer_id::uuid
+        ELSE true
+    END
+    AND CASE
+        WHEN @shared_only::boolean THEN chats_expanded.owner_id != @viewer_id::uuid
         ELSE true
     END
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
-        ELSE chats.archived = sqlc.narg('archived') :: boolean
+        ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
@@ -362,26 +499,114 @@ WHERE
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
         WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-            (CASE WHEN pin_order > 0 THEN 1 ELSE 0 END, -pin_order, updated_at, id) < (
+            (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
-                    CASE WHEN c2.pin_order > 0 THEN 1 ELSE 0 END, -c2.pin_order, c2.updated_at, c2.id
+                    CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
+                    -cursor_chat.pin_order,
+                    cursor_chat.updated_at,
+                    cursor_chat.id
                 FROM
-                    chats c2
-                WHERE
-                    c2.id = @after_id
+                    cursor_chat
             )
         )
         ELSE true
     END
     AND CASE
-        WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
+        WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats_expanded.labels @> sqlc.narg('label_filter')::jsonb
+        ELSE true
+    END
+    -- Match chats whose linked diff URL (e.g. a pull request URL)
+    -- equals the given value, case-insensitively. The URL may live on
+    -- a delegated sub-agent's diff status, so we surface the root chat
+    -- when any descendant matches.
+    AND CASE
+        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            JOIN chats c2 ON c2.id = cds.chat_id
+            WHERE cds.url IS NOT NULL
+              AND cds.url <> ''
+              AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
+              AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
+        )
+        ELSE true
+    END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN sqlc.narg('has_unread')::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = sqlc.narg('has_unread')::boolean
+        ELSE true
+    END
+    -- Filter by pull request status. Unlike the diff_url filter above,
+    -- this intentionally checks only the root chat's own diff status.
+    -- Child chats share the same workspace and git branch as their
+    -- parent, so gitsync populates identical PR state on both; traversing
+    -- descendants would be redundant.
+    AND CASE
+        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY(@pull_request_statuses::text[])
+        )
+        ELSE true
+    END
+    -- Filter by PR number (exact match on chat's diff status).
+    AND CASE
+        WHEN @pr_number::int != 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pr_number = @pr_number
+        )
+        ELSE true
+    END
+    -- Filter by repository (substring match on remote origin or PR URL).
+    AND CASE
+        WHEN @repo_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    cds.git_remote_origin ILIKE '%' || @repo_query || '%'
+                    OR cds.url ILIKE '%' || @repo_query || '%'
+                )
+        )
+        ELSE true
+    END
+    -- Filter by pull request title (case-insensitive substring).
+    AND CASE
+        WHEN @pr_title_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pull_request_title ILIKE '%' || @pr_title_query || '%'
+        )
         ELSE true
     END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
     -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
-    AND chats.parent_chat_id IS NULL
+    AND chats_expanded.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -389,10 +614,10 @@ ORDER BY
     -- pinned chats, lower pin_order values come first. The negation
     -- trick (-pin_order) keeps all sort columns DESC so the cursor
     -- tuple < comparison works with uniform direction.
-    CASE WHEN pin_order > 0 THEN 1 ELSE 0 END DESC,
-    -pin_order DESC,
-    updated_at DESC,
-    id DESC
+    CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END DESC,
+    -chats_expanded.pin_order DESC,
+    chats_expanded.updated_at DESC,
+    chats_expanded.id DESC
 OFFSET @offset_opt
 LIMIT
     -- The chat list is unbounded and expected to grow large.
@@ -405,27 +630,28 @@ LIMIT
 -- invariant (parent archived implies child archived) is enforced
 -- at write time, not here.
 SELECT
-    sqlc.embed(chats),
+    sqlc.embed(chats_expanded),
     EXISTS (
         SELECT 1 FROM chat_messages cm
-        WHERE cm.chat_id = chats.id
+        WHERE cm.chat_id = chats_expanded.id
             AND cm.role = 'assistant'
             AND cm.deleted = false
-            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+            AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
     ) AS has_unread
 FROM
-    chats
+    chats_expanded
 WHERE
-    chats.parent_chat_id = ANY(@parent_ids :: uuid[])
+    chats_expanded.parent_chat_id = ANY(@parent_ids :: uuid[])
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
-        ELSE chats.archived = sqlc.narg('archived') :: boolean
+        ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
 ORDER BY
-    chats.created_at DESC,
-    chats.id DESC;
+    chats_expanded.created_at DESC,
+    chats_expanded.id DESC;
 
 -- name: InsertChat :one
+WITH inserted_chat AS (
 INSERT INTO chats (
     organization_id,
     owner_id,
@@ -461,8 +687,49 @@ INSERT INTO chats (
     sqlc.narg('dynamic_tools')::jsonb,
     @client_type::chat_client_type
 )
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        inserted_chat.id,
+        inserted_chat.owner_id,
+        inserted_chat.workspace_id,
+        inserted_chat.title,
+        inserted_chat.status,
+        inserted_chat.worker_id,
+        inserted_chat.started_at,
+        inserted_chat.heartbeat_at,
+        inserted_chat.created_at,
+        inserted_chat.updated_at,
+        inserted_chat.parent_chat_id,
+        inserted_chat.root_chat_id,
+        inserted_chat.last_model_config_id,
+        inserted_chat.archived,
+        inserted_chat.last_error,
+        inserted_chat.mode,
+        inserted_chat.mcp_server_ids,
+        inserted_chat.labels,
+        inserted_chat.build_id,
+        inserted_chat.agent_id,
+        inserted_chat.pin_order,
+        inserted_chat.last_read_message_id,
+        inserted_chat.last_injected_context,
+        inserted_chat.dynamic_tools,
+        inserted_chat.organization_id,
+        inserted_chat.plan_mode,
+        inserted_chat.client_type,
+        inserted_chat.last_turn_summary,
+        COALESCE(root.user_acl, inserted_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, inserted_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        inserted_chat
+    LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = inserted_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: InsertChatMessages :many
 WITH updated_chat AS (
@@ -496,6 +763,7 @@ WITH updated_chat AS (
 INSERT INTO chat_messages (
     chat_id,
     created_by,
+    api_key_id,
     model_config_id,
     role,
     content,
@@ -516,6 +784,7 @@ INSERT INTO chat_messages (
 SELECT
     @chat_id::uuid,
     NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@api_key_id::text[]), ''),
     NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     UNNEST(@role::chat_message_role[]),
     UNNEST(@content::text[])::jsonb,
@@ -547,6 +816,7 @@ RETURNING
     *;
 
 -- name: UpdateChatByID :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -554,10 +824,52 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatTitleByID :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -567,10 +879,52 @@ SET
     title = @title::text
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatPlanModeByID :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -578,10 +932,52 @@ SET
     plan_mode = sqlc.narg('plan_mode')::chat_plan_mode
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatLastModelConfigByID :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -589,10 +985,52 @@ SET
     last_model_config_id = @last_model_config_id::uuid
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatLabelsByID :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -600,28 +1038,156 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatWorkspaceBinding :one
+WITH updated_chat AS (
 UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     build_id = sqlc.narg('build_id')::uuid,
     agent_id = sqlc.narg('agent_id')::uuid,
     updated_at = NOW()
 WHERE id = @id::uuid
-RETURNING *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatBuildAgentBinding :one
+WITH updated_chat AS (
 UPDATE chats SET
     build_id = sqlc.narg('build_id')::uuid,
     agent_id = sqlc.narg('agent_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatLastInjectedContext :one
+WITH updated_chat AS (
 -- Updates the cached injected context parts (AGENTS.md +
 -- skills) on the chat row. Called only when context changes
 -- (first workspace attach or agent change). updated_at is
@@ -630,7 +1196,49 @@ UPDATE chats SET
     last_injected_context = sqlc.narg('last_injected_context')::jsonb
 WHERE
     id = @id::uuid
-RETURNING *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatLastTurnSummary :execrows
 -- Updates the cached last completed turn summary for sidebar display.
@@ -652,6 +1260,7 @@ WHERE
     AND updated_at = @expected_updated_at::timestamptz;
 
 -- name: UpdateChatMCPServerIDs :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -659,8 +1268,49 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: LinkChatFiles :one
 -- LinkChatFiles inserts file associations into the chat_file_links
@@ -702,6 +1352,7 @@ SELECT
 -- name: AcquireChats :many
 -- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
 -- to prevent multiple replicas from acquiring the same chat.
+WITH acquired_chats AS (
 UPDATE
     chats
 SET
@@ -726,10 +1377,52 @@ WHERE
         LIMIT
             @num_chats::int
     )
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        acquired_chats.id,
+        acquired_chats.owner_id,
+        acquired_chats.workspace_id,
+        acquired_chats.title,
+        acquired_chats.status,
+        acquired_chats.worker_id,
+        acquired_chats.started_at,
+        acquired_chats.heartbeat_at,
+        acquired_chats.created_at,
+        acquired_chats.updated_at,
+        acquired_chats.parent_chat_id,
+        acquired_chats.root_chat_id,
+        acquired_chats.last_model_config_id,
+        acquired_chats.archived,
+        acquired_chats.last_error,
+        acquired_chats.mode,
+        acquired_chats.mcp_server_ids,
+        acquired_chats.labels,
+        acquired_chats.build_id,
+        acquired_chats.agent_id,
+        acquired_chats.pin_order,
+        acquired_chats.last_read_message_id,
+        acquired_chats.last_injected_context,
+        acquired_chats.dynamic_tools,
+        acquired_chats.organization_id,
+        acquired_chats.plan_mode,
+        acquired_chats.client_type,
+        acquired_chats.last_turn_summary,
+        COALESCE(root.user_acl, acquired_chats.user_acl) AS user_acl,
+        COALESCE(root.group_acl, acquired_chats.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        acquired_chats
+    LEFT JOIN chats root ON root.id = COALESCE(acquired_chats.root_chat_id, acquired_chats.parent_chat_id)
+    JOIN visible_users owner ON owner.id = acquired_chats.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatStatus :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -741,10 +1434,52 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: UpdateChatStatusPreserveUpdatedAt :one
+WITH updated_chat AS (
 UPDATE
     chats
 SET
@@ -756,8 +1491,49 @@ SET
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
-RETURNING
-    *;
+RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.last_injected_context,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
 
 -- name: GetStaleChats :many
 -- Find chats that appear stuck and need recovery:
@@ -770,7 +1546,7 @@ RETURNING
 SELECT
     *
 FROM
-    chats
+    chats_expanded
 WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
@@ -780,7 +1556,7 @@ WHERE
         AND updated_at < @stale_threshold::timestamptz
         AND EXISTS (
             SELECT 1 FROM chat_queued_messages cqm
-            WHERE cqm.chat_id = chats.id
+            WHERE cqm.chat_id = chats_expanded.id
         ));
 
 -- name: UpdateChatHeartbeats :many
@@ -914,11 +1690,12 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id)
 VALUES (
     @chat_id,
     @content,
-    sqlc.narg('model_config_id')::uuid
+    sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('api_key_id')::text
 )
 RETURNING *;
 
@@ -969,7 +1746,68 @@ LIMIT
     1;
 
 -- name: GetChatByIDForUpdate :one
-SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;
+WITH locked_chat AS (
+    SELECT *
+    FROM chats
+    WHERE id = @id::uuid
+    FOR UPDATE
+),
+chats_expanded AS (
+    SELECT
+        locked_chat.id,
+        locked_chat.owner_id,
+        locked_chat.workspace_id,
+        locked_chat.title,
+        locked_chat.status,
+        locked_chat.worker_id,
+        locked_chat.started_at,
+        locked_chat.heartbeat_at,
+        locked_chat.created_at,
+        locked_chat.updated_at,
+        locked_chat.parent_chat_id,
+        locked_chat.root_chat_id,
+        locked_chat.last_model_config_id,
+        locked_chat.archived,
+        locked_chat.last_error,
+        locked_chat.mode,
+        locked_chat.mcp_server_ids,
+        locked_chat.labels,
+        locked_chat.build_id,
+        locked_chat.agent_id,
+        locked_chat.pin_order,
+        locked_chat.last_read_message_id,
+        locked_chat.last_injected_context,
+        locked_chat.dynamic_tools,
+        locked_chat.organization_id,
+        locked_chat.plan_mode,
+        locked_chat.client_type,
+        locked_chat.last_turn_summary,
+        COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, locked_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name
+    FROM
+        locked_chat
+    LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = locked_chat.owner_id
+)
+SELECT *
+FROM chats_expanded;
+
+-- name: GetChatsByChatFileID :many
+SELECT
+    *
+FROM
+    chats_expanded
+WHERE
+    id IN (
+        SELECT chat_id
+        FROM chat_file_links
+        WHERE file_id = @file_id::uuid
+    )
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatsByChatFileID.
+    -- @authorize_filter
+;
 
 -- name: AcquireStaleChatDiffStatuses :many
 WITH acquired AS (
@@ -1338,7 +2176,7 @@ WHERE gme.user_id = @user_id::uuid
 
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
-FROM chats
+FROM chats_expanded
 WHERE archived = false
   AND workspace_id = ANY(@ids::uuid[])
 ORDER BY workspace_id, updated_at DESC;
@@ -1453,7 +2291,7 @@ FROM chat_model_configs
 WHERE deleted = false;
 -- name: GetActiveChatsByAgentID :many
 SELECT *
-FROM chats
+FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
     -- Active statuses only: waiting, pending, running, paused,
@@ -1478,7 +2316,9 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Used by dbpurge.
+-- rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+-- chats sharing the same last-activity date are archived together.
+-- Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -1496,6 +2336,7 @@ WITH to_archive AS (
     WHERE c.archived = false
       AND c.pin_order = 0
       AND c.parent_chat_id IS NULL -- roots only
+      -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')

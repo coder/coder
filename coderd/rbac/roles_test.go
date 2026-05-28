@@ -116,6 +116,58 @@ func TestOrgSharingPermissions(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest
+func TestChatSharingPermissions(t *testing.T) {
+	target := rbac.Permission{
+		Negate:       true,
+		ResourceType: rbac.ResourceChat.Type,
+		Action:       policy.ActionShare,
+	}
+	orgID := uuid.New()
+	userID := uuid.NewString()
+	resource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
+
+	authorizeAgentsAccessUser := func(t *testing.T) error {
+		t.Helper()
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		agentsRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+		require.NoError(t, err)
+
+		auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+		return auth.Authorize(context.Background(), rbac.Subject{
+			ID:    userID,
+			Roles: rbac.Roles{memberRole, agentsRole},
+			Scope: rbac.ScopeAll,
+		}, policy.ActionShare, resource)
+	}
+
+	t.Run("Default", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(nil)
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		assert.False(t, permissionGranted(memberRole.Site, target))
+		require.NoError(t, authorizeAgentsAccessUser(t))
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoChatSharing: true,
+		})
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		assert.True(t, permissionGranted(memberRole.Site, target))
+
+		err = authorizeAgentsAccessUser(t)
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
+	})
+}
+
+//nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
 		ID:    uuid.NewString(),
@@ -1058,6 +1110,34 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		// Skills are user-authored instructions, not secrets. Owners can inspect
+		// and delete them, but only the user can create or update them.
+		{
+			Name:     "UserSkillsReadDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceUserSkill.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe, agentsAccessUser},
+				false: {
+					orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "UserSkillsCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceUserSkill.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, agentsAccessUser},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 		{
 			Name:     "UsageEvents",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
@@ -1106,6 +1186,25 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Only owners can manage AI providers. Provider
+			// configuration is deployment-wide and includes secret
+			// material (api_key, settings) so it is not exposed to
+			// org admins or auditors.
+			Name:     "AIProviders",
+			Actions:  crud,
+			Resource: rbac.ResourceAIProvider,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			Name:     "BoundaryUsage",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,
@@ -1133,6 +1232,15 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ChatUsageCRU",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, agentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:     "ChatUsageShare",
+			Actions:  []policy.Action{policy.ActionShare},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, agentsAccessUser},

@@ -173,25 +173,6 @@ type State struct {
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
 
-// hasAITaskResources is used to determine if a template has *any* `coder_ai_task` resources defined. During template
-// import, it's possible that none of these have `count=1` since count may be dependent on the value of a `coder_parameter`
-// or something else.
-// We need to know at template import if these resources exist to inform the frontend of their existence.
-func hasAITaskResources(graph *gographviz.Graph) bool {
-	for _, node := range graph.Nodes.Lookup {
-		// Check if this node is a coder_ai_task resource
-		if label, exists := node.Attrs["label"]; exists {
-			labelValue := strings.Trim(label, `"`)
-			// The first condition is for the case where the resource is in the root module.
-			// The second condition is for the case where the resource is in a child module.
-			if strings.HasPrefix(labelValue, "coder_ai_task.") || strings.Contains(labelValue, ".coder_ai_task.") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func hasExternalAgentResources(graph *gographviz.Graph) bool {
 	for _, node := range graph.Nodes.Lookup {
 		if label, exists := node.Attrs["label"]; exists {
@@ -1083,14 +1064,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	slices.SortFunc(externalAuthProviders, func(a, b *proto.ExternalAuthProviderResource) int {
 		return cmp.Compare(a.Id, b.Id)
 	})
-	hasAITasks := hasAITaskResources(graph)
-
 	return &State{
 		Resources:             resources,
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
-		HasAITasks:            hasAITasks,
+		HasAITasks:            len(aiTasks) > 0,
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
 	}, nil

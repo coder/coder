@@ -2,6 +2,7 @@ package messages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,6 +21,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -114,12 +116,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			// The failover loop may return a keypool exhaustion
 			// error. Check before the SDK-error path.
-			if keyErr := ProcessKeyPoolError(err); keyErr != nil {
-				i.writeUpstreamError(w, keyErr)
+			var keyPoolErr *keypool.Error
+			if errors.As(err, &keyPoolErr) {
+				i.writeUpstreamError(w, ResponseErrorFromKeyPool(keyPoolErr))
 				return xerrors.Errorf("key pool exhausted: %w", err)
 			}
 
-			if antErr := getErrorResponse(err); antErr != nil {
+			if antErr := responseErrorFromAPIError(err); antErr != nil {
 				i.writeUpstreamError(w, antErr)
 				return xerrors.Errorf("anthropic API error: %w", err)
 			}
@@ -146,8 +149,6 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			CacheWriteInputTokens: resp.Usage.CacheCreationInputTokens,
 			ExtraTokenTypes: map[string]int64{
 				"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
-				"cache_creation_input":     resp.Usage.CacheCreationInputTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
-				"cache_read_input":         resp.Usage.CacheReadInputTokens,     // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 				"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
 				"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
 			},
@@ -371,9 +372,9 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
 		}
 
 		msg, err := i.newMessageWithKey(ctx, svc,

@@ -52,7 +52,7 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

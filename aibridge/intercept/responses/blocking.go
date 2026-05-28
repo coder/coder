@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -103,8 +104,9 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
 		if upstreamErr != nil {
-			if keyErr := ProcessKeyPoolError(upstreamErr); keyErr != nil {
-				i.writeUpstreamError(w, keyErr)
+			var keyPoolErr *keypool.Error
+			if errors.As(upstreamErr, &keyPoolErr) {
+				i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
 			}
 		}
@@ -174,9 +176,9 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
 		}
 
 		requestOpts := append([]option.RequestOption{}, opts...)

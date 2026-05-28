@@ -12,6 +12,12 @@ export const RBACResourceActions: Partial<
 		read: "read AI model prices",
 		update: "update AI model prices",
 	},
+	ai_provider: {
+		create: "create an AI provider",
+		delete: "delete an AI provider",
+		read: "read AI provider configuration",
+		update: "update an AI provider",
+	},
 	ai_seat: {
 		create: "record AI seat usage",
 		read: "read AI seat state",
@@ -53,6 +59,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat",
 		delete: "delete a chat",
 		read: "read chat messages and metadata",
+		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
 	connection_log: {
@@ -207,6 +214,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete a user secret",
 		read: "read user secret metadata and value",
 		update: "update user secret metadata and value",
+	},
+	user_skill: {
+		create: "create a user skill",
+		delete: "delete a user skill",
+		read: "read user skill metadata and content",
+		update: "update user skill metadata and content",
 	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",

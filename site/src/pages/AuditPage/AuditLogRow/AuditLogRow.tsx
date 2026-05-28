@@ -73,7 +73,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 			data-testid={`audit-log-row-${auditLog.id}`}
 			clickable={shouldDisplayDiff}
 		>
-			<TableCell className="!p-0 border-0 border-b text-base">
+			<TableCell className="!p-0 border-0 border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
 					<div
 						className={cn(
@@ -124,7 +124,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									</div>
 
 									<div className="flex flex-row items-center gap-4">
-										<StatusPill isHttpCode={true} code={auditLog.status_code} />
+										<StatusPill isHttpCode code={auditLog.status_code} />
 
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
@@ -245,8 +245,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						</div>
 
 						{shouldDisplayDiff ? (
-							<div>
-								<ChevronDownIcon open={isDiffOpen} className="ml-2" />
+							<div className="size-6 flex items-center justify-center">
+								<ChevronDownIcon open={isDiffOpen} />
 							</div>
 						) : (
 							<div className="ml-6" />

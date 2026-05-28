@@ -509,13 +509,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
-					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
-							isCreating || isForbidden || isPersonalModelOverridesLoading
+							isCreating ||
+							isForbidden ||
+							isPersonalModelOverridesLoading ||
+							!hasModelOptions
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -546,6 +548,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
+						agentSetupNotice={agentSetupNotice}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

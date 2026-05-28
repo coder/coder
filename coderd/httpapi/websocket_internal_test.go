@@ -38,12 +38,14 @@ func websocketPair(ctx context.Context, t *testing.T) *websocket.Conn {
 	//nolint:bodyclose
 	clientConn, _, err := websocket.Dial(ctx, srv.URL, nil)
 	require.NoError(t, err)
+	_ = clientConn.CloseRead(ctx) // Needed to handle pings/pongs.
 	t.Cleanup(func() {
 		_ = clientConn.Close(websocket.StatusNormalClosure, "test cleanup")
 	})
 
 	select {
 	case sc := <-serverConnCh:
+		_ = sc.CloseRead(ctx) // Needed to handle pings/pongs.
 		return sc
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for server websocket accept")

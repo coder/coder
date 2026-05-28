@@ -268,13 +268,41 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 				tool_call_id: "tc-1",
 				args: { command: "ls -la" },
 			},
+			{
+				type: "tool-call",
+				tool_name: "read_file",
+				tool_call_id: "tc-2",
+				args: { path: "README.md" },
+			},
 		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// "Thinking" should still be visible during streaming
-		// when only tool-call blocks have arrived.
-		const matches = canvas.getAllByText("Thinking");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
+		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
+		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
+
+		const executeButton = canvas.getByRole("button", {
+			name: /collapse command/i,
+		});
+		const readFileLabel = canvas.getByText(/reading README\.md/i);
+		const thinkingText = canvas.getAllByText("Thinking").at(-1);
+		expect(thinkingText).toBeInstanceOf(HTMLElement);
+
+		const wrappers = [
+			executeButton.closest("[data-transcript-row]") ?? executeButton,
+			readFileLabel.closest("[data-tool-call]") ?? readFileLabel,
+			(thinkingText as HTMLElement).closest("[data-transcript-row]") ??
+				(thinkingText as HTMLElement),
+		];
+		expect(wrappers.at(-1)).toHaveTextContent("Thinking");
+
+		const gap = Math.round(
+			wrappers[2].getBoundingClientRect().top -
+				wrappers[1].getBoundingClientRect().bottom,
+		);
+		expect(gap).toBe(8);
+
+		const placeholderRow = wrappers[2].firstElementChild ?? wrappers[2];
+		expect(Math.round(placeholderRow.getBoundingClientRect().height)).toBe(24);
 	},
 };

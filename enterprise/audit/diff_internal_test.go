@@ -392,6 +392,29 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// User skill content is user-authored instruction text, not secret
+			// material, so audit diffs can include the content change.
+			name: "UserSkillContentTracked",
+			left: audit.Empty[database.UserSkill](),
+			right: database.UserSkill{
+				ID:          uuid.UUID{1},
+				UserID:      uuid.UUID{2},
+				Name:        "review-guidance",
+				Description: "How to review private projects",
+				Content:     "review markdown",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"name":        audit.OldNew{Old: "", New: "review-guidance"},
+				"description": audit.OldNew{Old: "", New: "How to review private projects"},
+				"content":     audit.OldNew{Old: "", New: "review markdown"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "Create",
 			left: audit.Empty[database.WorkspaceTable](),
 			right: database.WorkspaceTable{
@@ -431,6 +454,53 @@ func Test_diff(t *testing.T) {
 				"owner_id":    audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
 				"template_id": audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
 				"name":        audit.OldNew{Old: "", New: "rust workspace"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "PropertyChange",
+			left: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AiProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Primary", Valid: true},
+				Enabled:     true,
+				BaseUrl:     "https://api.openai.com/v1",
+			},
+			right: database.AIProvider{
+				ID:          uuid.UUID{1},
+				Type:        database.AiProviderTypeOpenai,
+				Name:        "primary-openai",
+				DisplayName: sql.NullString{String: "Renamed", Valid: true},
+				Enabled:     false,
+				BaseUrl:     "https://api.openai.com/v2",
+			},
+			exp: audit.Map{
+				"display_name": audit.OldNew{Old: "Primary", New: "Renamed"},
+				"enabled":      audit.OldNew{Old: true, New: false},
+				"base_url":     audit.OldNew{Old: "https://api.openai.com/v1", New: "https://api.openai.com/v2"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
+			// api_key is tracked, but callers must pre-mask before the
+			// row reaches the audit pipeline. The pre-masked rendering
+			// (sk-prefix...suffix) is what flows into the diff.
+			name: "PreMaskedKeyFlowsThrough",
+			left: audit.Empty[database.AIProviderKey](),
+			right: database.AIProviderKey{
+				ID:         uuid.UUID{1},
+				ProviderID: uuid.UUID{2},
+				APIKey:     "sk-a...wxyz",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"provider_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"api_key":     audit.OldNew{Old: "", New: "sk-a...wxyz"},
 			},
 		},
 	})

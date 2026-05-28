@@ -1,6 +1,8 @@
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import { useQuery } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { chatPromptsQuery } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -22,6 +24,7 @@ import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -31,7 +34,6 @@ import {
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
@@ -75,6 +77,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
 	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
@@ -119,6 +125,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
@@ -282,21 +289,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	// Newest first. messages are in id-ascending order, so reverse
-	// iteration yields the most recent user prompts first. Store the
-	// original text untouched so cycling and re-sending reproduces what
-	// the user originally sent (boundary whitespace can be intentional).
-	const userPromptHistory: string[] = [];
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages.at(index);
-		if (!message || message.role !== "user") {
-			continue;
-		}
-		const text = getEditableUserMessagePayload(message).text;
-		if (text.trim()) {
-			userPromptHistory.push(text);
-		}
-	}
+	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const userPromptHistory: readonly string[] =
+		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
@@ -398,8 +394,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
-	const [chatFullWidth] = useChatFullWidth();
-
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -499,22 +493,16 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
+			agentSetupNotice={agentSetupNotice}
 		/>
 	);
 
-	if (!agentSetupNotice && !modelSelectorHelp) {
+	if (!modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
-			{agentSetupNotice && (
-				<div
-					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
-				>
-					{agentSetupNotice}
-				</div>
-			)}
 			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">

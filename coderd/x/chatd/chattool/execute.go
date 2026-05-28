@@ -78,16 +78,20 @@ type ProcessToolOptions struct {
 // ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute."`
+	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command. Use plain English with no underscores or technical jargon. The UI appends \"using <command>\" and \"for <duration>\" automatically, so do not repeat the command or include a duration. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
 	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
-	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
+	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
 }
+
+// ExecuteToolName is the registered name of the execute tool.
+const ExecuteToolName = "execute"
 
 // Execute returns an AgentTool that runs a shell command in the
 // workspace via the agent HTTP API.
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"execute",
+		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs the command and waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
