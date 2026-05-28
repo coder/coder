@@ -488,6 +488,10 @@ backend = "go:github.com/coder/paralleltestctx/cmd/paralleltestctx"
 version = "337309bfb9524f38466a5090e310040fc7af0203"
 backend = "go:github.com/coder/sqlc/cmd/sqlc"
 
+[[tools."go:github.com/coder/whichtests"]]
+version = "ec33bab1ec04cd86beb7a61a069db4463dba63f5"
+backend = "go:github.com/coder/whichtests"
+
 [[tools."go:github.com/golang-migrate/migrate/v4/cmd/migrate"]]
 version = "v4.19.0"
 backend = "go:github.com/golang-migrate/migrate/v4/cmd/migrate"
