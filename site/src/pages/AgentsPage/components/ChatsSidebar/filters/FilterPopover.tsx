@@ -226,7 +226,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 					size="icon"
 					aria-label="Filter agents"
 					className={cn(
-						"h-7 w-7 min-w-0 justify-end px-0 text-content-secondary hover:text-content-primary",
+						"h-7 w-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
 						hasActiveFilters(filters) && "text-content-primary",
 					)}
 				>
