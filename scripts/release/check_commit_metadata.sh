@@ -78,7 +78,7 @@ main() {
 		[enterprise]="Enterprise"
 		[examples]="Examples"
 		[helm]="Helm"
-		["install.sh"]="Installer"
+		[install.sh]="Installer"
 		[provisionersdk]="SDK"
 		[provisionerd]="Provisioner"
 		[provisioner]="Provisioner"
