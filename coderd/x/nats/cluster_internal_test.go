@@ -13,9 +13,9 @@ func Test_parsePeerAddresses(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
-			" nats://127.0.0.1:4222 ",
+			" 127.0.0.1:4222 ",
 			"nats://[::1]:7222",
-			"nats://example.com:6222",
+			"example.com:6222",
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{
@@ -52,6 +52,10 @@ func Test_parsePeerAddresses(t *testing.T) {
 			"",
 			"   ",
 			"http://127.0.0.1:4222",
+			"127.0.0.1",
+			":4222",
+			"127.0.0.1:0",
+			"127.0.0.1:bad",
 			"nats://127.0.0.1",
 			"nats://:4222",
 			"nats://127.0.0.1:0",
@@ -74,8 +78,8 @@ func Test_filterSelfRoutes(t *testing.T) {
 	t.Parallel()
 
 	routes, err := parsePeerAddresses([]string{
-		"nats://b.example:6222",
-		"nats://self.example:6222",
+		"b.example:6222",
+		"self.example:6222",
 	})
 	require.NoError(t, err)
 
@@ -97,11 +101,11 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 		addrC := clusterRouteAddress(t, c)
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		waitForRoutes(t, a, 2)
+		waitForConfiguredRouteAddresses(t, a, addrB, addrC)
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		waitForRoutes(t, a, 2)
+		waitForConfiguredRouteAddresses(t, a, addrB, addrC)
 
 		require.NoError(t, a.SetPeerAddresses(nil))
 		require.Empty(t, a.currentRoutes)

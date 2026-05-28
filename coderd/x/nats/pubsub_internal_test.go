@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -457,6 +458,40 @@ func waitForRoutes(t *testing.T, ps *Pubsub, minRoutes int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		return ps.ns.NumRoutes() >= minRoutes
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func waitForConfiguredRouteAddresses(t *testing.T, ps *Pubsub, addresses ...string) {
+	t.Helper()
+	want := make(map[string]struct{}, len(addresses))
+	for _, address := range addresses {
+		normalized, err := normalizeHostPort(address)
+		require.NoError(t, err)
+		want[normalized] = struct{}{}
+	}
+
+	require.Eventually(t, func() bool {
+		routes, err := ps.ns.Routez(nil)
+		if err != nil {
+			return false
+		}
+
+		got := make(map[string]struct{}, len(routes.Routes))
+		for _, route := range routes.Routes {
+			if !route.IsConfigured || route.IP == "" || route.Port == 0 {
+				continue
+			}
+			got[net.JoinHostPort(route.IP, strconv.Itoa(route.Port))] = struct{}{}
+		}
+		if len(got) != len(want) {
+			return false
+		}
+		for address := range want {
+			if _, ok := got[address]; !ok {
+				return false
+			}
+		}
+		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 

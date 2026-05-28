@@ -100,7 +100,7 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) ([]*url.URL, error) {
 	self := make(map[string]struct{}, len(selfAddresses))
 	for _, address := range selfAddresses {
-		normalizedHost, err := normalizeHostPort("nats://" + address)
+		normalizedHost, err := normalizeHostPort(address)
 		if err != nil {
 			return nil, xerrors.Errorf("normalize self peer address %q: %w", address, err)
 		}
@@ -124,21 +124,24 @@ func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) ([]*url.URL, e
 }
 
 func normalizeHostPort(address string) (string, error) {
-	route, err := url.Parse(address)
-	if err != nil {
-		return "", xerrors.Errorf("parse peer address %q: %w", address, err)
-	}
-	if route.Scheme != "nats" {
-		return "", xerrors.Errorf("peer address %q must use nats scheme", address)
-	}
-	if route.User != nil {
-		return "", xerrors.Errorf("peer address %q must not include userinfo", address)
-	}
-	if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
-		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+	if strings.Contains(address, "://") {
+		route, err := url.Parse(address)
+		if err != nil {
+			return "", xerrors.Errorf("parse peer address %q: %w", address, err)
+		}
+		if route.Scheme != "nats" {
+			return "", xerrors.Errorf("peer address %q must use nats scheme", address)
+		}
+		if route.User != nil {
+			return "", xerrors.Errorf("peer address %q must not include userinfo", address)
+		}
+		if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
+			return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+		}
+		address = route.Host
 	}
 
-	host, port, err := net.SplitHostPort(route.Host)
+	host, port, err := net.SplitHostPort(address)
 	if err != nil || host == "" || port == "" {
 		return "", xerrors.Errorf("peer address %q must include host and port", address)
 	}
