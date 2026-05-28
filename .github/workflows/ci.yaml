@@ -218,13 +218,16 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm go:github.com/golangci/golangci-lint/cmd/golangci-lint helm actionlint aqua:crate-ci/typos go:github.com/coder/paralleltestctx/cmd/paralleltestctx"
+          install-args: "--locked go node pnpm helm actionlint aqua:crate-ci/typos"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
 
       - name: Get golangci-lint cache dir
         run: |
@@ -1216,6 +1219,9 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
