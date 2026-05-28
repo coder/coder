@@ -5,7 +5,9 @@ package cli
 import (
 	"context"
 	"io"
+	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
@@ -86,19 +88,67 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 	}, nil
 }
 
+// refreshProxyProviders classifies every ai_providers row as enabled,
+// disabled, or error so the proxy router and any observers see the full
+// configured set. Disabled rows are excluded from routing; errored rows
+// are excluded from routing and surface their failure reason for
+// metrics and logs.
 func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFunc {
-	return func(ctx context.Context) ([]aibridgeproxyd.ProviderRoute, error) {
+	return func(ctx context.Context) (aibridgeproxyd.ProviderReload, error) {
 		//nolint:gocritic // AsAIProviderMetadataReader is the correct subject for routing-only access.
 		rows, err := db.GetAIProviders(dbauthz.AsAIProviderMetadataReader(ctx), database.GetAIProvidersParams{
-			IncludeDisabled: false,
+			IncludeDisabled: true,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("load ai providers: %w", err)
+			return aibridgeproxyd.ProviderReload{}, xerrors.Errorf("load ai providers: %w", err)
 		}
-		out := make([]aibridgeproxyd.ProviderRoute, 0, len(rows))
+		reload := aibridgeproxyd.ProviderReload{
+			Providers: make([]aibridgeproxyd.ReloadedProvider, 0, len(rows)),
+		}
+		seenHost := make(map[string]string, len(rows))
 		for _, row := range rows {
-			out = append(out, aibridgeproxyd.ProviderRoute{Name: row.Name, BaseURL: row.BaseUrl})
+			reload.Providers = append(reload.Providers, classifyProviderRow(row, seenHost))
 		}
-		return out, nil
+		return reload, nil
 	}
+}
+
+// classifyProviderRow evaluates a single ai_providers row for routing.
+// seenHost is mutated to track the first provider that claimed each
+// hostname so later duplicates can be flagged as errors.
+func classifyProviderRow(row database.AIProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
+	out := aibridgeproxyd.ReloadedProvider{
+		Name: row.Name,
+		Type: string(row.Type),
+	}
+	if !row.Enabled {
+		out.Status = aibridgeproxyd.ProviderStatusDisabled
+		return out
+	}
+	if strings.TrimSpace(row.BaseUrl) == "" {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.New("base url is empty")
+		return out
+	}
+	u, err := url.Parse(row.BaseUrl)
+	if err != nil {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("invalid base url %q: %w", row.BaseUrl, err)
+		return out
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("base url %q has no hostname", row.BaseUrl)
+		return out
+	}
+	if claimedBy, taken := seenHost[host]; taken {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
+		return out
+	}
+	seenHost[host] = row.Name
+	out.Host = host
+	out.Status = aibridgeproxyd.ProviderStatusEnabled
+	return out
 }
