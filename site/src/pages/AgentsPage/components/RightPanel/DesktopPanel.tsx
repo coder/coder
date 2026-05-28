@@ -5,13 +5,11 @@ import { useEffect, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
-	CHANNEL_PREFIX,
+	useDesktopConnection,
 	type DesktopConnectionStatus,
-	type ScaleMode,
-} from "../../desktopConstants";
-import { useDesktopConnection } from "../../hooks/useDesktopConnection";
+} from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
-import { DesktopToolbar } from "./DesktopToolbar";
+import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 
 interface DesktopPanelProps {
 	chatId: string;
@@ -46,7 +44,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 
 	// Listen for BroadcastChannel messages from the pop-out window.
 	useEffect(() => {
-		const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${chatId}`);
+		const channel = new BroadcastChannel(`coder-desktop-${chatId}`);
 
 		channel.addEventListener("message", (event) => {
 			if (event.data?.type === "popout-opened") {
@@ -73,7 +71,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	};
 
 	const handleBringBack = () => {
-		const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${chatId}`);
+		const channel = new BroadcastChannel(`coder-desktop-${chatId}`);
 		channel.postMessage({ type: "bring-back" });
 		channel.close();
 		setIsPoppedOut(false);

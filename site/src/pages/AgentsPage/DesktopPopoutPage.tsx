@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
 import {
-	CHANNEL_PREFIX,
-	type DesktopConnectionStatus,
+	DesktopToolbar,
 	type ScaleMode,
-} from "./desktopConstants";
-import { useDesktopConnection } from "./hooks/useDesktopConnection";
+} from "./components/RightPanel/DesktopToolbar";
+import {
+	useDesktopConnection,
+	type DesktopConnectionStatus,
+} from "./hooks/useDesktopConnection";
 import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
 
 export default function DesktopPopoutPage() {
@@ -25,7 +26,7 @@ export default function DesktopPopoutPage() {
 
 	// BroadcastChannel for parent window communication.
 	useEffect(() => {
-		const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${agentId}`);
+		const channel = new BroadcastChannel(`coder-desktop-${agentId}`);
 
 		channel.postMessage({ type: "popout-opened" });
 

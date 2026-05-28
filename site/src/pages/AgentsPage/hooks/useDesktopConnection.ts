@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
 import { useClipboard } from "#/hooks/useClipboard";
-import type { DesktopConnectionStatus } from "../desktopConstants";
+export type DesktopConnectionStatus =
+	| "idle"
+	| "connecting"
+	| "connected"
+	| "disconnected"
+	| "error";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;

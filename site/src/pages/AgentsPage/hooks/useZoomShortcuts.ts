@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { ScaleMode } from "../desktopConstants";
+import type { ScaleMode } from "../components/RightPanel/DesktopToolbar";
 
 export function useZoomShortcuts(
 	setScaleMode: (mode: ScaleMode) => void,
