@@ -297,7 +297,7 @@ export const BlockList: FC<{
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.shell_tool_display_mode || "auto";
+		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
