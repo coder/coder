@@ -253,8 +253,7 @@ jobs:
         if: ${{ failure() }}
         run: |
           echo "::notice:: you can automatically fix typos from your CLI:
-          cargo install typos-cli
-          typos -c .github/workflows/typos.toml -w"
+          mise exec aqua:crate-ci/typos -- typos -c .github/workflows/typos.toml -w"
 
       - name: Verify helm version
         run: helm version --short

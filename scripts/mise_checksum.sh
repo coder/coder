@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Print the pinned mise SHA256 checksum for a version and release target.
+
 set -euo pipefail
 
 if [[ "$#" -ne 3 ]]; then

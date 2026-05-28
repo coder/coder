@@ -63,6 +63,17 @@ check_equal ".github/actions/setup-mise/checksums.toml" "${checksum_version}" "$
 linux_x64_checksum="$(./scripts/mise_checksum.sh .github/actions/setup-mise/checksums.toml "${mise_version}" linux-x64)"
 check_not_empty ".github/actions/setup-mise/checksums.toml linux-x64" "${linux_x64_checksum}"
 
+sri_sha256_to_hex() {
+	local label="$1"
+	local sri="$2"
+
+	if [[ "${sri}" != sha256-* ]]; then
+		error "Expected SRI SHA256 hash for ${label}: ${sri}"
+	fi
+
+	printf '%s' "${sri#sha256-}" | openssl base64 -A -d | od -An -tx1 -v | tr -d ' \n'
+}
+
 flake_version="$(
 	awk '
 		/^[[:space:]]*mise = / { in_mise = 1; next }
@@ -75,6 +86,34 @@ flake_version="$(
 	' flake.nix
 )"
 check_equal "flake.nix" "${flake_version}" "${mise_version}"
+
+declare -A flake_targets=(
+	["x86_64-linux"]="linux-x64"
+	["aarch64-linux"]="linux-arm64"
+	["x86_64-darwin"]="macos-x64"
+	["aarch64-darwin"]="macos-arm64"
+)
+for system in "${!flake_targets[@]}"; do
+	target="${flake_targets[${system}]}"
+	expected_checksum="$(./scripts/mise_checksum.sh .github/actions/setup-mise/checksums.toml "${mise_version}" "${target}")"
+	check_not_empty ".github/actions/setup-mise/checksums.toml ${target}" "${expected_checksum}"
+
+	flake_hash="$(
+		awk -v nix_system="${system}" '
+			/^[[:space:]]*hash = \{/ { in_hash = 1; next }
+			in_hash && $1 == nix_system {
+				gsub(/[";]/, "", $3)
+				print $3
+				exit
+			}
+			in_hash && /^[[:space:]]*};/ { exit }
+		' flake.nix
+	)"
+	check_not_empty "flake.nix ${system} hash" "${flake_hash}"
+
+	actual_checksum="$(sri_sha256_to_hex "flake.nix ${system}" "${flake_hash}")"
+	check_equal "flake.nix ${system} sha256" "${actual_checksum}" "${expected_checksum}"
+done
 
 wrapper_version="$(sed -n 's/^MISE_VERSION="v\([^"]*\)"/\1/p' scripts/dogfood/mise-oci-wrapper.sh)"
 check_equal "scripts/dogfood/mise-oci-wrapper.sh" "${wrapper_version}" "${mise_version}"

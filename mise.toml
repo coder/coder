@@ -1,4 +1,5 @@
-# Keep in lockstep with .github/actions/setup-mise/action.yml, flake.nix,
+# Keep in lockstep with .github/actions/setup-mise/action.yml,
+# .github/actions/setup-mise/checksums.toml, flake.nix,
 # dogfood/coder/ubuntu-*/Dockerfile.base, and scripts/dogfood/mise-oci-wrapper.sh.
 min_version = "2026.5.12"
 

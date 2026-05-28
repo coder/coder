@@ -60,6 +60,10 @@ If you're not using the Nix environment, you can launch a local [DevContainer](h
 
 DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, `mise`, and `make`.
 
+For manual setup outside Nix and DevContainers, install Docker, Go, Node.js
+with `pnpm`, `mise`, and `make`. Run `mise install` from the repository root
+so development tools use the versions pinned in `mise.toml`.
+
 </div>
 
 ## Development workflow
