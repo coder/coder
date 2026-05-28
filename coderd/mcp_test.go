@@ -2144,3 +2144,185 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		require.True(t, created.HasOAuth2Secret)
 	})
 }
+
+// TestMCPServerUserHeaderValuesEndpoints exercises the user-headers
+// GET/PUT/DELETE flow for the per-user custom header values.
+func TestMCPServerUserHeaderValuesEndpoints(t *testing.T) {
+	t.Parallel()
+
+	createHonchoConfig := func(t *testing.T, client *codersdk.Client) codersdk.MCPServerConfig {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		cfg, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeaders:         map[string]string{"X-Org-ID": "acme"},
+			CustomHeadersUserKeys: []string{"X-User-Token", "X-Workspace"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+		return cfg
+	}
+
+	t.Run("GetReturnsAllFalseWhenNoValuesStored", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		resp, err := client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.Equal(t, cfg.ID, resp.MCPServerConfigID)
+		require.False(t, resp.HasValues["X-User-Token"])
+		require.False(t, resp.HasValues["X-Workspace"])
+	})
+
+	t.Run("GetReturnsEmptyForNonCustomHeadersConfig", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		cfg, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:  "None",
+			Slug:         "none-cfg",
+			Transport:    "streamable_http",
+			URL:          "https://mcp.example.com/v1",
+			AuthType:     "none",
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		require.NoError(t, err)
+
+		resp, err := client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.Empty(t, resp.HasValues)
+	})
+
+	t.Run("PutThenGetReportsHasValuesTrue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		putResp, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "secret-jwt"},
+		})
+		require.NoError(t, err)
+		require.True(t, putResp.HasValues["X-User-Token"])
+		require.False(t, putResp.HasValues["X-Workspace"])
+
+		getResp, err := client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.True(t, getResp.HasValues["X-User-Token"])
+		require.False(t, getResp.HasValues["X-Workspace"])
+	})
+
+	t.Run("PutRejectsUnknownKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-Unknown": "oops"},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("PutPartialUpdatePreservesOtherKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-a", "X-Workspace": "main"},
+		})
+		require.NoError(t, err)
+
+		// Partial update touching only one key; the other must remain set.
+		putResp, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-b"},
+		})
+		require.NoError(t, err)
+		require.True(t, putResp.HasValues["X-User-Token"])
+		require.True(t, putResp.HasValues["X-Workspace"])
+	})
+
+	t.Run("PutClearsSingleValueWithEmptyString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-a"},
+		})
+		require.NoError(t, err)
+
+		putResp, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": ""},
+		})
+		require.NoError(t, err)
+		require.False(t, putResp.HasValues["X-User-Token"])
+	})
+
+	t.Run("DeleteRemovesAllValues", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-a", "X-Workspace": "main"},
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, client.DeleteMCPServerUserHeaderValues(ctx, cfg.ID))
+
+		getResp, err := client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, getResp.HasValues["X-User-Token"])
+		require.False(t, getResp.HasValues["X-Workspace"])
+	})
+
+	t.Run("DeleteIsIdempotent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Never set a value; delete should still return 204.
+		require.NoError(t, client.DeleteMCPServerUserHeaderValues(ctx, cfg.ID))
+	})
+
+	t.Run("PutAcceptsCaseInsensitiveKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Request lowercases the canonical "X-User-Token".
+		putResp, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"x-user-token": "jwt-a"},
+		})
+		require.NoError(t, err)
+		require.True(t, putResp.HasValues["X-User-Token"], "HasValues should report under the canonical key")
+	})
+}

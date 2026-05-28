@@ -1684,12 +1684,8 @@ func (s *MethodTestSuite) TestChats() {
 			HeaderValues:      `{"X-User-Token":"secret"}`,
 		}
 		value := testutil.Fake(s.T(), faker, database.McpServerUserHeaderValue{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
-		dbm.EXPECT().GetMCPServerUserHeaderValues(gomock.Any(), database.GetMCPServerUserHeaderValuesParams{
-			MCPServerConfigID: arg.MCPServerConfigID,
-			UserID:            arg.UserID,
-		}).Return(value, nil).AnyTimes()
 		dbm.EXPECT().UpsertMCPServerUserHeaderValues(gomock.Any(), arg).Return(value, nil).AnyTimes()
-		check.Args(arg).Asserts(value, policy.ActionUpdatePersonal).Returns(value)
+		check.Args(arg).Asserts(rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal).Returns(value)
 	}))
 	s.Run("DeleteMCPServerUserHeaderValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.DeleteMCPServerUserHeaderValuesParams{

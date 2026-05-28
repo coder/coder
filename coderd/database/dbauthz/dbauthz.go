@@ -8277,13 +8277,7 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 }
 
 func (q *querier) UpsertMCPServerUserHeaderValues(ctx context.Context, arg database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
-	fetch := func(ctx context.Context, arg database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
-		return q.db.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
-			MCPServerConfigID: arg.MCPServerConfigID,
-			UserID:            arg.UserID,
-		})
-	}
-	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpsertMCPServerUserHeaderValues)(ctx, arg)
+	return insertWithAction(q.log, q.auth, rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal, q.db.UpsertMCPServerUserHeaderValues)(ctx, arg)
 }
 
 func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
