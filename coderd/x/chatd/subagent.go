@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -37,6 +38,7 @@ type modelOverrideConfigResolver func(
 
 type modelOverrideProviderKeysResolver func(
 	context.Context,
+	uuid.UUID,
 	uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error)
 
@@ -75,30 +77,6 @@ type messageAgentArgs struct {
 
 type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
-}
-
-// providerConfigured reports whether a provider has an API key from
-// static configuration or from the database provider configuration.
-func (p *Server) providerConfigured(ctx context.Context, provider string) (bool, error) {
-	normalizedProvider := chatprovider.NormalizeProvider(provider)
-	if normalizedProvider == "" {
-		return false, nil
-	}
-	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
-		return true, nil
-	}
-
-	dbProviders, err := p.configCache.EnabledProviders(ctx)
-	if err != nil {
-		return false, xerrors.Errorf("list enabled chat providers: %w", err)
-	}
-	for _, prov := range dbProviders {
-		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
-			strings.TrimSpace(prov.APIKey) != "" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
@@ -177,12 +155,12 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
-	providers []database.ChatProvider,
+	providers []database.AIProvider,
 	providerName string,
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
 			return true
 		}
 	}
@@ -292,7 +270,7 @@ func (p *Server) resolveConfiguredModelOverride(
 		return database.ChatModelConfig{}, false, nil
 	}
 
-	providerKeys, err := resolveProviderKeys(ctx, ownerID)
+	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -425,7 +403,7 @@ func (p *Server) resolvePersonalModelOverride(
 		}
 		return database.ChatModelConfig{}, false, nil
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -499,6 +477,13 @@ func (p *Server) resolveSubagentModelConfigID(
 	return modelConfig.ID, nil
 }
 
+func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
+	if !modelConfig.AIProviderID.Valid {
+		return uuid.Nil
+	}
+	return modelConfig.AIProviderID.UUID
+}
+
 func (p *Server) resolveModelConfigAndNormalizedProvider(
 	ctx context.Context,
 	modelConfigID uuid.UUID,
@@ -509,6 +494,26 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
+	}
+	if !modelConfig.Enabled {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	if modelConfig.AIProviderID.Valid {
+		provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+		if err != nil {
+			return database.ChatModelConfig{}, "", err
+		}
+		if !provider.Enabled {
+			return database.ChatModelConfig{}, "", sql.ErrNoRows
+		}
+		providerName := chatprovider.NormalizeProvider(string(provider.Type))
+		if providerName == "" {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		if _, _, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName); err != nil {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		return modelConfig, providerName, nil
 	}
 	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
 	if err != nil {
@@ -904,6 +909,14 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
+func (p *Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	if !ok && p.shouldUseAIGatewayRouting() {
+		return "", xerrors.New("AI Gateway routing requires the active turn API key ID for subagent messages")
+	}
+	return apiKeyID, nil
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
@@ -945,6 +958,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
+	}
+	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
 	}
 
 	childPlanMode := parent.PlanMode
@@ -1001,9 +1018,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("insert child chat: %w", err)
 		}
 
-		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		workspaceAwareness := workspaceDetachedNoCreateAwareness
 		if insertedChat.WorkspaceID.Valid {
-			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+			workspaceAwareness = workspaceAttachedAwareness
 		}
 		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText(workspaceAwareness),
@@ -1073,16 +1090,18 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: insertedChat.ID,
 		}
-		appendChatMessage(&userParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		childUserMsg := newUserChatMessage(
+			childAPIKeyID,
 			userContent,
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID))
+		)
+		childUserMsg = childUserMsg.withCreatedBy(parent.OwnerID)
+		appendUserChatMessage(&userParams, childUserMsg)
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
 			return xerrors.Errorf("insert initial child user message: %w", err)
 		}
@@ -1159,16 +1178,27 @@ func copyParentContextMessages(
 		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 		ChatID: child.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		copiedRole,
-		filteredContent,
-		copiedVisibility,
-		child.LastModelConfigID,
-		copiedVersion,
-	))
+	if copiedRole == database.ChatMessageRoleUser {
+		copiedAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		appendUserChatMessage(&msgParams, newUserChatMessage(
+			copiedAPIKeyID,
+			filteredContent,
+			copiedVisibility,
+			child.LastModelConfigID,
+			copiedVersion,
+		))
+	} else {
+		appendChatMessage(&msgParams, newChatMessage(
+			copiedRole,
+			filteredContent,
+			copiedVisibility,
+			child.LastModelConfigID,
+			copiedVersion,
+		))
+	}
 	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
 		return nil, xerrors.Errorf("insert context message: %w", err)
 	}
@@ -1232,10 +1262,16 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
+	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {

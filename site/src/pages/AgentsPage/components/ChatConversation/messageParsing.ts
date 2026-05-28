@@ -109,6 +109,7 @@ export const mergeTools = (
 			status: result ? (result.isError ? "error" : "completed") : "completed",
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 
@@ -161,6 +162,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);

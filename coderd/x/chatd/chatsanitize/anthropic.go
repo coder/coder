@@ -14,10 +14,9 @@ import (
 
 const maxAnthropicProviderToolViolationLogDetails = 32
 
-// Anthropic immutability contract. The latest assistant message containing
-// signed or redacted reasoning is an immutable transcript boundary. Helpers
-// in this file enforce it via HasAnthropicSignedReasoningOptions,
-// latestAssistantMessageIndexWithSignedReasoning, and appendSanitizedMessage.
+// Anthropic replay contract. Signed or redacted reasoning parts are preserved.
+// Provider-executed tool calls without matching results are incomplete
+// provider-internal state and are removed from model-visible replay.
 
 // supportedAnthropicProviderToolNames is the allowlist of provider-executed
 // tool names the Anthropic provider in fantasy can currently serialize.
@@ -495,16 +494,35 @@ func ApplyAnthropicProviderToolGuard(
 	if len(violations) == 0 {
 		return messages, nil
 	}
+
+	guarded, orphanCallStats := dropOrphanAnthropicProviderToolCallsFromMessages(
+		messages,
+		violations,
+	)
+	LogAnthropicProviderToolSanitization(
+		ctx,
+		logger,
+		"pre_request_guard_orphan_call_drop",
+		provider,
+		modelName,
+		orphanCallStats,
+		slog.F("validation_violations", len(violations)),
+	)
+	violations = ValidateAnthropicProviderToolHistory(guarded)
+	if len(violations) == 0 {
+		return guarded, nil
+	}
+
 	affectedMessages := messageIndexesFromAnthropicProviderToolViolations(
 		violations,
-		len(messages),
+		len(guarded),
 	)
-	guarded := sanitizeAnthropicProviderToolGuardMessages(
+	guarded = sanitizeAnthropicProviderToolGuardMessages(
 		ctx,
 		logger,
 		provider,
 		modelName,
-		messages,
+		guarded,
 		affectedMessages,
 		len(violations),
 	)
@@ -990,6 +1008,58 @@ func sanitizeAnthropicProviderToolGuardMessages(
 
 func isSafeAnthropicProviderToolPrompt(messages []fantasy.Message) bool {
 	return len(ValidateAnthropicProviderToolHistory(messages)) == 0
+}
+
+func dropOrphanAnthropicProviderToolCallsFromMessages(
+	messages []fantasy.Message,
+	violations []AnthropicProviderToolHistoryViolation,
+) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
+	var stats AnthropicProviderToolSanitizationStats
+	remove := make(map[anthropicProviderToolPartKey]struct{})
+	for _, violation := range violations {
+		if violation.Reason != anthropicProviderToolViolationOrphanCall {
+			continue
+		}
+		if violation.MessageIndex < 0 || violation.MessageIndex >= len(messages) {
+			continue
+		}
+		remove[anthropicProviderToolPartKey{
+			messageIndex: violation.MessageIndex,
+			partIndex:    violation.PartIndex,
+		}] = struct{}{}
+	}
+	if len(remove) == 0 {
+		return messages, stats
+	}
+
+	out := make([]fantasy.Message, 0, len(messages))
+	for messageIndex, message := range messages {
+		parts := make([]fantasy.MessagePart, 0, len(message.Content))
+		removedFromMessage := 0
+		for partIndex, part := range message.Content {
+			key := anthropicProviderToolPartKey{
+				messageIndex: messageIndex,
+				partIndex:    partIndex,
+			}
+			if _, ok := remove[key]; ok {
+				if toolCall, ok := safeMessageToolCallPart(part); ok && toolCall.ProviderExecuted {
+					stats.RemovedToolCalls++
+					removedFromMessage++
+					continue
+				}
+			}
+			parts = append(parts, part)
+		}
+		if removedFromMessage > 0 {
+			if len(parts) == 0 {
+				stats.DroppedMessages++
+				continue
+			}
+			message.Content = parts
+		}
+		out = appendSanitizedMessage(out, message)
+	}
+	return out, stats
 }
 
 func messageIndexesFromAnthropicProviderToolViolations(

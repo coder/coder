@@ -107,12 +107,6 @@ func (*Copilot) AuthHeader() string {
 	return "Authorization"
 }
 
-// InjectAuthHeader is a no-op for Copilot.
-// Copilot uses per-user tokens passed in the original Authorization header,
-// rather than a global key configured at the provider level.
-// The original Authorization header flows through untouched from the client.
-func (*Copilot) InjectAuthHeader(_ *http.Header) {}
-
 // KeyFailoverConfig returns a config with a nil Pool, which makes
 // the KeyFailoverTransport short-circuit. Copilot is always BYOK.
 func (*Copilot) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {

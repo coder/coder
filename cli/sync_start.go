@@ -57,15 +57,19 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 			}
 			ready := statusResp.IsReady
 
-			var waitedFor []string
-			if !ready {
-				for _, dep := range statusResp.Dependencies {
-					if !dep.IsSatisfied {
-						waitedFor = append(waitedFor, string(dep.DependsOn))
-					}
+			var allDependencies []string
+			var unsatisfiedDependencies []string
+			for _, dep := range statusResp.Dependencies {
+				allDependencies = append(allDependencies, string(dep.DependsOn))
+				if !dep.IsSatisfied {
+					unsatisfiedDependencies = append(unsatisfiedDependencies, string(dep.DependsOn))
 				}
-				slices.Sort(waitedFor)
-				waitedForList := strings.Join(waitedFor, ", ")
+			}
+			slices.Sort(allDependencies)
+			slices.Sort(unsatisfiedDependencies)
+
+			if !ready {
+				waitedForList := strings.Join(unsatisfiedDependencies, ", ")
 
 				cliui.Infof(i.Stdout, "Unit %q is waiting for dependencies to be satisfied: [%s]", unitName, waitedForList)
 
@@ -96,10 +100,13 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 				return xerrors.Errorf("start unit failed: %w", err)
 			}
 
-			if len(waitedFor) == 0 {
-				cliui.Info(i.Stdout, "Success")
-			} else {
-				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q finished waiting for dependencies: [%s]", unitName, strings.Join(waitedFor, ", ")))
+			switch {
+			case len(allDependencies) == 0:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q started with no dependencies", unitName))
+			case len(unsatisfiedDependencies) == 0:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q started immediately, dependencies already satisfied: [%s]", unitName, strings.Join(allDependencies, ", ")))
+			default:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q finished waiting for dependencies: [%s]", unitName, strings.Join(unsatisfiedDependencies, ", ")))
 			}
 
 			return nil

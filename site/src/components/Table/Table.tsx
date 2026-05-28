@@ -5,12 +5,17 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/cn";
 
-export const Table: React.FC<React.ComponentPropsWithRef<"table">> = ({
+type TableProps = React.ComponentPropsWithRef<"table"> & {
+	wrapperClassName?: string;
+};
+
+export const Table: React.FC<TableProps> = ({
 	className,
+	wrapperClassName,
 	...props
 }) => {
 	return (
-		<div className="relative w-full overflow-auto">
+		<div className={cn("relative w-full overflow-auto", wrapperClassName)}>
 			<table
 				className={cn(
 					"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",
@@ -94,9 +99,8 @@ export const TableRow: React.FC<TableRowProps> = ({
 	return (
 		<tr
 			className={cn(
-				"border-0 border-b border-solid border-border transition-colors",
-				"data-[state=selected]:bg-surface-secondary",
 				tableRowVariants({ hover }),
+				"data-[state=selected]:bg-surface-secondary",
 				className,
 			)}
 			{...props}
@@ -128,12 +132,12 @@ export const TableCell: React.FC<React.ComponentPropsWithRef<"td">> = ({
 }) => {
 	return (
 		<td
+			{...props}
 			className={cn(
 				"border-0 border-t border-border border-solid",
 				"p-3 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 				className,
 			)}
-			{...props}
 		/>
 	);
 };

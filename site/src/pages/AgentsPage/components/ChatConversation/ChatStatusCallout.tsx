@@ -1,3 +1,4 @@
+import { BrainIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -18,14 +19,18 @@ type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 const StatusPlaceholder: FC<{
 	text: string;
 	shimmer?: boolean;
-}> = ({ text, shimmer = false }) => {
+	showThinkingIcon?: boolean;
+}> = ({ text, shimmer = false, showThinkingIcon = false }) => {
 	return (
-		<div className="relative">
+		<div className="relative min-h-6">
 			{/* Reserve the final response height without exposing a selectable copy. */}
 			<Response aria-hidden className="invisible select-none">
 				{text}
 			</Response>
-			<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
+			<div className="pointer-events-none absolute inset-0 flex items-center gap-2 text-content-secondary">
+				{showThinkingIcon && (
+					<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+				)}
 				{shimmer ? (
 					<Shimmer as="div" className="text-[13px] leading-relaxed">
 						{text}
@@ -54,6 +59,7 @@ const StartingPlaceholder: FC = () => {
 		<StatusPlaceholder
 			text={isDelayed ? DELAYED_STARTUP_TEXT : THINKING_TEXT}
 			shimmer={!isDelayed}
+			showThinkingIcon={!isDelayed}
 		/>
 	);
 };

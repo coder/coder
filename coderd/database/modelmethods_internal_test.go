@@ -144,6 +144,45 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest
+func TestChatACLDisabled(t *testing.T) {
+	uid := uuid.NewString()
+	gid := uuid.NewString()
+
+	chat := Chat{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+		OwnerID:        uuid.New(),
+		UserACL: ChatACL{
+			uid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: ChatACL{
+			gid: ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+	}
+
+	t.Run("ACLsOmittedWhenDisabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(true)
+		t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+		obj := chat.RBACObject()
+
+		require.Empty(t, obj.ACLUserList, "user ACLs should be empty when disabled")
+		require.Empty(t, obj.ACLGroupList, "group ACLs should be empty when disabled")
+	})
+
+	t.Run("ACLsIncludedWhenEnabled", func(t *testing.T) {
+		rbac.SetChatACLDisabled(false)
+
+		obj := chat.RBACObject()
+
+		require.NotEmpty(t, obj.ACLUserList, "user ACLs should be present when enabled")
+		require.NotEmpty(t, obj.ACLGroupList, "group ACLs should be present when enabled")
+		require.Contains(t, obj.ACLUserList, uid)
+		require.Contains(t, obj.ACLGroupList, gid)
+	})
+}
+
+//nolint:tparallel,paralleltest
 func TestWorkspaceACLDisabled(t *testing.T) {
 	uid := uuid.NewString()
 	gid := uuid.NewString()

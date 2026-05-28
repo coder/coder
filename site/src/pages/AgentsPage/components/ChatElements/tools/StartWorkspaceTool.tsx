@@ -1,4 +1,4 @@
-import { LoaderIcon, MonitorPlayIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Tooltip,
@@ -6,6 +6,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -42,12 +43,20 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	const header = (
 		<>
-			<MonitorPlayIcon className="h-4 w-4 shrink-0 text-current" />
-			<span className="text-[13px]">{label}</span>
+			<ToolIcon
+				name="start_workspace"
+				isError={isError}
+				isRunning={isRunning}
+			/>
+			<span className="text-[13px] leading-6">{label}</span>
+		</>
+	);
+	const headerStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to start workspace"}
@@ -55,7 +64,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 		</>
 	);
@@ -67,6 +76,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 		<div className="w-full">
 			<ToolCollapsible
 				header={header}
+				headerStatus={headerStatus}
 				hasContent={hasBuildLogs}
 				defaultExpanded={isRunning}
 			>

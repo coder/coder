@@ -1,4 +1,4 @@
-package coderd //nolint:testpackage // Tests the unexported resolveTemplateMetaUpdate helper.
+package coderd
 
 import (
 	"reflect"

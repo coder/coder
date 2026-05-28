@@ -70,10 +70,10 @@ credentials.
 
 AI Gateway accepts Coder-issued tokens for client authentication and also
 supports [Bring Your Own Key
-(BYOK)](../clients/index.md#bring-your-own-key-byok) for other clients.
+(BYOK)](../auth.md#bring-your-own-key-byok) for other clients.
 Coder Agents only uses the centralized key mode today. The upstream
 provider keys you configured for AI Gateway (for example,
-`CODER_AIBRIDGE_OPENAI_KEY`) are used by AI Gateway internally to call the
+`CODER_AI_GATEWAY_OPENAI_KEY`) are used by AI Gateway internally to call the
 upstream provider; they are not what Coder Agents sends.
 
 Coder Agents stores the **API Key** field on each provider as the bearer

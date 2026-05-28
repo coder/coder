@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 )
 
 type state int
@@ -33,6 +34,11 @@ type WorkspaceStarter interface {
 
 type Client interface {
 	DialAgent(dialCtx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (workspacesdk.AgentConn, error)
+	WorkspaceAgentConnectionWatch(
+		dialCtx context.Context, workspaceID uuid.UUID, agentName string,
+	) (
+		dec *wsjson.Decoder[workspacesdk.ConnectionWatchEvent], err error,
+	)
 }
 
 const (
@@ -127,25 +133,15 @@ type Config struct {
 // ordering.
 type tunnelerEvent struct {
 	shutdownSignal    *shutdownSignal
-	buildUpdate       *buildUpdate
+	buildUpdate       *workspacesdk.BuildUpdate
 	provisionerJobLog *codersdk.ProvisionerJobLog
-	agentUpdate       *agentUpdate
+	agentUpdate       *workspacesdk.AgentUpdate
 	agentLog          *codersdk.WorkspaceAgentLog
 	appUpdate         *networkedApplicationUpdate
 	tailnetUpdate     *tailnetUpdate
 }
 
 type shutdownSignal struct{}
-
-type buildUpdate struct {
-	transition codersdk.WorkspaceTransition
-	jobStatus  codersdk.ProvisionerJobStatus
-}
-
-type agentUpdate struct {
-	lifecycle codersdk.WorkspaceAgentLifecycle
-	id        uuid.UUID
-}
 
 type networkedApplicationUpdate struct {
 	// up is true if the application is up. False if it is down.
@@ -174,10 +170,64 @@ func NewTunneler(client Client, config Config) *Tunneler {
 	return t
 }
 
+func (t *Tunneler) GracefulShutdown(ctx context.Context) error {
+	select {
+	case t.events <- tunnelerEvent{shutdownSignal: &shutdownSignal{}}:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.ctx.Done():
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		t.wg.Wait()
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (t *Tunneler) start() {
 	defer t.wg.Done()
-	// here we would subscribe to updates.
-	// t.client.AgentConnectionWatch(t.config.WorkspaceID, t.config.AgentName)
+	d, err := t.client.WorkspaceAgentConnectionWatch(t.ctx, t.config.WorkspaceID, t.config.AgentName)
+	// TODO: handle retries
+	if err != nil {
+		return
+	}
+	defer d.Close()
+	c := d.Chan()
+	for {
+		select {
+		case <-t.ctx.Done():
+			return
+		case event, ok := <-c:
+			if !ok {
+				t.config.DebugLogger.Error(t.ctx, "watch closed")
+			}
+			if event.Error != nil {
+				t.config.DebugLogger.Error(t.ctx, "workspace agent connection watch error", slog.Error(event.Error))
+			}
+			if !ok || event.Error != nil {
+				// TODO: handle retries
+				select {
+				case t.events <- tunnelerEvent{shutdownSignal: &shutdownSignal{}}:
+				case <-t.ctx.Done():
+				}
+				return
+			}
+			select {
+			case <-t.ctx.Done():
+				return
+			case t.events <- tunnelerEvent{
+				buildUpdate: event.BuildUpdate,
+				agentUpdate: event.AgentUpdate,
+			}:
+			}
+		}
+	}
 }
 
 func (t *Tunneler) eventLoop() {
@@ -235,13 +285,13 @@ func (t *Tunneler) handleSignal() {
 	}
 }
 
-func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
+func (t *Tunneler) handleBuildUpdate(update *workspacesdk.BuildUpdate) {
 	if t.state == shutdownTailnet || t.state == shutdownApplication || t.state == exit {
 		return // no-op
 	}
 
 	var canMakeProgress, jobUnhealthy bool
-	switch update.jobStatus {
+	switch update.JobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		canMakeProgress = true
 	case codersdk.ProvisionerJobSucceeded:
@@ -249,21 +299,21 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 		jobUnhealthy = true
 	}
 
-	if update.transition == codersdk.WorkspaceTransitionDelete {
-		t.config.DebugLogger.Info(t.ctx, "workspace is being deleted", slog.F("job_status", update.jobStatus))
+	if update.Transition == codersdk.WorkspaceTransitionDelete {
+		t.config.DebugLogger.Info(t.ctx, "workspace is being deleted", slog.F("job_status", update.JobStatus))
 		// treat same as signal
 		t.handleSignal()
 		return
 	}
 	if jobUnhealthy {
-		t.config.DebugLogger.Info(t.ctx, "build job is in unhealthy state", slog.F("job_status", update.jobStatus))
+		t.config.DebugLogger.Info(t.ctx, "build job is in unhealthy state", slog.F("job_status", update.JobStatus))
 		// treat same as signal
 		t.handleSignal()
 		return
 	}
 
-	if update.transition == codersdk.WorkspaceTransitionStart && canMakeProgress {
-		t.config.DebugLogger.Debug(t.ctx, "workspace is starting", slog.F("job_status", update.jobStatus))
+	if update.Transition == codersdk.WorkspaceTransitionStart && canMakeProgress {
+		t.config.DebugLogger.Debug(t.ctx, "workspace is starting", slog.F("job_status", update.JobStatus))
 		switch t.state {
 		// new build after we have already connected
 		case establishTailnet: // we are starting the tailnet
@@ -279,8 +329,8 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 		}
 		return
 	}
-	if update.transition == codersdk.WorkspaceTransitionStart && update.jobStatus == codersdk.ProvisionerJobSucceeded {
-		t.config.DebugLogger.Debug(t.ctx, "workspace is started", slog.F("job_status", update.jobStatus))
+	if update.Transition == codersdk.WorkspaceTransitionStart && update.JobStatus == codersdk.ProvisionerJobSucceeded {
+		t.config.DebugLogger.Debug(t.ctx, "workspace is started", slog.F("job_status", update.JobStatus))
 		switch t.state {
 		case establishTailnet, applicationUp, tailnetUp:
 			// no-op. Later agent updates will tell us whether the tailnet connection is current.
@@ -290,7 +340,7 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 		return
 	}
 
-	if update.transition == codersdk.WorkspaceTransitionStop {
+	if update.Transition == codersdk.WorkspaceTransitionStop {
 		// these cases take effect regardless of whether the transition is complete or not
 		switch t.state {
 		// all 3 of these mean a new build after we have already started connecting
@@ -312,7 +362,7 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 			t.state = exit
 			return
 		}
-		if update.jobStatus == codersdk.ProvisionerJobSucceeded {
+		if update.JobStatus == codersdk.ProvisionerJobSucceeded {
 			switch t.state {
 			case stateInit, waitToStart, waitForAgent:
 				t.wg.Add(1)
@@ -335,29 +385,29 @@ func (t *Tunneler) handleBuildUpdate(update *buildUpdate) {
 	}
 	// unhittable
 	t.config.DebugLogger.Critical(t.ctx, "unhandled build update",
-		slog.F("job_status", update.jobStatus), slog.F("transition", update.transition), slog.F("state", t.state))
+		slog.F("job_status", update.JobStatus), slog.F("transition", update.Transition), slog.F("state", t.state))
 }
 
 func (*Tunneler) handleProvisionerJobLog(*codersdk.ProvisionerJobLog) {
 }
 
-func (t *Tunneler) handleAgentUpdate(update *agentUpdate) {
+func (t *Tunneler) handleAgentUpdate(update *workspacesdk.AgentUpdate) {
 	t.config.DebugLogger.Debug(t.ctx, "handling agent update",
 		slog.F("state", t.state),
-		slog.F("lifecycle", update.lifecycle),
-		slog.F("agent_id", update.id))
+		slog.F("lifecycle", update.Lifecycle),
+		slog.F("agent_id", update.ID))
 	if t.state != waitForAgent {
 		return
 	}
 	doConnect := func() {
 		t.wg.Add(1)
 		t.state = establishTailnet
-		go t.connectTailnet(update.id)
+		go t.connectTailnet(update.ID)
 	}
 	// consequence of ignoring updates if we are not waiting for the agent is that we MUST receive
 	// the start build succeeded update BEFORE we get the Agent connected / ready update.  We should keep this
 	// in mind when implementing the watch in Coderd.
-	switch update.lifecycle {
+	switch update.Lifecycle {
 	case codersdk.WorkspaceAgentLifecycleReady:
 		doConnect()
 		return
@@ -376,7 +426,7 @@ func (t *Tunneler) handleAgentUpdate(update *agentUpdate) {
 	default:
 		// unhittable, unless new states are added. We structure this with the switch and all cases covered to ensure
 		// we cover all cases.
-		t.config.DebugLogger.Critical(t.ctx, "unhandled agent update", slog.F("lifecycle", update.lifecycle))
+		t.config.DebugLogger.Critical(t.ctx, "unhandled agent update", slog.F("lifecycle", update.Lifecycle))
 	}
 }
 

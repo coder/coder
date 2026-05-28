@@ -288,6 +288,54 @@ url = "https://github.com/sigstore/cosign/releases/download/v2.4.3/cosign-window
 checksum = "sha256:a2ac24e197111c9430cb2a98f10a641164381afb83df036504868e4ea5720800"
 url = "https://github.com/sigstore/cosign/releases/download/v2.4.3/cosign-windows-amd64.exe"
 
+[[tools.crane]]
+version = "0.21.6"
+backend = "aqua:google/go-containerregistry"
+
+[tools.crane."platforms.linux-arm64"]
+checksum = "sha256:6f61571ca0c2a5da27c2927fcb143255ccb2b74b8977dfcb44645b372ab0f951"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_arm64.tar.gz"
+
+[tools.crane."platforms.linux-arm64-musl"]
+checksum = "sha256:6f61571ca0c2a5da27c2927fcb143255ccb2b74b8977dfcb44645b372ab0f951"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_arm64.tar.gz"
+
+[tools.crane."platforms.linux-x64"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-baseline"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-musl"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:7ebbdcd05b652345c1f5105f8475e518534b90d66f3bdb50017be63f426ea435"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Linux_x86_64.tar.gz"
+
+[tools.crane."platforms.macos-arm64"]
+checksum = "sha256:a124f297d1e63e8b6c63c2463e43565290d2fd074c1dadb5ca73d737bc7b2484"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_arm64.tar.gz"
+
+[tools.crane."platforms.macos-x64"]
+checksum = "sha256:f1e653737a1d6e8a412734d0ac25009e04eccec98853be2eb59b8c744dede834"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_x86_64.tar.gz"
+
+[tools.crane."platforms.macos-x64-baseline"]
+checksum = "sha256:f1e653737a1d6e8a412734d0ac25009e04eccec98853be2eb59b8c744dede834"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Darwin_x86_64.tar.gz"
+
+[tools.crane."platforms.windows-x64"]
+checksum = "sha256:fb78f814f68ab47266458f319ca7e642a303453ea25c8993a14eb9850c56e870"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Windows_x86_64.tar.gz"
+
+[tools.crane."platforms.windows-x64-baseline"]
+checksum = "sha256:fb78f814f68ab47266458f319ca7e642a303453ea25c8993a14eb9850c56e870"
+url = "https://github.com/google/go-containerregistry/releases/download/v0.21.6/go-containerregistry_Windows_x86_64.tar.gz"
+
 [[tools.doctl]]
 version = "1.158.0"
 backend = "aqua:digitalocean/doctl"
@@ -480,9 +528,53 @@ url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golan
 checksum = "sha256:54c2ed3a6b4f2f5da1056fb6e83d6b73b592e06684b65a5999174fabbb251a8f"
 url = "https://github.com/golangci/golangci-lint/releases/download/v1.64.8/golangci-lint-1.64.8-windows-amd64.zip"
 
-[[tools."http:helm"]]
-version = "3.12.0"
-backend = "http:helm"
+[[tools.helm]]
+version = "3.21.0"
+backend = "aqua:helm/helm"
+
+[tools.helm."platforms.linux-arm64"]
+checksum = "sha256:8de5a0c9a47431e59fd560e91e0779c8cf9316c383da7efb84128a4c339ecb2d"
+url = "https://get.helm.sh/helm-v3.21.0-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-arm64-musl"]
+checksum = "sha256:8de5a0c9a47431e59fd560e91e0779c8cf9316c383da7efb84128a4c339ecb2d"
+url = "https://get.helm.sh/helm-v3.21.0-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-x64"]
+checksum = "sha256:0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36"
+url = "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.linux-x64-baseline"]
+checksum = "sha256:0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36"
+url = "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.linux-x64-musl"]
+checksum = "sha256:0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36"
+url = "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36"
+url = "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.macos-arm64"]
+checksum = "sha256:68bfbdc022c543a2a022597b20298216877e98abe6e4a345d3ecf114d79cae5f"
+url = "https://get.helm.sh/helm-v3.21.0-darwin-arm64.tar.gz"
+
+[tools.helm."platforms.macos-x64"]
+checksum = "sha256:8bc0c1f85f8738cc3cda4a2cc73047145bcdcb1f4d9cdcc29073037bfb22fa2e"
+url = "https://get.helm.sh/helm-v3.21.0-darwin-amd64.tar.gz"
+
+[tools.helm."platforms.macos-x64-baseline"]
+checksum = "sha256:8bc0c1f85f8738cc3cda4a2cc73047145bcdcb1f4d9cdcc29073037bfb22fa2e"
+url = "https://get.helm.sh/helm-v3.21.0-darwin-amd64.tar.gz"
+
+[tools.helm."platforms.windows-x64"]
+checksum = "sha256:5752d1777a9b3f96e3567bb844837904227741ae8c31ec178006f129c3c70936"
+url = "https://get.helm.sh/helm-v3.21.0-windows-amd64.tar.gz"
+
+[tools.helm."platforms.windows-x64-baseline"]
+checksum = "sha256:5752d1777a9b3f96e3567bb844837904227741ae8c31ec178006f129c3c70936"
+url = "https://get.helm.sh/helm-v3.21.0-windows-amd64.tar.gz"
 
 [[tools.kubectx]]
 version = "0.9.4"
@@ -690,6 +782,7 @@ url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/proto
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
 
 [tools.protoc."platforms.linux-x64"]
+checksum = "blake3:b1d1a517cb9c8c3cbfc98c708f93e6d3bd8b3ce0e2db1ad8c1491ae8a4067ad2"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
 
 [tools.protoc."platforms.linux-x64-baseline"]
@@ -727,6 +820,7 @@ url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-x64"]
+checksum = "blake3:127ed3a8005b199a8451c258ea8fe8ae0f68dd01b4e52c21c881eb7f1d69a333"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-x64-baseline"]
@@ -802,49 +896,49 @@ checksum = "sha256:b8bfdedb261de2a69768097422a73bc72273ee92136ff676a20c3161e6588
 url = "https://github.com/anchore/syft/releases/download/v1.20.0/syft_1.20.0_windows_amd64.zip"
 
 [[tools.terraform]]
-version = "1.15.2"
+version = "1.15.5"
 backend = "aqua:hashicorp/terraform"
 
 [tools.terraform."platforms.linux-arm64"]
-checksum = "sha256:cf27657e96bbdc6116f4c16a0c801d36ae6410d7210183a520ac6b2198fb723e"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_arm64.zip"
+checksum = "sha256:06e7b48de826146c6d9331ba35b13da12332d8392be30d1dd6b789ba4713fff0"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_arm64.zip"
 
 [tools.terraform."platforms.linux-arm64-musl"]
-checksum = "sha256:cf27657e96bbdc6116f4c16a0c801d36ae6410d7210183a520ac6b2198fb723e"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_arm64.zip"
+checksum = "sha256:06e7b48de826146c6d9331ba35b13da12332d8392be30d1dd6b789ba4713fff0"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_arm64.zip"
 
 [tools.terraform."platforms.linux-x64"]
-checksum = "sha256:c56ff2bc7e6ce9b3879a50392b03c2ea074b47688bf503ff966c87fb01b2aab8"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip"
+checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-baseline"]
-checksum = "sha256:c56ff2bc7e6ce9b3879a50392b03c2ea074b47688bf503ff966c87fb01b2aab8"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip"
+checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-musl"]
-checksum = "sha256:c56ff2bc7e6ce9b3879a50392b03c2ea074b47688bf503ff966c87fb01b2aab8"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip"
+checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
 
 [tools.terraform."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:c56ff2bc7e6ce9b3879a50392b03c2ea074b47688bf503ff966c87fb01b2aab8"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip"
+checksum = "sha256:702b2136af6728c8ff037f843dd2dbce2b7ad88786b7381d1d72aefa250f601c"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip"
 
 [tools.terraform."platforms.macos-arm64"]
-checksum = "sha256:4204bc3450418a7ce423e58451b053e5daed625ad6c6a15de98bc09345269f99"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_darwin_arm64.zip"
+checksum = "sha256:01137660510005b918bba82154866fbeac4393163d8277c2abe861dfb5842c3c"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_arm64.zip"
 
 [tools.terraform."platforms.macos-x64"]
-checksum = "sha256:2bb701bc2db93ed39613df4f4e033ec4c2de9eba1c036d9a2f62cffc988af066"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_darwin_amd64.zip"
+checksum = "sha256:3687d07c034b3e7deed5b072cd8ae2b34835bcb139baec3fc4f5fd534dabf5ed"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_amd64.zip"
 
 [tools.terraform."platforms.macos-x64-baseline"]
-checksum = "sha256:2bb701bc2db93ed39613df4f4e033ec4c2de9eba1c036d9a2f62cffc988af066"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_darwin_amd64.zip"
+checksum = "sha256:3687d07c034b3e7deed5b072cd8ae2b34835bcb139baec3fc4f5fd534dabf5ed"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_darwin_amd64.zip"
 
 [tools.terraform."platforms.windows-x64"]
-checksum = "sha256:a7e25570dd85f363581e96cac0b468257c45945ca8875d951413b6606c9b86d4"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_windows_amd64.zip"
+checksum = "sha256:2f652dd854af7b7fbb51301afc55b5ef1d3f6e287be7889d4cc3818df891cd38"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_amd64.zip"
 
 [tools.terraform."platforms.windows-x64-baseline"]
-checksum = "sha256:a7e25570dd85f363581e96cac0b468257c45945ca8875d951413b6606c9b86d4"
-url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_windows_amd64.zip"
+checksum = "sha256:2f652dd854af7b7fbb51301afc55b5ef1d3f6e287be7889d4cc3818df891cd38"
+url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_amd64.zip"

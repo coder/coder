@@ -2184,6 +2184,53 @@ func TestServer_InterruptShutdown(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestServer_AIGatewayShutdownOrdering is a regression test for a shutdown
+// ordering bug. The in-memory AI Gateway daemon registers itself with the
+// API WebsocketWaitGroup, so it must be closed before coderAPICloser.Close()
+// waits on that group. If it isn't, API.Close() blocks for the full 10s
+// WebsocketWaitGroup timeout, logs "websocket shutdown timed out after 10
+// seconds", and keeps heavy server-test state live for an extra 10s. On
+// Windows test-go-pg this extra shutdown tail overlapped across concurrent
+// package binaries and OOMed the runner.
+func TestServer_AIGatewayShutdownOrdering(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	defer cancel()
+
+	inv, cfg := clitest.New(t,
+		"server",
+		dbArg(t),
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--cache-dir", t.TempDir(),
+		// Explicit so the test catches the regression even if the
+		// default for ai-gateway-enabled is ever flipped back to false.
+		"--ai-gateway-enabled=true",
+	)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- inv.WithContext(ctx).Run()
+	}()
+
+	// Wait for the server to come up so the in-memory AI Gateway daemon
+	// is registered with the API and the WebsocketWaitGroup is nonzero.
+	_ = waitAccessURL(t, cfg)
+
+	// The WebsocketWaitGroup timeout in coderd.API.Close() is hard coded
+	// to 10s, so any value comfortably below 10s catches the regression
+	// while leaving headroom for slow CI runners.
+	shutdownStart := time.Now()
+	cancel()
+	if err := <-serverErr; err != nil {
+		require.ErrorIs(t, err, context.Canceled)
+	}
+	require.Less(t, time.Since(shutdownStart), 8*time.Second,
+		"graceful shutdown took too long; the in-memory AI Gateway daemon is "+
+			"likely not being closed before coderAPICloser.Close()")
+}
+
 func TestServer_GracefulShutdown(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

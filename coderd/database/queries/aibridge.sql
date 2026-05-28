@@ -133,6 +133,11 @@ WHERE
 		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name = @provider_name::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
@@ -175,6 +180,11 @@ WHERE
 	-- Filter provider
 	AND CASE
 		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		ELSE true
+	END
+	-- Filter provider_name
+	AND CASE
+		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name = @provider_name::text
 		ELSE true
 	END
 	-- Filter model
@@ -418,6 +428,11 @@ WHERE
 		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
 		ELSE true
 	END
+	-- Filter provider_name
+	AND CASE
+		WHEN @provider_name::text != '' THEN aibridge_interceptions.provider_name = @provider_name::text
+		ELSE true
+	END
 	-- Filter model
 	AND CASE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
@@ -503,6 +518,11 @@ session_page AS (
 		-- Filter provider
 		AND CASE
 			WHEN @provider::text != '' THEN ai.provider = @provider::text
+			ELSE true
+		END
+		-- Filter provider_name
+		AND CASE
+			WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
 			ELSE true
 		END
 		-- Filter model

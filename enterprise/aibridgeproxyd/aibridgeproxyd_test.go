@@ -158,6 +158,7 @@ type testProxyConfig struct {
 	allowedPrivateCIDRs      []string
 	newDumper                func(string, string) aibridgeproxyd.RoundTripDumper
 	metrics                  *aibridgeproxyd.Metrics
+	refreshProviders         aibridgeproxyd.RefreshProvidersFunc
 }
 
 type testProxyOption func(*testProxyConfig)
@@ -250,6 +251,12 @@ func withListenerTLS(certFile, keyFile string) testProxyOption {
 	}
 }
 
+func withRefreshProviders(fn aibridgeproxyd.RefreshProvidersFunc) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.refreshProviders = fn
+	}
+}
+
 // newTestProxy creates a new AI Bridge Proxy server for testing.
 // It uses the shared MITM certificate and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
@@ -289,6 +296,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		AllowedPrivateCIDRs:      cfg.allowedPrivateCIDRs,
 		NewDumper:                cfg.newDumper,
 		Metrics:                  cfg.metrics,
+		RefreshProviders:         cfg.refreshProviders,
 	}
 	if cfg.certStore != nil {
 		aibridgeOpts.CertStore = cfg.certStore
@@ -678,14 +686,15 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allow list is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("EmptyDomainAllowlist", func(t *testing.T) {
@@ -694,15 +703,16 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      ":0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{""},
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{""},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allowlist is empty, at least one domain is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("InvalidDomainAllowlist", func(t *testing.T) {

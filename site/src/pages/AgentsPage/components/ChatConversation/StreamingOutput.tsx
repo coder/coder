@@ -1,3 +1,4 @@
+import { BrainIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -7,6 +8,7 @@ import {
 	MessageContent,
 	Shimmer,
 } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
@@ -33,10 +35,13 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
-		<Shimmer as="span" className="text-[13px] leading-relaxed">
-			Thinking
-		</Shimmer>
+	<div data-transcript-row="" className="text-content-secondary">
+		<TranscriptRow className="w-full gap-2">
+			<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+			<Shimmer as="span" className="text-[13px] leading-6">
+				Thinking
+			</Shimmer>
+		</TranscriptRow>
 	</div>
 );
 
@@ -92,7 +97,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-2">
+					<div className="relative flex flex-col gap-2 overflow-visible">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}
