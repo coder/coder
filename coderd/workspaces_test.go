@@ -5672,6 +5672,7 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 		workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		sharedUserClientA, sharedUserA       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, sharedUserB                       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, groupMember                       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		sharedGroup                          = dbgen.Group(t, db, database.Group{OrganizationID: admin.OrganizationID})
 		workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        workspaceOwner.ID,
@@ -5680,6 +5681,8 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: sharedGroup.ID, UserID: groupMember.ID})
 
 	err := workspaceOwnerClient.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
 		UserRoles: map[string]codersdk.WorkspaceRole{
@@ -5709,6 +5712,8 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 		gotGroupRoles[g.ID] = g.Role
 	}
 	require.Equal(t, codersdk.WorkspaceRoleUse, gotGroupRoles[sharedGroup.ID])
+	require.Empty(t, acl.Groups[0].Members)
+	require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 }
 
 // nolint:tparallel,paralleltest // Subtests modify a package global (rbac.workspaceACLDisabled).
