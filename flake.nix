@@ -295,14 +295,6 @@
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
 
             NODE_OPTIONS = "--max-old-space-size=8192";
-            BIOME_BINARY =
-              if pkgs.stdenv.isLinux then
-                if pkgs.stdenv.hostPlatform.isAarch64 then
-                  "@biomejs/cli-linux-arm64-musl/biome"
-                else
-                  "@biomejs/cli-linux-x64-musl/biome"
-              else
-                "";
             GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };
