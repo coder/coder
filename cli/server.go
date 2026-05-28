@@ -1041,7 +1041,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeProviders, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
+				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
