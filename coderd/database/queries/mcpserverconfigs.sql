@@ -213,5 +213,10 @@ WHERE
 
 -- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
-SET mcp_server_ids = array_remove(mcp_server_ids, @id::uuid)
-WHERE @id = ANY(mcp_server_ids);
+SET mcp_server_ids = (
+    SELECT COALESCE(array_agg(sid), '{}')
+    FROM unnest(chats.mcp_server_ids) AS sid
+    WHERE sid IN (SELECT id FROM mcp_server_configs)
+)
+WHERE mcp_server_ids != '{}'
+  AND NOT (mcp_server_ids <@ COALESCE((SELECT array_agg(id) FROM mcp_server_configs), '{}'));
