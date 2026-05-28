@@ -9914,7 +9914,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newTestServer(t, db, ps, uuid.New())
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -9927,13 +9927,8 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Subscribe before the worker commits any durable messages so we
-	// observe the advisor tool-result deltas live. Buffered parts are
-	// claimed by their committed durable message ID at publishMessage
-	// time and dropped from snapshots of late-connecting subscribers, so
-	// a post-completion Subscribe() would no longer see streaming
-	// deltas. Collecting events from the live channel covers the
-	// streaming UX contract this test exists to verify.
+	// Keep the server passive until the live subscriber is registered.
+	// Advisor deltas are transient, so a late subscriber would miss them.
 	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	var (
@@ -9968,6 +9963,8 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			}
 		}
 	}()
+
+	server.Start()
 
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
@@ -10023,10 +10020,13 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
 
-	// Stop the live collector and assert it captured the streaming
-	// advisor deltas during processing. Late subscribers no longer
-	// see committed parts because publishMessage claims them out of
-	// new snapshots, so the assertion must use the live collector.
+	require.Eventually(t, func() bool {
+		livePartsMu.Lock()
+		defer livePartsMu.Unlock()
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"advisor nested text deltas must stream into the parent tool card")
+
 	cancelLive()
 	<-liveCollectorDone
 	livePartsMu.Lock()
