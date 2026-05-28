@@ -1,14 +1,11 @@
 package nats
 
 import (
-	"context"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog/v3"
 )
 
 const readyTimeout = 10 * time.Second
@@ -70,25 +67,18 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 }
 
 // startEmbeddedServer starts an in-process NATS server.
-func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, *natsserver.Options, error) {
-	sopts, err := buildServerOptions(opts)
+func startEmbeddedServer(opts *natsserver.Options) (*natsserver.Server, error) {
+	ns, err := natsserver.NewServer(opts)
 	if err != nil {
-		return nil, nil, err
-	}
-	ns, err := natsserver.NewServer(sopts)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("new embedded nats server: %w", err)
+		return nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
+		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
-	logger.Info(context.Background(), "embedded nats server started",
-		slog.F("client_url", ns.ClientURL()),
-	)
-	return ns, sopts, nil
+	return ns, nil
 }
 
 type connHandlers struct {

@@ -230,10 +230,19 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	ns, sopts, err := startEmbeddedServer(logger, opts)
+	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
 	}
+
+	ns, err := startEmbeddedServer(sopts)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info(context.Background(), "embedded nats server started",
+		slog.F("client_url", ns.ClientURL()),
+	)
 
 	p := newPubsub(ctx, logger, opts)
 	p.ns = ns
