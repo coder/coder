@@ -4874,6 +4874,8 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+	// The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 type Group struct {
