@@ -529,7 +529,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<span>{runningScriptsCount}</span>
 								</Badge>
 							)}
-						{healthIssues.length > 0 && (
+						{hasAgentIssues && (
 							<Badge
 								variant={hasWarningIssues ? "warning" : "info"}
 								size="xs"
@@ -547,7 +547,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				</div>
 				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
-						{healthIssues.length > 0 && (
+						{hasAgentIssues && (
 							<div className="mb-4 flex flex-col gap-3">
 								{healthIssues.map((issue) => (
 									<AgentAlert
