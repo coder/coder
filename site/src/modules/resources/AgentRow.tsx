@@ -553,7 +553,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						  Collapse's `in` condition is needed here,
 							or else the Spinner will also show as Collapse is closing
 						*/}
-						{shouldExpandLogs && !shouldShowLogsTabs && (
+						{shouldExpandLogs && !(hasAgentIssues || shouldShowLogsTabs) && (
 							<Spinner size="lg" loading className="block mx-auto" />
 						)}
 						{hasAgentIssues && (
