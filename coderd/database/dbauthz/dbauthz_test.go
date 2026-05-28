@@ -6456,33 +6456,33 @@ func (s *MethodTestSuite) TestAIBridge() {
 	}))
 
 	s.Run("GetUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		o := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: u.ID})
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), u.ID).Return(o, nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionRead).Returns(o)
+		user := testutil.Fake(s.T(), faker, database.User{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(override)
 	}))
 
 	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		g := testutil.Fake(s.T(), faker, database.Group{})
-		o := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: u.ID, GroupID: g.ID})
-		arg := database.UpsertUserAIBudgetOverrideParams{UserID: u.ID, GroupID: g.ID, SpendLimitMicros: o.SpendLimitMicros}
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
-		dbm.EXPECT().UpsertUserAIBudgetOverride(gomock.Any(), arg).Return(o, nil).AnyTimes()
-		check.Args(arg).Asserts(u, policy.ActionUpdate, g, policy.ActionUpdate).Returns(o)
+		user := testutil.Fake(s.T(), faker, database.User{})
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID, GroupID: group.ID})
+		arg := database.UpsertUserAIBudgetOverrideParams{UserID: user.ID, GroupID: group.ID, SpendLimitMicros: override.SpendLimitMicros}
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetGroupByID(gomock.Any(), group.ID).Return(group, nil).AnyTimes()
+		dbm.EXPECT().UpsertUserAIBudgetOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
 	}))
 
 	s.Run("DeleteUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		g := testutil.Fake(s.T(), faker, database.Group{})
-		o := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: u.ID, GroupID: g.ID})
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), u.ID).Return(o, nil).AnyTimes()
-		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
-		dbm.EXPECT().DeleteUserAIBudgetOverride(gomock.Any(), u.ID).Return(o, nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionUpdate, g, policy.ActionUpdate).Returns(o)
+		user := testutil.Fake(s.T(), faker, database.User{})
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID, GroupID: group.ID})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		dbm.EXPECT().GetGroupByID(gomock.Any(), group.ID).Return(group, nil).AnyTimes()
+		dbm.EXPECT().DeleteUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
 	}))
 
 	s.Run("GetAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

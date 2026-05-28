@@ -2305,11 +2305,11 @@ func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UU
 	}
 	// Fetch the existing override to learn which group it attributes spend to,
 	// so we can authorize the caller against that group as well.
-	existing, err := q.db.GetUserAIBudgetOverride(ctx, userID)
+	userOverride, err := q.db.GetUserAIBudgetOverride(ctx, userID)
 	if err != nil {
 		return database.UserAiBudgetOverride{}, err
 	}
-	g, err := q.db.GetGroupByID(ctx, existing.GroupID)
+	g, err := q.db.GetGroupByID(ctx, userOverride.GroupID)
 	if err != nil {
 		return database.UserAiBudgetOverride{}, err
 	}
