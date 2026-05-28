@@ -11,10 +11,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -28,6 +31,7 @@ type reloadTestHarness struct {
 	client   *http.Client
 	bridged  *httptest.Server
 	recorder *aibridgedRecorder
+	metrics  *aibridgeproxyd.Metrics
 }
 
 // aibridgedRecorder captures the path of the last request received by
@@ -106,32 +110,34 @@ func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload,
 // classifyRaw mirrors the production classifier in enterprise/cli so
 // the reload tests exercise the same validation rules end-to-end.
 func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
-	out := aibridgeproxyd.ReloadedProvider{Name: p.name, Type: "openai"}
+	out := aibridgeproxyd.ReloadedProvider{
+		ProviderOutcome: aibridged.ProviderOutcome{Name: p.name, Type: "openai"},
+	}
 	if strings.TrimSpace(p.baseURL) == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
 	u, err := url.Parse(p.baseURL)
 	if err != nil {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("invalid base url %q: %w", p.baseURL, err)
 		return out
 	}
 	host := strings.ToLower(u.Hostname())
 	if host == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", p.baseURL)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
 		return out
 	}
 	seenHost[host] = p.name
 	out.Host = host
-	out.Status = aibridgeproxyd.ProviderStatusEnabled
+	out.Status = aibridged.ProviderStatusEnabled
 	return out
 }
 
@@ -151,10 +157,12 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	t.Cleanup(bridged.Close)
 
 	store := &providerStore{}
+	metrics := aibridgeproxyd.NewMetrics(prometheus.NewRegistry())
 	srv := newTestProxy(t,
 		withCoderAccessURL(bridged.URL),
 		withAllowedPorts("443"),
 		withRefreshProviders(store.refresh),
+		withMetrics(metrics),
 	)
 
 	certPool := getProxyCertPool(t)
@@ -169,6 +177,7 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	return &reloadTestHarness{
 		srv:      srv,
 		store:    store,
+		metrics:  metrics,
 		client:   client,
 		bridged:  bridged,
 		recorder: recorder,
@@ -234,6 +243,25 @@ func (h *reloadTestHarness) expectNotRouted(t *testing.T, targetURL string) {
 	_ = h.sendRequest(t, targetURL)
 	require.Empty(t, h.recorder.load(),
 		"aibridged must not be reached for non-routed host %s", targetURL)
+}
+
+// expectProviderStatus asserts the provider_info series for (name,
+// status) is present with value 1.
+func (h *reloadTestHarness) expectProviderStatus(t *testing.T, name, status string) {
+	t.Helper()
+	assert.Equal(t, 1.0, promtest.ToFloat64(h.metrics.ProviderInfo.WithLabelValues(name, "openai", status)),
+		"expected provider_info{provider_name=%q, status=%q} == 1", name, status)
+}
+
+// expectProviderAbsent asserts no series exists for the provider name
+// in any status. This verifies the GaugeVec.Reset on each reload
+// clears stale entries.
+func (h *reloadTestHarness) expectProviderAbsent(t *testing.T, name string) {
+	t.Helper()
+	for _, status := range []string{"enabled", "disabled", "error"} {
+		assert.Equal(t, 0.0, promtest.ToFloat64(h.metrics.ProviderInfo.WithLabelValues(name, "openai", status)),
+			"expected no provider_info series for %q, found status %q", name, status)
+	}
 }
 
 // TestProxy_StaleTunnelStopsRoutingAfterProviderChange is the
@@ -377,14 +405,18 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha/v1/messages")
+	h.expectProviderStatus(t, "alpha", "enabled")
 
 	// UpdateProviderName: the same BaseURL with a new name must route
-	// under the new name on the next Reload.
+	// under the new name on the next Reload. The renamed provider must
+	// not leave a stale alpha series behind.
 	h.store.set([]rawProvider{
 		{name: "alpha-v2", baseURL: "https://alpha.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
+	h.expectProviderStatus(t, "alpha-v2", "enabled")
+	h.expectProviderAbsent(t, "alpha")
 
 	// UpdateProviderBaseURLHost: moving the provider to a new host must
 	// start MITM'ing the new host and stop MITM'ing the old one.
@@ -394,6 +426,7 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha-new.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
 	h.expectNotRouted(t, "https://alpha.invalid/v1/messages")
+	h.expectProviderStatus(t, "alpha-v2", "enabled")
 
 	// AddSecondProvider: a second provider added in the same Reload must
 	// route independently from the first.
@@ -404,15 +437,19 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha-new.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
 	h.expectRoutedTo(t, "https://beta.invalid/v1/chat/completions", "/api/v2/aibridge/beta/v1/chat/completions")
+	h.expectProviderStatus(t, "alpha-v2", "enabled")
+	h.expectProviderStatus(t, "beta", "enabled")
 
 	// DeleteOneProvider: removing alpha must keep beta routed and stop
-	// routing alpha.
+	// routing alpha. The deleted name disappears from provider_info.
 	h.store.set([]rawProvider{
 		{name: "beta", baseURL: "https://beta.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://beta.invalid/v1/chat/completions", "/api/v2/aibridge/beta/v1/chat/completions")
 	h.expectNotRouted(t, "https://alpha-new.invalid/v1/messages")
+	h.expectProviderStatus(t, "beta", "enabled")
+	h.expectProviderAbsent(t, "alpha-v2")
 
 	// DeleteAllProviders: an empty Reload must collapse the router to
 	// the fail-closed state with no host MITM'd.
@@ -420,6 +457,7 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectNotRouted(t, "https://beta.invalid/v1/chat/completions")
 	h.expectNotRouted(t, "https://alpha-new.invalid/v1/messages")
+	h.expectProviderAbsent(t, "beta")
 
 	// RecreateAfterDelete: reintroducing a previously-deleted provider
 	// must route again without restart, confirming the swap is
@@ -429,6 +467,11 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha/v1/messages")
+	h.expectProviderStatus(t, "alpha", "enabled")
+
+	// Both timestamp gauges must have advanced through this sequence.
+	assert.Positive(t, promtest.ToFloat64(h.metrics.ProvidersLastReloadTimestampSeconds))
+	assert.Positive(t, promtest.ToFloat64(h.metrics.ProvidersLastReloadSuccessTimestampSeconds))
 }
 
 // TestProxy_HotReloadRoutingInvalidProviders covers the resilience
@@ -453,6 +496,8 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		require.NoError(t, h.srv.Reload(t.Context()))
 
 		h.expectRoutedTo(t, "https://valid.invalid/v1/messages", "/api/v2/aibridge/valid/v1/messages")
+		h.expectProviderStatus(t, "no-url", "error")
+		h.expectProviderStatus(t, "valid", "enabled")
 	})
 
 	t.Run("MalformedBaseURLSkipped", func(t *testing.T) {
@@ -470,6 +515,9 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		require.NoError(t, h.srv.Reload(t.Context()))
 
 		h.expectRoutedTo(t, "https://valid.invalid/v1/messages", "/api/v2/aibridge/valid/v1/messages")
+		h.expectProviderStatus(t, "malformed", "error")
+		h.expectProviderStatus(t, "no-host", "error")
+		h.expectProviderStatus(t, "valid", "enabled")
 	})
 
 	t.Run("DuplicateHostFirstWins", func(t *testing.T) {
@@ -485,6 +533,8 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		require.NoError(t, h.srv.Reload(t.Context()))
 
 		h.expectRoutedTo(t, "https://shared.invalid/v1/messages", "/api/v2/aibridge/first/v1/messages")
+		h.expectProviderStatus(t, "first", "enabled")
+		h.expectProviderStatus(t, "second", "error")
 	})
 
 	t.Run("AllInvalidYieldsEmptyRouter", func(t *testing.T) {
