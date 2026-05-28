@@ -1,4 +1,4 @@
-package nats_test
+package nats //nolint:testpackage // Uses test-only Options fields.
 
 import (
 	"context"
@@ -13,15 +13,17 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	xnats "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func newTestPubsub(t *testing.T, opts xnats.Options) *xnats.Pubsub {
+func newPublicTestPubsub(t *testing.T, opts Options) *Pubsub {
 	t.Helper()
+	if opts.ClusterHost == "" && opts.ClusterPort == 0 && opts.RoutePoolSize == 0 {
+		opts.disableCluster = true
+	}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithCancel(context.Background())
-	ps, err := xnats.New(ctx, logger, opts)
+	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
@@ -35,7 +37,7 @@ func TestPubsub(t *testing.T) {
 
 	t.Run("RoundTrip", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, xnats.Options{})
+		ps := newPublicTestPubsub(t, Options{})
 
 		got := make(chan []byte, 1)
 		cancel, err := ps.Subscribe("test_event", func(_ context.Context, msg []byte) {
@@ -56,7 +58,7 @@ func TestPubsub(t *testing.T) {
 
 	t.Run("SubscribeWithErrNormalMessage", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, xnats.Options{})
+		ps := newPublicTestPubsub(t, Options{})
 
 		got := make(chan []byte, 1)
 		cancel, err := ps.SubscribeWithErr("evt", func(_ context.Context, msg []byte, err error) {
@@ -78,7 +80,7 @@ func TestPubsub(t *testing.T) {
 
 	t.Run("EchoDefault", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, xnats.Options{})
+		ps := newPublicTestPubsub(t, Options{})
 
 		got := make(chan []byte, 1)
 		cancel, err := ps.Subscribe("echo_evt", func(_ context.Context, msg []byte) {
@@ -99,7 +101,7 @@ func TestPubsub(t *testing.T) {
 
 	t.Run("Ordering", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, xnats.Options{})
+		ps := newPublicTestPubsub(t, Options{})
 
 		const n = 100
 		got := make(chan []byte, n)
@@ -129,7 +131,7 @@ func TestPubsub(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		ps, err := xnats.New(ctx, logger, xnats.Options{})
+		ps, err := New(ctx, logger, newNonClusterTestOptions())
 		require.NoError(t, err)
 
 		var first, second error
@@ -147,8 +149,8 @@ func TestPubsub(t *testing.T) {
 
 	t.Run("SubscribeWithErrReceivesDropError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, xnats.Options{
-			PendingLimits: xnats.PendingLimits{Msgs: 1, Bytes: 1024 * 1024},
+		ps := newPublicTestPubsub(t, Options{
+			PendingLimits: PendingLimits{Msgs: 1, Bytes: 1024 * 1024},
 		})
 
 		const event = "slow_evt_sync"

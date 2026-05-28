@@ -85,6 +85,9 @@ type Options struct {
 	// default when cluster mode is enabled.
 	RoutePoolSize int
 
+	// disableCluster is intended only for testing. Since we cannot reload a server
+	// with a cluster host/port after initialization, we start all production servers
+	// with clustering enabled.
 	disableCluster bool
 }
 

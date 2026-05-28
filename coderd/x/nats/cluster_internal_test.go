@@ -19,7 +19,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 			"example.com:6222",
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{
+		require.ElementsMatch(t, []string{
 			"nats://127.0.0.1:4222",
 			"nats://[::1]:7222",
 			"nats://example.com:6222",
@@ -33,7 +33,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 		require.Empty(t, routes)
 	})
 
-	t.Run("SortsAndDedupes", func(t *testing.T) {
+	t.Run("Dedupes", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
 			"b.example:6222",
@@ -41,7 +41,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 			"b.example:6222",
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{
+		require.ElementsMatch(t, []string{
 			"nats://a.example:6222",
 			"nats://b.example:6222",
 		}, routeStrings(routes))
@@ -114,7 +114,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, Options{})
+		ps := newTestPubsub(t, newNonClusterTestOptions())
 		err := ps.SetPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})

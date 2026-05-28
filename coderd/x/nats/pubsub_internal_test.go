@@ -105,7 +105,7 @@ func Test_New(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		ps, err := New(ctx, logger, Options{})
+		ps, err := New(ctx, logger, newNonClusterTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -138,7 +138,7 @@ func Test_SubscribeWithErr(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		ps, err := New(ctx, logger, Options{})
+		ps, err := New(ctx, logger, newNonClusterTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -163,7 +163,7 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := newPubsub(ctx, logger, Options{})
+		ps := newPubsub(ctx, logger, newNonClusterTestOptions())
 
 		var subConnA, subConnB, pubConn natsgo.Conn
 		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
@@ -287,7 +287,7 @@ func Test_localSub_init(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		ps, err := New(ctx, logger, Options{})
+		ps, err := New(ctx, logger, newNonClusterTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -419,11 +419,16 @@ func TestPubsubCluster(t *testing.T) {
 	})
 }
 
+func newNonClusterTestOptions() Options {
+	return Options{disableCluster: true}
+}
+
 func newClusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
-		ClusterHost: "127.0.0.1",
-		ClusterPort: tcpPort(t),
+		ClusterHost:    "127.0.0.1",
+		ClusterPort:    tcpPort(t),
+		disableCluster: false,
 	}
 }
 
@@ -537,6 +542,7 @@ func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 	t.Helper()
 	want, err := parsePeerAddresses(addresses)
 	require.NoError(t, err)
+	want = sortRouteURLs(want)
 	require.True(t, sortedURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
 }
 
