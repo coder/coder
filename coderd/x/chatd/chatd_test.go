@@ -26,6 +26,7 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -9927,8 +9928,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Keep the server passive until the live subscriber is registered.
-	// Advisor deltas are transient, so a late subscriber would miss them.
+	// Advisor deltas are transient; a late subscriber misses them.
 	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	var (
@@ -10020,20 +10020,15 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		livePartsMu.Lock()
 		defer livePartsMu.Unlock()
-		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"advisor nested text deltas must stream into the parent tool card")
+		assert.Equal(c, advisorDeltas, liveAdvisorDeltas,
+			"advisor nested text deltas must stream into the parent tool card")
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	cancelLive()
 	<-liveCollectorDone
-	livePartsMu.Lock()
-	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
-	livePartsMu.Unlock()
-	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
-		"advisor nested text deltas must stream into the parent tool card")
 
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
