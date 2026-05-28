@@ -195,6 +195,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
+	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
@@ -250,6 +251,11 @@ func Classify(err error) ClassifiedError {
 			match:     rateLimitMatch && !configMatch,
 			kind:      codersdk.ChatErrorKindRateLimit,
 			retryable: true,
+		},
+		{
+			match:     providerDisabledMatch,
+			kind:      codersdk.ChatErrorKindProviderDisabled,
+			retryable: false,
 		},
 		{
 			match:     timeoutMatch && !configMatch,

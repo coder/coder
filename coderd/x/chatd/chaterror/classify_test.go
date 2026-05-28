@@ -218,6 +218,62 @@ func TestClassify(t *testing.T) {
 				StatusCode: 0,
 			},
 		},
+		{
+			name: "ProviderDisabled503ClassifiesAsProviderDisabled",
+			err: &fantasy.ProviderError{
+				Message:    `provider_disabled: AI provider "openai" is disabled`,
+				StatusCode: 503,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The OpenAI provider has been disabled by an administrator.",
+				Detail:     `provider_disabled: AI provider "openai" is disabled`,
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "ProviderDisabledPlainErrorString",
+			err:  xerrors.New(`provider_disabled: AI provider "anthropic" is disabled`),
+			want: chaterror.ClassifiedError{
+				Message:    "The Anthropic provider has been disabled by an administrator.",
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "anthropic",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "ProviderDisabledBeatsTimeout503",
+			err: &fantasy.ProviderError{
+				Message:    "provider_disabled: AI provider \"google\" is disabled",
+				StatusCode: 503,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The Google provider has been disabled by an administrator.",
+				Detail:     `provider_disabled: AI provider "google" is disabled`,
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "google",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "Generic503StillClassifiesAsTimeout",
+			err: &fantasy.ProviderError{
+				Message:    "service unavailable",
+				StatusCode: 503,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "service unavailable",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 503,
+			},
+		},
 	}
 
 	for _, tt := range tests {

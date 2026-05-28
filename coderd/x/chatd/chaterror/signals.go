@@ -83,6 +83,7 @@ var (
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}
+	providerDisabledPatterns = []string{"provider_disabled"}
 )
 
 func extractStatusCode(lower string) int {
