@@ -56,16 +56,13 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			"fetches each workspace agent's external-agent credentials, and supervises one in-process fake " +
 			"agent per token until the command is interrupted.\n\n" +
 			"Requires a session token whose user is template-admin (or higher) on a deployment licensed " +
-			"for the workspace external-agent feature, AND a direct Postgres connection to the same " +
-			"database the target coderd uses (--postgres-url / CODER_PG_CONNECTION_URL). The session " +
-			"token is used to list workspaces by template; the database connection is used to bulk-fetch " +
-			"external-agent tokens for those workspaces in a single query. This command is intended to " +
-			"run inside the same network/cluster as coderd (e.g. as a sibling Deployment that mounts " +
-			"the same coder-db-url secret), not from operator machines outside the cluster. " +
-			"Both the workspace builds and the credentials " +
-			"endpoint are gated server-side. Pair with `coder exp scaletest create-workspaces " +
-			"--no-wait-for-agents` to seed the workspaces this command will pick up. Workspaces created " +
-			"after this command starts are NOT picked up; rerun the command after seeding more.\n\n" +
+			"for the workspace external-agent feature, and a Postgres connection URL (with credentials " +
+			"encoded into the URL) that points at the same database instance coderd is using. Intended " +
+			"to run inside the same network as coderd, not from operator machines outside the cluster. " +
+			"The workspace listing and external-agent feature are gated server-side. Pair with " +
+			"`coder exp scaletest create-workspaces --no-wait-for-agents` to seed the workspaces this " +
+			"command will pick up. Workspaces created after this command starts are NOT picked up; " +
+			"rerun the command after seeding more.\n\n" +
 			"Exposes Prometheus metrics (Go runtime and process collectors) at /metrics on " +
 			"--prometheus-address (default 0.0.0.0:21112).",
 		Handler: func(inv *serpent.Invocation) error {
@@ -119,8 +116,7 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 
 			metrics := agentfake.NewMetrics(prometheus.DefaultRegisterer)
 
-			mgr := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
-				DB:                      db,
+			mgr := agentfake.NewManager(client, db, logger, agentfake.ManagerOptions{
 				Template:                template,
 				Owner:                   owner,
 				Metrics:                 metrics,

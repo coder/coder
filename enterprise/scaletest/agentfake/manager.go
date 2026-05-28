@@ -41,11 +41,6 @@ type TokenInfo struct {
 // than here, so the CLI / caller can construct the client with whatever session token (operator-issued, admin,
 // template-admin) suits its deployment.
 type ManagerOptions struct {
-	// DB is the database store used to bulk-fetch external-agent tokens for the
-	// enumerated workspaces. Required. The caller is responsible for opening
-	// the underlying connection (e.g. via cli.ConnectToPostgres) and closing
-	// it after the Manager exits.
-	DB database.Store
 	// Template restricts enumeration to workspaces of the given template name. Required.
 	Template string
 	// Owner restricts enumeration to workspaces owned by the given user. Optional; if empty, all owners are included.
@@ -76,15 +71,15 @@ type Manager struct {
 }
 
 // NewManager returns an Agent Manager. The provided client must already be authenticated with sufficient privilege
-// to list workspaces by template (template-admin or higher). opts.DB must be a database.Store connected to the same
+// to list workspaces by template (template-admin or higher). db must be a database.Store connected to the same
 // Postgres database as the target coderd; it is used to bulk-fetch external-agent tokens for the enumerated workspaces.
-func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions) *Manager {
+func NewManager(client *codersdk.Client, db database.Store, logger slog.Logger, opts ManagerOptions) *Manager {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
 	return &Manager{
 		client: client,
-		db:     opts.DB,
+		db:     db,
 		logger: logger,
 		opts:   opts,
 	}
@@ -98,9 +93,6 @@ func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions
 func (m *Manager) Run(ctx context.Context) error {
 	if m.opts.Template == "" {
 		return xerrors.New("invalid manager options: Template is required")
-	}
-	if m.db == nil {
-		return xerrors.New("invalid manager options: DB is required")
 	}
 
 	if m.opts.ExpectedAgents > 0 {

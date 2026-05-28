@@ -61,7 +61,7 @@ func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	m := agentfake.NewManager(client, logger, agentfake.ManagerOptions{DB: db, Template: tmpl.Name})
+	m := agentfake.NewManager(client, db, logger, agentfake.ManagerOptions{Template: tmpl.Name})
 
 	got, err := m.EnumerateExternalAgents(ctx)
 	require.NoError(t, err)
@@ -111,8 +111,7 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	metrics := agentfake.NewMetrics(reg)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	manager := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
-		DB:       db,
+	manager := agentfake.NewManager(client, db, logger, agentfake.ManagerOptions{
 		Template: tmpl.Name,
 		Metrics:  metrics,
 	})
@@ -188,7 +187,7 @@ func Test_Manager_EnumerateExternalAgents_invalidTokenIsFatal(t *testing.T) {
 	client.SetSessionToken("not-a-valid-session-token")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	m := agentfake.NewManager(client, logger, agentfake.ManagerOptions{DB: db, Template: tmpl.Name})
+	m := agentfake.NewManager(client, db, logger, agentfake.ManagerOptions{Template: tmpl.Name})
 
 	_, err = m.EnumerateExternalAgents(ctx)
 	require.Error(t, err, "expected enumeration to fail with an invalid session token")
