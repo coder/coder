@@ -1575,8 +1575,9 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("CleanupDeletedMCPServerIDsFromChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChats(gomock.Any()).Return(nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceChat, policy.ActionUpdate)
+		id := uuid.New()
+		dbm.EXPECT().CleanupDeletedMCPServerIDsFromChats(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
 	s.Run("DeleteMCPServerConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()

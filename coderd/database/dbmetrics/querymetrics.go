@@ -281,9 +281,9 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
-func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.CleanupDeletedMCPServerIDsFromChats(ctx)
+	r0 := m.s.CleanupDeletedMCPServerIDsFromChats(ctx, id)
 	m.queryLatencies.WithLabelValues("CleanupDeletedMCPServerIDsFromChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanupDeletedMCPServerIDsFromChats").Inc()
 	return r0

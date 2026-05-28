@@ -1795,11 +1795,11 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
-func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
-	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
+	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx, id)
 }
 
 func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {

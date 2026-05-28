@@ -84,7 +84,7 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
-	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	CleanupDeletedMCPServerIDsFromChats(ctx context.Context, id uuid.UUID) error
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)

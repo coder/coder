@@ -841,19 +841,20 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
+	err := api.Database.InTx(func(tx database.Store) error {
+		if _, err := tx.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
+			return err
+		}
+		if err := tx.DeleteMCPServerConfigByID(ctx, mcpServerID); err != nil {
+			return err
+		}
+		return tx.CleanupDeletedMCPServerIDsFromChats(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	}, nil)
+	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if err := api.Database.DeleteMCPServerConfigByID(ctx, mcpServerID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete MCP server config.",
 			Detail:  err.Error(),

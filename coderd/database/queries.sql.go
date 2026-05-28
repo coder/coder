@@ -14917,17 +14917,12 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 
 const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
-SET mcp_server_ids = (
-    SELECT COALESCE(array_agg(sid), '{}')
-    FROM unnest(chats.mcp_server_ids) AS sid
-    WHERE sid IN (SELECT id FROM mcp_server_configs)
-)
-WHERE mcp_server_ids != '{}'
-  AND NOT (mcp_server_ids <@ COALESCE((SELECT array_agg(id) FROM mcp_server_configs), '{}'))
+SET mcp_server_ids = array_remove(mcp_server_ids, $1::uuid)
+WHERE $1 = ANY(mcp_server_ids)
 `
 
-func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, cleanupDeletedMCPServerIDsFromChats)
+func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, cleanupDeletedMCPServerIDsFromChats, id)
 	return err
 }
 
