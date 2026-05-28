@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -55,16 +56,24 @@ func (r *aibridgedRecorder) reset() {
 	r.path = ""
 }
 
-// providerStore is a mutable [aibridgeproxyd.RefreshProvidersFunc]
-// backing for integration tests. set / setErr mutate the snapshot
-// returned by the next Reload, mimicking CRUD against the database.
+// rawProvider is a (name, base URL) pair representing what the database
+// holds before classification, mirroring the ai_providers row shape
+// that the production refresh function classifies.
+type rawProvider struct {
+	name    string
+	baseURL string
+}
+
+// providerStore is a mutable RefreshProvidersFunc backing for
+// integration tests. set / setErr mutate the snapshot returned by the
+// next Reload, mimicking CRUD against the database.
 type providerStore struct {
 	mu        sync.Mutex
-	providers []aibridgeproxyd.ProviderRoute
+	providers []rawProvider
 	err       error
 }
 
-func (s *providerStore) set(providers []aibridgeproxyd.ProviderRoute) {
+func (s *providerStore) set(providers []rawProvider) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.providers = providers
@@ -77,20 +86,59 @@ func (s *providerStore) setErr(err error) {
 	s.err = err
 }
 
-func (s *providerStore) refresh(context.Context) ([]aibridgeproxyd.ProviderRoute, error) {
+func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.err != nil {
-		return nil, s.err
+		return aibridgeproxyd.ProviderReload{}, s.err
 	}
-	// Return a copy so callers can't mutate our internal snapshot.
-	return slices.Clone(s.providers), nil
+	providers := slices.Clone(s.providers)
+	reload := aibridgeproxyd.ProviderReload{
+		Providers: make([]aibridgeproxyd.ReloadedProvider, 0, len(providers)),
+	}
+	seenHost := make(map[string]string, len(providers))
+	for _, p := range providers {
+		reload.Providers = append(reload.Providers, classifyRaw(p, seenHost))
+	}
+	return reload, nil
 }
 
-// newReloadTestHarness boots a proxy with an empty boot allowlist and a
-// store-backed RefreshProviders. Production wiring is identical: the
-// daemon constructs the proxy without a static allowlist and lets
-// Reload populate the router from the database.
+// classifyRaw mirrors the production classifier in enterprise/cli so
+// the reload tests exercise the same validation rules end-to-end.
+func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
+	out := aibridgeproxyd.ReloadedProvider{Name: p.name, Type: "openai"}
+	if strings.TrimSpace(p.baseURL) == "" {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.New("base url is empty")
+		return out
+	}
+	u, err := url.Parse(p.baseURL)
+	if err != nil {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("invalid base url %q: %w", p.baseURL, err)
+		return out
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("base url %q has no hostname", p.baseURL)
+		return out
+	}
+	if claimedBy, taken := seenHost[host]; taken {
+		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
+		return out
+	}
+	seenHost[host] = p.name
+	out.Host = host
+	out.Status = aibridgeproxyd.ProviderStatusEnabled
+	return out
+}
+
+// newReloadTestHarness boots a proxy with an empty initial router and
+// a store-backed RefreshProviders. Production wiring is identical: the
+// daemon constructs the proxy without preconfigured provider hosts and
+// lets Reload populate the router from the database.
 func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	t.Helper()
 
@@ -106,10 +154,6 @@ func newReloadTestHarness(t *testing.T) *reloadTestHarness {
 	srv := newTestProxy(t,
 		withCoderAccessURL(bridged.URL),
 		withAllowedPorts("443"),
-		// Empty boot allowlist: the router must be populated by Reload,
-		// matching the production daemon's behavior.
-		withDomainAllowlist(),
-		withAIBridgeProviderFromHost(nil),
 		withRefreshProviders(store.refresh),
 	)
 
@@ -192,16 +236,128 @@ func (h *reloadTestHarness) expectNotRouted(t *testing.T, targetURL string) {
 		"aibridged must not be reached for non-routed host %s", targetURL)
 }
 
+// TestProxy_StaleTunnelStopsRoutingAfterProviderChange is the
+// regression test for a bug where a long-lived CONNECT tunnel that was
+// established while a provider was enabled kept routing decrypted
+// requests to aibridged after the provider was disabled or renamed. The
+// fix re-validates the CONNECT-time provider against the live router on
+// every decrypted request and covers both shapes of stale mapping:
+//
+//   - ProviderDisabled: liveProvider == "" (host no longer MITM'd).
+//   - ProviderRenamed: liveProvider != reqCtx.Provider (host MITM'd, but
+//     under a new provider name).
+func TestProxy_StaleTunnelStopsRoutingAfterProviderChange(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		// applyChange mutates the store to simulate the provider change
+		// after the initial routed request succeeds.
+		applyChange func(*providerStore)
+		// changeDescription is appended to the second-request assertion
+		// message so a failure points at the exercised branch.
+		changeDescription string
+	}{
+		{
+			name:              "ProviderDisabled",
+			applyChange:       func(s *providerStore) { s.set(nil) },
+			changeDescription: "after alpha was disabled",
+		},
+		{
+			name: "ProviderRenamed",
+			applyChange: func(s *providerStore) {
+				// Same host, new provider name: the live router still
+				// MITMs alpha.invalid, but as "alpha-v2". The stale
+				// CONNECT-time name "alpha" no longer matches.
+				s.set([]rawProvider{
+					{name: "alpha-v2", baseURL: "https://alpha.invalid/v1"},
+				})
+			},
+			changeDescription: "after alpha was renamed to alpha-v2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			recorder := &aibridgedRecorder{}
+			bridged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				recorder.record(r.URL.Path)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("aibridged"))
+			}))
+			t.Cleanup(bridged.Close)
+
+			store := &providerStore{}
+			store.set([]rawProvider{
+				{name: "alpha", baseURL: "https://alpha.invalid/v1"},
+			})
+
+			// newTestProxy seeds the router from the store via the
+			// initial Reload, so the first CONNECT is MITM'd as alpha.
+			srv := newTestProxy(t,
+				withCoderAccessURL(bridged.URL),
+				withAllowedPorts("443"),
+				withRefreshProviders(store.refresh),
+			)
+
+			certPool := getProxyCertPool(t)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+			// Keep-alives are required: the regression exists only when a
+			// subsequent request reuses the original CONNECT tunnel. A fresh
+			// CONNECT would correctly observe the post-reload router.
+			transport := client.Transport.(*http.Transport)
+			transport.DisableKeepAlives = false
+			transport.MaxConnsPerHost = 1
+			transport.MaxIdleConnsPerHost = 1
+
+			sendThroughTunnel := func(path string) (status int, err error) {
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitShort)
+				defer cancel()
+				req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://alpha.invalid"+path, strings.NewReader(`{}`))
+				require.NoError(t, reqErr)
+				req.Header.Set("Content-Type", "application/json")
+				resp, err := client.Do(req)
+				if err != nil {
+					return 0, err
+				}
+				defer resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
+				return resp.StatusCode, nil
+			}
+
+			// First request: alpha is enabled, the proxy MITMs and routes to
+			// aibridged under the alpha namespace.
+			recorder.reset()
+			status, err := sendThroughTunnel("/v1/messages")
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, status)
+			require.Equal(t, "/api/v2/aibridge/alpha/v1/messages", recorder.load(),
+				"first request must be routed to aibridged while alpha is enabled")
+
+			// Apply the provider change and reload. The atomic router swap
+			// takes effect immediately, but the client's connection (and
+			// the proxy's hijacked tunnel) remain open.
+			tc.applyChange(store)
+			require.NoError(t, srv.Reload(t.Context()))
+
+			// Second request on the same tunnel: aibridged must NOT see it.
+			// The connection is hijacked so the request reaches the proxy's
+			// handleRequest with the stale CONNECT-time provider; the fix
+			// re-validates against the live router and passes through to
+			// the original upstream (alpha.invalid, which fails DNS).
+			recorder.reset()
+			_, _ = sendThroughTunnel("/v1/should-not-route")
+			require.Empty(t, recorder.load(),
+				"%s, aibridged must not receive the request even on a reused tunnel", tc.changeDescription)
+		})
+	}
+}
+
 // TestProxy_HotReloadRoutingCRUD drives the proxy through a CRUD-style
 // sequence of provider changes and asserts on routing after each
-// Reload via real HTTPS requests. Each sub-test mutates the store and
-// validates that:
-//   - newly created providers are MITM'd to aibridged with the right
-//     /api/v2/aibridge/<name>/<path>
-//   - renamed providers route under the new name
-//   - providers whose BaseURL host changes route the new host and stop
-//     MITM'ing the old host
-//   - deleted providers stop being MITM'd; aibridged sees nothing
+// Reload via real HTTPS requests.
 //
 // Hostnames are .invalid (RFC 2606) so a request that escapes the MITM
 // path fails fast via DNS rather than reaching a real upstream.
@@ -210,30 +366,30 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 
 	h := newReloadTestHarness(t)
 
-	// InitialEmptyRouter: no Reload has been called and the boot
-	// allowlist is empty, so any host falls through to the tunneled
+	// InitialEmptyRouter: no Reload has been called and no provider
+	// hosts are configured, so any host falls through to the tunneled
 	// middleware.
 	h.expectNotRouted(t, "https://alpha.invalid/v1/messages")
 
 	// CreateProvider.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "alpha", BaseURL: "https://alpha.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "alpha", baseURL: "https://alpha.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha/v1/messages")
 
 	// UpdateProviderName: the same BaseURL with a new name must route
 	// under the new name on the next Reload.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "alpha-v2", BaseURL: "https://alpha.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "alpha-v2", baseURL: "https://alpha.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
 
 	// UpdateProviderBaseURLHost: moving the provider to a new host must
 	// start MITM'ing the new host and stop MITM'ing the old one.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "alpha-v2", BaseURL: "https://alpha-new.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "alpha-v2", baseURL: "https://alpha-new.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha-new.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
@@ -241,9 +397,9 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 
 	// AddSecondProvider: a second provider added in the same Reload must
 	// route independently from the first.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "alpha-v2", BaseURL: "https://alpha-new.invalid/v1"},
-		{Name: "beta", BaseURL: "https://beta.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "alpha-v2", baseURL: "https://alpha-new.invalid/v1"},
+		{name: "beta", baseURL: "https://beta.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha-new.invalid/v1/messages", "/api/v2/aibridge/alpha-v2/v1/messages")
@@ -251,8 +407,8 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 
 	// DeleteOneProvider: removing alpha must keep beta routed and stop
 	// routing alpha.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "beta", BaseURL: "https://beta.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "beta", baseURL: "https://beta.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://beta.invalid/v1/chat/completions", "/api/v2/aibridge/beta/v1/chat/completions")
@@ -268,8 +424,8 @@ func TestProxy_HotReloadRoutingCRUD(t *testing.T) {
 	// RecreateAfterDelete: reintroducing a previously-deleted provider
 	// must route again without restart, confirming the swap is
 	// symmetric.
-	h.store.set([]aibridgeproxyd.ProviderRoute{
-		{Name: "alpha", BaseURL: "https://alpha.invalid/v1"},
+	h.store.set([]rawProvider{
+		{name: "alpha", baseURL: "https://alpha.invalid/v1"},
 	})
 	require.NoError(t, h.srv.Reload(t.Context()))
 	h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha/v1/messages")
@@ -288,11 +444,11 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h := newReloadTestHarness(t)
 		// One valid provider and one with an empty BaseURL. The empty
-		// entry must be silently dropped; the valid one must still
-		// route.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "no-url"},
-			{Name: "valid", BaseURL: "https://valid.invalid/v1"},
+		// entry must be classified as error and excluded from routing;
+		// the valid one must still route.
+		h.store.set([]rawProvider{
+			{name: "no-url"},
+			{name: "valid", baseURL: "https://valid.invalid/v1"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 
@@ -304,12 +460,12 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h := newReloadTestHarness(t)
 		// A BaseURL that fails url.Parse and one whose Hostname() is
-		// empty must both be dropped. Mixed with a valid entry, only
-		// the valid one routes.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "malformed", BaseURL: "://not-a-url"},
-			{Name: "no-host", BaseURL: "https://"},
-			{Name: "valid", BaseURL: "https://valid.invalid/v1"},
+		// empty must both be classified as error. Mixed with a valid
+		// entry, only the valid one routes.
+		h.store.set([]rawProvider{
+			{name: "malformed", baseURL: "://not-a-url"},
+			{name: "no-host", baseURL: "https://"},
+			{name: "valid", baseURL: "https://valid.invalid/v1"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 
@@ -320,11 +476,11 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		t.Parallel()
 
 		h := newReloadTestHarness(t)
-		// Two providers with the same BaseURL host: the first one wins,
-		// matching buildProviderRouter's documented contract.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "first", BaseURL: "https://shared.invalid/v1"},
-			{Name: "second", BaseURL: "https://shared.invalid/v2"},
+		// Two providers with the same BaseURL host: the second is
+		// classified as error and excluded; the first routes.
+		h.store.set([]rawProvider{
+			{name: "first", baseURL: "https://shared.invalid/v1"},
+			{name: "second", baseURL: "https://shared.invalid/v2"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 
@@ -337,10 +493,10 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 		h := newReloadTestHarness(t)
 		// When every provider is invalid, the router contains no
 		// entries and the proxy fails closed: no host is MITM'd.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "no-url"},
-			{Name: "malformed", BaseURL: "://not-a-url"},
-			{Name: "no-host", BaseURL: "https://"},
+		h.store.set([]rawProvider{
+			{name: "no-url"},
+			{name: "malformed", baseURL: "://not-a-url"},
+			{name: "no-host", baseURL: "https://"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 
@@ -352,15 +508,15 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h := newReloadTestHarness(t)
 		// Seed a valid snapshot so we have something to preserve.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "alpha", BaseURL: "https://alpha.invalid/v1"},
+		h.store.set([]rawProvider{
+			{name: "alpha", baseURL: "https://alpha.invalid/v1"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 		h.expectRoutedTo(t, "https://alpha.invalid/v1/messages", "/api/v2/aibridge/alpha/v1/messages")
 
 		// A refresh error must NOT clear the router: dropping the
-		// allowlist on every transient DB hiccup would amplify the
-		// fault into a denial of service.
+		// provider host set on every transient DB hiccup would
+		// amplify the fault into a denial of service.
 		h.store.setErr(xerrors.New("simulated db failure"))
 		err := h.srv.Reload(t.Context())
 		require.Error(t, err)
@@ -369,8 +525,8 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		// Recovery: once the store returns providers again, the next
 		// Reload applies the new snapshot.
-		h.store.set([]aibridgeproxyd.ProviderRoute{
-			{Name: "beta", BaseURL: "https://beta.invalid/v1"},
+		h.store.set([]rawProvider{
+			{name: "beta", baseURL: "https://beta.invalid/v1"},
 		})
 		require.NoError(t, h.srv.Reload(t.Context()))
 		h.expectRoutedTo(t, "https://beta.invalid/v1/messages", "/api/v2/aibridge/beta/v1/messages")
