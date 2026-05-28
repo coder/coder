@@ -22,8 +22,7 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 		minStreamDuration   time.Duration
 		maxStreamDuration   time.Duration
 		responsePayloadSize int64
-		minToolCallsPerTurn int64
-		maxToolCallsPerTurn int64
+		toolCallsPerTurn    int64
 		toolCallCommand     string
 
 		pprofEnable  bool
@@ -34,14 +33,10 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "llm-mock",
 		Short: "Start a mock LLM API server for testing",
-		Long:  `Start a mock LLM API server that simulates OpenAI and Anthropic APIs`,
+		Long:  `Start a mock LLM API server that simulates OpenAI and Anthropic APIs. It can also simulate OpenAI Chat Completions tool calls.`,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, stop := signal.NotifyContext(inv.Context(), StopSignals...)
 			defer stop()
-
-			if !userSetOption(inv, "min-tool-calls-per-turn") {
-				minToolCallsPerTurn = maxToolCallsPerTurn
-			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 
@@ -58,11 +53,8 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 				MinStreamDuration:   minStreamDuration,
 				MaxStreamDuration:   maxStreamDuration,
 				ResponsePayloadSize: int(responsePayloadSize),
-				MinToolCallsPerTurn: int(minToolCallsPerTurn),
-				MaxToolCallsPerTurn: int(maxToolCallsPerTurn),
+				ToolCallsPerTurn:    int(toolCallsPerTurn),
 				ToolCallCommand:     toolCallCommand,
-				PprofEnable:         pprofEnable,
-				PprofAddress:        pprofAddress,
 				TraceEnable:         traceEnable,
 			}
 			srv := new(llmmock.Server)
@@ -122,24 +114,17 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			Description: "Size in bytes of the response payload. If 0, uses default context-aware responses.",
 			Value:       serpent.Int64Of(&responsePayloadSize),
 		},
-		// No Default here because userSetOption must distinguish unset from explicit zero.
 		{
-			Flag:        "min-tool-calls-per-turn",
-			Env:         "CODER_SCALETEST_LLM_MOCK_MIN_TOOL_CALLS_PER_TURN",
-			Description: "Minimum `execute` tool calls to emit per user turn. Defaults to max-tool-calls-per-turn when unset. OpenAI Chat Completions only.",
-			Value:       serpent.Int64Of(&minToolCallsPerTurn),
-		},
-		{
-			Flag:        "max-tool-calls-per-turn",
-			Env:         "CODER_SCALETEST_LLM_MOCK_MAX_TOOL_CALLS_PER_TURN",
+			Flag:        "tool-calls-per-turn",
+			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALLS_PER_TURN",
 			Default:     "0",
-			Description: "Maximum `execute` tool calls to emit per user turn. Set to 0 for text-only responses. OpenAI Chat Completions only.",
-			Value:       serpent.Int64Of(&maxToolCallsPerTurn),
+			Description: "Number of `execute` tool calls to emit per user turn. Set to 0 for text-only responses. OpenAI Chat Completions only.",
+			Value:       serpent.Int64Of(&toolCallsPerTurn),
 		},
 		{
 			Flag:        "tool-call-command",
 			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALL_COMMAND",
-			Default:     "echo scaletest",
+			Default:     llmmock.DefaultToolCallCommand,
 			Description: "Shell command sent in each mock `execute` tool call. OpenAI Chat Completions only.",
 			Value:       serpent.StringOf(&toolCallCommand),
 		},

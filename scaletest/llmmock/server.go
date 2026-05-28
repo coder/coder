@@ -2,8 +2,6 @@ package llmmock
 
 import (
 	"context"
-	crand "crypto/rand"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -56,7 +54,8 @@ type Server struct {
 	responsePayloadSize int
 	minStreamDuration   time.Duration
 	maxStreamDuration   time.Duration
-	toolCallConfig      toolCallConfig
+	toolCallsPerTurn    int
+	toolCallCommand     string
 
 	tracerProvider trace.TracerProvider
 	closeTracing   func(context.Context) error
@@ -69,12 +68,8 @@ type Config struct {
 	ResponsePayloadSize int
 	MinStreamDuration   time.Duration
 	MaxStreamDuration   time.Duration
-	MinToolCallsPerTurn int
-	MaxToolCallsPerTurn int
+	ToolCallsPerTurn    int
 	ToolCallCommand     string
-
-	PprofEnable  bool
-	PprofAddress string
 
 	TraceEnable bool
 }
@@ -173,31 +168,16 @@ type anthropicResponse struct {
 
 func (s *Server) Start(ctx context.Context, cfg Config) error {
 	if cfg.ToolCallCommand == "" {
-		cfg.ToolCallCommand = defaultToolCallCommand
+		cfg.ToolCallCommand = DefaultToolCallCommand
 	}
-	if err := cfg.Validate(); err != nil {
-		return xerrors.Errorf("validate config: %w", err)
-	}
-
-	var seedBytes [8]byte
-	if _, err := crand.Read(seedBytes[:]); err != nil {
-		return xerrors.Errorf("generate tool-call seed: %w", err)
-	}
-	seed := binary.LittleEndian.Uint64(seedBytes[:])
-
 	s.address = cfg.Address
 	s.logger = cfg.Logger
 	s.artificialLatency = cfg.ArtificialLatency
 	s.responsePayloadSize = cfg.ResponsePayloadSize
 	s.minStreamDuration = cfg.MinStreamDuration
 	s.maxStreamDuration = cfg.MaxStreamDuration
-	s.toolCallConfig = toolCallConfig{
-		MinToolCallsPerTurn: cfg.MinToolCallsPerTurn,
-		MaxToolCallsPerTurn: cfg.MaxToolCallsPerTurn,
-		ToolCallCommand:     cfg.ToolCallCommand,
-		Seed:                seed,
-	}
-	s.logger.Info(ctx, "mock seed", slog.F("seed", seed))
+	s.toolCallsPerTurn = cfg.ToolCallsPerTurn
+	s.toolCallCommand = cfg.ToolCallCommand
 
 	if cfg.TraceEnable {
 		otel.SetTextMapPropagator(
@@ -251,8 +231,11 @@ func (s *Server) APIAddress() string {
 }
 
 func (s *Server) randomStreamDuration() time.Duration {
-	if s.minStreamDuration == 0 && s.maxStreamDuration == 0 {
+	if s.minStreamDuration <= 0 || s.maxStreamDuration <= 0 {
 		return 0
+	}
+	if s.minStreamDuration >= s.maxStreamDuration {
+		return s.minStreamDuration
 	}
 
 	delta := s.maxStreamDuration - s.minStreamDuration
@@ -384,12 +367,23 @@ func (s *Server) handleOpenAIWithLabels(w http.ResponseWriter, r *http.Request) 
 		time.Sleep(s.artificialLatency)
 	}
 
-	resp, err := buildOpenAIResponse(req, requestID, now, s.responsePayloadSize, r.Header.Get(coderChatIDHeader), s.toolCallConfig)
+	choice, err := s.buildOpenAIChoice(req)
 	if err != nil {
 		s.logger.Error(ctx, "failed to build OpenAI response", slog.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	resp := openAIResponse{
+		ID:      fmt.Sprintf("chatcmpl-%s", requestID.String()[:8]),
+		Object:  "chat.completion",
+		Created: now.Unix(),
+		Model:   req.Model,
+		Choices: []openAIResponseChoice{choice},
+	}
+	resp.Usage.PromptTokens = mockInputTokens
+	resp.Usage.CompletionTokens = mockOutputTokens
+	resp.Usage.TotalTokens = mockInputTokens + mockOutputTokens
 
 	if req.Stream {
 		s.sendOpenAIStream(ctx, w, resp)
