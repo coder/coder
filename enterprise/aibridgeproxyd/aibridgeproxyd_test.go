@@ -2071,8 +2071,9 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 	}))
 	t.Cleanup(aibridgedServer.Close)
 
-	// Wire the custom domain and provider mapping directly, as the
-	// real daemon would after calling domainsFromProviders.
+	// Wire the custom domain and provider mapping directly via
+	// withProviders, equivalent to the snapshot the daemon's Reload
+	// builds from classified providers in production.
 	srv := newTestProxy(t,
 		withCoderAccessURL(aibridgedServer.URL),
 		withProviders(aibridgeproxyd.ReloadedProvider{
