@@ -312,18 +312,34 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
+		},
+		{
+			// User ACLs only grant permissions in organizations where the
+			// subject is currently a member.
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: ResourceWorkspace.AvailableActions(),
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.WildcardSymbol},
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
