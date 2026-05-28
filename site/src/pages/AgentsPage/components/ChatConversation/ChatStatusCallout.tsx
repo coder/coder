@@ -157,11 +157,17 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						</Link>
 					)}
 				</span>
-				{status.phase === "failed" && status.detail && (
-					<span className="mt-1 block text-content-secondary">
-						{status.detail}
-					</span>
-				)}
+				{status.phase === "failed" &&
+					status.detail &&
+					(status.kind === "generic" ? (
+						<pre className="mt-1 whitespace-pre-wrap break-words text-xs text-content-secondary font-mono bg-surface-secondary rounded-md p-2">
+							{status.detail}
+						</pre>
+					) : (
+						<span className="mt-1 block text-content-secondary">
+							{status.detail}
+						</span>
+					))}
 			</AlertDescription>
 		</Alert>
 	);
