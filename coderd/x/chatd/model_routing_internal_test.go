@@ -379,16 +379,16 @@ func TestAIGatewayRoundTripperCanSuppressSessionHeaders(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		ctx         func() context.Context
-		wantChatID  string
-		wantSubchat string
+		name          string
+		ctx           func() context.Context
+		wantChatID    string
+		wantSubchatID string
 	}{
 		{
-			name:        "preserves session headers by default",
-			ctx:         func() context.Context { return t.Context() },
-			wantChatID:  "chat-id",
-			wantSubchat: "subchat-id",
+			name:          "preserves session headers by default",
+			ctx:           func() context.Context { return t.Context() },
+			wantChatID:    "chat-id",
+			wantSubchatID: "subchat-id",
 		},
 		{
 			name: "suppresses session headers when marked",
@@ -429,7 +429,7 @@ func TestAIGatewayRoundTripperCanSuppressSessionHeaders(t *testing.T) {
 			got := <-seen
 			require.Equal(t, "owner-id", got.Get(chatprovider.HeaderCoderOwnerID))
 			require.Equal(t, tt.wantChatID, got.Get(chatprovider.HeaderCoderChatID))
-			require.Equal(t, tt.wantSubchat, got.Get(chatprovider.HeaderCoderSubchatID))
+			require.Equal(t, tt.wantSubchatID, got.Get(chatprovider.HeaderCoderSubchatID))
 			require.Equal(t, "workspace-id", got.Get(chatprovider.HeaderCoderWorkspaceID))
 		})
 	}
