@@ -57,6 +57,12 @@ type MCPServerConfig struct {
 
 	HasCustomHeaders bool `json:"has_custom_headers"`
 
+	// CustomHeadersUserKeys lists custom_headers entries whose values
+	// are supplied per-user. These are visible to all callers so the
+	// user settings UI can prompt for the corresponding values. The
+	// set must be disjoint from the admin-set CustomHeaders keys.
+	CustomHeadersUserKeys []string `json:"custom_headers_user_keys"`
+
 	// Tool governance.
 	ToolAllowList []string `json:"tool_allow_list"`
 	ToolDenyList  []string `json:"tool_deny_list"`
@@ -101,6 +107,11 @@ type CreateMCPServerConfigRequest struct {
 	APIKeyValue        string            `json:"api_key_value,omitempty"`
 	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
 
+	// CustomHeadersUserKeys, when AuthType is "custom_headers", marks
+	// these header names as user-supplied. Each entry must be disjoint
+	// from CustomHeaders keys and from each other (case-insensitive).
+	CustomHeadersUserKeys []string `json:"custom_headers_user_keys,omitempty"`
+
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
@@ -134,6 +145,10 @@ type UpdateMCPServerConfigRequest struct {
 	APIKeyValue        *string            `json:"api_key_value,omitempty"`
 	CustomHeaders      *map[string]string `json:"custom_headers,omitempty"`
 
+	// CustomHeadersUserKeys, when non-nil, replaces the set of
+	// user-supplied header names. See MCPServerConfig.CustomHeadersUserKeys.
+	CustomHeadersUserKeys *[]string `json:"custom_headers_user_keys,omitempty"`
+
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
 
@@ -145,6 +160,24 @@ type UpdateMCPServerConfigRequest struct {
 	// ForwardCoderHeaders, when set, updates whether Coder identity
 	// headers are forwarded on every outgoing MCP request.
 	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
+}
+
+// MCPServerUserHeaderValues represents the calling user's state for
+// an MCP server with admin-marked user-set custom headers. Values are
+// never returned; HasValues records which keys currently have a
+// non-empty user-supplied value.
+type MCPServerUserHeaderValues struct {
+	MCPServerConfigID uuid.UUID       `json:"mcp_server_config_id" format:"uuid"`
+	HasValues         map[string]bool `json:"has_values"`
+}
+
+// UpdateMCPServerUserHeaderValuesRequest upserts the calling user's
+// values for an MCP server's user-set custom headers. The set of keys
+// in Values must be a subset of the server's CustomHeadersUserKeys;
+// any keys not present are left unchanged. To clear a single value,
+// pass an empty string; to clear all values, use DeleteMCPServerUserHeaderValues.
+type UpdateMCPServerUserHeaderValuesRequest struct {
+	Values map[string]string `json:"values" validate:"required"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
@@ -201,6 +234,51 @@ func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req Up
 
 func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// MCPServerUserHeaderValues returns the calling user's HasValues map
+// for the given MCP server. Returns an empty HasValues map when no
+// user-set values have been stored yet.
+func (c *Client) MCPServerUserHeaderValues(ctx context.Context, id uuid.UUID) (MCPServerUserHeaderValues, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp/servers/%s/user-headers", id), nil)
+	if err != nil {
+		return MCPServerUserHeaderValues{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerUserHeaderValues{}, ReadBodyAsError(res)
+	}
+	var resp MCPServerUserHeaderValues
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateMCPServerUserHeaderValues upserts the calling user's values
+// for the given MCP server's user-set custom headers.
+func (c *Client) UpdateMCPServerUserHeaderValues(ctx context.Context, id uuid.UUID, req UpdateMCPServerUserHeaderValuesRequest) (MCPServerUserHeaderValues, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/mcp/servers/%s/user-headers", id), req)
+	if err != nil {
+		return MCPServerUserHeaderValues{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerUserHeaderValues{}, ReadBodyAsError(res)
+	}
+	var resp MCPServerUserHeaderValues
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteMCPServerUserHeaderValues removes the calling user's values
+// for the given MCP server's user-set custom headers.
+func (c *Client) DeleteMCPServerUserHeaderValues(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/user-headers", id), nil)
 	if err != nil {
 		return err
 	}

@@ -403,6 +403,206 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.Empty(t, updated.APIKeyHeader)
 }
 
+// TestMCPServerConfigsCustomHeadersUserKeys verifies create/update
+// validation and auth-type clearing for the user-set custom header
+// keys field.
+func TestMCPServerConfigsCustomHeadersUserKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateAcceptsValidUserKeys", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeaders:         map[string]string{"X-Org-ID": "acme"},
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-User-Token"}, created.CustomHeadersUserKeys)
+		require.True(t, created.HasCustomHeaders)
+	})
+
+	t.Run("CreateAcceptsOnlyUserKeys", func(t *testing.T) {
+		// custom_headers with no admin-set headers and only user-set
+		// keys is valid (the honcho.dev use case).
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-user",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-User-Token"}, created.CustomHeadersUserKeys)
+		require.False(t, created.HasCustomHeaders)
+	})
+
+	t.Run("CreateRejectsOverlap", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Bad",
+			Slug:                  "bad-overlap",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeaders:         map[string]string{"X-Token": "shared"},
+			CustomHeadersUserKeys: []string{"x-token"}, // case-insensitive collision
+			Availability:          "default_on",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("CreateRejectsUserKeysForOtherAuthType", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Bad",
+			Slug:                  "bad-authtype",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "none",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("CreateRejectsDuplicates", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Bad",
+			Slug:                  "bad-dup",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-Token", "x-token"},
+			Availability:          "default_on",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("UpdateReplacesUserKeys", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-upd",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+
+		newKeys := []string{"X-Other-Token"}
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeys: &newKeys,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-Other-Token"}, updated.CustomHeadersUserKeys)
+	})
+
+	t.Run("UpdateClearsUserKeysOnAuthTypeChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-clear",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, created.CustomHeadersUserKeys)
+
+		newAuthType := "none"
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			AuthType: &newAuthType,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "none", updated.AuthType)
+		require.Empty(t, updated.CustomHeadersUserKeys)
+	})
+
+	t.Run("UpdateRejectsOverlapWithNewAdminHeaders", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-collide",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			Availability:          "default_on",
+			Enabled:               true,
+		})
+		require.NoError(t, err)
+
+		// Existing user keys remain unchanged, but admin adds a header
+		// that collides.
+		newHeaders := map[string]string{"x-user-token": "clash"}
+		_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeaders: &newHeaders,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+}
+
 func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
 	t.Parallel()
 

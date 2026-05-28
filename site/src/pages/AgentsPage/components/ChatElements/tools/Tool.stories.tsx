@@ -1248,6 +1248,7 @@ const sampleMCPServers = [
 		has_oauth2_secret: false,
 		has_api_key: false,
 		has_custom_headers: false,
+		custom_headers_user_keys: [],
 		tool_allow_list: [],
 		tool_deny_list: [],
 		availability: "default_on",

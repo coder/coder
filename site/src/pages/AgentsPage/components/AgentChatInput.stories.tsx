@@ -701,6 +701,7 @@ const makeMCPServer = (
 	api_key_header: overrides.api_key_header,
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
+	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
 	tool_allow_list: overrides.tool_allow_list ?? [],
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
