@@ -118,37 +118,39 @@ func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFun
 // hostname so later duplicates can be flagged as errors.
 func classifyProviderRow(row database.AIProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{
-		Name: row.Name,
-		Type: string(row.Type),
+		ProviderOutcome: aibridged.ProviderOutcome{
+			Name: row.Name,
+			Type: string(row.Type),
+		},
 	}
 	if !row.Enabled {
-		out.Status = aibridgeproxyd.ProviderStatusDisabled
+		out.Status = aibridged.ProviderStatusDisabled
 		return out
 	}
 	if strings.TrimSpace(row.BaseUrl) == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
 	u, err := url.Parse(row.BaseUrl)
 	if err != nil {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("invalid base url %q: %w", row.BaseUrl, err)
 		return out
 	}
 	host := strings.ToLower(u.Hostname())
 	if host == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", row.BaseUrl)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
 		return out
 	}
 	seenHost[host] = row.Name
 	out.Host = host
-	out.Status = aibridgeproxyd.ProviderStatusEnabled
+	out.Status = aibridged.ProviderStatusEnabled
 	return out
 }

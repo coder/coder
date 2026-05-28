@@ -35,6 +35,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -209,10 +210,12 @@ func withProviderHosts(hosts ...string) testProxyOption {
 				host = h
 			}
 			providers = append(providers, aibridgeproxyd.ReloadedProvider{
-				Name:   name,
-				Type:   "openai",
-				Host:   strings.ToLower(host),
-				Status: aibridgeproxyd.ProviderStatusEnabled,
+				ProviderOutcome: aibridged.ProviderOutcome{
+					Name:   name,
+					Type:   "openai",
+					Status: aibridged.ProviderStatusEnabled,
+				},
+				Host: strings.ToLower(host),
 			})
 		}
 		cfg.providers = providers
@@ -296,8 +299,8 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		// loopback, are reachable. Tests that verify IP blocking override this.
 		allowedPrivateCIDRs: []string{"127.0.0.1/32"},
 		providers: []aibridgeproxyd.ReloadedProvider{
-			{Name: "test-provider", Type: "openai", Host: "127.0.0.1", Status: aibridgeproxyd.ProviderStatusEnabled},
-			{Name: "test-provider", Type: "openai", Host: "localhost", Status: aibridgeproxyd.ProviderStatusEnabled},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "test-provider", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "127.0.0.1"},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "test-provider", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "localhost"},
 		},
 	}
 	for _, opt := range opts {
@@ -2077,10 +2080,12 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 	srv := newTestProxy(t,
 		withCoderAccessURL(aibridgedServer.URL),
 		withProviders(aibridgeproxyd.ReloadedProvider{
-			Name:   openrouterProvider,
-			Type:   "openai",
-			Host:   openrouterDomain,
-			Status: aibridgeproxyd.ProviderStatusEnabled,
+			ProviderOutcome: aibridged.ProviderOutcome{
+				Name:   openrouterProvider,
+				Type:   "openai",
+				Status: aibridged.ProviderStatusEnabled,
+			},
+			Host: openrouterDomain,
 		}),
 	)
 
