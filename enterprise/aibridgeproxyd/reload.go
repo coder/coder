@@ -66,9 +66,18 @@ func (s *Server) Reload(ctx context.Context) error {
 		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(reload.Providers), err)
 	}
 	s.providerRouter.Store(router)
+	for _, p := range reload.Providers {
+		if p.Status == ProviderStatusError {
+			s.logger.Warn(s.ctx, "provider excluded from routing",
+				slog.F("provider", p.Name),
+				slog.Error(p.Err),
+			)
+		}
+	}
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",
 		slog.F("provider_count", len(reload.Providers)),
 		slog.F("mitm_host_count", len(router.mitmHosts)),
+		slog.F("mitm_hosts", router.mitmHosts),
 	)
 	return nil
 }
