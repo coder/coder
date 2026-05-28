@@ -530,9 +530,6 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 			require.True(t, ok)
 			require.Contains(t, systemText.Text, truncateRunes(longFirstUserText, 1000))
 
-			userText, ok := call.Prompt[1].Content[0].(fantasy.TextPart)
-			require.True(t, ok)
-			require.Equal(t, truncateRunes(longFirstUserText, 1000), userText.Text)
 			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
 		},
 	}
@@ -774,8 +771,8 @@ func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInp
 	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
 
-	require.NotEmpty(t, prompt[1].Content)
-	require.NotEmpty(t, prompt[2].Content)
+	require.Len(t, prompt[1].Content, 1)
+	require.Len(t, prompt[2].Content, 1)
 
 	userText, ok := prompt[1].Content[0].(fantasy.TextPart)
 	require.True(t, ok)
@@ -796,6 +793,7 @@ func requireOpenAICompatAssistantFinalMessage(t *testing.T, body map[string]any)
 	lastMessage, ok := messages[len(messages)-1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "assistant", lastMessage["role"])
+	require.Equal(t, quickgenStructuredOutputReady, lastMessage["content"])
 }
 
 func TestGenerateStructuredTurnStatusLabel(t *testing.T) {

@@ -426,7 +426,7 @@ func (p *Server) prepareQuickgenDebugCandidate(
 
 const quickgenStructuredOutputReady = "Ready to provide the structured output."
 
-func syntheticObjectGenerationPrompt(systemPrompt string, userInput string) fantasy.Prompt {
+func syntheticObjectGenerationPrompt(systemPrompt, userInput string) fantasy.Prompt {
 	return fantasy.Prompt{
 		{
 			Role: fantasy.MessageRoleSystem,
