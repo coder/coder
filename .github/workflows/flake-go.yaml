@@ -39,8 +39,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up Go
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "--locked go"
 
       - name: Install whichtests
         shell: bash
@@ -57,9 +59,11 @@ jobs:
             --coalesce \
             --out-matrix "$RUNNER_TEMP/flake-matrix.json"
 
-      - name: Setup Terraform
+      - name: Set up Terraform
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
-        uses: ./.github/actions/setup-tf
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "--locked terraform"
 
       - name: Run targeted Go flake checks
         id: flake_check
