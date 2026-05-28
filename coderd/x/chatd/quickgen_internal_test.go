@@ -526,6 +526,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	model := &chattest.FakeModel{
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			requireSyntheticQuickgenPrompt(t, call.Prompt, truncateRunes(longFirstUserText, 1000))
+			// The manual title system prompt also includes the latest user excerpt.
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
 			require.Contains(t, systemText.Text, truncateRunes(longFirstUserText, 1000))
