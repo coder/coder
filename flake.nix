@@ -133,6 +133,21 @@
           vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
 
+        paralleltestctx = unstablePkgs.buildGo126Module {
+          pname = "paralleltestctx";
+          version = "0.0.2";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "coder";
+            repo = "paralleltestctx";
+            rev = "v0.0.2";
+            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+          };
+
+          subPackages = [ "cmd/paralleltestctx" ];
+          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+        };
+
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
         terraform_1_15_5 =
@@ -220,6 +235,7 @@
             nodejs
             openssh
             openssl
+            paralleltestctx
             pango
             pixman
             pkg-config
