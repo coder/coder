@@ -1,13 +1,15 @@
 import {
-	BookOpenIcon,
+	BadgeQuestionMarkIcon,
 	BotIcon,
-	ClipboardListIcon,
-	FileIcon,
-	FilePenIcon,
-	LightbulbIcon,
+	CompassIcon,
+	FilePenLineIcon,
+	FileTextIcon,
+	LogInIcon,
 	MonitorIcon,
-	PlayIcon,
-	PlusCircleIcon,
+	PowerIcon,
+	RouteIcon,
+	ServerIcon,
+	SparklesIcon,
 	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
@@ -35,7 +37,12 @@ export const ToolIcon: React.FC<{
 }> = ({ name, iconUrl, isRunning, serverName, subagentIconKind }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = "text-current";
-	const base = cn("size-4 shrink-0", color, isRunning && "grayscale");
+	const base = cn(
+		"size-4 shrink-0",
+		color,
+		"stroke-[1.5]",
+		isRunning && "grayscale",
+	);
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
 	// Strip colour so external icons match the monochrome lucide
@@ -93,28 +100,33 @@ export const ToolIcon: React.FC<{
 		case "process_list":
 		case "process_signal":
 			return <TerminalIcon className={base} />;
+		case "wait_for_external_auth":
+			return <LogInIcon className={base} />;
 		case "read_file":
-		case "list_templates":
-		case "read_template":
-			return <FileIcon className={base} />;
-		case "write_file":
-		case "edit_files":
-			return <FilePenIcon className={base} />;
-		case "create_workspace":
-			return <PlusCircleIcon className={base} />;
-		case "chat_summarized":
-			return <BotIcon className={base} />;
-		case "propose_plan":
-			return <ClipboardListIcon className={base} />;
-		case "advisor":
-			return <LightbulbIcon className={base} />;
-		case "computer":
-			return <MonitorIcon className={base} />;
 		case "read_skill":
 		case "read_skill_file":
-			return <BookOpenIcon className={base} />;
+			return <FileTextIcon className={base} />;
+		case "write_file":
+		case "edit_files":
+			return <FilePenLineIcon className={base} />;
+		case "list_templates":
+		case "read_template":
+		case "create_workspace":
+			return <ServerIcon className={base} />;
 		case "start_workspace":
-			return <PlayIcon className={base} />;
+			return <PowerIcon className={base} />;
+		case "chat_summarized":
+			return <BotIcon className={base} />;
+		case "thinking":
+			return <SparklesIcon className={base} />;
+		case "propose_plan":
+			return <RouteIcon className={base} />;
+		case "ask_user_question":
+			return <BadgeQuestionMarkIcon className={base} />;
+		case "advisor":
+			return <CompassIcon className={base} />;
+		case "computer":
+			return <MonitorIcon className={base} />;
 
 		default:
 			return <WrenchIcon className={base} />;

@@ -6,6 +6,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { TranscriptRow } from "../TranscriptRow";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -27,8 +28,9 @@ export const ReadTemplateTool: React.FC<{
 			: "Read template";
 
 	return (
-		<TranscriptRow className="gap-1.5 text-content-secondary">
-			<span className="text-[13px]">{label}</span>
+		<TranscriptRow className="gap-2 text-content-secondary">
+			<ToolIcon name="read_template" isError={isError} isRunning={isRunning} />
+			<span className="text-[13px] leading-6">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>

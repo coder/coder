@@ -14065,7 +14065,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -14073,7 +14073,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 },
@@ -14139,7 +14139,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -14181,7 +14181,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -14391,71 +14391,6 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ReinitializeReasonPrebuildClaimed"
             ]
-        },
-        "coderd.SCIMUser": {
-            "type": "object",
-            "properties": {
-                "active": {
-                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
-                    "type": "boolean"
-                },
-                "emails": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "display": {
-                                "type": "string"
-                            },
-                            "primary": {
-                                "type": "boolean"
-                            },
-                            "type": {
-                                "type": "string"
-                            },
-                            "value": {
-                                "type": "string",
-                                "format": "email"
-                            }
-                        }
-                    }
-                },
-                "groups": {
-                    "type": "array",
-                    "items": {}
-                },
-                "id": {
-                    "type": "string"
-                },
-                "meta": {
-                    "type": "object",
-                    "properties": {
-                        "resourceType": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "name": {
-                    "type": "object",
-                    "properties": {
-                        "familyName": {
-                            "type": "string"
-                        },
-                        "givenName": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "schemas": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "userName": {
-                    "type": "string"
-                }
-            }
         },
         "coderd.cspViolation": {
             "type": "object",
@@ -15175,7 +15110,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
                     "type": "string"
                 }
             }
@@ -16658,7 +16593,8 @@ const docTemplate = `{
                 "startup_timeout",
                 "auth",
                 "config",
-                "usage_limit"
+                "usage_limit",
+                "missing_key"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16668,7 +16604,8 @@ const docTemplate = `{
                 "ChatErrorKindStartupTimeout",
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
-                "ChatErrorKindUsageLimit"
+                "ChatErrorKindUsageLimit",
+                "ChatErrorKindMissingKey"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -18892,6 +18829,9 @@ const docTemplate = `{
                 },
                 "scim_api_key": {
                     "type": "string"
+                },
+                "scim_use_legacy": {
+                    "type": "boolean"
                 },
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
@@ -27550,6 +27490,71 @@ const docTemplate = `{
         },
         "key.NodePublic": {
             "type": "object"
+        },
+        "legacyscim.SCIMUser": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
+                    "type": "boolean"
+                },
+                "emails": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "display": {
+                                "type": "string"
+                            },
+                            "primary": {
+                                "type": "boolean"
+                            },
+                            "type": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string",
+                                "format": "email"
+                            }
+                        }
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "properties": {
+                        "resourceType": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "name": {
+                    "type": "object",
+                    "properties": {
+                        "familyName": {
+                            "type": "string"
+                        },
+                        "givenName": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "userName": {
+                    "type": "string"
+                }
+            }
         },
         "netcheck.Report": {
             "type": "object",

@@ -68,7 +68,7 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			mgr := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
+			mgr := agentfake.NewManager(client.URL, client, logger, agentfake.ManagerOptions{
 				Template: template,
 				Owner:    owner,
 			})

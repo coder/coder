@@ -79,7 +79,7 @@ func TestClassify(t *testing.T) {
 			name: "AuthBeatsConfig",
 			err:  xerrors.New("authentication failed: invalid model"),
 			want: chaterror.ClassifiedError{
-				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -101,7 +101,7 @@ func TestClassify(t *testing.T) {
 			name: "BareForbiddenClassifiesAsAuth",
 			err:  xerrors.New("forbidden"),
 			want: chaterror.ClassifiedError{
-				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -112,7 +112,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitStatus401ClassifiesAsAuth",
 			err:  xerrors.New("status 401 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -123,7 +123,7 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitStatus403ClassifiesAsAuth",
 			err:  xerrors.New("status 403 from upstream"),
 			want: chaterror.ClassifiedError{
-				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -342,10 +342,10 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "UnauthorizedLiteral", err: "unauthorized", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidAPIKeyLiteral", err: "invalid api key", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidAPIKeyUnderscoreLiteral", err: "invalid_api_key", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
-		{name: "QuotaLiteral", err: "quota", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
-		{name: "BillingLiteral", err: "billing", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
-		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
-		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
+		{name: "QuotaLiteral", err: "quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "BillingLiteral", err: "billing", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "ForbiddenLiteral", err: "forbidden", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidModelLiteral", err: "invalid model", wantKind: codersdk.ChatErrorKindConfig, wantRetry: false},
 		{name: "ModelNotFoundLiteral", err: "model not found", wantKind: codersdk.ChatErrorKindConfig, wantRetry: false},
@@ -719,11 +719,79 @@ func TestClassify_StatusCodeBeatsTypedHTTP2StreamError(t *testing.T) {
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+		Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
 		Kind:       codersdk.ChatErrorKindAuth,
 		Retryable:  false,
 		StatusCode: 401,
 	}, chaterror.Classify(err))
+}
+
+// TestClassify_UsageLimitBeatsAuth verifies that quota/billing text
+// patterns classify as usage_limit even when auth signals are present.
+func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          string
+		wantKind     codersdk.ChatErrorKind
+		wantRetry    bool
+		wantStatus   int
+		wantProvider string
+	}{
+		{
+			name:      "QuotaBeatsAuth",
+			err:       "unauthorized: insufficient_quota",
+			wantKind:  codersdk.ChatErrorKindUsageLimit,
+			wantRetry: false,
+		},
+		{
+			name:       "QuotaWith429Status",
+			err:        "status 429: insufficient_quota",
+			wantKind:   codersdk.ChatErrorKindUsageLimit,
+			wantRetry:  false,
+			wantStatus: 429,
+		},
+		{
+			name:      "PureAuthStillWorks",
+			err:       "unauthorized",
+			wantKind:  codersdk.ChatErrorKindAuth,
+			wantRetry: false,
+		},
+		{
+			name:       "Status401StillAuth",
+			err:        "status 401",
+			wantKind:   codersdk.ChatErrorKindAuth,
+			wantRetry:  false,
+			wantStatus: 401,
+		},
+		{
+			// Real production error from OpenAI when quota is exceeded.
+			name: "OpenAIInsufficientQuotaRealWorld",
+			err: `stream response: received error while streaming: {"type":"insufficient_quota",` +
+				`"code":"insufficient_quota","message":"You exceeded your current quota, please check ` +
+				`your plan and billing details. For more information on this error, read the docs: ` +
+				`https://platform.openai.com/docs/guides/error-codes/api-errors.","param":null}`,
+			wantKind:     codersdk.ChatErrorKindUsageLimit,
+			wantRetry:    false,
+			wantProvider: "openai",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, tt.wantKind, classified.Kind)
+			require.Equal(t, tt.wantRetry, classified.Retryable)
+			if tt.wantStatus != 0 {
+				require.Equal(t, tt.wantStatus, classified.StatusCode)
+			}
+			if tt.wantProvider != "" {
+				require.Equal(t, tt.wantProvider, classified.Provider)
+			}
+		})
+	}
 }
 
 // TestClassify_StatusCodeBeatsHTTP2Transport ensures explicit status
@@ -1088,6 +1156,28 @@ func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
 	require.True(t, round.ChainBroken,
 		"WithClassification round-trips ChainBroken so the retry path"+
 			" can detect it after re-classification")
+}
+
+func TestClassify_MissingKeyPreClassified(t *testing.T) {
+	t.Parallel()
+
+	raw := xerrors.New("AI Gateway routing requires the active turn API key ID")
+	wrapped := chaterror.WithClassification(raw, chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindMissingKey,
+		Retryable: false,
+		Detail:    "If this error persists after resending, please report it as a bug.",
+	})
+
+	classified := chaterror.Classify(wrapped)
+	require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, "If this error persists after resending, please report it as a bug.", classified.Detail)
+	require.Equal(t,
+		"This conversation was started with an API key that is no longer available."+
+			" Send your message again to continue.",
+		classified.Message,
+		"Message should be filled by terminalMessage when not set explicitly",
+	)
 }
 
 func testProviderError(

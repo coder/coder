@@ -20,8 +20,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type aibridgeTestFactory struct {
@@ -530,6 +532,11 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		}
 		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aiProvider), modelBuildOptions{})
 		require.ErrorContains(t, err, "active turn API key ID")
+
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind,
+			"production path must return a pre-classified missing_key error")
+		require.False(t, classified.Retryable)
 	})
 
 	t.Run("StaticModel", func(t *testing.T) {

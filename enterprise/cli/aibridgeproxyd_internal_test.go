@@ -7,66 +7,99 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
-func TestDomainsFromProviders(t *testing.T) {
+// TestClassifyProviderRow covers every branch of the classifier so the
+// disabled, error, and enabled paths are exercised through the
+// production code instead of relying on classifyRaw, the test mirror in
+// reload_test.go.
+func TestClassifyProviderRow(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ExtractsHostnames", func(t *testing.T) {
+	enabledRow := func(name, baseURL string) database.AIProvider {
+		return database.AIProvider{
+			Name:    name,
+			Type:    database.AiProviderTypeOpenai,
+			Enabled: true,
+			BaseUrl: baseURL,
+		}
+	}
+
+	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
 
-		providers := []aibridge.Provider{
-			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "openai", BaseURL: "https://api.openai.com/v1/"}),
-			aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{Name: "anthropic", BaseURL: "https://api.anthropic.com/"}, nil),
-			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "custom", BaseURL: "https://custom-llm.example.com:8443/api"}),
-		}
-
-		domains, mapping := domainsFromProviders(providers)
-
-		assert.Contains(t, domains, "api.openai.com")
-		assert.Contains(t, domains, "api.anthropic.com")
-		assert.Contains(t, domains, "custom-llm.example.com")
-
-		assert.Equal(t, "openai", mapping("api.openai.com"))
-		assert.Equal(t, "anthropic", mapping("api.anthropic.com"))
-		assert.Equal(t, "custom", mapping("custom-llm.example.com"))
-		assert.Empty(t, mapping("unknown.com"))
+		seen := map[string]string{}
+		got := classifyProviderRow(enabledRow("openai", "https://api.openai.com/v1"), seen)
+		assert.Equal(t, "openai", got.Name)
+		assert.Equal(t, string(database.AiProviderTypeOpenai), got.Type)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
+		assert.Equal(t, "api.openai.com", got.Host)
+		assert.NoError(t, got.Err)
+		assert.Equal(t, "openai", seen["api.openai.com"])
 	})
 
-	t.Run("DeduplicatesSameHost", func(t *testing.T) {
+	t.Run("DisabledRow", func(t *testing.T) {
 		t.Parallel()
 
-		providers := []aibridge.Provider{
-			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "first", BaseURL: "https://api.example.com/v1"}),
-			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "second", BaseURL: "https://api.example.com/v2"}),
-		}
-
-		domains, mapping := domainsFromProviders(providers)
-
-		// Count occurrences of api.example.com.
-		count := 0
-		for _, d := range domains {
-			if d == "api.example.com" {
-				count++
-			}
-		}
-		assert.Equal(t, 1, count)
-		// First provider wins.
-		assert.Equal(t, "first", mapping("api.example.com"))
+		seen := map[string]string{}
+		row := enabledRow("off", "https://api.off.example.com/v1")
+		row.Enabled = false
+		got := classifyProviderRow(row, seen)
+		assert.Equal(t, aibridged.ProviderStatusDisabled, got.Status)
+		assert.Empty(t, got.Host, "disabled provider must not claim a host")
+		assert.NoError(t, got.Err)
+		assert.Empty(t, seen, "disabled provider must not occupy a host slot")
 	})
 
-	t.Run("CaseInsensitive", func(t *testing.T) {
+	t.Run("EmptyBaseURL", func(t *testing.T) {
 		t.Parallel()
 
-		providers := []aibridge.Provider{
-			aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: "provider", BaseURL: "https://API.Example.COM/v1"}),
-		}
+		seen := map[string]string{}
+		got := classifyProviderRow(enabledRow("no-url", "   "), seen)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
+		assert.Empty(t, got.Host)
+		assert.ErrorContains(t, got.Err, "base url is empty")
+	})
 
-		domains, mapping := domainsFromProviders(providers)
+	t.Run("MalformedBaseURL", func(t *testing.T) {
+		t.Parallel()
 
-		assert.Contains(t, domains, "api.example.com")
-		assert.Equal(t, "provider", mapping("API.Example.COM"))
-		assert.Equal(t, "provider", mapping("api.example.com"))
+		seen := map[string]string{}
+		got := classifyProviderRow(enabledRow("bad", "://not-a-url"), seen)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
+		assert.ErrorContains(t, got.Err, "invalid base url")
+	})
+
+	t.Run("BaseURLWithoutHostname", func(t *testing.T) {
+		t.Parallel()
+
+		seen := map[string]string{}
+		got := classifyProviderRow(enabledRow("no-host", "https://"), seen)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
+		assert.ErrorContains(t, got.Err, "no hostname")
+	})
+
+	t.Run("DuplicateHostnameFirstWins", func(t *testing.T) {
+		t.Parallel()
+
+		seen := map[string]string{}
+		first := classifyProviderRow(enabledRow("first", "https://shared.example.com/v1"), seen)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, first.Status)
+
+		second := classifyProviderRow(enabledRow("second", "https://shared.example.com/v2"), seen)
+		assert.Equal(t, aibridged.ProviderStatusError, second.Status)
+		assert.ErrorContains(t, second.Err, "already claimed by provider \"first\"")
+		assert.Equal(t, "first", seen["shared.example.com"], "first wins must not be overwritten")
+	})
+
+	t.Run("HostnameLowercased", func(t *testing.T) {
+		t.Parallel()
+
+		seen := map[string]string{}
+		got := classifyProviderRow(enabledRow("mixed", "https://API.Example.COM/v1"), seen)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
+		assert.Equal(t, "api.example.com", got.Host)
 	})
 }

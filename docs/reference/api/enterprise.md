@@ -4639,9 +4639,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description |
-|--------|------|----------------------------------------------|----------|-------------|
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | New user    |
+| Name   | In   | Type                                                 | Required | Description |
+|--------|------|------------------------------------------------------|----------|-------------|
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | New user    |
 
 ### Example responses
 
@@ -4678,9 +4678,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                       |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.SCIMUser](schemas.md#coderdscimuser) |
+| Status | Meaning                                                 | Description | Schema                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4757,10 +4757,10 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description          |
-|--------|------|----------------------------------------------|----------|----------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID              |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Replace user request |
+| Name   | In   | Type                                                 | Required | Description          |
+|--------|------|------------------------------------------------------|----------|----------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID              |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Replace user request |
 
 ### Example responses
 
@@ -4849,10 +4849,10 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description         |
-|--------|------|----------------------------------------------|----------|---------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID             |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Update user request |
+| Name   | In   | Type                                                 | Required | Description         |
+|--------|------|------------------------------------------------------|----------|---------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID             |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Update user request |
 
 ### Example responses
 

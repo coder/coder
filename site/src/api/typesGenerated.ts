@@ -378,7 +378,9 @@ export const AIProviderBedrockSettingsVersion = 1;
  */
 export interface AIProviderConfig {
 	/**
-	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 * Type is the provider type. Valid values are: "openai",
+	 * "anthropic", "azure", "bedrock", "google", "openai-compat",
+	 * "openrouter", "vercel", "copilot".
 	 */
 	readonly type: string;
 	/**
@@ -1957,6 +1959,7 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "generic"
+	| "missing_key"
 	| "overloaded"
 	| "rate_limit"
 	| "startup_timeout"
@@ -1967,6 +1970,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"generic",
+	"missing_key",
 	"overloaded",
 	"rate_limit",
 	"startup_timeout",
@@ -4086,6 +4090,7 @@ export interface DeploymentValues {
 	readonly agent_fallback_troubleshooting_url?: string;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
+	readonly scim_use_legacy?: boolean;
 	readonly external_token_encryption_keys?: string;
 	readonly provisioner?: ProvisionerConfig;
 	readonly rate_limit?: RateLimitConfig;

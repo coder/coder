@@ -74,6 +74,40 @@ export const UsageLimitExceeded: Story = {
 	},
 };
 
+/**
+ * Provider quota errors use the standard ChatStatusCallout instead of the
+ * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * billing page).
+ */
+export const ProviderQuotaExceeded: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "usage_limit",
+				message:
+					"The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+				provider: "openai",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/usage quota for openai has been exceeded/i),
+		).toBeVisible();
+		// The "View Usage" link must NOT appear for provider-originated quota errors.
+		expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+		// Should render ChatStatusCallout instead.
+		expect(
+			canvas.getByRole("heading", { name: /usage limit reached/i }),
+		).toBeVisible();
+	},
+};
+
 /** Provider failures keep the footer-level terminal callout and status link. */
 export const TerminalOverloadedError: Story = {
 	args: {
@@ -156,6 +190,41 @@ export const TerminalTimeoutErrorUnknownProvider: Story = {
 		expect(
 			canvas.getByText(/the ai provider is temporarily unavailable/i),
 		).toBeVisible();
+	},
+};
+
+/** Missing API key shows the "Chat interrupted" terminal error. */
+export const TerminalMissingKeyError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "missing_key",
+				message:
+					"This conversation was started with an API key that is no longer available. Send your message again to continue.",
+				retryable: false,
+				detail:
+					"If this error persists after resending, please report it as a bug.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /chat interrupted/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/this conversation was started with an api key that is no longer available/i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/if this error persists after resending/i),
+		).toBeVisible();
+		// Guard against the generic fallback.
+		expect(
+			canvas.queryByText(/the chat request failed unexpectedly/i),
+		).not.toBeInTheDocument();
 	},
 };
 

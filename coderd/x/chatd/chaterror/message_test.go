@@ -76,6 +76,27 @@ func TestTerminalMessage(t *testing.T) {
 			retryable: false,
 			want:      "The chat request failed unexpectedly.",
 		},
+		{
+			name:      "UsageLimit_OpenAI",
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			provider:  "openai",
+			retryable: false,
+			want:      "The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+		},
+		{
+			name:      "UsageLimit_UnknownProvider",
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			provider:  "",
+			retryable: false,
+			want:      "The usage quota for the AI provider has been exceeded. Check the billing and quota settings for the provider account.",
+		},
+		{
+			name:      "MissingKey",
+			kind:      codersdk.ChatErrorKindMissingKey,
+			provider:  "",
+			retryable: false,
+			want:      "This conversation was started with an API key that is no longer available. Send your message again to continue.",
+		},
 	}
 
 	for _, tt := range tests {

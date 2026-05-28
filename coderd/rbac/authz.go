@@ -85,6 +85,7 @@ const (
 	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
 	SubjectTypeChatd                        SubjectType = "chatd"
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
+	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
 )
 
 const (
