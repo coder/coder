@@ -25,7 +25,7 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	reload := ProviderReload{Reloaded: []ReloadedProvider{enabledProvider("old", "old.example.com")}}
+	reload := ProviderReload{Providers: []ReloadedProvider{enabledProvider("old", "old.example.com")}}
 	srv := &Server{
 		ctx:          ctx,
 		logger:       slogtest.Make(t, nil),
@@ -40,7 +40,7 @@ func TestServerReloadSwapsProviderRouter(t *testing.T) {
 	assert.Equal(t, "old", srv.loadProviderRouter().providerFromHost("old.example.com"))
 	assert.Empty(t, srv.loadProviderRouter().providerFromHost("new.example.com"))
 
-	reload = ProviderReload{Reloaded: []ReloadedProvider{enabledProvider("new", "new.example.com")}}
+	reload = ProviderReload{Providers: []ReloadedProvider{enabledProvider("new", "new.example.com")}}
 	require.NoError(t, srv.Reload(ctx))
 
 	router := srv.loadProviderRouter()
@@ -54,7 +54,7 @@ func TestServerReloadPreservesProviderRouterOnRefreshError(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	refreshErr := xerrors.New("refresh failed")
-	reload := ProviderReload{Reloaded: []ReloadedProvider{enabledProvider("old", "old.example.com")}}
+	reload := ProviderReload{Providers: []ReloadedProvider{enabledProvider("old", "old.example.com")}}
 	failRefresh := false
 	srv := &Server{
 		ctx:          ctx,
@@ -90,7 +90,7 @@ func TestBuildProviderRouter(t *testing.T) {
 	t.Run("IncludesEnabledOnly", func(t *testing.T) {
 		t.Parallel()
 
-		reload := ProviderReload{Reloaded: []ReloadedProvider{
+		reload := ProviderReload{Providers: []ReloadedProvider{
 			enabledProvider("openai", "api.openai.com"),
 			enabledProvider("anthropic", "api.anthropic.com"),
 			enabledProvider("custom", "custom-llm.example.com"),
@@ -114,7 +114,7 @@ func TestBuildProviderRouter(t *testing.T) {
 	t.Run("CaseInsensitive", func(t *testing.T) {
 		t.Parallel()
 
-		reload := ProviderReload{Reloaded: []ReloadedProvider{
+		reload := ProviderReload{Providers: []ReloadedProvider{
 			{Name: "provider", Type: "openai", Host: "API.Example.COM", Status: ProviderStatusEnabled},
 		}}
 
@@ -131,7 +131,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		// Refresh function should mark the duplicate as ProviderStatusError;
 		// buildProviderRouter is defensive and tolerates an enabled duplicate
 		// by giving the first entry the host (first wins).
-		reload := ProviderReload{Reloaded: []ReloadedProvider{
+		reload := ProviderReload{Providers: []ReloadedProvider{
 			enabledProvider("first", "api.example.com"),
 			enabledProvider("second", "api.example.com"),
 		}}
@@ -145,7 +145,7 @@ func TestBuildProviderRouter(t *testing.T) {
 	t.Run("SkipsRowsWithEmptyHost", func(t *testing.T) {
 		t.Parallel()
 
-		reload := ProviderReload{Reloaded: []ReloadedProvider{
+		reload := ProviderReload{Providers: []ReloadedProvider{
 			{Name: "no-host", Type: "openai", Status: ProviderStatusEnabled},
 			enabledProvider("good", "api.good.example.com"),
 		}}

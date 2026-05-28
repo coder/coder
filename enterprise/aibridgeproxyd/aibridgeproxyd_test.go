@@ -311,7 +311,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	if cfg.refreshProviders == nil {
 		providers := cfg.providers
 		cfg.refreshProviders = func(context.Context) (aibridgeproxyd.ProviderReload, error) {
-			return aibridgeproxyd.ProviderReload{Reloaded: providers}, nil
+			return aibridgeproxyd.ProviderReload{Providers: providers}, nil
 		}
 	}
 

@@ -44,7 +44,7 @@ type ReloadedProvider struct {
 // ProviderReload is the result of a single refresh pass: every
 // configured provider with its classification.
 type ProviderReload struct {
-	Reloaded []ReloadedProvider
+	Providers []ReloadedProvider
 }
 
 // RefreshProvidersFunc returns the live provider classification used by
@@ -63,11 +63,11 @@ func (s *Server) Reload(ctx context.Context) error {
 	}
 	router, err := buildProviderRouter(reload, s.allowedPorts)
 	if err != nil {
-		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(reload.Reloaded), err)
+		return xerrors.Errorf("build provider router (provider_count=%d): %w", len(reload.Providers), err)
 	}
 	s.providerRouter.Store(router)
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",
-		slog.F("provider_count", len(reload.Reloaded)),
+		slog.F("provider_count", len(reload.Providers)),
 		slog.F("mitm_host_count", len(router.mitmHosts)),
 	)
 	return nil
@@ -100,9 +100,9 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 // wins on duplicate hostnames as a defense-in-depth measure even though
 // the refresh function should mark duplicates as errors.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
-	nameByHost := make(map[string]string, len(reload.Reloaded))
-	domains := make([]string, 0, len(reload.Reloaded))
-	for _, p := range reload.Reloaded {
+	nameByHost := make(map[string]string, len(reload.Providers))
+	domains := make([]string, 0, len(reload.Providers))
+	for _, p := range reload.Providers {
 		if p.Status != ProviderStatusEnabled {
 			continue
 		}

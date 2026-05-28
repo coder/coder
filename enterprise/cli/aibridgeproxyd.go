@@ -103,11 +103,11 @@ func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFun
 			return aibridgeproxyd.ProviderReload{}, xerrors.Errorf("load ai providers: %w", err)
 		}
 		reload := aibridgeproxyd.ProviderReload{
-			Reloaded: make([]aibridgeproxyd.ReloadedProvider, 0, len(rows)),
+			Providers: make([]aibridgeproxyd.ReloadedProvider, 0, len(rows)),
 		}
 		seenHost := make(map[string]string, len(rows))
 		for _, row := range rows {
-			reload.Reloaded = append(reload.Reloaded, classifyProviderRow(row, seenHost))
+			reload.Providers = append(reload.Providers, classifyProviderRow(row, seenHost))
 		}
 		return reload, nil
 	}

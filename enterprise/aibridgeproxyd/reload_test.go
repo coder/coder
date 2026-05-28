@@ -94,11 +94,11 @@ func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload,
 	}
 	providers := slices.Clone(s.providers)
 	reload := aibridgeproxyd.ProviderReload{
-		Reloaded: make([]aibridgeproxyd.ReloadedProvider, 0, len(providers)),
+		Providers: make([]aibridgeproxyd.ReloadedProvider, 0, len(providers)),
 	}
 	seenHost := make(map[string]string, len(providers))
 	for _, p := range providers {
-		reload.Reloaded = append(reload.Reloaded, classifyRaw(p, seenHost))
+		reload.Providers = append(reload.Providers, classifyRaw(p, seenHost))
 	}
 	return reload, nil
 }
