@@ -33,7 +33,7 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "llm-mock",
 		Short: "Start a mock LLM API server for testing",
-		Long:  `Start a mock LLM API server that simulates OpenAI and Anthropic APIs. It can also simulate OpenAI Chat Completions tool calls.`,
+		Long:  `Start a mock LLM API server that simulates OpenAI and Anthropic APIs`,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, stop := signal.NotifyContext(inv.Context(), StopSignals...)
 			defer stop()
@@ -118,14 +118,14 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			Flag:        "tool-calls-per-turn",
 			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALLS_PER_TURN",
 			Default:     "0",
-			Description: "Number of `execute` tool calls to emit per user turn. Set to 0 for text-only responses. OpenAI Chat Completions only.",
+			Description: "Number of execute tool calls to emit per user turn. Set to 0 for text-only responses. OpenAI Chat Completions only.",
 			Value:       serpent.Int64Of(&toolCallsPerTurn),
 		},
 		{
 			Flag:        "tool-call-command",
 			Env:         "CODER_SCALETEST_LLM_MOCK_TOOL_CALL_COMMAND",
-			Default:     llmmock.DefaultToolCallCommand,
-			Description: "Shell command sent in each mock `execute` tool call. OpenAI Chat Completions only.",
+			Default:     "echo scaletest",
+			Description: "Shell command sent in each mock execute tool call when tool calls are enabled. OpenAI Chat Completions only.",
 			Value:       serpent.StringOf(&toolCallCommand),
 		},
 		{
