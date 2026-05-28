@@ -22,25 +22,18 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 		return xerrors.New("nats pubsub was not started with clustering enabled")
 	}
 
-	if p.serverOpts == nil || p.ns == nil {
-		return errClosed
-	}
-
 	routes, err := parsePeerAddresses(addresses)
 	if err != nil {
 		return err
 	}
-	selfAddresses := make([]string, 0, 2)
-	if selfAddress, ok := effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port); ok {
-		selfAddresses = append(selfAddresses, selfAddress)
-	}
+	selfRoutes := []*url.URL{{
+		Scheme: "nats",
+		Host:   net.JoinHostPort(p.serverOpts.Cluster.Host, strconv.Itoa(p.serverOpts.Cluster.Port)),
+	}}
 	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
-		selfAddresses = append(selfAddresses, clusterAddr.String())
+		selfRoutes = append(selfRoutes, &url.URL{Scheme: "nats", Host: clusterAddr.String()})
 	}
-	routes, err = filterSelfRoutes(routes, selfAddresses...)
-	if err != nil {
-		return err
-	}
+	routes = filterSelfRoutes(routes, selfRoutes...)
 	if routeURLsEqual(p.currentRoutes, routes) {
 		return nil
 	}
@@ -81,6 +74,7 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		routesByAddress[normalizedHost] = &url.URL{
 			Scheme: "nats",
 			Host:   normalizedHost,
@@ -91,23 +85,23 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 	for _, route := range routesByAddress {
 		routes = append(routes, route)
 	}
+	// Sort them so that we can easily check for equality on incoming SetPeerAddresses calls.
 	slices.SortFunc(routes, func(a, b *url.URL) int {
 		return strings.Compare(a.String(), b.String())
 	})
 	return routes, nil
 }
 
-func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) ([]*url.URL, error) {
-	self := make(map[string]struct{}, len(selfAddresses))
-	for _, address := range selfAddresses {
-		normalizedHost, err := normalizeHostPort(address)
-		if err != nil {
-			return nil, xerrors.Errorf("normalize self peer address %q: %w", address, err)
+func filterSelfRoutes(routes []*url.URL, selfRoutes ...*url.URL) []*url.URL {
+	self := make(map[string]struct{}, len(selfRoutes))
+	for _, route := range selfRoutes {
+		if route == nil {
+			continue
 		}
-		self[normalizedHost] = struct{}{}
+		self[route.Host] = struct{}{}
 	}
 	if len(self) == 0 {
-		return routes, nil
+		return routes
 	}
 
 	filtered := routes[:0]
@@ -120,43 +114,25 @@ func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) ([]*url.URL, e
 		}
 		filtered = append(filtered, route)
 	}
-	return filtered, nil
+	return filtered
 }
 
 func normalizeHostPort(address string) (string, error) {
-	if strings.Contains(address, "://") {
-		route, err := url.Parse(address)
-		if err != nil {
-			return "", xerrors.Errorf("parse peer address %q: %w", address, err)
-		}
-		if route.Scheme != "nats" {
-			return "", xerrors.Errorf("peer address %q must use nats scheme", address)
-		}
-		if route.User != nil {
-			return "", xerrors.Errorf("peer address %q must not include userinfo", address)
-		}
-		if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
-			return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
-		}
-		address = route.Host
+	if strings.ContainsAny(address, "/?#") {
+		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
 	}
-
 	host, port, err := net.SplitHostPort(address)
 	if err != nil || host == "" || port == "" {
 		return "", xerrors.Errorf("peer address %q must include host and port", address)
+	}
+	if strings.Contains(host, "@") {
+		return "", xerrors.Errorf("peer address %q must not include userinfo", address)
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber <= 0 || portNumber > 65535 {
 		return "", xerrors.Errorf("peer address %q must include a valid port", address)
 	}
 	return net.JoinHostPort(host, strconv.Itoa(portNumber)), nil
-}
-
-func effectiveClusterAddress(host string, port int) (string, bool) {
-	if host == "" || port <= 0 {
-		return "", false
-	}
-	return net.JoinHostPort(host, strconv.Itoa(port)), true
 }
 
 func routeURLsEqual(a, b []*url.URL) bool {

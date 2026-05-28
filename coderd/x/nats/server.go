@@ -1,6 +1,9 @@
 package nats
 
 import (
+	"net"
+	"net/url"
+	"strconv"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -55,12 +58,11 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 		if err != nil {
 			return nil, err
 		}
-		if selfAddress, ok := effectiveClusterAddress(clusterHost, clusterPort); ok {
-			routes, err = filterSelfRoutes(routes, selfAddress)
-			if err != nil {
-				return nil, err
-			}
+		selfRoute := &url.URL{
+			Scheme: "nats",
+			Host:   net.JoinHostPort(clusterHost, strconv.Itoa(clusterPort)),
 		}
+		routes = filterSelfRoutes(routes, selfRoute)
 
 		sopts.Cluster = natsserver.ClusterOpts{
 			Name:     defaultClusterName,
@@ -119,13 +121,13 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	if handlers.errH != nil {
 		connOpts = append(connOpts, natsgo.ErrorHandler(handlers.errH))
 	}
-	url := ns.ClientURL()
+	clientURL := ns.ClientURL()
 	if opts.InProcess {
 		// InProcessServer overrides URL dialing with a net.Pipe; the
-		// url argument is ignored but must still be syntactically valid.
+		// URL argument is ignored but must still be syntactically valid.
 		connOpts = append(connOpts, natsgo.InProcessServer(ns))
 	}
-	nc, err := natsgo.Connect(url, connOpts...)
+	nc, err := natsgo.Connect(clientURL, connOpts...)
 	if err != nil {
 		return nil, xerrors.Errorf("connect client: %w", err)
 	}

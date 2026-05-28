@@ -2,6 +2,7 @@ package nats //nolint:testpackage // Exercises internal cluster state.
 
 import (
 	"errors"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
 			" 127.0.0.1:4222 ",
-			"nats://[::1]:7222",
+			"[::1]:7222",
 			"example.com:6222",
 		})
 		require.NoError(t, err)
@@ -35,9 +36,9 @@ func Test_parsePeerAddresses(t *testing.T) {
 	t.Run("SortsAndDedupes", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
-			"nats://b.example:6222",
-			"nats://a.example:6222",
-			"nats://b.example:6222",
+			"b.example:6222",
+			"a.example:6222",
+			"b.example:6222",
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{
@@ -83,8 +84,7 @@ func Test_filterSelfRoutes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	routes, err = filterSelfRoutes(routes, "self.example:6222")
-	require.NoError(t, err)
+	routes = filterSelfRoutes(routes, &url.URL{Scheme: "nats", Host: "self.example:6222"})
 	require.Equal(t, []string{"nats://b.example:6222"}, routeStrings(routes))
 }
 

@@ -86,7 +86,6 @@ type Options struct {
 	RoutePoolSize int
 
 	// PeerAddresses are the initial host:port cluster route addresses.
-	// nats://host:port route URLs are also accepted.
 	PeerAddresses []string
 
 	disableCluster bool

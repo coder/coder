@@ -343,13 +343,16 @@ func Test_localSub_init(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest // Cluster tests bind free ports and reload shared route state.
 func TestPubsubCluster(t *testing.T) {
+	t.Parallel()
+
 	// OK verifies that SetPeerAddresses changes the active cluster topology.
 	// A starts connected to B, then C is added and receives both global and
 	// C-only messages. B is then removed from A's peers, while C continues to
 	// receive global and C-only messages.
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
 		a := newTestPubsub(t, newClusterTestOptions(t))
 		b := newTestPubsub(t, newClusterTestOptions(t))
 		c := newTestPubsub(t, newClusterTestOptions(t))
@@ -451,7 +454,7 @@ func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	t.Helper()
 	addr := ps.ns.ClusterAddr()
 	require.NotNil(t, addr)
-	return "nats://" + addr.String()
+	return addr.String()
 }
 
 func waitForRoutes(t *testing.T, ps *Pubsub, minRoutes int) {
