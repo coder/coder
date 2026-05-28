@@ -1586,7 +1586,7 @@ func TestListenerTLS(t *testing.T) {
 				withAllowedPorts(targetURL.Port()),
 			)
 			if tt.tunneled {
-				// Use a domahas a provider host configured that excludes the target server so requests are tunneled.
+				// Configure provider hosts that exclude the target server so requests are tunneled.
 				proxyOpts = append(proxyOpts, withProviderHosts(aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI))
 			}
 
@@ -1744,7 +1744,7 @@ func TestUpstreamProxy(t *testing.T) {
 		name string
 		// tunneled determines whether the request should be tunneled through
 		// the upstream proxy (true) or MITM'd by aiproxy (false).
-		// When true, the target domain is has no configured provider.
+		// When true, the target domain has no configured provider.
 		// When false, the target domain has a configured provider.
 		tunneled bool
 		// upstreamProxyTLS determines whether the upstream proxy uses TLS.
@@ -1953,8 +1953,8 @@ func TestUpstreamProxy(t *testing.T) {
 			require.NoError(t, err)
 
 			// Configure provider hosts based on test case:
-			//   - For tunneled requests, api.anthropic.com is has a provider host configured, but we target a different host.
-			//   - For MITM, api.anthropic.com must be has a configured provider.
+			//   - For tunneled requests, api.anthropic.com has a configured provider, but we target a different host.
+			//   - For MITM, api.anthropic.com must have a configured provider.
 			providerHosts := []string{aibridgeproxyd.HostAnthropic}
 
 			// Build upstream proxy URL with optional auth credentials.
@@ -2200,7 +2200,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			// Build the CONNECT target using the configured hostname.
 			connectTarget := fmt.Sprintf("%s:%s", tt.targetHostname, targetURL.Port())
 
-			// Use a domahas a provider host configured that excludes the target so CONNECT requests
+			// Configure provider hosts that exclude the target so CONNECT requests
 			// go through the tunnel path rather than being MITM'd.
 			opts := []testProxyOption{
 				withProviderHosts(aibridgeproxyd.HostAnthropic),
