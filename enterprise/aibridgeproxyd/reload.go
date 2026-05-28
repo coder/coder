@@ -5,40 +5,21 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/elazarl/goproxy"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridged"
 )
 
-// ProviderStatus describes the lifecycle state of a configured AI
-// provider for observability and routing purposes.
-type ProviderStatus string
-
-const (
-	// ProviderStatusEnabled means the provider is configured, valid, and
-	// included in the active routing snapshot.
-	ProviderStatusEnabled ProviderStatus = "enabled"
-	// ProviderStatusDisabled means the provider exists in configuration
-	// but is intentionally turned off by an operator.
-	ProviderStatusDisabled ProviderStatus = "disabled"
-	// ProviderStatusError means the provider exists in configuration but
-	// cannot be routed to because of a validation failure (missing or
-	// invalid base URL, duplicate host, etc.).
-	ProviderStatusError ProviderStatus = "error"
-)
-
-// ReloadedProvider is one row from the provider configuration together
-// with the outcome of evaluating it for routing. Host is populated only
-// when Status == ProviderStatusEnabled; Err is populated only when
-// Status == ProviderStatusError.
+// ReloadedProvider is the classification of one ai_providers row.
+// Host is the routable hostname; it's populated only when the embedded
+// outcome's Status == aibridged.ProviderStatusEnabled.
 type ReloadedProvider struct {
-	Name   string
-	Type   string
-	Host   string
-	Status ProviderStatus
-	Err    error
+	aibridged.ProviderOutcome
+	Host string
 }
 
 // ProviderReload is the result of a single refresh pass: every
@@ -47,8 +28,8 @@ type ProviderReload struct {
 	Providers []ReloadedProvider
 }
 
-// RefreshProvidersFunc returns the live provider classification used by
-// Reload to rebuild the proxy's routing snapshot.
+// RefreshProvidersFunc returns the live provider classification used
+// by Reload to rebuild the proxy's routing snapshot.
 type RefreshProvidersFunc func(ctx context.Context) (ProviderReload, error)
 
 // Reload refreshes proxy routing from the configured provider source.
@@ -57,6 +38,7 @@ func (s *Server) Reload(ctx context.Context) error {
 	if s.refreshProviders == nil {
 		return nil
 	}
+	s.recordReloadAttempt()
 	reload, err := s.refreshProviders(ctx)
 	if err != nil {
 		return xerrors.Errorf("refresh ai providers for proxy routing: %w", err)
@@ -67,19 +49,46 @@ func (s *Server) Reload(ctx context.Context) error {
 	}
 	s.providerRouter.Store(router)
 	for _, p := range reload.Providers {
-		if p.Status == ProviderStatusError {
+		if p.Status == aibridged.ProviderStatusError {
 			s.logger.Warn(s.ctx, "provider excluded from routing",
 				slog.F("provider", p.Name),
 				slog.Error(p.Err),
 			)
 		}
 	}
+	s.recordReloadSuccess(reload)
 	s.logger.Debug(s.ctx, "aibridgeproxyd router reloaded",
 		slog.F("provider_count", len(reload.Providers)),
 		slog.F("mitm_host_count", len(router.mitmHosts)),
 		slog.F("mitm_hosts", router.mitmHosts),
 	)
 	return nil
+}
+
+// recordReloadAttempt stamps the attempt-time gauge at the start of a
+// Reload. A reload that hangs mid-flight is detected by watching the
+// gap between this gauge and ProvidersLastReloadSuccessTimestampSeconds.
+func (s *Server) recordReloadAttempt() {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.ProvidersLastReloadTimestampSeconds.Set(float64(time.Now().Unix()))
+}
+
+// recordReloadSuccess rewrites the provider_info GaugeVec from the
+// classified reload and stamps the success-time gauge. Reset clears
+// series for providers that have left the configuration so they don't
+// linger as stale.
+func (s *Server) recordReloadSuccess(reload ProviderReload) {
+	if s.metrics == nil {
+		return
+	}
+	outcomes := make([]aibridged.ProviderOutcome, len(reload.Providers))
+	for i, p := range reload.Providers {
+		outcomes[i] = p.ProviderOutcome
+	}
+	aibridged.WriteProviderInfoSnapshot(s.metrics.ProviderInfo, outcomes)
+	s.metrics.ProvidersLastReloadSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
 }
 
 func (s *Server) loadProviderRouter() *providerRouter {
@@ -103,16 +112,17 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 }
 
 // buildProviderRouter constructs a router snapshot from a classified
-// provider reload. Only providers with Status == ProviderStatusEnabled
-// are included in the active routing tables; the refresh function is
-// responsible for classifying disabled and errored rows. First entry
-// wins on duplicate hostnames as a defense-in-depth measure even though
-// the refresh function should mark duplicates as errors.
+// provider reload. Only providers with Status ==
+// aibridged.ProviderStatusEnabled are included in the active routing
+// tables; the refresh function is responsible for classifying disabled
+// and errored rows. First entry wins on duplicate hostnames as a
+// defense-in-depth measure even though the refresh function should
+// mark duplicates as errors.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
 	nameByHost := make(map[string]string, len(reload.Providers))
 	domains := make([]string, 0, len(reload.Providers))
 	for _, p := range reload.Providers {
-		if p.Status != ProviderStatusEnabled {
+		if p.Status != aibridged.ProviderStatusEnabled {
 			continue
 		}
 		host := strings.ToLower(p.Host)
