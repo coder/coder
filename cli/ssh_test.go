@@ -2587,3 +2587,64 @@ func TestSSH_Completion(t *testing.T) {
 		require.Empty(t, output)
 	})
 }
+
+func TestSSH_SelectWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SingleRunningConfirmYes", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "--force-tty", "ssh")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+
+		pty.ExpectMatchContext(ctx, "Connect to workspace")
+		pty.WriteLine("yes")
+		pty.ExpectMatchContext(ctx, "Waiting")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		pty.WriteLine("exit")
+		require.NoError(t, w.Wait())
+	})
+
+	t.Run("SingleRunningConfirmNo", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "--force-tty", "ssh")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+		pty.ExpectMatchContext(ctx, "Connect to workspace")
+		pty.WriteLine("no")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		require.Error(t, w.Wait()) // cliui.ErrCanceled
+	})
+
+	t.Run("StdioRequiresWorkspace", func(t *testing.T) {
+		t.Parallel()
+		client, _, _ := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ssh", "--stdio")
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.ErrorContains(t, err, "workspace is required in stdio mode")
+	})
+
+	t.Run("NonInteractiveRequiresWorkspace", func(t *testing.T) {
+		t.Parallel()
+		client, _, _ := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ssh")
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.ErrorContains(t, err, "workspace is required when not running interactively")
+	})
+}

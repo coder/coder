@@ -613,3 +613,36 @@ func TestRetryWithInterval(t *testing.T) {
 		assert.Equal(t, 1, attempts)
 	})
 }
+
+func TestSSH_sshWorkspaceChoices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   []codersdk.Workspace
+		want []string
+	}{
+		{
+			name: "None",
+			in:   nil,
+			want: []string{},
+		},
+		{
+			name: "One",
+			in:   []codersdk.Workspace{{Name: "alpha"}},
+			want: []string{"alpha"},
+		},
+		{
+			name: "Many",
+			in:   []codersdk.Workspace{{Name: "alpha"}, {Name: "beta"}},
+			want: []string{"alpha", "beta"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, sshWorkspaceChoices(tt.in))
+		})
+	}
+}

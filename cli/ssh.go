@@ -113,6 +113,67 @@ func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Du
 	return ctx.Err()
 }
 
+func sshWorkspaceChoices(workspaces []codersdk.Workspace) []string {
+	var choices []string
+
+	switch len(workspaces) {
+	case 0:
+		return []string{}
+	case 1:
+		choices := append(choices, workspaces[0].Name)
+		return choices
+	default:
+		for _, ws := range workspaces {
+			choices = append(choices, ws.Name)
+		}
+		return choices
+	}
+}
+
+func resolveSSHWorkspaceArg(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client) (string, error) {
+	if !isTTYIn(inv) || !isTTYOut(inv) {
+		return "", xerrors.New("workspace is required when not running interactively")
+	}
+
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Owner:  codersdk.Me,
+		Status: string(codersdk.WorkspaceStatusRunning),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	choices := sshWorkspaceChoices(res.Workspaces)
+	switch len(choices) {
+	case 0:
+		return "", xerrors.New("no running workspaces found; start one with \"coder start <workspace>\" or run \"coder list\"")
+	case 1:
+		_, err := cliui.Prompt(inv, cliui.PromptOptions{
+			Text:      fmt.Sprintf("Connect to workspace %q?", choices[0]),
+			IsConfirm: true,
+			Default:   cliui.ConfirmYes,
+		})
+		if err != nil {
+			return "", err
+		}
+		return choices[0], nil
+	default:
+		selected, err := cliui.Select(inv, cliui.SelectOptions{
+			Message: "Select a workspace:",
+			Options: choices,
+		})
+		if err != nil {
+			return "", err
+		}
+		for _, choice := range choices {
+			if choice == selected {
+				return choice, nil
+			}
+		}
+		return "", xerrors.Errorf("unknown workspace selected: %q", selected)
+	}
+}
+
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
@@ -139,28 +200,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "ssh <workspace> [command]",
+		Use:         "ssh [workspace] [command]",
 		Short:       "Start a shell into a workspace or run a command",
 		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
 			FormatExamples(
 				Example{
 					Description: "Use `--` to separate and pass flags directly to the command executed via SSH.",
-					Command:     "coder ssh <workspace> -- ls -la",
+					Command:     "coder ssh [workspace] -- ls -la",
 				},
 			),
-		Middleware: serpent.Chain(
-			// Require at least one arg for the workspace name
-			func(next serpent.HandlerFunc) serpent.HandlerFunc {
-				return func(i *serpent.Invocation) error {
-					got := len(i.Args)
-					if got < 1 {
-						return xerrors.New("expected the name of a workspace")
-					}
-
-					return next(i)
-				}
-			},
-		),
 		CompletionHandler: func(inv *serpent.Invocation) []string {
 			client, err := r.InitClient(inv)
 			if err != nil {
@@ -211,10 +259,30 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
+			var (
+				workspaceArg string
+				command      string
+			)
+			switch len(inv.Args) {
+			case 0:
+				if stdio {
+					return xerrors.New("workspace is required in stdio mode")
+				}
+				var err error
+				workspaceArg, err = resolveSSHWorkspaceArg(inv.Context(), inv, client)
+				if err != nil {
+					return err
+				}
+			default:
+				workspaceArg = inv.Args[0]
+				if len(inv.Args) > 1 {
+					command = strings.Join(inv.Args[1:], " ")
+				}
+			}
+
 			appearanceConfig := initAppearance(inv.Context(), client)
 			wsClient := workspacesdk.New(client)
-
-			command := strings.Join(inv.Args[1:], " ")
 
 			// Before dialing the SSH server over TCP, capture Interrupt signals
 			// so that if we are interrupted, we have a chance to tear down the
@@ -336,7 +404,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				var err error
 				workspace, workspaceAgent, err = findWorkspaceAndAgentByHostname(
 					ctx, inv, client,
-					inv.Args[0], cliConfig, disableAutostart)
+					workspaceArg, cliConfig, disableAutostart)
 				return err
 			}
 			if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, resolveWorkspace); err != nil {
