@@ -473,7 +473,7 @@ func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) 
 	sequenceNumbers := make([]int32, 0, len(seed))
 	capturedAt := make([]time.Time, 0, len(seed))
 	createdAt := make([]time.Time, 0, len(seed))
-	proto := make([]string, 0, len(seed))
+	protos := make([]string, 0, len(seed))
 	method := make([]string, 0, len(seed))
 	detail := make([]string, 0, len(seed))
 	matchedRule := make([]string, 0, len(seed))
@@ -483,7 +483,7 @@ func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) 
 		sequenceNumbers = append(sequenceNumbers, log.SequenceNumber)
 		capturedAt = append(capturedAt, log.CapturedAt)
 		createdAt = append(createdAt, log.CreatedAt)
-		proto = append(proto, log.Proto)
+		protos = append(protos, log.Proto)
 		method = append(method, log.Method)
 		detail = append(detail, log.Detail)
 		matchedRule = append(matchedRule, log.MatchedRule.String)
@@ -494,7 +494,7 @@ func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) 
 		SequenceNumber: sequenceNumbers,
 		CapturedAt:     capturedAt,
 		CreatedAt:      createdAt,
-		Proto:          proto,
+		Proto:          protos,
 		Method:         method,
 		Detail:         detail,
 		MatchedRule:    matchedRule,
