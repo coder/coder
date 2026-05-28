@@ -18,6 +18,11 @@ const (
 // ProviderOutcome is the classification of one ai_providers row.
 // Observers see disabled and errored rows here that the pool snapshot
 // (enabled only) excludes.
+//
+// Err is populated only when Status == ProviderStatusError. The
+// construction-site error is already logged at the source; Err is kept
+// on the outcome so test assertions can verify which row failed and
+// why, without parsing logs.
 type ProviderOutcome struct {
 	Name   string
 	Type   string
