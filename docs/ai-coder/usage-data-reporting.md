@@ -12,7 +12,7 @@ To send usage data, your Coder deployment must be able to make outbound HTTPS re
 Example of a successful request (requires debug logging enabled [`CODER_LOG_FILTER=.*`](../reference/cli/server.md#-l---log-filter)):
 
 ```sh
-[debug] published usage events to tallyman accepted=5 rejected=0
+[debu] published usage events to tallyman accepted=5 rejected=0
 ```
 
 Example of a request payload:
