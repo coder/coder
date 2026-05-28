@@ -15,6 +15,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -39,6 +41,11 @@ type TokenInfo struct {
 // than here, so the CLI / caller can construct the client with whatever session token (operator-issued, admin,
 // template-admin) suits its deployment.
 type ManagerOptions struct {
+	// DB is the database store used to bulk-fetch external-agent tokens for the
+	// enumerated workspaces. Required. The caller is responsible for opening
+	// the underlying connection (e.g. via cli.ConnectToPostgres) and closing
+	// it after the Manager exits.
+	DB database.Store
 	// Template restricts enumeration to workspaces of the given template name. Required.
 	Template string
 	// Owner restricts enumeration to workspaces owned by the given user. Optional; if empty, all owners are included.
@@ -60,6 +67,7 @@ type ManagerOptions struct {
 // them connected until ctx is canceled.
 type Manager struct {
 	client *codersdk.Client
+	db     database.Store
 	logger slog.Logger
 	opts   ManagerOptions
 
@@ -68,14 +76,15 @@ type Manager struct {
 }
 
 // NewManager returns an Agent Manager. The provided client must already be authenticated with sufficient privilege
-// to list workspaces by template and to call the enterprise-only WorkspaceExternalAgentCredentials endpoint
-// (template-admin or higher; FeatureWorkspaceExternalAgent must be enabled).
+// to list workspaces by template (template-admin or higher). opts.DB must be a database.Store connected to the same
+// Postgres database as the target coderd; it is used to bulk-fetch external-agent tokens for the enumerated workspaces.
 func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions) *Manager {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
 	return &Manager{
 		client: client,
+		db:     opts.DB,
 		logger: logger,
 		opts:   opts,
 	}
@@ -89,6 +98,9 @@ func NewManager(client *codersdk.Client, logger slog.Logger, opts ManagerOptions
 func (m *Manager) Run(ctx context.Context) error {
 	if m.opts.Template == "" {
 		return xerrors.New("invalid manager options: Template is required")
+	}
+	if m.db == nil {
+		return xerrors.New("invalid manager options: DB is required")
 	}
 
 	if m.opts.ExpectedAgents > 0 {
@@ -208,18 +220,22 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 		wsIDs = append(wsIDs, ws.ID)
 	}
 
-	resp, err := m.client.ExternalAgentTokensByWorkspaceIDs(ctx, wsIDs)
+	// The bulk-token query is gated by dbauthz on ResourceSystem; this code path
+	// runs in the agentfake manager pod, which has direct DB access and acts as
+	// a trusted system caller (the secret-equivalent boundary is Postgres auth,
+	// not session-token authorization).
+	rows, err := m.db.GetExternalAgentTokensByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), wsIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external-agent tokens: %w", err)
 	}
 
-	tokens := make([]TokenInfo, 0, len(resp.Agents))
-	for _, row := range resp.Agents {
+	tokens := make([]TokenInfo, 0, len(rows))
+	for _, row := range rows {
 		tokens = append(tokens, TokenInfo{
 			WorkspaceID: row.WorkspaceID,
 			AgentID:     row.AgentID,
 			AgentName:   row.AgentName,
-			Token:       row.AgentToken,
+			Token:       row.AgentToken.String(),
 		})
 	}
 	m.logger.Info(ctx, "enumerated external-agent workspaces",
