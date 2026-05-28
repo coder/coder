@@ -316,7 +316,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 		case "remove":
 			// TODO: If the path is unspecified, we should fail with the status code 400.
 			//  Today, we only accept the 'active' field and silently drop the rest.
-			if strings.EqualFold(op.Path.String(), "active") {
+			if op.Path != nil && strings.EqualFold(op.Path.String(), "active") {
 				activeSet = ptr.Ref(false)
 			}
 		case "replace":
