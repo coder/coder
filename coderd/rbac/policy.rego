@@ -330,7 +330,7 @@ object_is_included_in_scope_allow_list if {
 
 # ACL for users
 acl_allow if {
-	# TODO: Should you have to be a member of the org too?
+	is_org_member
 	perms := input.object.acl_user_list[input.subject.id]
 
 	# Check if either the action or * is allowed
