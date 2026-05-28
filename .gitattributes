@@ -22,6 +22,7 @@ coderd/database/dbmetrics/querymetrics.go linguist-generated=true
 coderd/database/unique_constraint.go linguist-generated=true
 coderd/database/foreign_key_constraint.go linguist-generated=true
 coderd/database/check_constraint.go linguist-generated=true
+
 peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
 provisionerd/proto/version.go linguist-generated=false
