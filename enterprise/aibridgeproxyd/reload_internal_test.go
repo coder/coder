@@ -94,8 +94,10 @@ func TestBuildProviderRouter(t *testing.T) {
 			enabledProvider("openai", "api.openai.com"),
 			enabledProvider("anthropic", "api.anthropic.com"),
 			enabledProvider("custom", "custom-llm.example.com"),
-			{Name: "off", Type: "openai", Status: ProviderStatusDisabled},
-			{Name: "bad", Type: "openai", Status: ProviderStatusError, Err: xerrors.New("nope")},
+			// Host is populated on the non-enabled rows so the Status
+			// guard, not the empty-host guard, is what excludes them.
+			{Name: "off", Type: "openai", Host: "disabled.example.com", Status: ProviderStatusDisabled},
+			{Name: "bad", Type: "openai", Host: "errored.example.com", Status: ProviderStatusError, Err: xerrors.New("nope")},
 		}}
 
 		router, err := buildProviderRouter(reload, []string{"443"})
@@ -105,6 +107,10 @@ func TestBuildProviderRouter(t *testing.T) {
 		assert.Equal(t, "anthropic", router.providerFromHost("api.anthropic.com"))
 		assert.Equal(t, "custom", router.providerFromHost("custom-llm.example.com"))
 		assert.Empty(t, router.providerFromHost("unknown.com"))
+		assert.Empty(t, router.providerFromHost("disabled.example.com"),
+			"disabled provider must not be routable even with a populated Host")
+		assert.Empty(t, router.providerFromHost("errored.example.com"),
+			"errored provider must not be routable even with a populated Host")
 
 		assert.Contains(t, router.mitmHosts, "api.openai.com:443")
 		assert.Contains(t, router.mitmHosts, "api.anthropic.com:443")
