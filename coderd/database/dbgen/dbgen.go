@@ -458,7 +458,7 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
-		OwnerID:             takeFirst(seed.OwnerID, uuid.New()),
+		OwnerID:             takeFirst(seed.OwnerID, uuid.NullUUID{UUID: uuid.New(), Valid: true}),
 		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
 		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
 		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),

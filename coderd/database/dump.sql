@@ -1490,7 +1490,7 @@ CREATE TABLE boundary_sessions (
     confined_process_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL
+    owner_id uuid
 );
 
 COMMENT ON TABLE boundary_sessions IS 'Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.';
@@ -4515,7 +4515,7 @@ ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY boundary_sessions
-    ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
+    ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);

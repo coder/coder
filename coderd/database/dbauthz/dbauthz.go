@@ -5475,7 +5475,7 @@ func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoun
 		return database.BoundaryLog{}, xerrors.Errorf("get boundary session for owner: %w", err)
 	}
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.String())); err != nil {
+		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.UUID.String())); err != nil {
 		return database.BoundaryLog{}, err
 	}
 	return q.db.InsertBoundaryLog(ctx, arg)
@@ -5490,7 +5490,7 @@ func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBou
 		return nil, xerrors.Errorf("get boundary session for owner: %w", err)
 	}
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.String())); err != nil {
+		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.UUID.String())); err != nil {
 		return nil, err
 	}
 	return q.db.InsertBoundaryLogs(ctx, arg)
@@ -5504,9 +5504,9 @@ func (q *querier) InsertBoundarySession(ctx context.Context, arg database.Insert
 	if err != nil {
 		return database.BoundarySession{}, xerrors.Errorf("get workspace for boundary session owner: %w", err)
 	}
-	arg.OwnerID = row.WorkspaceTable.OwnerID
+	arg.OwnerID = uuid.NullUUID{UUID: row.WorkspaceTable.OwnerID, Valid: true}
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(arg.OwnerID.String())); err != nil {
+		rbac.ResourceBoundaryLog.WithOwner(arg.OwnerID.UUID.String())); err != nil {
 		return database.BoundarySession{}, err
 	}
 	return q.db.InsertBoundarySession(ctx, arg)

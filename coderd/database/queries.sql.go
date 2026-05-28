@@ -3806,12 +3806,12 @@ INSERT INTO boundary_sessions (
 `
 
 type InsertBoundarySessionParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	OwnerID             uuid.UUID `db:"owner_id" json:"owner_id"`
-	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
-	StartedAt           time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID     `db:"workspace_agent_id" json:"workspace_agent_id"`
+	OwnerID             uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	ConfinedProcessName string        `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {

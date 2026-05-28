@@ -462,7 +462,7 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 		ownerID := uuid.New()
 		session := database.BoundarySession{
 			ID:      uuid.New(),
-			OwnerID: ownerID,
+			OwnerID: uuid.NullUUID{UUID: ownerID, Valid: true},
 		}
 		arg := database.InsertBoundaryLogParams{
 			SessionID: session.ID,
@@ -478,7 +478,7 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 		sessionID := uuid.New()
 		session := database.BoundarySession{
 			ID:      sessionID,
-			OwnerID: ownerID,
+			OwnerID: uuid.NullUUID{UUID: ownerID, Valid: true},
 		}
 		arg := database.InsertBoundaryLogsParams{
 			SessionID: sessionID,

@@ -1005,5 +1005,8 @@ func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Obj
 }
 
 func (s BoundarySession) RBACObject() rbac.Object {
-	return rbac.ResourceBoundaryLog.WithOwner(s.OwnerID.String())
+	if s.OwnerID.Valid {
+		return rbac.ResourceBoundaryLog.WithOwner(s.OwnerID.UUID.String())
+	}
+	return rbac.ResourceBoundaryLog
 }

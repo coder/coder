@@ -18,10 +18,8 @@ WHERE wa.id = bs.workspace_agent_id
 -- Delete any sessions that could not be backfilled (orphaned data).
 DELETE FROM boundary_sessions WHERE owner_id IS NULL;
 
--- Now make the column NOT NULL.
-ALTER TABLE boundary_sessions ALTER COLUMN owner_id SET NOT NULL;
-
--- Add FK constraint.
+-- Add FK constraint. SET NULL preserves audit data when a user is
+-- hard-deleted; the session and its logs survive with a NULL owner.
 ALTER TABLE boundary_sessions
     ADD CONSTRAINT boundary_sessions_owner_id_fkey
-    FOREIGN KEY (owner_id) REFERENCES users(id);
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
