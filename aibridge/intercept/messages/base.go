@@ -320,6 +320,12 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 	}
 
 	var out []option.RequestOption
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+		}
+		return next(req)
+	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
 
 	// If a custom base URL is set, override the default endpoint constructed by the bedrock middleware.
