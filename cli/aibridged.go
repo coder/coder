@@ -88,7 +88,7 @@ type poolDBReloader struct {
 }
 
 func (r *poolDBReloader) Reload(ctx context.Context) error {
-	defer r.metrics.RecordReloadAttempt()
+	r.metrics.RecordReloadAttempt()
 	providers, outcomes, err := BuildProviders(ctx, r.db, r.cfg, r.logger)
 	if err != nil {
 		// Keep the previous snapshot in place: dropping all providers
@@ -101,17 +101,10 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 	return nil
 }
 
-// BuildProviders loads every ai_providers row (including disabled),
-// attaches keys for the enabled ones, and constructs the equivalent
-// [aibridge.Provider] instances. The database is the single source of
-// truth for runtime provider configuration.
-//
-// The returned outcomes describe every row's classification (enabled,
-// disabled, error) so observers can surface disabled and errored rows
-// that the active pool snapshot necessarily excludes. Per-row
-// construction errors are logged and the offending row is excluded
-// from the provider list but recorded in the outcomes; only a failure
-// of the DB query itself is propagated.
+// BuildProviders loads every ai_providers row (including disabled)
+// and returns the active provider list plus per-row outcomes. Per-row
+// build errors are logged and excluded from providers but recorded in
+// outcomes; only DB query failures propagate.
 func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
 	authCtx := dbauthz.AsAIBridged(ctx)

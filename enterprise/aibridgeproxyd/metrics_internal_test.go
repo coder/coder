@@ -27,9 +27,9 @@ func TestReloadUpdatesProviderMetrics(t *testing.T) {
 	metrics := NewMetrics(reg)
 
 	reload := ProviderReload{Providers: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
-		{Name: "beta", Type: "anthropic", Status: aibridged.ProviderStatusDisabled},
-		{Name: "gamma", Type: "openai", Status: aibridged.ProviderStatusError, Err: xerrors.New("bad config")},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "alpha", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "alpha.example.com"},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "beta", Type: "anthropic", Status: aibridged.ProviderStatusDisabled}},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "gamma", Type: "openai", Status: aibridged.ProviderStatusError, Err: xerrors.New("bad config")}},
 	}}
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -71,8 +71,8 @@ func TestReloadResetsStaleProviderSeries(t *testing.T) {
 	metrics := NewMetrics(reg)
 
 	current := ProviderReload{Providers: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
-		{Name: "beta", Type: "anthropic", Host: "beta.example.com", Status: aibridged.ProviderStatusEnabled},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "alpha", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "alpha.example.com"},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "beta", Type: "anthropic", Status: aibridged.ProviderStatusEnabled}, Host: "beta.example.com"},
 	}}
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -91,7 +91,7 @@ func TestReloadResetsStaleProviderSeries(t *testing.T) {
 	require.Equal(t, 2, promtest.CollectAndCount(metrics.ProviderInfo))
 
 	current = ProviderReload{Providers: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
+		{ProviderOutcome: aibridged.ProviderOutcome{Name: "alpha", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "alpha.example.com"},
 	}}
 	require.NoError(t, srv.Reload(ctx))
 

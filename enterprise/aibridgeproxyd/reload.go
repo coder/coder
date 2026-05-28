@@ -14,15 +14,12 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 )
 
-// ReloadedProvider is the classification of one ai_providers row. Host
-// is populated only when Status == aibridged.ProviderStatusEnabled; Err
-// only when Status == aibridged.ProviderStatusError.
+// ReloadedProvider is the classification of one ai_providers row.
+// Host is the routable hostname; it's populated only when the embedded
+// outcome's Status == aibridged.ProviderStatusEnabled.
 type ReloadedProvider struct {
-	Name   string
-	Type   string
-	Host   string
-	Status aibridged.ProviderStatus
-	Err    error
+	aibridged.ProviderOutcome
+	Host string
 }
 
 // ProviderReload is the result of a single refresh pass: every
@@ -41,7 +38,7 @@ func (s *Server) Reload(ctx context.Context) error {
 	if s.refreshProviders == nil {
 		return nil
 	}
-	defer s.recordReloadAttempt()
+	s.recordReloadAttempt()
 	reload, err := s.refreshProviders(ctx)
 	if err != nil {
 		return xerrors.Errorf("refresh ai providers for proxy routing: %w", err)
@@ -68,8 +65,9 @@ func (s *Server) Reload(ctx context.Context) error {
 	return nil
 }
 
-// recordReloadAttempt stamps the attempt-time gauge. Fires for every
-// Reload regardless of outcome.
+// recordReloadAttempt stamps the attempt-time gauge at the start of a
+// Reload. A reload that hangs mid-flight is detected by watching the
+// gap between this gauge and ProvidersLastReloadSuccessTimestampSeconds.
 func (s *Server) recordReloadAttempt() {
 	if s.metrics == nil {
 		return
@@ -85,10 +83,11 @@ func (s *Server) recordReloadSuccess(reload ProviderReload) {
 	if s.metrics == nil {
 		return
 	}
-	s.metrics.ProviderInfo.Reset()
-	for _, p := range reload.Providers {
-		s.metrics.ProviderInfo.WithLabelValues(p.Name, p.Type, string(p.Status)).Set(1)
+	outcomes := make([]aibridged.ProviderOutcome, len(reload.Providers))
+	for i, p := range reload.Providers {
+		outcomes[i] = p.ProviderOutcome
 	}
+	aibridged.WriteProviderInfoSnapshot(s.metrics.ProviderInfo, outcomes)
 	s.metrics.ProvidersLastReloadSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
 }
 

@@ -118,8 +118,10 @@ func refreshProxyProviders(db database.Store) aibridgeproxyd.RefreshProvidersFun
 // hostname so later duplicates can be flagged as errors.
 func classifyProviderRow(row database.AIProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{
-		Name: row.Name,
-		Type: string(row.Type),
+		ProviderOutcome: aibridged.ProviderOutcome{
+			Name: row.Name,
+			Type: string(row.Type),
+		},
 	}
 	if !row.Enabled {
 		out.Status = aibridged.ProviderStatusDisabled

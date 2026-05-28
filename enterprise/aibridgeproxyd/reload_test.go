@@ -110,7 +110,9 @@ func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload,
 // classifyRaw mirrors the production classifier in enterprise/cli so
 // the reload tests exercise the same validation rules end-to-end.
 func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
-	out := aibridgeproxyd.ReloadedProvider{Name: p.name, Type: "openai"}
+	out := aibridgeproxyd.ReloadedProvider{
+		ProviderOutcome: aibridged.ProviderOutcome{Name: p.name, Type: "openai"},
+	}
 	if strings.TrimSpace(p.baseURL) == "" {
 		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.New("base url is empty")

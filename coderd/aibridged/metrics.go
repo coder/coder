@@ -61,8 +61,9 @@ func (m *Metrics) Unregister() {
 	m.registerer.Unregister(m.ProvidersLastReloadSuccessTimestampSeconds)
 }
 
-// RecordReloadAttempt stamps the attempt-time gauge. Call once per
-// reload pass regardless of outcome.
+// RecordReloadAttempt stamps the attempt-time gauge at the start of a
+// reload. A reload that hangs mid-flight is detected by watching the
+// gap between this gauge and ProvidersLastReloadSuccessTimestampSeconds.
 func (m *Metrics) RecordReloadAttempt() {
 	if m == nil {
 		return
@@ -78,9 +79,16 @@ func (m *Metrics) RecordReloadSuccess(outcomes []ProviderOutcome) {
 	if m == nil {
 		return
 	}
-	m.ProviderInfo.Reset()
-	for _, o := range outcomes {
-		m.ProviderInfo.WithLabelValues(o.Name, o.Type, string(o.Status)).Set(1)
-	}
+	WriteProviderInfoSnapshot(m.ProviderInfo, outcomes)
 	m.ProvidersLastReloadSuccessTimestampSeconds.Set(float64(time.Now().Unix()))
+}
+
+// WriteProviderInfoSnapshot Resets info and writes one series per
+// outcome. Both aibridged and aibridgeproxyd use this so the
+// provider_info recording contract stays in one place.
+func WriteProviderInfoSnapshot(info *prometheus.GaugeVec, outcomes []ProviderOutcome) {
+	info.Reset()
+	for _, o := range outcomes {
+		info.WithLabelValues(o.Name, o.Type, string(o.Status)).Set(1)
+	}
 }

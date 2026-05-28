@@ -334,15 +334,15 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		assert.Error(t, outcomes[0].Err)
 	})
 
-	t.Run("UnsupportedType", func(t *testing.T) {
+	t.Run("EnabledButNoKeys", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		// Azure is a valid DB-level provider type but has no runtime
-		// builder yet; it must hit the default branch and be classified
-		// as error.
+		// Azure routes through the OpenAI-family builder, which rejects
+		// rows without keys when BYOK is disabled. The row must be
+		// classified as error and excluded from the snapshot.
 		dbgen.AIProvider(t, db, database.AIProvider{
 			Type:    database.AiProviderTypeAzure,
 			Name:    "azure-openai",

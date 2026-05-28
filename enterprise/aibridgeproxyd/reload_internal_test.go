@@ -15,10 +15,12 @@ import (
 
 func enabledProvider(name, host string) ReloadedProvider {
 	return ReloadedProvider{
-		Name:   name,
-		Type:   "openai",
-		Host:   host,
-		Status: aibridged.ProviderStatusEnabled,
+		ProviderOutcome: aibridged.ProviderOutcome{
+			Name:   name,
+			Type:   "openai",
+			Status: aibridged.ProviderStatusEnabled,
+		},
+		Host: host,
 	}
 }
 
@@ -97,8 +99,8 @@ func TestBuildProviderRouter(t *testing.T) {
 			enabledProvider("custom", "custom-llm.example.com"),
 			// Host is populated on the non-enabled rows so the Status
 			// guard, not the empty-host guard, is what excludes them.
-			{Name: "off", Type: "openai", Host: "disabled.example.com", Status: aibridged.ProviderStatusDisabled},
-			{Name: "bad", Type: "openai", Host: "errored.example.com", Status: aibridged.ProviderStatusError, Err: xerrors.New("nope")},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "off", Type: "openai", Status: aibridged.ProviderStatusDisabled}, Host: "disabled.example.com"},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "bad", Type: "openai", Status: aibridged.ProviderStatusError, Err: xerrors.New("nope")}, Host: "errored.example.com"},
 		}}
 
 		router, err := buildProviderRouter(reload, []string{"443"})
@@ -122,7 +124,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		t.Parallel()
 
 		reload := ProviderReload{Providers: []ReloadedProvider{
-			{Name: "provider", Type: "openai", Host: "API.Example.COM", Status: aibridged.ProviderStatusEnabled},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "provider", Type: "openai", Status: aibridged.ProviderStatusEnabled}, Host: "API.Example.COM"},
 		}}
 
 		router, err := buildProviderRouter(reload, []string{"443"})
@@ -153,7 +155,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		t.Parallel()
 
 		reload := ProviderReload{Providers: []ReloadedProvider{
-			{Name: "no-host", Type: "openai", Status: aibridged.ProviderStatusEnabled},
+			{ProviderOutcome: aibridged.ProviderOutcome{Name: "no-host", Type: "openai", Status: aibridged.ProviderStatusEnabled}},
 			enabledProvider("good", "api.good.example.com"),
 		}}
 
