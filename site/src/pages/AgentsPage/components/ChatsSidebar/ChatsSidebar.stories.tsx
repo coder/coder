@@ -13,10 +13,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
-import {
-	AGENT_CHAT_STATUS_ORDER,
-	type AgentSidebarFilters,
-} from "../../utils/agentSidebarFilters";
+import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -60,13 +57,6 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-const defaultSidebarFilters: AgentSidebarFilters = {
-	archiveStatus: "active",
-	groupBy: "date",
-	prStatuses: [],
-	chatStatuses: AGENT_CHAT_STATUS_ORDER,
-};
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
