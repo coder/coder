@@ -140,6 +140,14 @@ if [[ " $* " == *" --check "* ]]; then
 	fi
 fi
 
+# The committed testdata encodes linux/amd64 values from the coder_provisioner
+# data source. Regenerating on a non-Linux host would bake in darwin/arm64 (or
+# similar) and dirty the tree. Guard here so local runs on macOS are safe.
+if [[ "$(uname)" != "Linux" ]]; then
+	echo "Note: skipping testdata regeneration on $(uname); regenerate on Linux or via CI."
+	exit 0
+fi
+
 # Filter flags from positional args to get directory names.
 declare -a dirs=()
 for arg in "$@"; do
