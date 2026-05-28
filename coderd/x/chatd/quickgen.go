@@ -424,10 +424,6 @@ func (p *Server) prepareQuickgenDebugCandidate(
 	return runCtx, debugModel, finishDebugRun
 }
 
-// Synthetic quickgen prompts end with an assistant marker because AI Bridge
-// records final user-role messages as user prompts.
-const quickgenStructuredOutputReady = "Ready to provide the structured output."
-
 func syntheticObjectGenerationPrompt(systemPrompt, userInput string) fantasy.Prompt {
 	return fantasy.Prompt{
 		{
@@ -440,12 +436,6 @@ func syntheticObjectGenerationPrompt(systemPrompt, userInput string) fantasy.Pro
 			Role: fantasy.MessageRoleUser,
 			Content: []fantasy.MessagePart{
 				fantasy.TextPart{Text: userInput},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleAssistant,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: quickgenStructuredOutputReady},
 			},
 		},
 	}
