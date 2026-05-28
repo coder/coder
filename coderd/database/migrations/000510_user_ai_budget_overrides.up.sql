@@ -40,8 +40,8 @@ CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership
 	FOR EACH ROW
 EXECUTE PROCEDURE enforce_user_ai_budget_override_membership();
 
--- When a user is removed from a regular group, delete any override
--- attributed to that group.
+-- When a user is removed from a regular group (any group except
+-- "Everyone"), delete any override attributed to that group.
 CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS TRIGGER
 	LANGUAGE plpgsql
 AS $$

@@ -3226,6 +3226,7 @@ func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
 	})
 	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
 
+	// "Regular group" means any group except "Everyone".
 	t.Run("RegularGroup", func(t *testing.T) {
 		t.Parallel()
 
