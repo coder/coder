@@ -36,8 +36,7 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 		user = "Coder automatically";
 	}
 
-	const description = auditLog.description;
-	const truncatedDescription = description
+	const truncatedDescription = auditLog.description
 		.replace("{user}", `${user}`)
 		.replace("{target}", "");
 

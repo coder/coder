@@ -207,6 +207,7 @@ export const WithChatACLDiff: Story = {
 			...MockChatAuditLog,
 			id: "1d718c45-5dfb-4f24-9546-4f61fa8e3402",
 			action: "write",
+			description: "{user} updated sharing for chat {target}",
 			diff: {
 				user_acl: {
 					old: {},
