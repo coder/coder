@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 )
 
 // TestClassifyProviderRow covers every branch of the classifier so the
@@ -34,7 +34,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		got := classifyProviderRow(enabledRow("openai", "https://api.openai.com/v1"), seen)
 		assert.Equal(t, "openai", got.Name)
 		assert.Equal(t, string(database.AiProviderTypeOpenai), got.Type)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusEnabled, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
 		assert.Equal(t, "api.openai.com", got.Host)
 		assert.NoError(t, got.Err)
 		assert.Equal(t, "openai", seen["api.openai.com"])
@@ -47,7 +47,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		row := enabledRow("off", "https://api.off.example.com/v1")
 		row.Enabled = false
 		got := classifyProviderRow(row, seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusDisabled, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusDisabled, got.Status)
 		assert.Empty(t, got.Host, "disabled provider must not claim a host")
 		assert.NoError(t, got.Err)
 		assert.Empty(t, seen, "disabled provider must not occupy a host slot")
@@ -58,7 +58,7 @@ func TestClassifyProviderRow(t *testing.T) {
 
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("no-url", "   "), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusError, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
 		assert.Empty(t, got.Host)
 		assert.ErrorContains(t, got.Err, "base url is empty")
 	})
@@ -68,7 +68,7 @@ func TestClassifyProviderRow(t *testing.T) {
 
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("bad", "://not-a-url"), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusError, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
 		assert.ErrorContains(t, got.Err, "invalid base url")
 	})
 
@@ -77,7 +77,7 @@ func TestClassifyProviderRow(t *testing.T) {
 
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("no-host", "https://"), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusError, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusError, got.Status)
 		assert.ErrorContains(t, got.Err, "no hostname")
 	})
 
@@ -86,10 +86,10 @@ func TestClassifyProviderRow(t *testing.T) {
 
 		seen := map[string]string{}
 		first := classifyProviderRow(enabledRow("first", "https://shared.example.com/v1"), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusEnabled, first.Status)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, first.Status)
 
 		second := classifyProviderRow(enabledRow("second", "https://shared.example.com/v2"), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusError, second.Status)
+		assert.Equal(t, aibridged.ProviderStatusError, second.Status)
 		assert.ErrorContains(t, second.Err, "already claimed by provider \"first\"")
 		assert.Equal(t, "first", seen["shared.example.com"], "first wins must not be overwritten")
 	})
@@ -99,7 +99,7 @@ func TestClassifyProviderRow(t *testing.T) {
 
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("mixed", "https://API.Example.COM/v1"), seen)
-		assert.Equal(t, aibridgeproxyd.ProviderStatusEnabled, got.Status)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
 		assert.Equal(t, "api.example.com", got.Host)
 	})
 }
