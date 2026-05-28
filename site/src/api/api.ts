@@ -3845,6 +3845,32 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	getMCPServerUserHeaderValues = async (
+		id: string,
+	): Promise<TypesGen.MCPServerUserHeaderValues> => {
+		const response = await this.axios.get<TypesGen.MCPServerUserHeaderValues>(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}/user-headers`,
+		);
+		return response.data;
+	};
+
+	updateMCPServerUserHeaderValues = async (
+		id: string,
+		req: TypesGen.UpdateMCPServerUserHeaderValuesRequest,
+	): Promise<TypesGen.MCPServerUserHeaderValues> => {
+		const response = await this.axios.put<TypesGen.MCPServerUserHeaderValues>(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}/user-headers`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteMCPServerUserHeaderValues = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}/user-headers`,
+		);
+	};
+
 	getChatCostSummary = async (
 		user = "me",
 		params?: ChatCostDateParams,
