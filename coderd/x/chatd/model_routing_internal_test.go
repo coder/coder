@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -372,6 +373,66 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		require.Empty(t, got.coderToken)
 		require.Equal(t, apiKeyID, got.apiKeyID)
 	})
+}
+
+func TestAIGatewayRoundTripperCanSuppressSessionHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		ctx         func() context.Context
+		wantChatID  string
+		wantSubchat string
+	}{
+		{
+			name:        "preserves session headers by default",
+			ctx:         func() context.Context { return t.Context() },
+			wantChatID:  "chat-id",
+			wantSubchat: "subchat-id",
+		},
+		{
+			name: "suppresses session headers when marked",
+			ctx: func() context.Context {
+				return contextWithoutAIBridgeSessionHeaders(t.Context())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			seen := make(chan http.Header, 1)
+			rt := &aiGatewayRoundTripper{
+				base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					seen <- req.Header.Clone()
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{},
+						Body:       io.NopCloser(strings.NewReader("")),
+						Request:    req,
+					}, nil
+				}),
+				apiKeyID: uuid.NewString(),
+			}
+			req, err := http.NewRequestWithContext(tt.ctx(), http.MethodPost, "http://coder-aibridge/v1/responses", nil)
+			require.NoError(t, err)
+			req.Header.Set(chatprovider.HeaderCoderOwnerID, "owner-id")
+			req.Header.Set(chatprovider.HeaderCoderChatID, "chat-id")
+			req.Header.Set(chatprovider.HeaderCoderSubchatID, "subchat-id")
+			req.Header.Set(chatprovider.HeaderCoderWorkspaceID, "workspace-id")
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+
+			got := <-seen
+			require.Equal(t, "owner-id", got.Get(chatprovider.HeaderCoderOwnerID))
+			require.Equal(t, tt.wantChatID, got.Get(chatprovider.HeaderCoderChatID))
+			require.Equal(t, tt.wantSubchat, got.Get(chatprovider.HeaderCoderSubchatID))
+			require.Equal(t, "workspace-id", got.Get(chatprovider.HeaderCoderWorkspaceID))
+		})
+	}
 }
 
 func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {

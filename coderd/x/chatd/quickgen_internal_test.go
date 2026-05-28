@@ -415,8 +415,9 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
-		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Equal(t, "propose_title", call.SchemaName)
+			requireSyntheticQuickgenContext(ctx, t)
 			requireSyntheticQuickgenPrompt(t, call.Prompt, userPrompt)
 			return &fantasy.ObjectResponse{
 				Object: map[string]any{"title": wantTitle},
@@ -495,6 +496,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 				deadline,
 				2*time.Second,
 			)
+			requireSyntheticQuickgenContext(ctx, t)
 			requireSyntheticQuickgenPrompt(t, call.Prompt, "refresh chat title")
 			require.Equal(t, "propose_title", call.SchemaName)
 			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
@@ -524,7 +526,8 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	}
 
 	model := &chattest.FakeModel{
-		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			requireSyntheticQuickgenContext(ctx, t)
 			requireSyntheticQuickgenPrompt(t, call.Prompt, truncateRunes(longFirstUserText, maxLatestUserMessageRunes))
 			// The manual title system prompt also includes the latest user excerpt.
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
@@ -764,6 +767,12 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 	return model
 }
 
+func requireSyntheticQuickgenContext(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	require.True(t, suppressAIBridgeSessionHeadersFromContext(ctx))
+}
+
 func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInput string) {
 	t.Helper()
 
@@ -804,8 +813,9 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{
-			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				requireSyntheticQuickgenContext(ctx, t)
 				requireSyntheticQuickgenPrompt(t, call.Prompt, "done")
 				return &fantasy.ObjectResponse{
 					Object: map[string]any{"label": "Submitted PR"},

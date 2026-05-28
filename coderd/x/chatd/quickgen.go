@@ -495,6 +495,7 @@ func generateStructuredTitleWithUsage(
 		return "", fantasy.Usage{}, xerrors.New("title input was empty")
 	}
 
+	ctx = contextWithoutAIBridgeSessionHeaders(ctx)
 	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
 
 	var maxOutputTokens int64 = 256
@@ -922,6 +923,7 @@ func generateStructuredTurnStatusLabel(
 		return "", xerrors.New("turn status label input was empty")
 	}
 
+	ctx = contextWithoutAIBridgeSessionHeaders(ctx)
 	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
 
 	var maxOutputTokens int64 = 64
