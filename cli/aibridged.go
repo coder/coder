@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,10 +102,18 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 	return nil
 }
 
-// BuildProviders loads every ai_providers row (including disabled)
-// and returns the active provider list plus per-row outcomes. Per-row
-// build errors are logged and excluded from providers but recorded in
-// outcomes; only DB query failures propagate.
+// BuildProviders loads every enabled ai_providers row, attaches its
+// keys, and constructs the equivalent [aibridge.Provider] instances.
+// The database is the single source of truth for runtime provider
+// configuration.
+//
+// Per-provider construction errors are logged and the offending row is
+// excluded from the returned snapshot; only a failure of the DB query
+// itself is propagated. This keeps a single misconfigured row from
+// taking the whole daemon down.
+// Disabled rows are returned alongside enabled ones with
+// Provider.Enabled() reporting false; the bridge serves a 503 sentinel
+// on their routes. Keys are not loaded for disabled rows.
 func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
 	authCtx := dbauthz.AsAIBridged(ctx)
@@ -160,12 +169,9 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 			Name: row.Name,
 			Type: string(row.Type),
 		}
-		if !row.Enabled {
-			outcome.Status = aibridged.ProviderStatusDisabled
-			outcomes = append(outcomes, outcome)
-			continue
+		if row.Enabled {
+			enabledCount++
 		}
-		enabledCount++
 		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
@@ -179,12 +185,16 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 			)
 			continue
 		}
-		outcome.Status = aibridged.ProviderStatusEnabled
+		if row.Enabled {
+			outcome.Status = aibridged.ProviderStatusEnabled
+		} else {
+			outcome.Status = aibridged.ProviderStatusDisabled
+		}
 		outcomes = append(outcomes, outcome)
 		providers = append(providers, prov)
 	}
 
-	if enabledCount > 0 && len(providers) == 0 {
+	if enabledCount > 0 && !slices.ContainsFunc(providers, func(p aibridge.Provider) bool { return p.Enabled() }) {
 		logger.Warn(ctx, "all enabled ai providers failed to build; daemon will start with zero providers")
 	}
 
@@ -193,6 +203,8 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 
 // buildAIProviderFromRow decodes the settings blob and constructs the
 // appropriate [aibridge.Provider] for a single ai_providers row.
+// Disabled rows still produce a Provider; key and upstream checks are
+// skipped because the provider will never call upstream.
 func buildAIProviderFromRow(
 	row database.AIProvider,
 	keys []database.AIProviderKey,
@@ -206,6 +218,7 @@ func buildAIProviderFromRow(
 	cbCfg := circuitBreakerConfig(cfg)
 	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
+	disabled := !row.Enabled
 
 	// aibridge currently has native support for OpenAI and Anthropic
 	// only. The other ai_provider_type values (azure, google,
@@ -220,7 +233,7 @@ func buildAIProviderFromRow(
 		database.AiProviderTypeOpenaiCompat,
 		database.AiProviderTypeOpenrouter,
 		database.AiProviderTypeVercel:
-		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
+		if !disabled && len(keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", row.Type)
 		}
 		var pool *keypool.Pool
@@ -233,6 +246,7 @@ func buildAIProviderFromRow(
 		}
 		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			Name:             row.Name,
+			Disabled:         disabled,
 			BaseURL:          row.BaseUrl,
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
@@ -246,13 +260,13 @@ func buildAIProviderFromRow(
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned
 		// Anthropic client.
-		if row.Type == database.AiProviderTypeBedrock && bedrock == nil {
+		if !disabled && row.Type == database.AiProviderTypeBedrock && bedrock == nil {
 			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
 		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
 		// the settings blob, not the api_keys table. A bearer-token
 		// Anthropic without any key cannot make upstream calls.
-		if bedrock == nil && len(keys) == 0 && !cfg.AllowBYOK.Value() {
+		if !disabled && bedrock == nil && len(keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
@@ -265,6 +279,7 @@ func buildAIProviderFromRow(
 		}
 		return aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 			Name:             row.Name,
+			Disabled:         disabled,
 			BaseURL:          row.BaseUrl,
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
@@ -277,6 +292,7 @@ func buildAIProviderFromRow(
 		// request via the Authorization header, so no keypool is built.
 		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 			Name:           row.Name,
+			Disabled:       disabled,
 			BaseURL:        row.BaseUrl,
 			APIDumpDir:     dumpDir,
 			CircuitBreaker: cbCfg,

@@ -407,7 +407,9 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 
 		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
 		require.NoError(t, err)
-		assert.Empty(t, providers, "disabled providers must not be in the active snapshot")
+		require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
+		assert.Equal(t, "openai-off", providers[0].Name())
+		assert.False(t, providers[0].Enabled())
 		require.Len(t, outcomes, 1)
 		assert.Equal(t, "openai-off", outcomes[0].Name)
 		assert.Equal(t, aibridged.ProviderStatusDisabled, outcomes[0].Status)

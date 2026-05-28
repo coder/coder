@@ -30,6 +30,11 @@ import (
 const (
 	// The duration after which an async recording will be aborted.
 	recordingTimeout = time.Second * 5
+
+	// ErrorCodeProviderDisabled is the code written in the response
+	// body when a request targets a configured-but-disabled provider.
+	// Paired with HTTP 503.
+	ErrorCodeProviderDisabled = "provider_disabled"
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -96,6 +101,14 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	mux := http.NewServeMux()
 
 	for _, prov := range providers {
+		// Disabled providers serve a 503 sentinel on every path under
+		// "/<name>/". Bound to the bare name (not RoutePrefix) so paths
+		// outside the provider's normal "/v1" subtree are also caught.
+		if !prov.Enabled() {
+			prefix := fmt.Sprintf("/%s/", prov.Name())
+			mux.HandleFunc(prefix, disabledProviderHandler(prov.Name(), logger))
+			continue
+		}
 		// Create per-provider circuit breaker if configured
 		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
@@ -168,6 +181,19 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 
 		closed: make(chan struct{}, 1),
 	}, nil
+}
+
+// disabledProviderHandler returns 503 with [ErrorCodeProviderDisabled]
+// as the response body for every request targeting name.
+func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Info(r.Context(), "refusing request for disabled ai provider",
+			slog.F("provider", name),
+			slog.F("path", r.URL.Path),
+			slog.F("method", r.Method),
+		)
+		http.Error(w, fmt.Sprintf("%s: AI provider %q is disabled", ErrorCodeProviderDisabled, name), http.StatusServiceUnavailable)
+	}
 }
 
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request

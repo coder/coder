@@ -95,6 +95,10 @@ func (p *Anthropic) Name() string {
 	return p.cfg.Name
 }
 
+func (p *Anthropic) Enabled() bool {
+	return !p.cfg.Disabled
+}
+
 func (p *Anthropic) RoutePrefix() string {
 	return fmt.Sprintf("/%s", p.Name())
 }

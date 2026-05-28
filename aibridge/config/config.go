@@ -26,7 +26,10 @@ const (
 // https://github.com/coder/aibridge/issues/266.
 type Anthropic struct {
 	// Name is the provider instance name. If empty, defaults to "anthropic".
-	Name             string
+	Name string
+	// Disabled makes the bridge serve a 503 sentinel for every request
+	// targeting this provider instead of routing it upstream.
+	Disabled         bool
 	BaseURL          string
 	Key              string
 	KeyPool          *keypool.Pool
@@ -62,7 +65,9 @@ type AWSBedrock struct {
 // https://github.com/coder/aibridge/issues/266.
 type OpenAI struct {
 	// Name is the provider instance name. If empty, defaults to "openai".
-	Name             string
+	Name string
+	// Disabled: see [Anthropic.Disabled].
+	Disabled         bool
 	BaseURL          string
 	Key              string
 	KeyPool          *keypool.Pool
@@ -74,7 +79,9 @@ type OpenAI struct {
 
 type Copilot struct {
 	// Name is the provider instance name. If empty, defaults to "copilot".
-	Name           string
+	Name string
+	// Disabled: see [Anthropic.Disabled].
+	Disabled       bool
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
