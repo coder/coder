@@ -6,15 +6,11 @@ page describes possible deployments, challenges, and risks associated with them.
 
 <div class="tabs">
 
-## Community Edition
+## Community and Premium editions
 
-![Architecture Diagram](../../images/architecture-diagram.png)
+![Single Region Architecture Diagram](../../images/single-region-architecture.svg)
 
-## Premium
-
-![Single Region Architecture Diagram](../../images/architecture-single-region.png)
-
-## Multi-Region Premium
+## Multi-Region Premium edition
 
 ![Multi Region Architecture Diagram](../../images/architecture-multi-region.png)
 
