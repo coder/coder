@@ -933,7 +933,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 	liveProvider := s.loadProviderRouter().providerFromHost(host)
 	if liveProvider == "" || liveProvider != reqCtx.Provider {
-		s.logger.Warn(s.ctx, "no provider mapping match found for host, passing through",
+		s.logger.Warn(s.ctx, "provider mapping changed or removed since CONNECT, passing through",
 			slog.F("connect_id", reqCtx.ConnectSessionID.String()),
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
@@ -1037,7 +1037,12 @@ func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
 }
 
 // handleResponse handles responses received from aibridged.
-// This is only called for MITM'd requests (provider-host domains routed through aibridged).
+// This is called for every MITM'd request, including the pass-through
+// path where handleRequest re-validated the CONNECT-time provider and
+// forwarded the request to the original upstream instead of aibridged.
+// Pass-through responses are identified by reqCtx.RequestID == uuid.Nil
+// (set only when handleRequest routes to aibridged) and are skipped here
+// to avoid mislabeled logs and corrupting MITM metrics.
 // Tunneled requests (non-provider-host domains) bypass this handler entirely.
 func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 	if resp == nil {
@@ -1060,6 +1065,14 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 		slog.F("provider", provider),
 		slog.F("status", resp.StatusCode),
 	)
+
+	// Pass-through responses (handleRequest returned without routing to
+	// aibridged) come from the real upstream. The aibridged-specific log
+	// and metrics do not apply; the pass-through itself is already logged
+	// in handleRequest.
+	if requestID == uuid.Nil {
+		return resp
+	}
 
 	switch {
 	case resp.StatusCode >= http.StatusInternalServerError:
