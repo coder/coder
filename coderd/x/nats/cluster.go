@@ -18,16 +18,26 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	if p.ctx.Err() != nil {
 		return errClosed
 	}
+	if !p.clustered {
+		return xerrors.New("nats pubsub was not started with clustering enabled")
+	}
 
 	if p.serverOpts == nil || p.ns == nil {
 		return errClosed
 	}
 
-	selfAddresses := []string{effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port)}
+	routes, err := parsePeerAddresses(addresses)
+	if err != nil {
+		return err
+	}
+	selfAddresses := make([]string, 0, 2)
+	if selfAddress, ok := effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port); ok {
+		selfAddresses = append(selfAddresses, selfAddress)
+	}
 	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
 		selfAddresses = append(selfAddresses, clusterAddr.String())
 	}
-	routes, err := parsePeerAddresses(addresses, selfAddresses...)
+	routes, err = filterSelfRoutes(routes, selfAddresses...)
 	if err != nil {
 		return err
 	}
@@ -45,8 +55,21 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	return nil
 }
 
-func parsePeerAddresses(addresses []string, selfAddresses ...string) ([]*url.URL, error) {
-	self := normalizedAddresses(selfAddresses...)
+func clusterRequested(opts Options) bool {
+	return opts.ClusterHost != "" ||
+		opts.ClusterPort != 0 ||
+		opts.RoutePoolSize != 0 ||
+		len(opts.PeerAddresses) > 0
+}
+
+func defaultOptions(opts Options) Options {
+	if !clusterRequested(opts) {
+		opts.disableCluster = true
+	}
+	return opts
+}
+
+func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 	routesByAddress := make(map[string]*url.URL, len(addresses))
 	for i, address := range addresses {
 		trimmed := strings.TrimSpace(address)
@@ -54,32 +77,9 @@ func parsePeerAddresses(addresses []string, selfAddresses ...string) ([]*url.URL
 			return nil, xerrors.Errorf("peer address %d is empty", i)
 		}
 
-		route, err := url.Parse(trimmed)
+		normalizedHost, err := normalizeHostPort(trimmed)
 		if err != nil {
-			return nil, xerrors.Errorf("parse peer address %q: %w", address, err)
-		}
-		if route.Scheme != "nats" {
-			return nil, xerrors.Errorf("peer address %q must use nats scheme", address)
-		}
-		if route.User != nil {
-			return nil, xerrors.Errorf("peer address %q must not include userinfo", address)
-		}
-		if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
-			return nil, xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
-		}
-
-		host, port, err := net.SplitHostPort(route.Host)
-		if err != nil || host == "" || port == "" {
-			return nil, xerrors.Errorf("peer address %q must include host and port", address)
-		}
-		portNumber, err := strconv.Atoi(port)
-		if err != nil || portNumber <= 0 || portNumber > 65535 {
-			return nil, xerrors.Errorf("peer address %q must include a valid port", address)
-		}
-
-		normalizedHost := net.JoinHostPort(host, strconv.Itoa(portNumber))
-		if _, ok := self[normalizedHost]; ok {
-			continue
+			return nil, err
 		}
 		routesByAddress[normalizedHost] = &url.URL{
 			Scheme: "nats",
@@ -92,39 +92,68 @@ func parsePeerAddresses(addresses []string, selfAddresses ...string) ([]*url.URL
 		routes = append(routes, route)
 	}
 	slices.SortFunc(routes, func(a, b *url.URL) int {
-		return strings.Compare(routeURLString(a), routeURLString(b))
+		return strings.Compare(a.String(), b.String())
 	})
 	return routes, nil
 }
 
-func effectiveClusterAddress(host string, port int) string {
-	if host == "" || port <= 0 {
-		return ""
+func filterSelfRoutes(routes []*url.URL, selfAddresses ...string) ([]*url.URL, error) {
+	self := make(map[string]struct{}, len(selfAddresses))
+	for _, address := range selfAddresses {
+		normalizedHost, err := normalizeHostPort("nats://" + address)
+		if err != nil {
+			return nil, xerrors.Errorf("normalize self peer address %q: %w", address, err)
+		}
+		self[normalizedHost] = struct{}{}
 	}
-	return net.JoinHostPort(host, strconv.Itoa(port))
+	if len(self) == 0 {
+		return routes, nil
+	}
+
+	filtered := routes[:0]
+	for _, route := range routes {
+		if route == nil {
+			continue
+		}
+		if _, ok := self[route.Host]; ok {
+			continue
+		}
+		filtered = append(filtered, route)
+	}
+	return filtered, nil
 }
 
-func normalizedAddresses(addresses ...string) map[string]struct{} {
-	if len(addresses) == 0 {
-		return nil
+func normalizeHostPort(address string) (string, error) {
+	route, err := url.Parse(address)
+	if err != nil {
+		return "", xerrors.Errorf("parse peer address %q: %w", address, err)
+	}
+	if route.Scheme != "nats" {
+		return "", xerrors.Errorf("peer address %q must use nats scheme", address)
+	}
+	if route.User != nil {
+		return "", xerrors.Errorf("peer address %q must not include userinfo", address)
+	}
+	if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
+		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
 	}
 
-	normalized := make(map[string]struct{}, len(addresses))
-	for _, address := range addresses {
-		if address == "" {
-			continue
-		}
-		host, port, err := net.SplitHostPort(address)
-		if err != nil || host == "" || port == "" {
-			continue
-		}
-		portNumber, err := strconv.Atoi(port)
-		if err != nil || portNumber <= 0 || portNumber > 65535 {
-			continue
-		}
-		normalized[net.JoinHostPort(host, strconv.Itoa(portNumber))] = struct{}{}
+	host, port, err := net.SplitHostPort(route.Host)
+	if err != nil || host == "" || port == "" {
+		return "", xerrors.Errorf("peer address %q must include host and port", address)
 	}
-	return normalized
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber <= 0 || portNumber > 65535 {
+		return "", xerrors.Errorf("peer address %q must include a valid port", address)
+	}
+	return net.JoinHostPort(host, strconv.Itoa(portNumber)), nil
+}
+
+func effectiveClusterAddress(host string, port int) (string, bool) {
+	if host == "" || port <= 0 {
+		return "", false
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port)), true
 }
 
 func routeURLsEqual(a, b []*url.URL) bool {
@@ -132,7 +161,7 @@ func routeURLsEqual(a, b []*url.URL) bool {
 		return false
 	}
 	for i := range a {
-		if routeURLString(a[i]) != routeURLString(b[i]) {
+		if a[i].String() != b[i].String() {
 			return false
 		}
 	}
@@ -152,11 +181,4 @@ func cloneRouteURLs(routes []*url.URL) []*url.URL {
 		clones[i] = &clone
 	}
 	return clones
-}
-
-func routeURLString(route *url.URL) string {
-	if route == nil {
-		return ""
-	}
-	return route.String()
 }

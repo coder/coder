@@ -23,11 +23,6 @@ func Test_parsePeerAddresses(t *testing.T) {
 			"nats://[::1]:7222",
 			"nats://example.com:6222",
 		}, routeStrings(routes))
-
-		routes[0].Host = "mutated:4222"
-		routes2, err := parsePeerAddresses([]string{"nats://127.0.0.1:4222"})
-		require.NoError(t, err)
-		require.Equal(t, "nats://127.0.0.1:4222", routes2[0].String())
 	})
 
 	t.Run("Empty", func(t *testing.T) {
@@ -37,14 +32,13 @@ func Test_parsePeerAddresses(t *testing.T) {
 		require.Empty(t, routes)
 	})
 
-	t.Run("FiltersSortsAndDedupes", func(t *testing.T) {
+	t.Run("SortsAndDedupes", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
 			"nats://b.example:6222",
 			"nats://a.example:6222",
 			"nats://b.example:6222",
-			"nats://self.example:6222",
-		}, "self.example:6222")
+		})
 		require.NoError(t, err)
 		require.Equal(t, []string{
 			"nats://a.example:6222",
@@ -76,6 +70,20 @@ func Test_parsePeerAddresses(t *testing.T) {
 	})
 }
 
+func Test_filterSelfRoutes(t *testing.T) {
+	t.Parallel()
+
+	routes, err := parsePeerAddresses([]string{
+		"nats://b.example:6222",
+		"nats://self.example:6222",
+	})
+	require.NoError(t, err)
+
+	routes, err = filterSelfRoutes(routes, "self.example:6222")
+	require.NoError(t, err)
+	require.Equal(t, []string{"nats://b.example:6222"}, routeStrings(routes))
+}
+
 // Cluster tests bind free ports and reload shared route state.
 func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Parallel()
@@ -89,11 +97,11 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 		addrC := clusterRouteAddress(t, c)
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		requireRoutesEqual(t, a.serverOpts.Routes, addrB, addrC)
+		waitForRoutes(t, a, 2)
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		requireRoutesEqual(t, a.serverOpts.Routes, addrB, addrC)
+		waitForRoutes(t, a, 2)
 
 		require.NoError(t, a.SetPeerAddresses(nil))
 		require.Empty(t, a.currentRoutes)

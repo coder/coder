@@ -14,6 +14,8 @@ const readyTimeout = 10 * time.Second
 // server runs with a loopback random client listener and an optional
 // cluster route listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
+	opts = defaultOptions(opts)
+
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
@@ -49,9 +51,15 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			routePoolSize = defaultRoutePoolSize
 		}
 
-		routes, err := parsePeerAddresses(opts.PeerAddresses, effectiveClusterAddress(clusterHost, clusterPort))
+		routes, err := parsePeerAddresses(opts.PeerAddresses)
 		if err != nil {
 			return nil, err
+		}
+		if selfAddress, ok := effectiveClusterAddress(clusterHost, clusterPort); ok {
+			routes, err = filterSelfRoutes(routes, selfAddress)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		sopts.Cluster = natsserver.ClusterOpts{

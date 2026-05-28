@@ -232,6 +232,8 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
+	opts = defaultOptions(opts)
+
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
@@ -248,7 +250,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	p := newPubsub(ctx, logger, opts)
 	p.ns = ns
-	p.clustered = clusterEnabled(opts)
+	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
 	p.currentRoutes = cloneRouteURLs(sopts.Routes)
 	handlers := p.buildConnHandlers()
