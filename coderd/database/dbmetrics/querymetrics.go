@@ -577,6 +577,14 @@ func (m queryMetricsStore) DeleteMCPServerConfigByID(ctx context.Context, id uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteMCPServerUserHeaderValues(ctx context.Context, arg database.DeleteMCPServerUserHeaderValuesParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerUserHeaderValues(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerUserHeaderValues").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerUserHeaderValues").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteMCPServerUserToken(ctx, arg)
@@ -2118,6 +2126,22 @@ func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []u
 	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerUserHeaderValues(ctx context.Context, arg database.GetMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerUserHeaderValues(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerUserHeaderValues").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserHeaderValues").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserHeaderValue, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerUserHeaderValuesByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetMCPServerUserHeaderValuesByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserHeaderValuesByUserID").Inc()
 	return r0, r1
 }
 
@@ -5951,6 +5975,14 @@ func (m queryMetricsStore) UpsertLogoURL(ctx context.Context, value string) erro
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertLogoURL").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertMCPServerUserHeaderValues(ctx context.Context, arg database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertMCPServerUserHeaderValues(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertMCPServerUserHeaderValues").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertMCPServerUserHeaderValues").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

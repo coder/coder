@@ -15039,6 +15039,24 @@ func (q *sqlQuerier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const deleteMCPServerUserHeaderValues = `-- name: DeleteMCPServerUserHeaderValues :exec
+DELETE FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type DeleteMCPServerUserHeaderValuesParams struct {
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteMCPServerUserHeaderValues(ctx context.Context, arg DeleteMCPServerUserHeaderValuesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserHeaderValues, arg.MCPServerConfigID, arg.UserID)
+	return err
+}
+
 const deleteMCPServerUserToken = `-- name: DeleteMCPServerUserToken :exec
 DELETE FROM
     mcp_server_user_tokens
@@ -15416,6 +15434,76 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 	return items, nil
 }
 
+const getMCPServerUserHeaderValues = `-- name: GetMCPServerUserHeaderValues :one
+SELECT
+    id, mcp_server_config_id, user_id, header_values, header_values_key_id, created_at, updated_at
+FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type GetMCPServerUserHeaderValuesParams struct {
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetMCPServerUserHeaderValues(ctx context.Context, arg GetMCPServerUserHeaderValuesParams) (McpServerUserHeaderValue, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserHeaderValues, arg.MCPServerConfigID, arg.UserID)
+	var i McpServerUserHeaderValue
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.HeaderValues,
+		&i.HeaderValuesKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerUserHeaderValuesByUserID = `-- name: GetMCPServerUserHeaderValuesByUserID :many
+SELECT
+    id, mcp_server_config_id, user_id, header_values, header_values_key_id, created_at, updated_at
+FROM
+    mcp_server_user_header_values
+WHERE
+    user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]McpServerUserHeaderValue, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerUserHeaderValuesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerUserHeaderValue
+	for rows.Next() {
+		var i McpServerUserHeaderValue
+		if err := rows.Scan(
+			&i.ID,
+			&i.MCPServerConfigID,
+			&i.UserID,
+			&i.HeaderValues,
+			&i.HeaderValuesKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMCPServerUserToken = `-- name: GetMCPServerUserToken :one
 SELECT
     id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
@@ -15514,6 +15602,7 @@ INSERT INTO mcp_server_configs (
     api_key_value_key_id,
     custom_headers,
     custom_headers_key_id,
+    custom_headers_user_keys,
     tool_allow_list,
     tool_deny_list,
     availability,
@@ -15544,13 +15633,14 @@ INSERT INTO mcp_server_configs (
     $18::text,
     $19::text[],
     $20::text[],
-    $21::text,
-    $22::boolean,
+    $21::text[],
+    $22::text,
     $23::boolean,
     $24::boolean,
     $25::boolean,
-    $26::uuid,
-    $27::uuid
+    $26::boolean,
+    $27::uuid,
+    $28::uuid
 )
 RETURNING
     id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
@@ -15575,6 +15665,7 @@ type InsertMCPServerConfigParams struct {
 	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
 	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
 	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	CustomHeadersUserKeys   []string       `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
 	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
 	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
 	Availability            string         `db:"availability" json:"availability"`
@@ -15606,6 +15697,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.APIKeyValueKeyID,
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
+		pq.Array(arg.CustomHeadersUserKeys),
 		pq.Array(arg.ToolAllowList),
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
@@ -15675,17 +15767,18 @@ SET
     api_key_value_key_id = $16::text,
     custom_headers = $17::text,
     custom_headers_key_id = $18::text,
-    tool_allow_list = $19::text[],
-    tool_deny_list = $20::text[],
-    availability = $21::text,
-    enabled = $22::boolean,
-    model_intent = $23::boolean,
-    allow_in_plan_mode = $24::boolean,
-    forward_coder_headers = $25::boolean,
-    updated_by = $26::uuid,
+    custom_headers_user_keys = $19::text[],
+    tool_allow_list = $20::text[],
+    tool_deny_list = $21::text[],
+    availability = $22::text,
+    enabled = $23::boolean,
+    model_intent = $24::boolean,
+    allow_in_plan_mode = $25::boolean,
+    forward_coder_headers = $26::boolean,
+    updated_by = $27::uuid,
     updated_at = NOW()
 WHERE
-    id = $27::uuid
+    id = $28::uuid
 RETURNING
     id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
 `
@@ -15709,6 +15802,7 @@ type UpdateMCPServerConfigParams struct {
 	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
 	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
 	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	CustomHeadersUserKeys   []string       `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
 	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
 	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
 	Availability            string         `db:"availability" json:"availability"`
@@ -15740,6 +15834,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.APIKeyValueKeyID,
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
+		pq.Array(arg.CustomHeadersUserKeys),
 		pq.Array(arg.ToolAllowList),
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
@@ -15783,6 +15878,53 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		pq.Array(&i.CustomHeadersUserKeys),
+	)
+	return i, err
+}
+
+const upsertMCPServerUserHeaderValues = `-- name: UpsertMCPServerUserHeaderValues :one
+INSERT INTO mcp_server_user_header_values (
+    mcp_server_config_id,
+    user_id,
+    header_values,
+    header_values_key_id
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text
+)
+ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
+    header_values = $3::text,
+    header_values_key_id = $4::text,
+    updated_at = NOW()
+RETURNING
+    id, mcp_server_config_id, user_id, header_values, header_values_key_id, created_at, updated_at
+`
+
+type UpsertMCPServerUserHeaderValuesParams struct {
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	HeaderValues      string         `db:"header_values" json:"header_values"`
+	HeaderValuesKeyID sql.NullString `db:"header_values_key_id" json:"header_values_key_id"`
+}
+
+func (q *sqlQuerier) UpsertMCPServerUserHeaderValues(ctx context.Context, arg UpsertMCPServerUserHeaderValuesParams) (McpServerUserHeaderValue, error) {
+	row := q.db.QueryRowContext(ctx, upsertMCPServerUserHeaderValues,
+		arg.MCPServerConfigID,
+		arg.UserID,
+		arg.HeaderValues,
+		arg.HeaderValuesKeyID,
+	)
+	var i McpServerUserHeaderValue
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.HeaderValues,
+		&i.HeaderValuesKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

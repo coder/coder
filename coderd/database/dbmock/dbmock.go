@@ -960,6 +960,20 @@ func (mr *MockStoreMockRecorder) DeleteMCPServerConfigByID(ctx, id any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerConfigByID", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerConfigByID), ctx, id)
 }
 
+// DeleteMCPServerUserHeaderValues mocks base method.
+func (m *MockStore) DeleteMCPServerUserHeaderValues(ctx context.Context, arg database.DeleteMCPServerUserHeaderValuesParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMCPServerUserHeaderValues", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMCPServerUserHeaderValues indicates an expected call of DeleteMCPServerUserHeaderValues.
+func (mr *MockStoreMockRecorder) DeleteMCPServerUserHeaderValues(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerUserHeaderValues", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerUserHeaderValues), ctx, arg)
+}
+
 // DeleteMCPServerUserToken mocks base method.
 func (m *MockStore) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
 	m.ctrl.T.Helper()
@@ -3943,6 +3957,36 @@ func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUI
 func (mr *MockStoreMockRecorder) GetMCPServerConfigsByIDs(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByIDs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByIDs), ctx, ids)
+}
+
+// GetMCPServerUserHeaderValues mocks base method.
+func (m *MockStore) GetMCPServerUserHeaderValues(ctx context.Context, arg database.GetMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServerUserHeaderValues", ctx, arg)
+	ret0, _ := ret[0].(database.McpServerUserHeaderValue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServerUserHeaderValues indicates an expected call of GetMCPServerUserHeaderValues.
+func (mr *MockStoreMockRecorder) GetMCPServerUserHeaderValues(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserHeaderValues", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserHeaderValues), ctx, arg)
+}
+
+// GetMCPServerUserHeaderValuesByUserID mocks base method.
+func (m *MockStore) GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserHeaderValue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServerUserHeaderValuesByUserID", ctx, userID)
+	ret0, _ := ret[0].([]database.McpServerUserHeaderValue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServerUserHeaderValuesByUserID indicates an expected call of GetMCPServerUserHeaderValuesByUserID.
+func (mr *MockStoreMockRecorder) GetMCPServerUserHeaderValuesByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserHeaderValuesByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserHeaderValuesByUserID), ctx, userID)
 }
 
 // GetMCPServerUserToken mocks base method.
@@ -11170,6 +11214,21 @@ func (m *MockStore) UpsertLogoURL(ctx context.Context, value string) error {
 func (mr *MockStoreMockRecorder) UpsertLogoURL(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), ctx, value)
+}
+
+// UpsertMCPServerUserHeaderValues mocks base method.
+func (m *MockStore) UpsertMCPServerUserHeaderValues(ctx context.Context, arg database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertMCPServerUserHeaderValues", ctx, arg)
+	ret0, _ := ret[0].(database.McpServerUserHeaderValue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertMCPServerUserHeaderValues indicates an expected call of UpsertMCPServerUserHeaderValues.
+func (mr *MockStoreMockRecorder) UpsertMCPServerUserHeaderValues(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertMCPServerUserHeaderValues", reflect.TypeOf((*MockStore)(nil).UpsertMCPServerUserHeaderValues), ctx, arg)
 }
 
 // UpsertMCPServerUserToken mocks base method.

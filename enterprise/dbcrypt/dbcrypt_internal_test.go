@@ -1570,6 +1570,98 @@ func TestMCPServerUserTokens(t *testing.T) {
 	})
 }
 
+func TestMCPServerUserHeaderValues(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const headerValues = `{"X-User-Token":"super-secret-user-token"}`
+
+	// insertConfigAndValues creates a user, an MCP server config with a
+	// user-set custom header, and the user-supplied values row through the
+	// encrypted store.
+	insertConfigAndValues := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) (database.MCPServerConfig, database.McpServerUserHeaderValue) {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
+			DisplayName:           "Header Values Test MCP",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			CreatedBy:             uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:             uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+
+		row, err := crypt.UpsertMCPServerUserHeaderValues(ctx, database.UpsertMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            user.ID,
+			HeaderValues:      headerValues,
+		})
+		require.NoError(t, err)
+		require.Equal(t, headerValues, row.HeaderValues)
+		require.Equal(t, ciphers[0].HexDigest(), row.HeaderValuesKeyID.String)
+		return cfg, row
+	}
+
+	t.Run("UpsertMCPServerUserHeaderValues", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, row := insertConfigAndValues(t, crypt, ciphers)
+
+		// Verify the raw DB value is encrypted.
+		rawRow, err := db.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            row.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawRow.HeaderValues, headerValues)
+	})
+
+	t.Run("GetMCPServerUserHeaderValues", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, row := insertConfigAndValues(t, crypt, ciphers)
+
+		got, err := crypt.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            row.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, headerValues, got.HeaderValues)
+		require.Equal(t, ciphers[0].HexDigest(), got.HeaderValuesKeyID.String)
+
+		// Raw values must be encrypted.
+		rawRow, err := db.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            row.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawRow.HeaderValues, headerValues)
+	})
+
+	t.Run("GetMCPServerUserHeaderValuesByUserID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, row := insertConfigAndValues(t, crypt, ciphers)
+
+		rows, err := crypt.GetMCPServerUserHeaderValuesByUserID(ctx, row.UserID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, headerValues, rows[0].HeaderValues)
+		require.Equal(t, ciphers[0].HexDigest(), rows[0].HeaderValuesKeyID.String)
+
+		// Raw values must be encrypted.
+		rawRow, err := db.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            row.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawRow.HeaderValues, headerValues)
+	})
+}
+
 func TestUserSecrets(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

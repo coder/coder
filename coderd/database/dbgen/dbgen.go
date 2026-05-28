@@ -349,6 +349,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
 		CustomHeaders:           seed.CustomHeaders,
 		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
+		CustomHeadersUserKeys:   takeFirstSlice(seed.CustomHeadersUserKeys, []string{}),
 		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
 		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
 		Availability:            takeFirst(seed.Availability, "default_off"),
@@ -361,6 +362,19 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg
+}
+
+func MCPServerUserHeaderValues(t testing.TB, db database.Store, seed database.McpServerUserHeaderValue) database.McpServerUserHeaderValue {
+	t.Helper()
+
+	row, err := db.UpsertMCPServerUserHeaderValues(genCtx, database.UpsertMCPServerUserHeaderValuesParams{
+		MCPServerConfigID: takeFirst(seed.MCPServerConfigID, uuid.New()),
+		UserID:            takeFirst(seed.UserID, uuid.New()),
+		HeaderValues:      takeFirst(seed.HeaderValues, "{}"),
+		HeaderValuesKeyID: seed.HeaderValuesKeyID,
+	})
+	require.NoError(t, err, "upsert MCP server user header values")
+	return row
 }
 
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
