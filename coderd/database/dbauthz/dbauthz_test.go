@@ -6501,8 +6501,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 	}))
 	s.Run("DeleteAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
-		dbm.EXPECT().DeleteAIProviderByID(gomock.Any(), provider.ID).Return(nil).AnyTimes()
-		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionDelete).Returns()
+		arg := database.DeleteAIProviderByIDParams{
+			ID:        provider.ID,
+			UpdatedBy: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}
+		dbm.EXPECT().DeleteAIProviderByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionDelete).Returns()
 	}))
 	s.Run("UpdateEncryptedAIProviderSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
