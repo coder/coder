@@ -1158,18 +1158,18 @@ func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
 			" can detect it after re-classification")
 }
 
-func TestClassify_KeyAttributionPreClassified(t *testing.T) {
+func TestClassify_MissingKeyPreClassified(t *testing.T) {
 	t.Parallel()
 
 	raw := xerrors.New("AI Gateway routing requires the active turn API key ID")
 	wrapped := chaterror.WithClassification(raw, chaterror.ClassifiedError{
-		Kind:      codersdk.ChatErrorKindKeyAttribution,
+		Kind:      codersdk.ChatErrorKindMissingKey,
 		Retryable: false,
 		Detail:    "If this error persists after resending, please report it as a bug.",
 	})
 
 	classified := chaterror.Classify(wrapped)
-	require.Equal(t, codersdk.ChatErrorKindKeyAttribution, classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind)
 	require.False(t, classified.Retryable)
 	require.Equal(t, "If this error persists after resending, please report it as a bug.", classified.Detail)
 	require.Equal(t,

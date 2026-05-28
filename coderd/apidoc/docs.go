@@ -16555,7 +16555,7 @@ const docTemplate = `{
                 "auth",
                 "config",
                 "usage_limit",
-                "key_attribution"
+                "missing_key"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16566,7 +16566,7 @@ const docTemplate = `{
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
-                "ChatErrorKindKeyAttribution"
+                "ChatErrorKindMissingKey"
             ]
         },
         "codersdk.ChatFileMetadata": {

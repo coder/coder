@@ -42,7 +42,7 @@ export const getErrorTitle = (
 			return "Configuration error";
 		case "usage_limit":
 			return "Usage limit reached";
-		case "key_attribution":
+		case "missing_key":
 			return "Chat interrupted";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";

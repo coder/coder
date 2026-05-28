@@ -14905,7 +14905,7 @@
 				"auth",
 				"config",
 				"usage_limit",
-				"key_attribution"
+				"missing_key"
 			],
 			"x-enum-varnames": [
 				"ChatErrorKindGeneric",
@@ -14916,7 +14916,7 @@
 				"ChatErrorKindAuth",
 				"ChatErrorKindConfig",
 				"ChatErrorKindUsageLimit",
-				"ChatErrorKindKeyAttribution"
+				"ChatErrorKindMissingKey"
 			]
 		},
 		"codersdk.ChatFileMetadata": {

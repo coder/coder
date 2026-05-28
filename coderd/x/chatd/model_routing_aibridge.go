@@ -103,7 +103,7 @@ func (p *Server) newAIGatewayModel(
 		return nil, chaterror.WithClassification(
 			xerrors.New("AI Gateway routing requires the active turn API key ID"),
 			chaterror.ClassifiedError{
-				Kind:      codersdk.ChatErrorKindKeyAttribution,
+				Kind:      codersdk.ChatErrorKindMissingKey,
 				Retryable: false,
 				Detail:    "If this error persists after resending, please report it as a bug.",
 			},

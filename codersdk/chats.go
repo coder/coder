@@ -1533,7 +1533,7 @@ const (
 	ChatErrorKindAuth           ChatErrorKind = "auth"
 	ChatErrorKindConfig         ChatErrorKind = "config"
 	ChatErrorKindUsageLimit     ChatErrorKind = "usage_limit"
-	ChatErrorKindKeyAttribution ChatErrorKind = "key_attribution"
+	ChatErrorKindMissingKey     ChatErrorKind = "missing_key"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1547,7 +1547,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindAuth,
 	ChatErrorKindConfig,
 	ChatErrorKindUsageLimit,
-	ChatErrorKindKeyAttribution,
+	ChatErrorKindMissingKey,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the
