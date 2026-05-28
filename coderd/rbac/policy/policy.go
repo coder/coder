@@ -426,7 +426,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create boundary log records",
 			ActionRead:   "read boundary logs and session metadata",
-			ActionDelete: "delete boundary logs past the retention period",
+			ActionDelete: "delete boundary logs",
 		},
 	},
 	"boundary_usage": {

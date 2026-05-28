@@ -467,20 +467,52 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 	return session
 }
 
-func BoundaryLog(t testing.TB, db database.Store, seed database.BoundaryLog) database.BoundaryLog {
-	log, err := db.InsertBoundaryLog(genCtx, database.InsertBoundaryLogParams{
-		ID:             takeFirst(seed.ID, uuid.New()),
-		SessionID:      seed.SessionID,
-		SequenceNumber: takeFirst(seed.SequenceNumber, 0),
-		CapturedAt:     takeFirst(seed.CapturedAt, dbtime.Now()),
-		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
-		Proto:          takeFirst(seed.Proto, "http"),
-		Method:         takeFirst(seed.Method, "GET"),
-		Detail:         takeFirst(seed.Detail, "https://example.com"),
-		MatchedRule:    seed.MatchedRule,
+func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) []database.BoundaryLog {
+	ids := make([]uuid.UUID, 0, len(seed))
+	sessionID := seed[0].SessionID
+	sequenceNumbers := make([]int32, 0, len(seed))
+	capturedAt := make([]time.Time, 0, len(seed))
+	createdAt := make([]time.Time, 0, len(seed))
+	proto := make([]string, 0, len(seed))
+	method := make([]string, 0, len(seed))
+	detail := make([]string, 0, len(seed))
+	matchedRule := make([]string, 0, len(seed))
+	for _, log := range seed {
+		log = takeFirstBoundaryLog(log)
+		ids = append(ids, log.ID)
+		sequenceNumbers = append(sequenceNumbers, log.SequenceNumber)
+		capturedAt = append(capturedAt, log.CapturedAt)
+		createdAt = append(createdAt, log.CreatedAt)
+		proto = append(proto, log.Proto)
+		method = append(method, log.Method)
+		detail = append(detail, log.Detail)
+		matchedRule = append(matchedRule, log.MatchedRule.String)
+	}
+	logs, err := db.InsertBoundaryLogs(genCtx, database.InsertBoundaryLogsParams{
+		ID:             ids,
+		SessionID:      sessionID,
+		SequenceNumber: sequenceNumbers,
+		CapturedAt:     capturedAt,
+		CreatedAt:      createdAt,
+		Proto:          proto,
+		Method:         method,
+		Detail:         detail,
+		MatchedRule:    matchedRule,
 	})
-	require.NoError(t, err, "insert boundary log")
-	return log
+	require.NoError(t, err, "insert boundary logs")
+	return logs
+}
+
+func takeFirstBoundaryLog(seed database.BoundaryLog) database.BoundaryLog {
+	seed.ID = takeFirst(seed.ID, uuid.New())
+	seed.SessionID = takeFirst(seed.SessionID, uuid.New())
+	seed.SequenceNumber = takeFirst(seed.SequenceNumber, 0)
+	seed.CapturedAt = takeFirst(seed.CapturedAt, dbtime.Now())
+	seed.CreatedAt = takeFirst(seed.CreatedAt, dbtime.Now())
+	seed.Proto = takeFirst(seed.Proto, "http")
+	seed.Method = takeFirst(seed.Method, "GET")
+	seed.Detail = takeFirst(seed.Detail, "https://example.com")
+	return seed
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {

@@ -92,7 +92,7 @@ var (
 	// ResourceBoundaryLog
 	// Valid Actions
 	//  - "ActionCreate" :: create boundary log records
-	//  - "ActionDelete" :: delete boundary logs past the retention period
+	//  - "ActionDelete" :: delete boundary logs
 	//  - "ActionRead" :: read boundary logs and session metadata
 	ResourceBoundaryLog = Object{
 		Type: "boundary_log",

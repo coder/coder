@@ -1591,11 +1591,10 @@ func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
 		rbac.ResourceBoundaryLog.WithOwner(ownerID.String()))
 	require.Error(t, err, "agent must not delete boundary logs")
 
-	// Even when the workspace owner is a site admin, the agent scope
+	// When the workspace owner is a site admin, the agent scope
 	// wildcard for boundary_log combined with the owner role's site-level
 	// read grant means the agent CAN read all boundary logs. This is an
-	// accepted tradeoff of the wildcard scope needed for creation (CRF-5).
-	// The important constraint is that a regular member agent cannot.
+	// accepted consequence of the wildcard scope needed for creation.
 	ownerRole, err := rbac.RoleByName(rbac.RoleOwner())
 	require.NoError(t, err)
 

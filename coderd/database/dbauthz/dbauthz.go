@@ -5467,24 +5467,7 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
-func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
-	// The session carries the denormalized owner_id, so we only
-	// need a single lookup instead of a multi-table JOIN.
-	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
-	if err != nil {
-		return database.BoundaryLog{}, xerrors.Errorf("get boundary session for owner: %w", err)
-	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.UUID.String())); err != nil {
-		return database.BoundaryLog{}, err
-	}
-	return q.db.InsertBoundaryLog(ctx, arg)
-}
-
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
-	// SessionID is a scalar; every row in the batch belongs to the
-	// same session. Authorize once using the session's denormalized
-	// owner_id.
 	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
 	if err != nil {
 		return nil, xerrors.Errorf("get boundary session for owner: %w", err)
@@ -5497,9 +5480,6 @@ func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBou
 }
 
 func (q *querier) InsertBoundarySession(ctx context.Context, arg database.InsertBoundarySessionParams) (database.BoundarySession, error) {
-	// Derive the owner from the workspace agent. This is a one-time
-	// cost per session; subsequent log inserts use the denormalized
-	// owner_id on the session row.
 	row, err := q.db.GetWorkspaceAgentAndWorkspaceByID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return database.BoundarySession{}, xerrors.Errorf("get workspace for boundary session owner: %w", err)

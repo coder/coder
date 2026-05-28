@@ -18,29 +18,6 @@ INSERT INTO boundary_sessions (
 -- name: GetBoundarySessionByID :one
 SELECT * FROM boundary_sessions WHERE id = @id;
 
--- name: InsertBoundaryLog :one
-INSERT INTO boundary_logs (
-    id,
-    session_id,
-    sequence_number,
-    captured_at,
-    created_at,
-    proto,
-    method,
-    detail,
-    matched_rule
-) VALUES (
-    @id,
-    @session_id,
-    @sequence_number,
-    @captured_at,
-    @created_at,
-    @proto,
-    @method,
-    @detail,
-    @matched_rule
-) RETURNING *;
-
 -- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,

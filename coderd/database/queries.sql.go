@@ -3644,69 +3644,6 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
-const insertBoundaryLog = `-- name: InsertBoundaryLog :one
-INSERT INTO boundary_logs (
-    id,
-    session_id,
-    sequence_number,
-    captured_at,
-    created_at,
-    proto,
-    method,
-    detail,
-    matched_rule
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9
-) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
-`
-
-type InsertBoundaryLogParams struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
-	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
-	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	Proto          string         `db:"proto" json:"proto"`
-	Method         string         `db:"method" json:"method"`
-	Detail         string         `db:"detail" json:"detail"`
-	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
-}
-
-func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
-	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
-		arg.ID,
-		arg.SessionID,
-		arg.SequenceNumber,
-		arg.CapturedAt,
-		arg.CreatedAt,
-		arg.Proto,
-		arg.Method,
-		arg.Detail,
-		arg.MatchedRule,
-	)
-	var i BoundaryLog
-	err := row.Scan(
-		&i.ID,
-		&i.SessionID,
-		&i.SequenceNumber,
-		&i.CapturedAt,
-		&i.CreatedAt,
-		&i.Proto,
-		&i.Method,
-		&i.Detail,
-		&i.MatchedRule,
-	)
-	return i, err
-}
-
 const insertBoundaryLogs = `-- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,

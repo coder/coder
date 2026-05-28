@@ -52,7 +52,7 @@ export const RBACResourceActions: Partial<
 	},
 	boundary_log: {
 		create: "create boundary log records",
-		delete: "delete boundary logs past the retention period",
+		delete: "delete boundary logs",
 		read: "read boundary logs and session metadata",
 	},
 	boundary_usage: {
