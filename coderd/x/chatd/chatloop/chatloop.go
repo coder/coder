@@ -39,10 +39,11 @@ const (
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
-	// defaultStartupTimeout bounds how long an individual
-	// model attempt may spend starting to respond before
+	// defaultStreamSilenceTimeout bounds how long an individual
+	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStartupTimeout = 60 * time.Second
+	defaultStreamSilenceTimeout = 10 * time.Minute
+	streamSilenceGuardTimerTag  = "streamSilenceGuard"
 )
 
 var (
@@ -53,8 +54,8 @@ var (
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
 
-	errStartupTimeout = xerrors.New(
-		"chat response did not start before the startup timeout",
+	errStreamSilenceTimeout = xerrors.New(
+		"chat stream was silent for longer than the configured timeout",
 	)
 )
 
@@ -114,14 +115,14 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
-	// StartupTimeout bounds how long each model attempt may
-	// spend opening the provider stream and waiting for its
-	// first stream part before the attempt is canceled and
-	// retried. Zero uses the production default.
-	StartupTimeout time.Duration
-	// Clock creates startup guard timers. In production use a
-	// real clock; tests can inject quartz.NewMock(t) to make
-	// startup timeout behavior deterministic.
+	// StreamSilenceTimeout bounds how long each model attempt
+	// may go without receiving a stream part before the
+	// attempt is canceled and retried. Zero uses the
+	// production default.
+	StreamSilenceTimeout time.Duration
+	// Clock creates stream silence guard timers. In production
+	// use a real clock; tests can inject quartz.NewMock(t) to
+	// make timeout behavior deterministic.
 	Clock quartz.Clock
 
 	ActiveTools          []string
@@ -364,8 +365,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
-	if opts.StartupTimeout <= 0 {
-		opts.StartupTimeout = defaultStartupTimeout
+	if opts.StreamSilenceTimeout <= 0 {
+		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -468,7 +469,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					provider,
 					modelName,
 					opts.Clock,
-					opts.StartupTimeout,
+					opts.StreamSilenceTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
@@ -782,9 +783,9 @@ func prepareMessagesForRequest(
 	return canonical, prompt, nil
 }
 
-// guardedAttempt owns an attempt-scoped context and startup guard
+// guardedAttempt owns an attempt-scoped context and silence guard
 // around a provider stream. release is idempotent and frees the
-// attempt-scoped timer/context. finish canonicalizes startup timeout
+// attempt-scoped timer/context. finish canonicalizes silence timeout
 // errors before the retry loop classifies them.
 type guardedAttempt struct {
 	ctx     context.Context
@@ -793,47 +794,77 @@ type guardedAttempt struct {
 	finish  func(error) error
 }
 
-// startupGuard arbitrates whether an attempt times out during
-// stream startup. Exactly one outcome wins: the timer cancels
-// the attempt, or the first-part path disarms the timer.
-type startupGuard struct {
-	timer  *quartz.Timer
-	cancel context.CancelCauseFunc
-	once   sync.Once
+// streamSilenceGuard arbitrates whether an attempt times out while
+// waiting for the next stream part. Exactly one outcome wins: the
+// timer cancels the attempt, or release disarms the timer.
+type streamSilenceGuard struct {
+	mu      sync.Mutex
+	timer   *quartz.Timer
+	cancel  context.CancelCauseFunc
+	timeout time.Duration
+	settled bool
 }
 
-func newStartupGuard(
+func newStreamSilenceGuard(
 	clock quartz.Clock,
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
-) *startupGuard {
-	guard := &startupGuard{cancel: cancel}
-	guard.timer = clock.AfterFunc(timeout, guard.onTimeout, "startupGuard")
+) *streamSilenceGuard {
+	guard := &streamSilenceGuard{
+		cancel:  cancel,
+		timeout: timeout,
+	}
+	guard.timer = clock.AfterFunc(
+		timeout,
+		guard.onTimeout,
+		streamSilenceGuardTimerTag,
+	)
 	return guard
 }
 
-func (g *startupGuard) onTimeout() {
-	g.once.Do(func() {
-		g.cancel(errStartupTimeout)
-	})
+func (g *streamSilenceGuard) settle() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return false
+	}
+	g.settled = true
+	return true
 }
 
-func (g *startupGuard) Disarm() {
-	g.once.Do(func() {
-		g.timer.Stop()
-	})
+func (g *streamSilenceGuard) onTimeout() {
+	if !g.settle() {
+		return
+	}
+	g.cancel(errStreamSilenceTimeout)
 }
 
-func classifyStartupTimeout(
+func (g *streamSilenceGuard) Reset() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return
+	}
+	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
+}
+
+func (g *streamSilenceGuard) Disarm() {
+	if !g.settle() {
+		return
+	}
+	g.timer.Stop()
+}
+
+func classifyStreamSilenceTimeout(
 	attemptCtx context.Context,
 	provider string,
 	err error,
 ) error {
-	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+	if !errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
 		return err
 	}
 	if err == nil {
-		err = errStartupTimeout
+		err = errStreamSilenceTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
 		Kind:      codersdk.ChatErrorKindStartupTimeout,
@@ -851,7 +882,7 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
-	guard := newStartupGuard(clock, timeout, cancelAttempt)
+	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -863,7 +894,7 @@ func guardedStream(
 	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
-		err = classifyStartupTimeout(attemptCtx, provider, err)
+		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		release()
 		return guardedAttempt{}, err
 	}
@@ -877,7 +908,7 @@ func guardedStream(
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
-				guard.Disarm()
+				guard.Reset()
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -886,7 +917,7 @@ func guardedStream(
 		}),
 		release: release,
 		finish: func(err error) error {
-			return classifyStartupTimeout(attemptCtx, provider, err)
+			return classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		},
 	}, nil
 }
