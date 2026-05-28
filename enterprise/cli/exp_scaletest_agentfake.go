@@ -12,6 +12,9 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	agplcli "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
 	"github.com/coder/serpent"
 )
@@ -35,6 +38,8 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 		prometheusAddress       string
 		expectedAgents          int64
 		expectedAgentsTolerance int64
+		postgresURL             string
+		postgresAuth            string
 	)
 
 	cmd := &serpent.Command{
@@ -51,7 +56,13 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			"fetches each workspace agent's external-agent credentials, and supervises one in-process fake " +
 			"agent per token until the command is interrupted.\n\n" +
 			"Requires a session token whose user is template-admin (or higher) on a deployment licensed " +
-			"for the workspace external-agent feature; both the workspace builds and the credentials " +
+			"for the workspace external-agent feature, AND a direct Postgres connection to the same " +
+			"database the target coderd uses (--postgres-url / CODER_PG_CONNECTION_URL). The session " +
+			"token is used to list workspaces by template; the database connection is used to bulk-fetch " +
+			"external-agent tokens for those workspaces in a single query. This command is intended to " +
+			"run inside the same network/cluster as coderd (e.g. as a sibling Deployment that mounts " +
+			"the same coder-db-url secret), not from operator machines outside the cluster. " +
+			"Both the workspace builds and the credentials " +
 			"endpoint are gated server-side. Pair with `coder exp scaletest create-workspaces " +
 			"--no-wait-for-agents` to seed the workspaces this command will pick up. Workspaces created " +
 			"after this command starts are NOT picked up; rerun the command after seeding more.\n\n" +
@@ -75,6 +86,9 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			if template == "" {
 				return xerrors.New("--template is required")
 			}
+			if postgresURL == "" {
+				return xerrors.New("--postgres-url (CODER_PG_CONNECTION_URL) is required")
+			}
 			if expectedAgents > 0 && expectedAgentsTolerance < 0 {
 				return xerrors.New("--expected-agents-tolerance must be non-negative")
 			}
@@ -84,6 +98,21 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(postgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				var err error
+				sqlDriver, err = awsiamrds.Register(ctx, sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+			sqlDB, err := agplcli.ConnectToPostgres(ctx, logger, sqlDriver, postgresURL, nil)
+			if err != nil {
+				return xerrors.Errorf("dial postgres: %w", err)
+			}
+			defer sqlDB.Close()
+			db := database.New(sqlDB)
+
 			prometheusSrvClose := agplcli.ServeHandler(ctx, logger,
 				promhttp.Handler(), prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
@@ -91,6 +120,7 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			metrics := agentfake.NewMetrics(prometheus.DefaultRegisterer)
 
 			mgr := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
+				DB:                      db,
 				Template:                template,
 				Owner:                   owner,
 				Metrics:                 metrics,
@@ -139,6 +169,20 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			Default:     "0",
 			Description: "Acceptable variance around --expected-agents. Ignored when --expected-agents is 0.",
 			Value:       serpent.Int64Of(&expectedAgentsTolerance),
+		},
+		{
+			Flag:        "postgres-url",
+			Env:         "CODER_PG_CONNECTION_URL",
+			Description: "URL of the Postgres database that the target coderd is using. Required; used to bulk-fetch external-agent tokens for the enumerated workspaces in a single query. The same connection string the coder server pods consume (e.g. the coder-db-url secret in scaletest deployments).",
+			Value:       serpent.StringOf(&postgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&postgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 	}
 

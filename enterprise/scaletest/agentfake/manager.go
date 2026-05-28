@@ -220,10 +220,12 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 		wsIDs = append(wsIDs, ws.ID)
 	}
 
-	// The bulk-token query is gated by dbauthz on ResourceSystem; this code path
-	// runs in the agentfake manager pod, which has direct DB access and acts as
-	// a trusted system caller (the secret-equivalent boundary is Postgres auth,
-	// not session-token authorization).
+	// AsSystemRestricted is required because GetExternalAgentTokensByWorkspaceIDs
+	// is gated by dbauthz on ResourceSystem read. This code path runs in the
+	// agentfake scaletest manager pod, which holds a direct Postgres connection
+	// and acts as a trusted system caller; the security boundary here is Postgres
+	// authn (the coder-db-url secret), not a coder session token.
+	// nolint:gocritic
 	rows, err := m.db.GetExternalAgentTokensByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), wsIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external-agent tokens: %w", err)
