@@ -183,6 +183,23 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the calling user's custom_headers user-set values so
+	// auth_connected can reflect whether the user has supplied every
+	// required header.
+	userHeaderValues, err := api.Database.GetMCPServerUserHeaderValuesByUserID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user header values.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	headerValuesByConfigID, err := decodeMCPUserHeaderValues(userHeaderValues)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	// Build a config lookup for the refresh helper.
 	configByID := make(map[uuid.UUID]database.MCPServerConfig, len(configs))
 	for _, c := range configs {
@@ -206,9 +223,15 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			sdkConfig = convertMCPServerConfigRedacted(config)
 		}
-		if config.AuthType == "oauth2" {
+		switch config.AuthType {
+		case "oauth2":
 			sdkConfig.AuthConnected = tokenMap[config.ID]
-		} else {
+		case "custom_headers":
+			sdkConfig.AuthConnected = mcpCustomHeadersConnected(
+				headerValuesByConfigID[config.ID],
+				config.CustomHeadersUserKeys,
+			)
+		default:
 			sdkConfig.AuthConnected = true
 		}
 		resp = append(resp, sdkConfig)
@@ -542,7 +565,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	// Populate AuthConnected for the calling user. Attempt to
 	// refresh the token so the status is accurate.
-	if config.AuthType == "oauth2" {
+	switch config.AuthType {
+	case "oauth2":
 		//nolint:gocritic // Need to check user token for this server.
 		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 		if err != nil {
@@ -558,7 +582,26 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
-	} else {
+	case "custom_headers":
+		stored := map[string]string{}
+		if len(config.CustomHeadersUserKeys) > 0 {
+			row, hvErr := api.Database.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams{
+				MCPServerConfigID: config.ID,
+				UserID:            apiKey.UserID,
+			})
+			if hvErr != nil && !errors.Is(hvErr, sql.ErrNoRows) {
+				httpapi.InternalServerError(rw, hvErr)
+				return
+			}
+			if hvErr == nil && strings.TrimSpace(row.HeaderValues) != "" {
+				if decErr := json.Unmarshal([]byte(row.HeaderValues), &stored); decErr != nil {
+					httpapi.InternalServerError(rw, xerrors.Errorf("decode header_values: %w", decErr))
+					return
+				}
+			}
+		}
+		sdkConfig.AuthConnected = mcpCustomHeadersConnected(stored, config.CustomHeadersUserKeys)
+	default:
 		sdkConfig.AuthConnected = true
 	}
 
@@ -1606,6 +1649,37 @@ func decodeCustomHeaders(headers string) (map[string]string, error) {
 		return nil, xerrors.Errorf("decode custom_headers: %w", err)
 	}
 	return out, nil
+}
+
+// decodeMCPUserHeaderValues decodes each row's header_values JSON
+// into a per-config map for the calling user.
+func decodeMCPUserHeaderValues(rows []database.McpServerUserHeaderValue) (map[uuid.UUID]map[string]string, error) {
+	out := make(map[uuid.UUID]map[string]string, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.HeaderValues) == "" {
+			out[row.MCPServerConfigID] = map[string]string{}
+			continue
+		}
+		var values map[string]string
+		if err := json.Unmarshal([]byte(row.HeaderValues), &values); err != nil {
+			return nil, xerrors.Errorf("decode mcp_server_user_header_values for config %s: %w", row.MCPServerConfigID, err)
+		}
+		out[row.MCPServerConfigID] = values
+	}
+	return out, nil
+}
+
+// mcpCustomHeadersConnected returns true when every key in
+// requiredKeys has a non-empty stored value. When requiredKeys is
+// empty the connection is considered fully configured (admin headers
+// alone are sufficient).
+func mcpCustomHeadersConnected(stored map[string]string, requiredKeys []string) bool {
+	for _, k := range requiredKeys {
+		if strings.TrimSpace(stored[k]) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // validateCustomHeaderUserKeys returns the cleaned (trimmed, deduped)

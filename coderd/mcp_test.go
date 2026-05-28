@@ -2325,4 +2325,41 @@ func TestMCPServerUserHeaderValuesEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, putResp.HasValues["X-User-Token"], "HasValues should report under the canonical key")
 	})
+
+	t.Run("ListAuthConnectedReflectsHeaderValues", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Before any values stored: auth_connected=false.
+		list, err := client.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		require.False(t, list[0].AuthConnected)
+
+		// Storing only one of two required keys keeps it false.
+		_, err = client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt"},
+		})
+		require.NoError(t, err)
+		list, err = client.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.False(t, list[0].AuthConnected)
+
+		// Storing all required keys flips it to true.
+		_, err = client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-Workspace": "main"},
+		})
+		require.NoError(t, err)
+		list, err = client.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.True(t, list[0].AuthConnected)
+
+		// The single-config getter mirrors the list.
+		fetched, err := client.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.True(t, fetched.AuthConnected)
+	})
 }
