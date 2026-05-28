@@ -232,13 +232,12 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("NoSessionIDFallsBackToLogOnly", func(t *testing.T) {
+	t.Run("MissingSessionIDReturnsError", func(t *testing.T) {
 		t.Parallel()
 
-		// No database mock expectations means any DB call would panic.
 		api := &agentapi.BoundaryLogsAPI{
 			Log:               testutil.Logger(t),
-			Database:          nil, // No DB, simulating legacy mode
+			Database:          nil,
 			WorkspaceID:       workspaceID,
 			OwnerID:           ownerID,
 			TemplateID:        templateID,
@@ -260,8 +259,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
+		require.Error(t, err)
+		require.Nil(t, resp)
 	})
 
 	t.Run("EmptyHTTPRequestSkipped", func(t *testing.T) {
@@ -302,7 +301,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.NotNil(t, resp)
 	})
 
-	t.Run("InvalidSessionIDFallsBackToLogOnly", func(t *testing.T) {
+	t.Run("InvalidSessionIDReturnsError", func(t *testing.T) {
 		t.Parallel()
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
@@ -333,8 +332,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 				},
 			},
 		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
+		require.Error(t, err)
+		require.Nil(t, resp)
 	})
 
 	t.Run("UsageTrackingStillWorks", func(t *testing.T) {

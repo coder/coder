@@ -28,29 +28,27 @@ type BoundaryLogsAPI struct {
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
 	var allowed, denied int64
 
-	// Parse the session ID from the request. If absent or invalid,
-	// fall back to log-only mode for backwards compatibility.
 	sessionID, err := uuid.Parse(req.GetSessionId())
-	persistEnabled := err == nil && a.Database != nil
+	if err != nil {
+		return nil, xerrors.Errorf("parse session_id: %w", err)
+	}
 
 	now := dbtime.Now()
 
 	// Lazy-create the boundary session on first log arrival.
-	if persistEnabled {
-		if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
-			a.Log.Error(ctx, "failed to ensure boundary session",
-				slog.F("session_id", sessionID.String()),
-				slog.Error(sessionErr))
-			// Continue processing logs even if session creation
-			// fails, so that structured logging and usage tracking
-			// still work.
-		}
+	// If this fails (transient DB error), we continue so that
+	// logs are still persisted. The session will be created on
+	// a subsequent batch since every request carries the session
+	// details.
+	if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
+		a.Log.Error(ctx, "failed to ensure boundary session",
+			slog.F("session_id", sessionID.String()),
+			slog.Error(sessionErr))
 	}
 
 	// Collect batch insert params while iterating.
-	var batch database.InsertBoundaryLogsParams
-	if persistEnabled {
-		batch.SessionID = sessionID
+	batch := database.InsertBoundaryLogsParams{
+		SessionID: sessionID,
 	}
 
 	for _, l := range req.Logs {
@@ -88,20 +86,18 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 
 			a.Log.With(fields...).Info(ctx, "boundary_request")
 
-			if persistEnabled {
-				var matchedRule string
-				if l.Allowed && r.HttpRequest.MatchedRule != "" {
-					matchedRule = r.HttpRequest.MatchedRule
-				}
-				batch.ID = append(batch.ID, uuid.New())
-				batch.SequenceNumber = append(batch.SequenceNumber, l.SequenceNumber)
-				batch.CapturedAt = append(batch.CapturedAt, now)
-				batch.CreatedAt = append(batch.CreatedAt, logTime)
-				batch.Proto = append(batch.Proto, "http")
-				batch.Method = append(batch.Method, r.HttpRequest.Method)
-				batch.Detail = append(batch.Detail, r.HttpRequest.Url)
-				batch.MatchedRule = append(batch.MatchedRule, matchedRule)
+			var matchedRule string
+			if l.Allowed && r.HttpRequest.MatchedRule != "" {
+				matchedRule = r.HttpRequest.MatchedRule
 			}
+			batch.ID = append(batch.ID, uuid.New())
+			batch.SequenceNumber = append(batch.SequenceNumber, l.SequenceNumber)
+			batch.CapturedAt = append(batch.CapturedAt, now)
+			batch.CreatedAt = append(batch.CreatedAt, logTime)
+			batch.Proto = append(batch.Proto, "http")
+			batch.Method = append(batch.Method, r.HttpRequest.Method)
+			batch.Detail = append(batch.Detail, r.HttpRequest.Url)
+			batch.MatchedRule = append(batch.MatchedRule, matchedRule)
 		default:
 			a.Log.Warn(ctx, "unknown resource type",
 				slog.F("workspace_id", a.WorkspaceID.String()))
@@ -109,8 +105,8 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	}
 
 	// Batch-insert all collected logs in a single query.
-	if persistEnabled && len(batch.ID) > 0 {
-		if _, insertErr := a.Database.InsertBoundaryLogs(ctx, batch); insertErr != nil {
+	if len(batch.ID) > 0 {
+		if insertErr := a.insertLogs(ctx, batch); insertErr != nil {
 			a.Log.Error(ctx, "failed to insert boundary logs",
 				slog.F("session_id", sessionID.String()),
 				slog.F("count", len(batch.ID)),
@@ -128,6 +124,10 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 // ensureSession creates the boundary_sessions row if it does not
 // already exist.
 func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID, confinedProcess string, now time.Time) error {
+	if a.Database == nil {
+		return nil
+	}
+
 	// Check the database in case another replica or reconnection
 	// already created this session.
 	_, err := a.Database.GetBoundarySessionByID(ctx, sessionID)
@@ -155,6 +155,15 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 	}
 
 	return nil
+}
+
+// insertLogs persists a batch of boundary log entries.
+func (a *BoundaryLogsAPI) insertLogs(ctx context.Context, batch database.InsertBoundaryLogsParams) error {
+	if a.Database == nil {
+		return nil
+	}
+	_, err := a.Database.InsertBoundaryLogs(ctx, batch)
+	return err
 }
 
 //nolint:revive // This stringifies the boolean argument.
