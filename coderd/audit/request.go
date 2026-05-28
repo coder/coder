@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -32,6 +33,10 @@ type RequestParams struct {
 	Request          *http.Request
 	Action           database.AuditAction
 	AdditionalFields interface{}
+
+	// DataProtection is optional. When set and tier-2 is active,
+	// audit log writes are suppressed entirely.
+	DataProtection *dataprotection.Config
 }
 
 type Request[T Auditable] struct {
@@ -74,6 +79,10 @@ type BackgroundAuditParams[T Auditable] struct {
 
 	New T
 	Old T
+
+	// DataProtection is optional. When set and tier-2 is active,
+	// audit log writes are suppressed entirely.
+	DataProtection *dataprotection.Config
 }
 
 func ResourceTarget[T Auditable](tgt T) string {
@@ -494,6 +503,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		ip := database.ParseIP(p.Request.RemoteAddr)
+		// When DPM tier-2 is active, suppress all audit log writes.
+		if p.DataProtection.IsTier2OrAbove() {
+			return
+		}
+
 		auditLog := database.AuditLog{
 			ID:             uuid.New(),
 			Time:           dbtime.Now(),
@@ -525,6 +539,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 // BackgroundAudit creates an audit log for a background event.
 // The audit log is committed upon invocation.
 func BackgroundAudit[T Auditable](ctx context.Context, p *BackgroundAuditParams[T]) {
+	// When DPM tier-2 is active, suppress all audit log writes.
+	if p.DataProtection.IsTier2OrAbove() {
+		return
+	}
+
 	ip := database.ParseIP(p.IP)
 
 	diff := Diff(p.Audit, p.Old, p.New)

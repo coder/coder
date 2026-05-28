@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 )
 
 const (
@@ -25,12 +26,13 @@ type Event struct {
 }
 
 type Rolluper struct {
-	cancel   context.CancelFunc
-	closed   chan struct{}
-	db       database.Store
-	logger   slog.Logger
-	interval time.Duration
-	event    chan<- Event
+	cancel         context.CancelFunc
+	closed         chan struct{}
+	db             database.Store
+	logger         slog.Logger
+	interval       time.Duration
+	event          chan<- Event
+	dataProtection *dataprotection.Config
 }
 
 type Option func(*Rolluper)
@@ -39,6 +41,14 @@ type Option func(*Rolluper)
 func WithInterval(interval time.Duration) Option {
 	return func(r *Rolluper) {
 		r.interval = interval
+	}
+}
+
+// WithDataProtection sets the DPM config on the rolluper. When
+// tier-2 is active, template usage stats writes are suppressed.
+func WithDataProtection(cfg *dataprotection.Config) Option {
+	return func(r *Rolluper) {
+		r.dataProtection = cfg
 	}
 }
 
@@ -102,6 +112,12 @@ func (r *Rolluper) start(ctx context.Context) {
 					return err
 				}
 				if !ok {
+					return nil
+				}
+
+				// When DPM tier-2 is active, skip template usage
+				// stats writes entirely.
+				if r.dataProtection.IsTier2OrAbove() {
 					return nil
 				}
 

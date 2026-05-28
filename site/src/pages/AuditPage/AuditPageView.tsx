@@ -1,5 +1,6 @@
 import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -33,6 +34,9 @@ interface AuditPageViewProps {
 	filterProps: ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
+	dataProtectionEnabled?: boolean;
+	dpTier?: number;
+	isAuditor?: boolean;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -43,6 +47,9 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	filterProps,
 	auditsQuery: paginationResult,
 	showOrgDetails,
+	dataProtectionEnabled,
+	isAuditor,
+	dpTier,
 }) => {
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -61,6 +68,12 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
 			</PageHeader>
+
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
+				isAuditor={isAuditor}
+			/>
 
 			{isAuditLogVisible ? (
 				<>

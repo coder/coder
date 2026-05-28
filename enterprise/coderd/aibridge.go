@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -146,6 +148,18 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Data Protection Mode: strip user-identity filter to prevent
+	// discovery of real users.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			// Clear user-identity filter to prevent discovery of real users.
+			filter.InitiatorID = uuid.Nil
+		}
+	}
+
 	var (
 		count int64
 		rows  []database.ListAIBridgeInterceptionsRow
@@ -205,6 +219,23 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Apply Data Protection Mode obfuscation to initiator identities.
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			for i := range items {
+				pid := dpCfg.ObfuscateUserID(items[i].Initiator.ID)
+				items[i].Initiator.ID = pid
+				items[i].Initiator.Username = dataprotection.PseudoUsername(pid)
+				items[i].Initiator.Name = ""
+				items[i].Initiator.AvatarURL = ""
+			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
 		Count:   count,
 		Results: items,
@@ -260,6 +291,18 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
+	}
+
+	// Data Protection Mode: strip user-identity filter to prevent
+	// discovery of real users.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			// Clear user-identity filter to prevent discovery of real users.
+			filter.InitiatorID = uuid.Nil
+		}
 	}
 
 	// Validate the cursor session exists before running the main query.
@@ -330,6 +373,23 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 		sessions[i] = db2sdk.AIBridgeSession(row)
 	}
 
+	// Apply Data Protection Mode obfuscation to initiator identities.
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			for i := range sessions {
+				pid := dpCfg.ObfuscateUserID(sessions[i].Initiator.ID)
+				sessions[i].Initiator.ID = pid
+				sessions[i].Initiator.Username = dataprotection.PseudoUsername(pid)
+				sessions[i].Initiator.Name = ""
+				sessions[i].Initiator.AvatarURL = ""
+			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListSessionsResponse{
 		Count:    count,
 		Sessions: sessions,
@@ -352,6 +412,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/aibridge/sessions/{session_id} [get]
 func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	sessionIDParam := chi.URLParam(r, "session_id")
 	if sessionIDParam == "" {
@@ -524,6 +585,22 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	}
 
 	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts)
+
+	// Apply Data Protection Mode obfuscation to initiator identity.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			pid := dpCfg.ObfuscateUserID(resp.Initiator.ID)
+			resp.Initiator.ID = pid
+			resp.Initiator.Username = dataprotection.PseudoUsername(pid)
+			resp.Initiator.Name = ""
+			resp.Initiator.AvatarURL = ""
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

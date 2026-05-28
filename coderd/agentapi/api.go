@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -90,6 +91,7 @@ type Options struct {
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 	BoundaryUsageTracker              *boundaryusage.Tracker
 	LifecycleMetrics                  *LifecycleMetrics
+	DataProtection                    *dataprotection.Config
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -213,6 +215,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
 		Log:              opts.Log,
+		DataProtection:   opts.DataProtection,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

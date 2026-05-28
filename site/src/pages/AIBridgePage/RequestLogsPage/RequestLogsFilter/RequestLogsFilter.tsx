@@ -13,7 +13,9 @@ interface RequestLogsFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
-		user: UserFilterMenu;
+		// The user menu is hidden when data protection mode is active
+		// to prevent leaking real usernames via the users API.
+		user?: UserFilterMenu;
 		provider: ProviderFilterMenu;
 		model: ModelFilterMenu;
 		client: ClientFilterMenu;
@@ -29,7 +31,7 @@ export const RequestLogsFilter: FC<RequestLogsFilterProps> = ({
 		<Filter
 			filter={filter}
 			optionsSkeleton={<MenuSkeleton />}
-			isLoading={menus.user.isInitializing}
+			isLoading={menus.user?.isInitializing ?? false}
 			presets={[
 				{
 					name: "All requests",
@@ -43,7 +45,9 @@ export const RequestLogsFilter: FC<RequestLogsFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<UserMenu menu={menus.user} placeholder="All initiators" />
+					{menus.user && (
+						<UserMenu menu={menus.user} placeholder="All initiators" />
+					)}
 					<ProviderFilter menu={menus.provider} />
 					<ModelFilter menu={menus.model} />
 					<ClientFilter menu={menus.client} />

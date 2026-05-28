@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 	"net/netip"
 
@@ -53,6 +54,25 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 	filter.LimitOpt = int32(page.Limit)
 
 	countFilter.CountCap = connectionLogCountCap
+
+	// Data Protection Mode: strip user-identity filters for
+	// non-auditors to prevent using filters to discover real
+	// usernames.
+	dpCfg := api.AGPL.DataProtection
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			filter.Username = ""
+			filter.UserEmail = ""
+			filter.WorkspaceOwner = ""
+			filter.WorkspaceOwnerEmail = ""
+			countFilter.Username = ""
+			countFilter.UserEmail = ""
+			countFilter.WorkspaceOwner = ""
+			countFilter.WorkspaceOwnerEmail = ""
+		}
+	}
 	count, err := api.Database.CountConnectionLogs(ctx, countFilter)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -82,8 +102,37 @@ func (api *API) connectionLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logs := convertConnectionLogs(dblogs)
+
+	// Apply Data Protection Mode obfuscation to user identities
+	// in connection logs. This layers on top of the existing RBAC
+	// auditor gating because an RBAC auditor may be a team manager
+	// who should not see individual user data.
+	if dpCfg != nil && dpCfg.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, uerr := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if uerr != nil || dpCfg.ShouldObfuscate(reqUser.Email) {
+			for i := range logs {
+				if logs[i].WebInfo != nil && logs[i].WebInfo.User != nil {
+					u := logs[i].WebInfo.User
+					pid := dpCfg.ObfuscateUserID(u.ID)
+					u.ID = pid
+					u.Username = fmt.Sprintf("Protected User %s", pid.String()[:8])
+					u.Name = ""
+					u.Email = ""
+					u.AvatarURL = ""
+				}
+				pid := dpCfg.ObfuscateUserID(logs[i].WorkspaceOwnerID)
+				logs[i].WorkspaceOwnerID = pid
+				logs[i].WorkspaceOwnerUsername = fmt.Sprintf("Protected User %s", pid.String()[:8])
+			}
+		} else {
+			api.AGPL.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ConnectionLogResponse{
-		ConnectionLogs: convertConnectionLogs(dblogs),
+		ConnectionLogs: logs,
 		Count:          count,
 		CountCap:       connectionLogCountCap,
 	})

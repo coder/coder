@@ -998,6 +998,7 @@ ORDER BY t.name, preset_name, o.name;
 
 -- name: GetWorkspacesForWorkspaceMetrics :many
 SELECT
+    w.owner_id,
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,

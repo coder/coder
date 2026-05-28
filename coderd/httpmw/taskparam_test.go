@@ -112,7 +112,7 @@ func TestTaskParam(t *testing.T) {
 			}),
 			httpmw.ExtractOrganizationMembersParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
 				return true
-			}),
+			}, nil),
 			httpmw.ExtractTaskParam(db),
 		)
 		rtr.Get("/", handler)

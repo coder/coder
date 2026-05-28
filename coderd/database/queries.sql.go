@@ -30865,6 +30865,7 @@ const getWorkspaceAgentsForMetrics = `-- name: GetWorkspaceAgentsForMetrics :man
 SELECT
     w.id as workspace_id,
     w.name as workspace_name,
+    w.owner_id,
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,
@@ -30888,6 +30889,7 @@ AND workspace_agents.deleted = FALSE
 type GetWorkspaceAgentsForMetricsRow struct {
 	WorkspaceID         uuid.UUID      `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
+	OwnerID             uuid.UUID      `db:"owner_id" json:"owner_id"`
 	OwnerUsername       string         `db:"owner_username" json:"owner_username"`
 	TemplateName        string         `db:"template_name" json:"template_name"`
 	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
@@ -30906,6 +30908,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]GetWor
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.WorkspaceName,
+			&i.OwnerID,
 			&i.OwnerUsername,
 			&i.TemplateName,
 			&i.TemplateVersionName,
@@ -35914,6 +35917,7 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 
 const getWorkspacesForWorkspaceMetrics = `-- name: GetWorkspacesForWorkspaceMetrics :many
 SELECT
+    w.owner_id,
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,
@@ -35934,6 +35938,7 @@ AND wb.build_number = (
 `
 
 type GetWorkspacesForWorkspaceMetricsRow struct {
+	OwnerID               uuid.UUID            `db:"owner_id" json:"owner_id"`
 	OwnerUsername         string               `db:"owner_username" json:"owner_username"`
 	TemplateName          string               `db:"template_name" json:"template_name"`
 	TemplateVersionName   sql.NullString       `db:"template_version_name" json:"template_version_name"`
@@ -35951,6 +35956,7 @@ func (q *sqlQuerier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]Ge
 	for rows.Next() {
 		var i GetWorkspacesForWorkspaceMetricsRow
 		if err := rows.Scan(
+			&i.OwnerID,
 			&i.OwnerUsername,
 			&i.TemplateName,
 			&i.TemplateVersionName,

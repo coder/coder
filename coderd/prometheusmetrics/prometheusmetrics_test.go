@@ -276,7 +276,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast, nil)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -379,7 +379,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast, nil)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -499,7 +499,7 @@ func TestWorkspaceCreationTotal(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast, nil)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -585,7 +585,7 @@ func TestAgents(t *testing.T) {
 	// when
 	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, &coordinatorPtr, derpMapFn, agentInactiveDisconnectTimeout, 50*time.Millisecond)
+	}), registry, db, &coordinatorPtr, derpMapFn, agentInactiveDisconnectTimeout, 50*time.Millisecond, nil)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

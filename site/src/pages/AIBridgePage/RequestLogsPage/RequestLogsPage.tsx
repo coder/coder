@@ -1,6 +1,9 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedInterceptions } from "#/api/queries/aiBridge";
+import { dataProtectionStatus } from "#/api/queries/deployment";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -25,6 +28,10 @@ const RequestLogsPage: FC = () => {
 
 	const canViewRequestLogs = isEntitled && hasPermission;
 
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
+
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery({
 		...paginatedInterceptions(searchParams),
@@ -43,6 +50,7 @@ const RequestLogsPage: FC = () => {
 				...filter.values,
 				initiator: option?.value,
 			}),
+		enabled: !dataProtectionEnabled,
 	});
 
 	const providerMenu = useProviderFilterMenu({
@@ -76,6 +84,11 @@ const RequestLogsPage: FC = () => {
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
 
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
+
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
 				isRequestLogsEntitled={isEntitled}
@@ -86,7 +99,7 @@ const RequestLogsPage: FC = () => {
 					filter,
 					error: interceptionsQuery.error,
 					menus: {
-						user: userMenu,
+						user: dataProtectionEnabled ? undefined : userMenu,
 						provider: providerMenu,
 						model: modelMenu,
 						client: clientMenu,

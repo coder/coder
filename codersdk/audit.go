@@ -141,6 +141,7 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionDataProtectionAccess AuditAction = "data_protection_access"
 	// Deprecated: Workspace connections are now included in the
 	// connection log.
 	AuditActionConnect AuditAction = "connect"
@@ -174,6 +175,8 @@ func (a AuditAction) Friendly() string {
 		return "registered"
 	case AuditActionRequestPasswordReset:
 		return "password reset requested"
+	case AuditActionDataProtectionAccess:
+		return "accessed protected data"
 	case AuditActionConnect:
 		return "connected"
 	case AuditActionDisconnect:

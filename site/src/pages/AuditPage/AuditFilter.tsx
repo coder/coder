@@ -46,7 +46,7 @@ interface AuditFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
-		user: UserFilterMenu;
+		user?: UserFilterMenu;
 		action: ActionFilterMenu;
 		resourceType: ResourceTypeFilterMenu;
 		// The organization menu is only provided in a multi-org setup.
@@ -60,14 +60,14 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 		<Filter
 			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
 			presets={PRESET_FILTERS}
-			isLoading={menus.user.isInitializing}
+			isLoading={menus.user?.isInitializing ?? false}
 			filter={filter}
 			error={error}
 			options={
 				<>
 					<ResourceTypeMenu width={width} menu={menus.resourceType} />
 					<ActionMenu width={width} menu={menus.action} />
-					<UserMenu width={width} menu={menus.user} />
+					{menus.user && <UserMenu width={width} menu={menus.user} />}{" "}
 					{menus.organization && (
 						<OrganizationsMenu width={width} menu={menus.organization} />
 					)}

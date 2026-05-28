@@ -444,7 +444,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				// It is possible for a member to be removed from an org, in which
 				// case their orphaned workspaces still exist. We only need
 				// the user_id for the query.
-				httpmw.ExtractUserParam(api.Database),
+				httpmw.ExtractUserParam(api.Database, api.Options.DataProtection),
 			)
 			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
 		})
@@ -563,7 +563,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 			)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 				r.Get("/", api.workspaceQuotaByUser)
 			})
 		})
@@ -590,7 +590,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database),
+				httpmw.ExtractUserParam(options.Database, options.DataProtection),
 			)
 
 			r.Get("/", api.userQuietHoursSchedule)

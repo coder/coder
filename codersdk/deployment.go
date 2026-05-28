@@ -676,6 +676,7 @@ type DeploymentValues struct {
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
+	DataProtection                          DataProtectionConfig                 `json:"data_protection,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -781,6 +782,32 @@ type UsageStatsConfig struct {
 
 type StatsCollectionConfig struct {
 	UsageStats UsageStatsConfig `json:"usage_stats" tyescript:",notnull"`
+}
+
+type DataProtectionConfig struct {
+	// Deprecated: Use Mode instead.
+	Enabled      serpent.Bool        `json:"enabled,omitempty" typescript:",notnull"`
+	Mode         serpent.String      `json:"mode,omitempty" typescript:",notnull"`
+	Auditors     serpent.StringArray `json:"auditors,omitempty" typescript:",notnull"`
+	MinGroupSize serpent.Int64       `json:"min_group_size,omitempty" typescript:",notnull"`
+}
+
+// DataProtectionStatus is the per-request DPM status returned by
+// GET /deployment/data-protection-status.
+type DataProtectionStatus struct {
+	Enabled bool `json:"enabled"`
+	Tier    int  `json:"tier"`
+	Auditor bool `json:"auditor"`
+}
+
+// DataProtectionResolveResponse is returned by
+// GET /deployment/data-protection/resolve. Only accessible to
+// designated DPM auditors.
+type DataProtectionResolveResponse struct {
+	UserID   uuid.UUID `json:"user_id" format:"uuid"`
+	Username string    `json:"username"`
+	Email    string    `json:"email"`
+	Name     string    `json:"name"`
 }
 
 type PrometheusConfig struct {
@@ -1504,6 +1531,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		deploymentGroupTemplateBuilder = serpent.Group{
 			Name: "Template Builder",
 			YAML: "templateBuilder",
+		}
+		deploymentGroupDataProtection = serpent.Group{
+			Name:        "Data Protection",
+			Description: "Configure Data Protection Mode for compliance with employee data protection regulations (e.g., German labor law). When enabled, individual user identifiers are obfuscated in all reporting surfaces.",
+			YAML:        "dataProtection",
 		}
 	)
 
@@ -4600,6 +4632,45 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupRetention,
 			YAML:        "workspace_agent_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Data Protection Mode",
+			Description: "Set the Data Protection Mode. 'off' disables protection, 'tier-1' obfuscates individual user identifiers across all UI and API surfaces at read time, 'tier-2' additionally prevents user-identifying data from being stored in analytics and audit tables. Requires a server restart to change.",
+			Flag:        "data-protection-mode",
+			Env:         "CODER_DATA_PROTECTION_MODE",
+			Default:     "off",
+			Value:       &c.DataProtection.Mode,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "mode",
+		},
+		{
+			Name:        "Data Protection Enabled (deprecated)",
+			Description: "Deprecated: use --data-protection-mode instead. When true, equivalent to --data-protection-mode=tier-1.",
+			Flag:        "data-protection-enabled",
+			Env:         "CODER_DATA_PROTECTION_ENABLED",
+			Default:     "false",
+			Value:       &c.DataProtection.Enabled,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "enabled",
+		},
+		{
+			Name:        "Data Protection Auditors",
+			Description: "Comma-separated list of email addresses of users designated as data protection auditors. Auditors can view unobfuscated user data in reports when Data Protection Mode is enabled. Changes require a server restart.",
+			Flag:        "data-protection-auditors",
+			Env:         "CODER_DATA_PROTECTION_AUDITORS",
+			Value:       &c.DataProtection.Auditors,
+			Group:       &deploymentGroupDataProtection,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Data Protection Min Group Size",
+			Description: "Minimum number of users in a report group before individual (obfuscated) data is shown. Groups smaller than this threshold are suppressed entirely to prevent indirect identification.",
+			Flag:        "data-protection-min-group-size",
+			Env:         "CODER_DATA_PROTECTION_MIN_GROUP_SIZE",
+			Default:     "5",
+			Value:       &c.DataProtection.MinGroupSize,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "minGroupSize",
 		},
 		{
 			Name: "Enable Authorization Recordings",

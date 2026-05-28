@@ -1687,9 +1687,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                        |
-|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `close`, `connect`, `create`, `delete`, `disconnect`, `login`, `logout`, `open`, `register`, `request_password_reset`, `start`, `stop`, `write` |
+| Value(s)                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `close`, `connect`, `create`, `data_protection_access`, `delete`, `disconnect`, `login`, `logout`, `open`, `register`, `request_password_reset`, `start`, `stop`, `write` |
 
 ## codersdk.AuditDiff
 
@@ -5545,6 +5545,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DataProtectionConfig
+
+```json
+{
+  "auditors": [
+    "string"
+  ],
+  "enabled": true,
+  "min_group_size": 0,
+  "mode": "string"
+}
+```
+
+### Properties
+
+| Name             | Type            | Required | Restrictions | Description                   |
+|------------------|-----------------|----------|--------------|-------------------------------|
+| `auditors`       | array of string | false    |              |                               |
+| `enabled`        | boolean         | false    |              | Deprecated: Use Mode instead. |
+| `min_group_size` | integer         | false    |              |                               |
+| `mode`           | string          | false    |              |                               |
+
 ## codersdk.DeleteExternalAuthByIDResponse
 
 ```json
@@ -5713,6 +5735,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "allow_all_cors": true,
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
+    },
+    "data_protection": {
+      "auditors": [
+        "string"
+      ],
+      "enabled": true,
+      "min_group_size": 0,
+      "mode": "string"
     },
     "derp": {
       "config": {
@@ -6314,6 +6344,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
   },
+  "data_protection": {
+    "auditors": [
+      "string"
+    ],
+    "enabled": true,
+    "min_group_size": 0,
+    "mode": "string"
+  },
   "derp": {
     "config": {
       "block_direct": true,
@@ -6730,6 +6768,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config`                                       | string                                                                                               | false    |              |                                                                    |
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
+| `data_protection`                              | [codersdk.DataProtectionConfig](#codersdkdataprotectionconfig)                                       | false    |              |                                                                    |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
 | `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                    |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |

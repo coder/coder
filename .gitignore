@@ -115,3 +115,4 @@ license.txt
 
 # Agent planning documents (local working files).
 docs/plans/
+scripts/seed-dpm-testdata.sh

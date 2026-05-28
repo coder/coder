@@ -15,6 +15,7 @@ import {
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	insightsTemplate,
 	insightsUserActivity,
@@ -34,6 +35,7 @@ import {
 	ActiveUsersTitle,
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
@@ -56,7 +58,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-
 import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
@@ -114,6 +115,11 @@ export default function TemplateInsightsPage() {
 		enabled: canViewInsights,
 	});
 
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const dpTier = dpStatus.data?.tier;
+	const isAuditor = dpStatus.data?.auditor;
+
 	return (
 		<RequirePermission isFeatureVisible={canViewInsights}>
 			<title>{getTemplatePageTitle("Insights", template)}</title>
@@ -132,6 +138,9 @@ export default function TemplateInsightsPage() {
 				userLatency={userLatency}
 				userActivity={userActivity}
 				interval={interval}
+				dataProtectionEnabled={dataProtectionEnabled}
+				dpTier={dpTier}
+				isAuditor={isAuditor}
 			/>
 		</RequirePermission>
 	);
@@ -232,6 +241,9 @@ interface TemplateInsightsPageViewProps {
 	};
 	controls: ReactNode;
 	interval: InsightsInterval;
+	dataProtectionEnabled: boolean | undefined;
+	dpTier: number | undefined;
+	isAuditor: boolean | undefined;
 }
 
 export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
@@ -240,9 +252,17 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	userActivity,
 	controls,
 	interval,
+	dataProtectionEnabled,
+	isAuditor,
+	dpTier,
 }) => {
 	return (
 		<>
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				tier={dpTier}
+				isAuditor={isAuditor}
+			/>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
 			<div className="grid gap-6 grid-cols-3 grid-rows-[440px_440px_auto]">
 				<ActiveUsersPanel
@@ -251,7 +271,11 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 					data={templateInsights.data?.interval_reports}
 					error={templateInsights.error}
 				/>
-				<UsersLatencyPanel data={userLatency.data} error={userLatency.error} />
+				<UsersLatencyPanel
+					data={userLatency.data}
+					error={userLatency.error}
+					dataProtectionEnabled={dataProtectionEnabled}
+				/>
 				<TemplateUsagePanel
 					className="col-span-2"
 					data={templateInsights.data?.report?.apps_usage}
@@ -260,6 +284,7 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 				<UsersActivityPanel
 					data={userActivity.data}
 					error={userActivity.error}
+					dataProtectionEnabled={dataProtectionEnabled}
 				/>
 				<TemplateParametersUsagePanel
 					className="col-span-3"
@@ -305,11 +330,13 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 interface UsersLatencyPanelProps extends PanelProps {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
+	dataProtectionEnabled: boolean | undefined;
 }
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
 	error,
+	dataProtectionEnabled,
 	className,
 	...panelProps
 }) => {
@@ -329,7 +356,15 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent error={error} data={data?.report.users}>
+			<PanelContent
+				error={error}
+				data={data?.report.users}
+				emptyMessage={
+					dataProtectionEnabled
+						? "Individual user data is hidden to comply with data protection regulations."
+						: undefined
+				}
+			>
 				{data?.report.users &&
 					[...data.report.users]
 						.sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
@@ -360,11 +395,13 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 interface UsersActivityPanelProps extends PanelProps {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
+	dataProtectionEnabled: boolean | undefined;
 }
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
 	error,
+	dataProtectionEnabled,
 	className,
 	...panelProps
 }) => {
@@ -385,7 +422,15 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
-			<PanelContent error={error} data={data?.report.users}>
+			<PanelContent
+				error={error}
+				data={data?.report.users}
+				emptyMessage={
+					dataProtectionEnabled
+						? "Individual user data is hidden to comply with data protection regulations."
+						: undefined
+				}
+			>
 				{data?.report.users &&
 					[...data.report.users]
 						.sort((a, b) => b.seconds - a.seconds)
@@ -715,15 +760,21 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
+	emptyMessage?: string;
 }
 
-const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
+const PanelContent: FC<PanelContentProps> = ({
+	error,
+	data,
+	children,
+	emptyMessage,
+}) => {
 	return (
 		<div className="flex-1 px-6 pb-6">
 			{!error && !data ? (
 				<Loader className="h-full min-h-[200px]" />
 			) : error || !data || data.length === 0 ? (
-				<NoDataAvailable error={error} />
+				<NoDataAvailable error={error} message={emptyMessage} />
 			) : (
 				children
 			)}
@@ -733,9 +784,14 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 
 interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
 	error: unknown;
+	message?: string;
 }
 
-const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
+const NoDataAvailable: FC<NoDataAvailableProps> = ({
+	error,
+	message,
+	...props
+}) => {
 	return (
 		<div
 			{...props}
@@ -744,7 +800,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 			{error
 				? getErrorDetail(error) ||
 					getErrorMessage(error, "Unable to fetch insights")
-				: "No data available"}
+				: message || "No data available"}
 		</div>
 	);
 };

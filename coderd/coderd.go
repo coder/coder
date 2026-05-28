@@ -61,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
@@ -302,6 +303,8 @@ type Options struct {
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
+
+	DataProtection *dataprotection.Config
 }
 
 // @title Coder API
@@ -386,6 +389,10 @@ func New(options *Options) *API {
 
 	if options.IDPSync == nil {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
+	if options.DataProtection == nil {
+		options.DataProtection = dataprotection.NewConfig(0, nil, 5)
 	}
 
 	experiments := ReadExperiments(
@@ -501,7 +508,11 @@ func New(options *Options) *API {
 	}
 
 	if options.DatabaseRolluper == nil {
-		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
+		options.DatabaseRolluper = dbrollup.New(
+			options.Logger.Named("dbrollup"),
+			options.Database,
+			dbrollup.WithDataProtection(options.DataProtection),
+		)
 	}
 
 	if options.WorkspaceUsageTracker == nil {
@@ -1180,7 +1191,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tasksList)
 
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 				r.Post("/", api.tasksCreate)
 
 				r.Route("/{task}", func(r chi.Router) {
@@ -1198,7 +1209,7 @@ func New(options *Options) *API {
 		r.Route("/users/{user}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database),
+				httpmw.ExtractUserParam(options.Database, options.DataProtection),
 			)
 			r.Post("/", api.postUserSkill)
 			r.Get("/", api.getUserSkills)
@@ -1211,7 +1222,7 @@ func New(options *Options) *API {
 		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database),
+				httpmw.ExtractUserParam(options.Database, options.DataProtection),
 			)
 			r.Get("/", api.listUserAIProviderKeyConfigs)
 			r.Route("/{aiProvider}", func(r chi.Router) {
@@ -1231,7 +1242,7 @@ func New(options *Options) *API {
 			r.Route("/cost", func(r chi.Router) {
 				r.Get("/users", api.chatCostUsers)
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
@@ -1413,6 +1424,8 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Get("/data-protection-status", api.dataProtectionStatus)
+			r.Get("/data-protection/resolve", api.dataProtectionResolve)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1508,14 +1521,14 @@ func New(options *Options) *API {
 								// on the site user. So limited to owners and user-admins.
 								// TODO: Allow org-admins to add users via some new permission? Or give them
 								// 	read on site users.
-								httpmw.ExtractUserParam(options.Database),
+								httpmw.ExtractUserParam(options.Database, options.DataProtection),
 							)
 							r.Post("/", api.postOrganizationMember)
 						})
 
 						r.Group(func(r chi.Router) {
 							r.Use(
-								httpmw.ExtractOrganizationMemberParam(options.Database),
+								httpmw.ExtractOrganizationMemberParam(options.Database, options.DataProtection),
 							)
 							r.Get("/", api.organizationMember)
 							r.Delete("/", api.deleteOrganizationMember)
@@ -1652,7 +1665,7 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+						r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 						// Creating workspaces does not require permissions on the user, only the
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
@@ -1664,7 +1677,7 @@ func New(options *Options) *API {
 					})
 
 					r.Group(func(r chi.Router) {
-						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
@@ -1933,7 +1946,7 @@ func New(options *Options) *API {
 			})
 			r.Get("/ws", (&healthcheck.WebsocketEchoServer{}).ServeHTTP)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database))
+				r.Use(httpmw.ExtractUserParam(options.Database, options.DataProtection))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
 			if options.DERPServer != nil {
@@ -2040,7 +2053,7 @@ func New(options *Options) *API {
 			r.Get("/", api.tasksList)
 
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize, options.DataProtection))
 				r.Post("/", api.tasksCreate)
 
 				r.Route("/{task}", func(r chi.Router) {

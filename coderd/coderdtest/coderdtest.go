@@ -407,6 +407,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.NotificationsEnqueuer,
 		experiments,
 		options.WorkspaceBuilderMetrics,
+		nil, // dataProtection — not set in tests
 	).WithStatsChannel(options.AutobuildStats)
 
 	lifecycleExecutor.Run()

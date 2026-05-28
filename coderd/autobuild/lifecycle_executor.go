@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/dataprotection"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -52,6 +53,7 @@ type Executor struct {
 	reg                     prometheus.Registerer
 	experiments             codersdk.Experiments
 	workspaceBuilderMetrics *wsbuilder.Metrics
+	dataProtection          *dataprotection.Config
 
 	metrics executorMetrics
 }
@@ -68,7 +70,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments, workspaceBuilderMetrics *wsbuilder.Metrics, dp *dataprotection.Config) *Executor {
 	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
@@ -86,6 +88,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *f
 		reg:                     reg,
 		experiments:             exp,
 		workspaceBuilderMetrics: workspaceBuilderMetrics,
+		dataProtection:          dp,
 		metrics: executorMetrics{
 			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
 				Namespace: "coderd",
@@ -343,7 +346,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
 							Reason(reason).
-							BuildMetrics(e.workspaceBuilderMetrics)
+							BuildMetrics(e.workspaceBuilderMetrics).
+							SetDataProtection(e.dataProtection)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
 							useActiveVersion(accessControl, ws) {

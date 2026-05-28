@@ -15,8 +15,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -180,6 +182,11 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Apply Data Protection Mode obfuscation if enabled.
+	if api.shouldObfuscateInsights(r) {
+		userActivities = api.DataProtection.ObfuscateUserActivities(userActivities)
+	}
+
 	// TemplateIDs that contributed to the data.
 	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
 	for templateID := range templateIDSet {
@@ -271,6 +278,11 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 				P95: row.WorkspaceConnectionLatency95,
 			},
 		})
+	}
+
+	// Apply Data Protection Mode obfuscation if enabled.
+	if api.shouldObfuscateInsights(r) {
+		userLatencies = api.DataProtection.ObfuscateUserLatencies(userLatencies)
 	}
 
 	// TemplateIDs that contributed to the data.
@@ -821,4 +833,146 @@ func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, 
 		}
 	}
 	return t, true
+}
+
+// shouldObfuscateInsights checks whether the current request should
+// receive obfuscated user data under Data Protection Mode. It looks
+// up the requesting user's email and checks it against the configured
+// auditor list. Returns false when DPM is disabled or the user is an
+// auditor. When an auditor accesses unobfuscated data, the access is
+// recorded in the audit log.
+func (api *API) shouldObfuscateInsights(r *http.Request) bool {
+	if api.DataProtection == nil || !api.DataProtection.IsTier1OrAbove() {
+		return false
+	}
+	key := httpmw.APIKey(r)
+	//nolint:gocritic // System lookup to resolve email for DPM check.
+	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(r.Context()), key.UserID)
+	if err != nil {
+		// If we cannot resolve the user, obfuscate by default for
+		// safety.
+		return true
+	}
+	if api.DataProtection.ShouldObfuscate(user.Email) {
+		return true
+	}
+	// The user is a designated DPM auditor — log their access to
+	// unobfuscated data.
+	api.LogDataProtectionAccess(r, user.ID, r.URL.Path)
+	return false
+}
+
+// LogDataProtectionAccess records an audit event when a designated
+// auditor views unobfuscated user data under Data Protection Mode.
+func (api *API) LogDataProtectionAccess(r *http.Request, userID uuid.UUID, resource string) {
+	ip := database.ParseIP(r.RemoteAddr)
+	auditLog := database.AuditLog{
+		ID:               uuid.New(),
+		Time:             dbtime.Now(),
+		UserID:           userID,
+		Ip:               ip,
+		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
+		ResourceType:     database.ResourceTypeUser,
+		ResourceID:       userID,
+		ResourceTarget:   resource,
+		Action:           database.AuditActionDataProtectionAccess,
+		Diff:             []byte("{}"),
+		StatusCode:       http.StatusOK,
+		AdditionalFields: []byte(`{"data_protection_mode": true}`),
+		RequestID:        httpmw.RequestID(r),
+		ResourceIcon:     "",
+	}
+	err := (*api.Auditor.Load()).Export(r.Context(), auditLog)
+	if err != nil {
+		api.Logger.Warn(r.Context(), "failed to export DPM audit log")
+	}
+}
+
+// dataProtectionStatus returns the Data Protection Mode status for
+// the current user: whether DPM is enabled and whether the user is
+// a designated auditor.
+func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tier := 0
+	if api.DataProtection != nil {
+		tier = api.DataProtection.Tier
+	}
+	enabled := tier >= 1
+	auditor := false
+	if enabled {
+		key := httpmw.APIKey(r)
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+		if err == nil {
+			auditor = api.DataProtection.IsAuditor(user.Email)
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.DataProtectionStatus{
+		Enabled: enabled,
+		Tier:    tier,
+		Auditor: auditor,
+	})
+}
+
+// dataProtectionResolve maps a pseudonym (slug, display name, or
+// pseudonym UUID) back to the real user identity. Access is
+// restricted to designated DPM auditors. The resolution iterates all
+// users and computes each pseudonym on-the-fly — no persistent
+// reverse index is needed. For 10,000 users this takes ~10ms.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) dataProtectionResolve(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if api.DataProtection == nil || !api.DataProtection.IsTier1OrAbove() {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Data Protection Mode is not enabled.",
+		})
+		return
+	}
+
+	// Only designated DPM auditors may resolve pseudonyms.
+	key := httpmw.APIKey(r)
+	//nolint:gocritic // System lookup to resolve email for DPM check.
+	reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), key.UserID)
+	if err != nil || !api.DataProtection.IsAuditor(reqUser.Email) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only designated data protection auditors may resolve pseudonyms.",
+		})
+		return
+	}
+
+	query := r.URL.Query().Get("pseudonym")
+	if query == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameter 'pseudonym'.",
+		})
+		return
+	}
+
+	// Iterate all users and find the one whose pseudonym matches.
+	// This is O(n) but only called by auditors during investigations.
+	//nolint:gocritic // System query to resolve pseudonym across all users.
+	allUsers, err := api.Database.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	for _, u := range allUsers {
+		if api.DataProtection.MatchPseudonym(query, u.ID) {
+			api.LogDataProtectionAccess(r, reqUser.ID, "resolve:"+query)
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.DataProtectionResolveResponse{
+				UserID:   u.ID,
+				Username: u.Username,
+				Email:    u.Email,
+				Name:     u.Name,
+			})
+			return
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		Message: "No user found matching the given pseudonym.",
+	})
 }

@@ -1363,6 +1363,20 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	targetUser := httpmw.UserParam(r)
+
+	// Data Protection Mode: non-auditors can only view their own
+	// cost summary to prevent individual performance monitoring.
+	if api.DataProtection != nil && api.DataProtection.IsTier1OrAbove() {
+		if targetUser.ID != apiKey.UserID {
+			//nolint:gocritic // System lookup to resolve email for DPM check.
+			reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+			if err != nil || api.DataProtection.ShouldObfuscate(reqUser.Email) {
+				httpapi.Forbidden(rw)
+				return
+			}
+		}
+	}
+
 	if targetUser.ID != apiKey.UserID && !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(targetUser.ID.String())) {
 		httpapi.Forbidden(rw)
 		return
@@ -1455,6 +1469,15 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// In tier-2 Data Protection Mode, per-user cost data is not
+	// available because user-identifying analytics are not stored.
+	if api.DataProtection.IsTier2OrAbove() {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
+			Users: []codersdk.ChatCostUserRollup{},
+		})
+		return
+	}
+
 	now := time.Now()
 	defaultStart := now.AddDate(0, 0, -30)
 
@@ -1539,6 +1562,11 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		if len(countUsers) > 0 {
 			count = countUsers[0].TotalCount
 		}
+	}
+
+	// Apply Data Protection Mode obfuscation if enabled.
+	if api.shouldObfuscateInsights(r) {
+		rollups = api.DataProtection.ObfuscateChatCostUsers(rollups)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
@@ -7703,6 +7731,17 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 			entry.AuthorAvatarURL = &pr.AuthorAvatarUrl.String
 		}
 		prEntries = append(prEntries, entry)
+	}
+
+	// Apply Data Protection Mode obfuscation to author identities.
+	if api.shouldObfuscateInsights(r) {
+		for i := range prEntries {
+			if prEntries[i].AuthorLogin != nil {
+				obfuscated := fmt.Sprintf("Protected User %s", prEntries[i].ChatID.String()[:8])
+				prEntries[i].AuthorLogin = &obfuscated
+			}
+			prEntries[i].AuthorAvatarURL = nil
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{

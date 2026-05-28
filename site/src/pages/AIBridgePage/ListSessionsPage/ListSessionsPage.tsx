@@ -1,6 +1,9 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import { dataProtectionStatus } from "#/api/queries/deployment";
+import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -26,6 +29,10 @@ const AISessionListPage: FC = () => {
 
 	const canViewSessions = isEntitled && hasPermission;
 
+	const dpStatus = useQuery(dataProtectionStatus());
+	const dataProtectionEnabled = dpStatus.data?.enabled;
+	const isAuditor = dpStatus.data?.auditor;
+
 	const [searchParams, setSearchParams] = useSearchParams();
 	const sessionsQuery = usePaginatedQuery({
 		...paginatedSessions(searchParams),
@@ -45,6 +52,7 @@ const AISessionListPage: FC = () => {
 				...filter.values,
 				initiator: option?.value,
 			}),
+		enabled: !dataProtectionEnabled,
 	});
 
 	const providerMenu = useProviderFilterMenu({
@@ -78,6 +86,11 @@ const AISessionListPage: FC = () => {
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Sessions", "AI Bridge")}</title>
 
+			<DataProtectionBanner
+				dataProtectionEnabled={dataProtectionEnabled}
+				isAuditor={isAuditor}
+			/>
+
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
 				isFetching={sessionsQuery.isFetching}
@@ -92,7 +105,7 @@ const AISessionListPage: FC = () => {
 					filter,
 					error: sessionsQuery.error,
 					menus: {
-						user: userMenu,
+						user: dataProtectionEnabled ? undefined : userMenu,
 						provider: providerMenu,
 						client: clientMenu,
 						model: modelMenu,

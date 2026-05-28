@@ -99,6 +99,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"AI Gateway Bedrock Access Key Secret": {
 			yaml: true,
 		},
+		"Data Protection Auditors": {
+			yaml: true,
+		},
 	}
 
 	set := (&codersdk.DeploymentValues{}).Options()

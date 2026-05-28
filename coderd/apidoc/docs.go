@@ -15836,6 +15836,7 @@ const docTemplate = `{
                 "logout",
                 "register",
                 "request_password_reset",
+                "data_protection_access",
                 "connect",
                 "disconnect",
                 "open",
@@ -15851,6 +15852,7 @@ const docTemplate = `{
                 "AuditActionLogout",
                 "AuditActionRegister",
                 "AuditActionRequestPasswordReset",
+                "AuditActionDataProtectionAccess",
                 "AuditActionConnect",
                 "AuditActionDisconnect",
                 "AuditActionOpen",
@@ -18485,6 +18487,27 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DataProtectionConfig": {
+            "type": "object",
+            "properties": {
+                "auditors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
+                    "description": "Deprecated: Use Mode instead.",
+                    "type": "boolean"
+                },
+                "min_group_size": {
+                    "type": "integer"
+                },
+                "mode": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.DeleteExternalAuthByIDResponse": {
             "type": "object",
             "properties": {
@@ -18608,6 +18631,9 @@ const docTemplate = `{
                 },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
+                },
+                "data_protection": {
+                    "$ref": "#/definitions/codersdk.DataProtectionConfig"
                 },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"

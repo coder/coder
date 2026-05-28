@@ -1022,6 +1022,7 @@ const (
 	AuditActionDisconnect           AuditAction = "disconnect"
 	AuditActionOpen                 AuditAction = "open"
 	AuditActionClose                AuditAction = "close"
+	AuditActionDataProtectionAccess AuditAction = "data_protection_access"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -1073,7 +1074,8 @@ func (e AuditAction) Valid() bool {
 		AuditActionConnect,
 		AuditActionDisconnect,
 		AuditActionOpen,
-		AuditActionClose:
+		AuditActionClose,
+		AuditActionDataProtectionAccess:
 		return true
 	}
 	return false
@@ -1094,6 +1096,7 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionDisconnect,
 		AuditActionOpen,
 		AuditActionClose,
+		AuditActionDataProtectionAccess,
 	}
 }
 

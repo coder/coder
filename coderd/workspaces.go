@@ -131,6 +131,24 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Apply Data Protection Mode obfuscation to
+	// workspace owner identity.
+	if api.DataProtection.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			if w.OwnerID != apiKey.UserID {
+				realOwnerID := w.OwnerID
+				w.OwnerName = api.DataProtection.PseudoSlug(realOwnerID)
+				w.OwnerID = api.DataProtection.ObfuscateUserID(realOwnerID)
+				w.OwnerAvatarURL = ""
+			}
+		} else if err == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
@@ -254,6 +272,26 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Apply Data Protection Mode obfuscation to
+	// workspace owner identities.
+	if api.DataProtection.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			for i := range wss {
+				if wss[i].OwnerID == apiKey.UserID {
+					continue // self-exception
+				}
+				realOwnerID := wss[i].OwnerID
+				wss[i].OwnerName = api.DataProtection.PseudoSlug(realOwnerID)
+				wss[i].OwnerID = api.DataProtection.ObfuscateUserID(realOwnerID)
+				wss[i].OwnerAvatarURL = ""
+			}
+		} else if err == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 		Workspaces: wss,
 		Count:      int(workspaceRows[0].Count),
@@ -351,6 +389,24 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+
+	// Apply Data Protection Mode obfuscation to
+	// workspace owner identity.
+	if api.DataProtection.IsTier1OrAbove() {
+		//nolint:gocritic // System lookup to resolve email for DPM check.
+		reqUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if err == nil && api.DataProtection.ShouldObfuscate(reqUser.Email) {
+			if w.OwnerID != apiKey.UserID {
+				realOwnerID := w.OwnerID
+				w.OwnerName = api.DataProtection.PseudoSlug(realOwnerID)
+				w.OwnerID = api.DataProtection.ObfuscateUserID(realOwnerID)
+				w.OwnerAvatarURL = ""
+			}
+		} else if err == nil {
+			api.LogDataProtectionAccess(r, reqUser.ID, r.URL.Path)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, w)
 }
 
@@ -794,7 +850,8 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
-			BuildMetrics(api.WorkspaceBuilderMetrics)
+			BuildMetrics(api.WorkspaceBuilderMetrics).
+			SetDataProtection(api.DataProtection)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

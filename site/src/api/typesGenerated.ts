@@ -1163,6 +1163,7 @@ export type AuditAction =
 	| "close"
 	| "connect"
 	| "create"
+	| "data_protection_access"
 	| "delete"
 	| "disconnect"
 	| "login"
@@ -1178,6 +1179,7 @@ export const AuditActions: AuditAction[] = [
 	"close",
 	"connect",
 	"create",
+	"data_protection_access",
 	"delete",
 	"disconnect",
 	"login",
@@ -3951,6 +3953,41 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 }
 
+// From codersdk/deployment.go
+export interface DataProtectionConfig {
+	/**
+	 * @deprecated Use Mode instead.
+	 */
+	readonly enabled?: boolean;
+	readonly mode?: string;
+	readonly auditors?: string;
+	readonly min_group_size?: number;
+}
+
+// From codersdk/deployment.go
+/**
+ * DataProtectionResolveResponse is returned by
+ * GET /deployment/data-protection/resolve. Only accessible to
+ * designated DPM auditors.
+ */
+export interface DataProtectionResolveResponse {
+	readonly user_id: string;
+	readonly username: string;
+	readonly email: string;
+	readonly name: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * DataProtectionStatus is the per-request DPM status returned by
+ * GET /deployment/data-protection-status.
+ */
+export interface DataProtectionStatus {
+	readonly enabled: boolean;
+	readonly tier: number;
+	readonly auditor: boolean;
+}
+
 // From codersdk/database.go
 export const DatabaseNotReachable = "database not reachable";
 
@@ -4138,6 +4175,7 @@ export interface DeploymentValues {
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
+	readonly data_protection?: DataProtectionConfig;
 	readonly config?: string;
 	readonly write_config?: boolean;
 	/**

@@ -129,9 +129,9 @@ func TestOrganizationParam(t *testing.T) {
 				DB:              db,
 				RedirectToLogin: false,
 			}),
-			httpmw.ExtractUserParam(db),
+			httpmw.ExtractUserParam(db, nil),
 			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractOrganizationMemberParam(db),
+			httpmw.ExtractOrganizationMemberParam(db, nil),
 		)
 		rtr.Get("/", nil)
 		rtr.ServeHTTP(rw, r)
@@ -167,12 +167,12 @@ func TestOrganizationParam(t *testing.T) {
 				RedirectToLogin: false,
 			}),
 			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractUserParam(db),
-			httpmw.ExtractOrganizationMemberParam(db),
+			httpmw.ExtractUserParam(db, nil),
+			httpmw.ExtractOrganizationMemberParam(db, nil),
 			httpmw.ExtractOrganizationMembersParam(db, func(r *http.Request, _ policy.Action, _ rbac.Objecter) bool {
 				// Assume the caller cannot read the member
 				return false
-			}),
+			}, nil),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			org := httpmw.OrganizationParam(r)
