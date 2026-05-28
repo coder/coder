@@ -1959,6 +1959,7 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "generic"
+	| "missing_key"
 	| "overloaded"
 	| "rate_limit"
 	| "startup_timeout"
@@ -1969,6 +1970,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"generic",
+	"missing_key",
 	"overloaded",
 	"rate_limit",
 	"startup_timeout",
