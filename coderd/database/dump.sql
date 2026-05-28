@@ -1505,6 +1505,8 @@ COMMENT ON COLUMN boundary_sessions.started_at IS 'Time when the first log for t
 
 COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was last updated.';
 
+COMMENT ON COLUMN boundary_sessions.owner_id IS 'The ID of the user who owns the workspace. NULL if the user has been deleted.';
+
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
     unique_workspaces_count bigint DEFAULT 0 NOT NULL,

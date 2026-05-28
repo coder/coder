@@ -1581,15 +1581,41 @@ func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
 		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
 	require.Error(t, err, "agent must not create boundary logs for other owner")
 
-	// Agent cannot read boundary logs.
+	// Agent cannot read boundary logs (even its own owner's).
 	err = auth.Authorize(context.Background(), agent, policy.ActionRead,
-		rbac.ResourceBoundaryLog)
+		rbac.ResourceBoundaryLog.WithOwner(ownerID.String()))
 	require.Error(t, err, "agent must not read boundary logs")
 
-	// Agent cannot delete boundary logs.
+	// Agent cannot delete boundary logs (even its own owner's).
 	err = auth.Authorize(context.Background(), agent, policy.ActionDelete,
-		rbac.ResourceBoundaryLog)
+		rbac.ResourceBoundaryLog.WithOwner(ownerID.String()))
 	require.Error(t, err, "agent must not delete boundary logs")
+
+	// Even when the workspace owner is a site admin, the agent scope
+	// wildcard for boundary_log combined with the owner role's site-level
+	// read grant means the agent CAN read all boundary logs. This is an
+	// accepted tradeoff of the wildcard scope needed for creation (CRF-5).
+	// The important constraint is that a regular member agent cannot.
+	ownerRole, err := rbac.RoleByName(rbac.RoleOwner())
+	require.NoError(t, err)
+
+	adminAgent := rbac.Subject{
+		ID:    ownerID.String(),
+		Roles: rbac.Roles{memberRole, ownerRole},
+		Scope: agentScope,
+	}.WithCachedASTValue()
+
+	// Admin-owned agent CAN read boundary logs due to site-level owner
+	// role + wildcard scope.
+	err = auth.Authorize(context.Background(), adminAgent, policy.ActionRead,
+		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
+	require.NoError(t, err, "admin agent inherits site-level read via owner role")
+
+	// Admin-owned agent still cannot create boundary logs for another owner
+	// because member-level create is user-scoped (subject.id must match owner).
+	err = auth.Authorize(context.Background(), adminAgent, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
+	require.Error(t, err, "admin agent must not create boundary logs for other owner")
 }
 
 // TestDBPurgeBoundaryLogDelete verifies that the DBPurge system subject

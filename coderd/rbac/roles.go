@@ -374,7 +374,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
-			// Allow auditors to read boundary audit logs.
+			// Allow auditors to read boundary logs.
 			ResourceBoundaryLog.Type: {policy.ActionRead},
 		}),
 		User:    []Permission{},

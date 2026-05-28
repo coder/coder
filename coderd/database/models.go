@@ -4554,8 +4554,9 @@ type BoundarySession struct {
 	// Time when the first log for this session was received by coderd.
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// Time when the session was last updated.
-	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
-	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// The ID of the user who owns the workspace. NULL if the user has been deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.

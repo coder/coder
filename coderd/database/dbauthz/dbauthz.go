@@ -651,7 +651,7 @@ var (
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
 					// Chat auto-archive sets archived=true on inactive chats.
 					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
-					// Purge old boundary audit logs past the retention period.
+					// Purge old boundary logs past the retention period.
 					rbac.ResourceBoundaryLog.Type: {policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},

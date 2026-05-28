@@ -447,9 +447,13 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 			WorkspaceAgentID: aww.WorkspaceAgent.ID,
 		}
 		dbm.EXPECT().GetWorkspaceAgentAndWorkspaceByID(gomock.Any(), aww.WorkspaceAgent.ID).Return(aww, nil).AnyTimes()
-		// The dbauthz layer populates OwnerID from the workspace lookup,
-		// so the mock must match the modified arg.
-		dbm.EXPECT().InsertBoundarySession(gomock.Any(), gomock.Any()).Return(database.BoundarySession{}, nil).AnyTimes()
+		// The dbauthz layer populates OwnerID from the workspace lookup.
+		// Match the modified arg to verify OwnerID propagation.
+		expectedArg := database.InsertBoundarySessionParams{
+			WorkspaceAgentID: aww.WorkspaceAgent.ID,
+			OwnerID:          uuid.NullUUID{UUID: aww.WorkspaceTable.OwnerID, Valid: true},
+		}
+		dbm.EXPECT().InsertBoundarySession(gomock.Any(), expectedArg).Return(database.BoundarySession{}, nil).AnyTimes()
 		check.Args(arg).Asserts(
 			rbac.ResourceBoundaryLog.WithOwner(aww.WorkspaceTable.OwnerID.String()), policy.ActionCreate,
 		)
