@@ -254,8 +254,8 @@ func (h *reloadTestHarness) expectProviderStatus(t *testing.T, name, status stri
 }
 
 // expectProviderAbsent asserts no series exists for the provider name
-// in any status — verifies the GaugeVec.Reset on each reload clears
-// stale entries.
+// in any status. This verifies the GaugeVec.Reset on each reload
+// clears stale entries.
 func (h *reloadTestHarness) expectProviderAbsent(t *testing.T, name string) {
 	t.Helper()
 	for _, status := range []string{"enabled", "disabled", "error"} {
