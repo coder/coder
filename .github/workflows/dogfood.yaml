@@ -135,8 +135,6 @@ jobs:
       - name: Set up mise tools
         if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
         uses: ./.github/actions/setup-mise
-        with:
-          install-args: "--locked"
 
       - name: Compute image SHAs
         # Match the fork guard on the downstream consumers of these
@@ -320,7 +318,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked terraform"
+          install-args: "terraform"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0

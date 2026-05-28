@@ -42,7 +42,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go"
+          install-args: "go"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
@@ -65,7 +65,7 @@ jobs:
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked terraform"
+          install-args: "terraform"
 
       - name: Run targeted Go flake checks
         id: flake_check

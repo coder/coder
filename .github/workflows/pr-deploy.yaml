@@ -241,7 +241,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm"
+          install-args: "go node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install

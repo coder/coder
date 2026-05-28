@@ -175,7 +175,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm helm cosign syft"
+          install-args: "go node pnpm helm cosign syft"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install

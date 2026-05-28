@@ -2,8 +2,13 @@ name: Setup mise
 description: Install mise tools from SHA256-pinned binaries, with CI-layer caching.
 inputs:
   install-args:
-    description: Arguments passed to mise install.
-    required: true
+    description: Tool names or extra arguments passed to mise install. --locked is added by default.
+    required: false
+    default: ""
+  locked:
+    description: Whether to pass --locked to mise install.
+    required: false
+    default: "true"
   cache-key-prefix:
     description: Prefix for mise tool cache keys.
     required: false
@@ -28,19 +33,40 @@ runs:
       shell: bash
       env:
         CACHE_KEY_PREFIX: ${{ inputs.cache-key-prefix }}
-        INSTALL_ARGS: ${{ inputs.install-args }}
+        INPUT_INSTALL_ARGS: ${{ inputs.install-args }}
+        INPUT_LOCKED: ${{ inputs.locked }}
         MISE_VERSION: ${{ inputs.mise-version }}
         RUNNER_ARCH: ${{ runner.arch }}
         RUNNER_OS: ${{ runner.os }}
       run: |
         set -euo pipefail
 
-        install_args_hash="$(printf '%s' "$INSTALL_ARGS" | git hash-object --stdin)"
+        case "${INPUT_LOCKED}" in
+          true)
+            if [[ -n "${INPUT_INSTALL_ARGS}" ]]; then
+              install_args="--locked ${INPUT_INSTALL_ARGS}"
+            else
+              install_args="--locked"
+            fi
+            ;;
+          false)
+            install_args="${INPUT_INSTALL_ARGS}"
+            ;;
+          *)
+            echo "::error::locked must be true or false."
+            exit 1
+            ;;
+        esac
+
+        install_args_hash="$(printf '%s' "$install_args" | git hash-object --stdin)"
         files_hash="$(git hash-object mise.toml mise.lock | git hash-object --stdin)"
         key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-${files_hash}"
         restore_key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-"
 
         {
+          echo "install-args<<EOF"
+          echo "${install_args}"
+          echo "EOF"
           echo "key=$key"
           echo "restore-key=$restore_key"
         } >> "$GITHUB_OUTPUT"
@@ -138,5 +164,5 @@ runs:
         version: ${{ inputs.mise-version }}
         sha256: ${{ steps.checksum.outputs.sha256 }}
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
-        install_args: ${{ inputs.install-args }}
+        install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"

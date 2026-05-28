@@ -39,7 +39,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go"
+          install-args: "go"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache

@@ -154,7 +154,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked node pnpm"
+          install-args: "node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -179,7 +179,7 @@ jobs:
   #     - name: Set up mise tools
   #       uses: ./.github/actions/setup-mise
   #       with:
-  #         install-args: "--locked go"
+  #         install-args: "go"
 
   #     - name: Update Nix Flake SRI Hash
   #       run: ./scripts/update-flake.sh
@@ -218,7 +218,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm helm actionlint aqua:crate-ci/typos"
+          install-args: "go node pnpm helm actionlint aqua:crate-ci/typos"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -304,7 +304,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked actionlint zizmor"
+          install-args: "actionlint zizmor"
 
       - name: make lint/actions
         run: make --output-sync=line -j lint/actions
@@ -331,7 +331,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm terraform protoc protoc-gen-go"
+          install-args: "go node pnpm terraform protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -378,7 +378,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm terraform"
+          install-args: "go node pnpm terraform"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -457,7 +457,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go terraform"
+          install-args: "go terraform"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
@@ -637,7 +637,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go terraform"
+          install-args: "go terraform"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
@@ -711,7 +711,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go terraform"
+          install-args: "go terraform"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
@@ -795,7 +795,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go"
+          install-args: "go"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
@@ -827,7 +827,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked node pnpm"
+          install-args: "node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -865,7 +865,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm"
+          install-args: "go node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -962,7 +962,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked node pnpm"
+          install-args: "node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -1046,7 +1046,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm protoc protoc-gen-go"
+          install-args: "go node pnpm protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -1152,7 +1152,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm"
+          install-args: "go node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -1215,7 +1215,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go node pnpm cosign syft"
+          install-args: "go node pnpm cosign syft"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -1583,7 +1583,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "--locked go"
+          install-args: "go"
 
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
