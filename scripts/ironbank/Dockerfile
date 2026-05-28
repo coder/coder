@@ -19,6 +19,10 @@ RUN microdnf update --assumeyes && \
     # Remove python3-urllib3 if present to address CVE-2026-44431.
     # Coder is a Go binary and does not use Python at runtime.
     microdnf remove --assumeyes python3-urllib3 2>/dev/null || true && \
+    # Ensure GnuTLS is updated to address CVE-2026-42012, CVE-2026-42013,
+    # CVE-2026-42015, and CVE-2026-5260. Coder does not link against GnuTLS,
+    # but updating removes the finding from IronBank scans.
+    microdnf update --assumeyes gnutls && \
     microdnf clean all
 
 # Configure the cryptography policy manually. These policies likely
