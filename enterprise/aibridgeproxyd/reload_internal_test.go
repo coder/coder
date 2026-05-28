@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -17,7 +18,7 @@ func enabledProvider(name, host string) ReloadedProvider {
 		Name:   name,
 		Type:   "openai",
 		Host:   host,
-		Status: ProviderStatusEnabled,
+		Status: aibridged.ProviderStatusEnabled,
 	}
 }
 
@@ -96,8 +97,8 @@ func TestBuildProviderRouter(t *testing.T) {
 			enabledProvider("custom", "custom-llm.example.com"),
 			// Host is populated on the non-enabled rows so the Status
 			// guard, not the empty-host guard, is what excludes them.
-			{Name: "off", Type: "openai", Host: "disabled.example.com", Status: ProviderStatusDisabled},
-			{Name: "bad", Type: "openai", Host: "errored.example.com", Status: ProviderStatusError, Err: xerrors.New("nope")},
+			{Name: "off", Type: "openai", Host: "disabled.example.com", Status: aibridged.ProviderStatusDisabled},
+			{Name: "bad", Type: "openai", Host: "errored.example.com", Status: aibridged.ProviderStatusError, Err: xerrors.New("nope")},
 		}}
 
 		router, err := buildProviderRouter(reload, []string{"443"})
@@ -121,7 +122,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		t.Parallel()
 
 		reload := ProviderReload{Providers: []ReloadedProvider{
-			{Name: "provider", Type: "openai", Host: "API.Example.COM", Status: ProviderStatusEnabled},
+			{Name: "provider", Type: "openai", Host: "API.Example.COM", Status: aibridged.ProviderStatusEnabled},
 		}}
 
 		router, err := buildProviderRouter(reload, []string{"443"})
@@ -152,7 +153,7 @@ func TestBuildProviderRouter(t *testing.T) {
 		t.Parallel()
 
 		reload := ProviderReload{Providers: []ReloadedProvider{
-			{Name: "no-host", Type: "openai", Status: ProviderStatusEnabled},
+			{Name: "no-host", Type: "openai", Status: aibridged.ProviderStatusEnabled},
 			enabledProvider("good", "api.good.example.com"),
 		}}
 

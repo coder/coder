@@ -11,31 +11,17 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-)
-
-// ProviderStatus is the lifecycle state of a configured AI provider.
-type ProviderStatus string
-
-const (
-	// ProviderStatusEnabled is a configured, valid provider included in
-	// the active routing snapshot.
-	ProviderStatusEnabled ProviderStatus = "enabled"
-	// ProviderStatusDisabled is a configured provider intentionally
-	// turned off by an operator.
-	ProviderStatusDisabled ProviderStatus = "disabled"
-	// ProviderStatusError is a configured provider that cannot be
-	// routed (missing or invalid base URL, duplicate host, etc.).
-	ProviderStatusError ProviderStatus = "error"
+	"github.com/coder/coder/v2/coderd/aibridged"
 )
 
 // ReloadedProvider is the classification of one ai_providers row. Host
-// is populated only when Status == ProviderStatusEnabled; Err only when
-// Status == ProviderStatusError.
+// is populated only when Status == aibridged.ProviderStatusEnabled; Err
+// only when Status == aibridged.ProviderStatusError.
 type ReloadedProvider struct {
 	Name   string
 	Type   string
 	Host   string
-	Status ProviderStatus
+	Status aibridged.ProviderStatus
 	Err    error
 }
 
@@ -66,7 +52,7 @@ func (s *Server) Reload(ctx context.Context) error {
 	}
 	s.providerRouter.Store(router)
 	for _, p := range reload.Providers {
-		if p.Status == ProviderStatusError {
+		if p.Status == aibridged.ProviderStatusError {
 			s.logger.Warn(s.ctx, "provider excluded from routing",
 				slog.F("provider", p.Name),
 				slog.Error(p.Err),
@@ -127,16 +113,17 @@ func (s *Server) mitmHostsCondition() goproxy.ReqConditionFunc {
 }
 
 // buildProviderRouter constructs a router snapshot from a classified
-// provider reload. Only providers with Status == ProviderStatusEnabled
-// are included in the active routing tables; the refresh function is
-// responsible for classifying disabled and errored rows. First entry
-// wins on duplicate hostnames as a defense-in-depth measure even though
-// the refresh function should mark duplicates as errors.
+// provider reload. Only providers with Status ==
+// aibridged.ProviderStatusEnabled are included in the active routing
+// tables; the refresh function is responsible for classifying disabled
+// and errored rows. First entry wins on duplicate hostnames as a
+// defense-in-depth measure even though the refresh function should
+// mark duplicates as errors.
 func buildProviderRouter(reload ProviderReload, allowedPorts []string) (*providerRouter, error) {
 	nameByHost := make(map[string]string, len(reload.Providers))
 	domains := make([]string, 0, len(reload.Providers))
 	for _, p := range reload.Providers {
-		if p.Status != ProviderStatusEnabled {
+		if p.Status != aibridged.ProviderStatusEnabled {
 			continue
 		}
 		host := strings.ToLower(p.Host)

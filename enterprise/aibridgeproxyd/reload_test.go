@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -108,30 +109,30 @@ func (s *providerStore) refresh(context.Context) (aibridgeproxyd.ProviderReload,
 func classifyRaw(p rawProvider, seenHost map[string]string) aibridgeproxyd.ReloadedProvider {
 	out := aibridgeproxyd.ReloadedProvider{Name: p.name, Type: "openai"}
 	if strings.TrimSpace(p.baseURL) == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.New("base url is empty")
 		return out
 	}
 	u, err := url.Parse(p.baseURL)
 	if err != nil {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("invalid base url %q: %w", p.baseURL, err)
 		return out
 	}
 	host := strings.ToLower(u.Hostname())
 	if host == "" {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("base url %q has no hostname", p.baseURL)
 		return out
 	}
 	if claimedBy, taken := seenHost[host]; taken {
-		out.Status = aibridgeproxyd.ProviderStatusError
+		out.Status = aibridged.ProviderStatusError
 		out.Err = xerrors.Errorf("hostname %q already claimed by provider %q", host, claimedBy)
 		return out
 	}
 	seenHost[host] = p.name
 	out.Host = host
-	out.Status = aibridgeproxyd.ProviderStatusEnabled
+	out.Status = aibridged.ProviderStatusEnabled
 	return out
 }
 

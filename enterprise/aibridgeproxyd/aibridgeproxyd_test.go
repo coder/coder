@@ -35,6 +35,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -212,7 +213,7 @@ func withProviderHosts(hosts ...string) testProxyOption {
 				Name:   name,
 				Type:   "openai",
 				Host:   strings.ToLower(host),
-				Status: aibridgeproxyd.ProviderStatusEnabled,
+				Status: aibridged.ProviderStatusEnabled,
 			})
 		}
 		cfg.providers = providers
@@ -296,8 +297,8 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		// loopback, are reachable. Tests that verify IP blocking override this.
 		allowedPrivateCIDRs: []string{"127.0.0.1/32"},
 		providers: []aibridgeproxyd.ReloadedProvider{
-			{Name: "test-provider", Type: "openai", Host: "127.0.0.1", Status: aibridgeproxyd.ProviderStatusEnabled},
-			{Name: "test-provider", Type: "openai", Host: "localhost", Status: aibridgeproxyd.ProviderStatusEnabled},
+			{Name: "test-provider", Type: "openai", Host: "127.0.0.1", Status: aibridged.ProviderStatusEnabled},
+			{Name: "test-provider", Type: "openai", Host: "localhost", Status: aibridged.ProviderStatusEnabled},
 		},
 	}
 	for _, opt := range opts {
@@ -2080,7 +2081,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 			Name:   openrouterProvider,
 			Type:   "openai",
 			Host:   openrouterDomain,
-			Status: aibridgeproxyd.ProviderStatusEnabled,
+			Status: aibridged.ProviderStatusEnabled,
 		}),
 	)
 

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -25,10 +26,10 @@ func TestReloadUpdatesProviderMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics := NewMetrics(reg)
 
-	reload := ProviderReload{Reloaded: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: ProviderStatusEnabled},
-		{Name: "beta", Type: "anthropic", Status: ProviderStatusDisabled},
-		{Name: "gamma", Type: "openai", Status: ProviderStatusError, Err: xerrors.New("bad config")},
+	reload := ProviderReload{Providers: []ReloadedProvider{
+		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
+		{Name: "beta", Type: "anthropic", Status: aibridged.ProviderStatusDisabled},
+		{Name: "gamma", Type: "openai", Status: aibridged.ProviderStatusError, Err: xerrors.New("bad config")},
 	}}
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -69,9 +70,9 @@ func TestReloadResetsStaleProviderSeries(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	metrics := NewMetrics(reg)
 
-	current := ProviderReload{Reloaded: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: ProviderStatusEnabled},
-		{Name: "beta", Type: "anthropic", Host: "beta.example.com", Status: ProviderStatusEnabled},
+	current := ProviderReload{Providers: []ReloadedProvider{
+		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
+		{Name: "beta", Type: "anthropic", Host: "beta.example.com", Status: aibridged.ProviderStatusEnabled},
 	}}
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -89,8 +90,8 @@ func TestReloadResetsStaleProviderSeries(t *testing.T) {
 	require.NoError(t, srv.Reload(ctx))
 	require.Equal(t, 2, promtest.CollectAndCount(metrics.ProviderInfo))
 
-	current = ProviderReload{Reloaded: []ReloadedProvider{
-		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: ProviderStatusEnabled},
+	current = ProviderReload{Providers: []ReloadedProvider{
+		{Name: "alpha", Type: "openai", Host: "alpha.example.com", Status: aibridged.ProviderStatusEnabled},
 	}}
 	require.NoError(t, srv.Reload(ctx))
 
