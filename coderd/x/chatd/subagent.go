@@ -1090,16 +1090,18 @@ func (p *Server) createChildSubagentChatWithOptions(
 			return xerrors.Errorf("update child injected context: %w", err)
 		}
 
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: insertedChat.ID,
 		}
-		appendChatMessage(&userParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		childUserMsg := newUserChatMessage(
+			childAPIKeyID,
 			userContent,
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID).withAPIKeyID(childAPIKeyID))
+		)
+		childUserMsg = childUserMsg.withCreatedBy(parent.OwnerID)
+		appendUserChatMessage(&userParams, childUserMsg)
 		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
 			return xerrors.Errorf("insert initial child user message: %w", err)
 		}
@@ -1176,16 +1178,27 @@ func copyParentContextMessages(
 		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 		ChatID: child.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		copiedRole,
-		filteredContent,
-		copiedVisibility,
-		child.LastModelConfigID,
-		copiedVersion,
-	))
+	if copiedRole == database.ChatMessageRoleUser {
+		copiedAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		appendUserChatMessage(&msgParams, newUserChatMessage(
+			copiedAPIKeyID,
+			filteredContent,
+			copiedVisibility,
+			child.LastModelConfigID,
+			copiedVersion,
+		))
+	} else {
+		appendChatMessage(&msgParams, newChatMessage(
+			copiedRole,
+			filteredContent,
+			copiedVisibility,
+			child.LastModelConfigID,
+			copiedVersion,
+		))
+	}
 	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
 		return nil, xerrors.Errorf("insert context message: %w", err)
 	}

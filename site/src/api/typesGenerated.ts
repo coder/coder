@@ -378,7 +378,9 @@ export const AIProviderBedrockSettingsVersion = 1;
  */
 export interface AIProviderConfig {
 	/**
-	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 * Type is the provider type. Valid values are: "openai",
+	 * "anthropic", "azure", "bedrock", "google", "openai-compat",
+	 * "openrouter", "vercel", "copilot".
 	 */
 	readonly type: string;
 	/**

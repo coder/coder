@@ -1,9 +1,4 @@
-import {
-	ExternalLinkIcon,
-	LoaderIcon,
-	MonitorIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import {
@@ -12,6 +7,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { asRecord, asString, type ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -72,8 +68,26 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const header = (
 		<>
-			<MonitorIcon className="size-4 shrink-0 text-current" />
-			<span className="text-[13px]">{label}</span>
+			<ToolIcon
+				name="create_workspace"
+				isError={isError}
+				isRunning={isRunning}
+			/>
+			<span className="text-[13px] leading-6">{label}</span>
+			{workspaceLink && !isRunning && (
+				<Link
+					to={workspaceLink}
+					onClick={(e) => e.stopPropagation()}
+					className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+					aria-label="View workspace"
+				>
+					<ExternalLinkIcon className="size-3" />
+				</Link>
+			)}
+		</>
+	);
+	const headerStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -87,16 +101,6 @@ export const CreateWorkspaceTool: React.FC<{
 			{isRunning && (
 				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
-			{workspaceLink && !isRunning && (
-				<Link
-					to={workspaceLink}
-					onClick={(e) => e.stopPropagation()}
-					className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-					aria-label="View workspace"
-				>
-					<ExternalLinkIcon className="size-3" />
-				</Link>
-			)}
 		</>
 	);
 
@@ -104,6 +108,7 @@ export const CreateWorkspaceTool: React.FC<{
 		<div className="w-full">
 			<ToolCollapsible
 				header={header}
+				headerStatus={headerStatus}
 				hasContent={hasBuildLogs}
 				defaultExpanded={isRunning}
 			>

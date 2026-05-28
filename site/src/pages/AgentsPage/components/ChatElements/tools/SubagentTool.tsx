@@ -69,7 +69,7 @@ function getSubagentLabel(
 ): React.ReactNode {
 	if (showDesktopPreview && toolStatus === "running") {
 		return (
-			<Shimmer as="span" className="text-[13px]">
+			<Shimmer as="span" className="text-[13px] leading-6">
 				Using the computer...
 			</Shimmer>
 		);
@@ -125,20 +125,22 @@ const SubagentStatusIcon: React.FC<{
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
-		return <ClockIcon className="size-4 shrink-0 text-current" />;
+		return <ClockIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
 		if (showDesktopPreview) {
-			return <MonitorIcon className="size-4 shrink-0 text-current" />;
+			return (
+				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+			);
 		}
 		return (
 			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <DefaultIcon className="size-4 shrink-0 text-current" />;
+	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
 
 /**

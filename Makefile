@@ -1446,8 +1446,16 @@ ifdef TEST_SHORT
 GOTEST_FLAGS += -short
 endif
 
+# RUN is single-quoted for the shell so regex metacharacters survive make.
+# Embedded single quotes are not supported; whichtests only emits RUN values
+# built from ASCII test names so generated regexes stay within this contract.
 ifdef RUN
-GOTEST_FLAGS += -run $(RUN)
+GOTEST_FLAGS += -run '$(RUN)'
+endif
+
+# TEST_SHUFFLE values must be off, on, or an integer seed.
+ifdef TEST_SHUFFLE
+GOTEST_FLAGS += -shuffle=$(TEST_SHUFFLE)
 endif
 
 ifdef TEST_CPUPROFILE
