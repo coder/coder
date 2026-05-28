@@ -27,33 +27,28 @@ import (
 
 const (
 	openAIDefaultResponseText          = "This is a mock response from OpenAI."
+	openAIStopFinishReason             = "stop"
+	openAIToolCallFinishReason         = "tool_calls"
 	openAIResponsesDefaultResponseText = "This is a mock response from OpenAI Responses."
 	anthropicDefaultResponseText       = "This is a mock response from Anthropic."
 	mockInputTokens                    = 10
 	mockOutputTokens                   = 5
-	// streamFixedWindowSize makes large payload streams predictable and not whitespace-dependent.
+	// streamFixedWindowSize keeps large payload chunks predictable.
 	streamFixedWindowSize = 10
 )
 
-func responseText(responsePayloadSize int, fallback string) string {
-	if responsePayloadSize > 0 {
-		return strings.Repeat("x", responsePayloadSize)
-	}
-	return fallback
-}
-
 // Server wraps the LLM mock server and provides an HTTP API to retrieve requests.
 type Server struct {
-	httpServer        *http.Server
-	httpListener      net.Listener
-	cancelHTTPContext context.CancelFunc
-	logger            slog.Logger
+	httpServer   *http.Server
+	httpListener net.Listener
+	httpCancel   context.CancelFunc
+	logger       slog.Logger
 
 	address             string
 	artificialLatency   time.Duration
-	responsePayloadSize int
 	minStreamDuration   time.Duration
 	maxStreamDuration   time.Duration
+	responsePayloadSize int
 	toolCallsPerTurn    int
 	toolCallCommand     string
 
@@ -65,11 +60,13 @@ type Config struct {
 	Address             string
 	Logger              slog.Logger
 	ArtificialLatency   time.Duration
-	ResponsePayloadSize int
 	MinStreamDuration   time.Duration
 	MaxStreamDuration   time.Duration
+	ResponsePayloadSize int
 	ToolCallsPerTurn    int
-	ToolCallCommand     string
+	// ToolCallCommand is the command sent in generated execute tool calls.
+	// Empty uses the default tool-call command.
+	ToolCallCommand string
 
 	TraceEnable bool
 }
@@ -98,10 +95,16 @@ type openAIToolFunction struct {
 }
 
 type openAIToolCall struct {
+	ID       string                 `json:"id"`
+	Type     string                 `json:"type"`
+	Function openAIToolCallFunction `json:"function"`
+}
+
+type openAIToolCallDelta struct {
+	Index    int                    `json:"index"`
 	ID       string                 `json:"id,omitempty"`
 	Type     string                 `json:"type,omitempty"`
-	Function openAIToolCallFunction `json:"function,omitempty"`
-	Index    int                    `json:"index"`
+	Function openAIToolCallFunction `json:"function"`
 }
 
 type openAIToolCallFunction struct {
@@ -167,17 +170,19 @@ type anthropicResponse struct {
 }
 
 func (s *Server) Start(ctx context.Context, cfg Config) error {
-	if cfg.ToolCallCommand == "" {
-		cfg.ToolCallCommand = DefaultToolCallCommand
+	toolCallCommand := cfg.ToolCallCommand
+	if toolCallCommand == "" {
+		toolCallCommand = defaultToolCallCommand
 	}
+
 	s.address = cfg.Address
 	s.logger = cfg.Logger
 	s.artificialLatency = cfg.ArtificialLatency
-	s.responsePayloadSize = cfg.ResponsePayloadSize
 	s.minStreamDuration = cfg.MinStreamDuration
 	s.maxStreamDuration = cfg.MaxStreamDuration
+	s.responsePayloadSize = cfg.ResponsePayloadSize
 	s.toolCallsPerTurn = cfg.ToolCallsPerTurn
-	s.toolCallCommand = cfg.ToolCallCommand
+	s.toolCallCommand = toolCallCommand
 
 	if cfg.TraceEnable {
 		otel.SetTextMapPropagator(
@@ -206,8 +211,8 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 }
 
 func (s *Server) Stop() error {
-	if s.cancelHTTPContext != nil {
-		s.cancelHTTPContext()
+	if s.httpCancel != nil {
+		s.httpCancel()
 	}
 	if s.httpServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -230,6 +235,13 @@ func (s *Server) APIAddress() string {
 	return fmt.Sprintf("http://%s", s.httpListener.Addr().String())
 }
 
+func (s *Server) responseText(fallback string) string {
+	if s.responsePayloadSize > 0 {
+		return strings.Repeat("x", s.responsePayloadSize)
+	}
+	return fallback
+}
+
 func (s *Server) randomStreamDuration() time.Duration {
 	if s.minStreamDuration <= 0 || s.maxStreamDuration <= 0 {
 		return 0
@@ -243,32 +255,37 @@ func (s *Server) randomStreamDuration() time.Duration {
 	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta+1)))
 }
 
-func (s *Server) streamPacedChunks(ctx context.Context, totalDuration time.Duration, content string, emit func(isFirst bool, chunk string) bool) bool {
-	var chunks []string
+func (s *Server) streamContentChunks(content string) []string {
+	if content == "" {
+		return []string{""}
+	}
 	if s.responsePayloadSize > 0 {
-		chunks = streamContentFixedWindows(content)
-	} else {
-		fields := strings.Fields(content)
-		if len(fields) == 0 {
-			chunks = streamContentFixedWindows(content)
-		} else {
-			chunks = make([]string, 0, len(fields))
-			for i, field := range fields {
-				if i > 0 {
-					field = " " + field
-				}
-				chunks = append(chunks, field)
-			}
+		chunks := make([]string, 0, (len(content)+streamFixedWindowSize-1)/streamFixedWindowSize)
+		for start := 0; start < len(content); start += streamFixedWindowSize {
+			end := min(start+streamFixedWindowSize, len(content))
+			chunks = append(chunks, content[start:end])
 		}
+		return chunks
 	}
 
-	if len(chunks) <= 1 {
-		return emit(true, chunks[0])
+	chunks := strings.SplitAfter(content, " ")
+	if chunks[len(chunks)-1] == "" {
+		chunks = chunks[:len(chunks)-1]
+	}
+	return chunks
+}
+
+func streamPacedChunks(ctx context.Context, totalDuration time.Duration, chunks []string, emit func(chunk string) bool) bool {
+	if len(chunks) == 0 {
+		return emit("")
+	}
+	if len(chunks) == 1 {
+		return emit(chunks[0])
 	}
 
 	delay := totalDuration / time.Duration(len(chunks)-1)
 	for i, chunk := range chunks {
-		if !emit(i == 0, chunk) {
+		if !emit(chunk) {
 			return false
 		}
 		if i == len(chunks)-1 || delay <= 0 {
@@ -291,20 +308,6 @@ func (s *Server) streamPacedChunks(ctx context.Context, totalDuration time.Durat
 	return true
 }
 
-func streamContentFixedWindows(content string) []string {
-	if content == "" {
-		return []string{""}
-	}
-
-	chunks := make([]string, 0, (len(content)+streamFixedWindowSize-1)/streamFixedWindowSize)
-	for start := 0; start < len(content); start += streamFixedWindowSize {
-		end := min(start+streamFixedWindowSize, len(content))
-		chunks = append(chunks, content[start:end])
-	}
-
-	return chunks
-}
-
 func (s *Server) startAPIServer(ctx context.Context) error {
 	mux := http.NewServeMux()
 
@@ -317,8 +320,8 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 		handler = s.tracingMiddleware(handler)
 	}
 
-	baseCtx, cancelHTTPContext := context.WithCancel(ctx)
-	s.cancelHTTPContext = cancelHTTPContext
+	baseCtx, httpCancel := context.WithCancel(ctx)
+	s.httpCancel = httpCancel
 	s.httpServer = &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
@@ -445,7 +448,7 @@ func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Reques
 	resp.Created = now.Unix()
 	resp.Model = req.Model
 
-	assistantText := responseText(s.responsePayloadSize, openAIResponsesDefaultResponseText)
+	assistantText := s.responseText(openAIResponsesDefaultResponseText)
 
 	resp.Output = []struct {
 		ID      string `json:"id,omitempty"`
@@ -520,7 +523,7 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 	resp.Type = "message"
 	resp.Role = "assistant"
 
-	assistantText := responseText(s.responsePayloadSize, anthropicDefaultResponseText)
+	assistantText := s.responseText(anthropicDefaultResponseText)
 
 	resp.Content = []struct {
 		Type string `json:"type"`
@@ -589,13 +592,13 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 	}
 
 	// Non-terminal chunks pass nil so JSON emits null for finish_reason.
-	writeStreamChunk := func(delta map[string]interface{}, finishReason interface{}) bool {
-		chunk := map[string]interface{}{
+	writeStreamChunk := func(delta map[string]any, finishReason *string) bool {
+		chunk := map[string]any{
 			"id":      resp.ID,
 			"object":  "chat.completion.chunk",
 			"created": resp.Created,
 			"model":   resp.Model,
-			"choices": []map[string]interface{}{
+			"choices": []map[string]any{
 				{
 					"index":         0,
 					"delta":         delta,
@@ -608,42 +611,52 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 	}
 
 	choice := resp.Choices[0]
-	switch {
-	case len(choice.Message.ToolCalls) > 0:
-		if !writeStreamChunk(map[string]interface{}{
+	if len(choice.Message.ToolCalls) > 0 {
+		toolCalls := make([]openAIToolCallDelta, 0, len(choice.Message.ToolCalls))
+		for i, toolCall := range choice.Message.ToolCalls {
+			toolCalls = append(toolCalls, openAIToolCallDelta{
+				Index:    i,
+				ID:       toolCall.ID,
+				Type:     toolCall.Type,
+				Function: toolCall.Function,
+			})
+		}
+		if !writeStreamChunk(map[string]any{
 			"role":       "assistant",
-			"tool_calls": choice.Message.ToolCalls,
+			"tool_calls": toolCalls,
 		}, nil) {
 			return
 		}
-	default:
+	} else {
 		totalDuration := s.randomStreamDuration()
 		if totalDuration == 0 {
-			if !writeStreamChunk(map[string]interface{}{
+			if !writeStreamChunk(map[string]any{
 				"role":    "assistant",
 				"content": choice.Message.Content,
 			}, nil) {
 				return
 			}
-			break
-		}
-		if !s.streamPacedChunks(ctx, totalDuration, choice.Message.Content, func(isFirst bool, chunk string) bool {
-			delta := map[string]interface{}{
-				"content": chunk,
+		} else {
+			first := true
+			if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(choice.Message.Content), func(chunk string) bool {
+				delta := map[string]any{
+					"content": chunk,
+				}
+				if first {
+					delta["role"] = "assistant"
+					first = false
+				}
+				return writeStreamChunk(delta, nil)
+			}) {
+				return
 			}
-			if isFirst {
-				delta["role"] = "assistant"
-			}
-			return writeStreamChunk(delta, nil)
-		}) {
-			return
 		}
 	}
 
-	if !writeStreamChunk(map[string]interface{}{}, choice.FinishReason) {
+	if !writeStreamChunk(map[string]any{}, &choice.FinishReason) {
 		return
 	}
-	writeChunk("data: [DONE]\n\n")
+	_ = writeChunk("data: [DONE]\n\n")
 }
 
 func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
@@ -674,45 +687,38 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
-	totalDuration := s.randomStreamDuration()
-	if totalDuration == 0 {
-		deltaChunk := map[string]interface{}{
+	writeDelta := func(text string) bool {
+		deltaChunk := map[string]any{
 			"id":            resp.ID,
 			"object":        "response.output_text.delta",
 			"created":       resp.Created,
 			"model":         resp.Model,
 			"output_index":  0,
 			"content_index": 0,
-			"delta":         resp.Output[0].Content[0].Text,
+			"delta":         text,
 		}
 		deltaBytes, _ := json.Marshal(deltaChunk)
-		if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
+		return writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes))
+	}
+
+	text := resp.Output[0].Content[0].Text
+	totalDuration := s.randomStreamDuration()
+	if totalDuration == 0 {
+		if !writeDelta(text) {
 			return
 		}
 	} else {
-		if !s.streamPacedChunks(ctx, totalDuration, resp.Output[0].Content[0].Text, func(_ bool, chunk string) bool {
-			deltaChunk := map[string]interface{}{
-				"id":            resp.ID,
-				"object":        "response.output_text.delta",
-				"created":       resp.Created,
-				"model":         resp.Model,
-				"output_index":  0,
-				"content_index": 0,
-				"delta":         chunk,
-			}
-			deltaBytes, _ := json.Marshal(deltaChunk)
-			return writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes))
-		}) {
+		if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(text), writeDelta) {
 			return
 		}
 	}
 
-	finalChunk := map[string]interface{}{
+	finalChunk := map[string]any{
 		"id":      resp.ID,
 		"object":  "response.completed",
 		"created": resp.Created,
 		"model":   resp.Model,
-		"response": map[string]interface{}{
+		"response": map[string]any{
 			"id":      resp.ID,
 			"object":  resp.Object,
 			"created": resp.Created,
@@ -725,7 +731,7 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalBytes)) {
 		return
 	}
-	writeChunk("data: [DONE]\n\n")
+	_ = writeChunk("data: [DONE]\n\n")
 }
 
 func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter, resp anthropicResponse) {
@@ -758,11 +764,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 	}
 
 	totalDuration := s.randomStreamDuration()
+	paced := totalDuration > 0
 
 	startEventType := "message_start"
-	startEvent := map[string]interface{}{
+	startEvent := map[string]any{
 		"type": startEventType,
-		"message": map[string]interface{}{
+		"message": map[string]any{
 			"id":    resp.ID,
 			"type":  resp.Type,
 			"role":  resp.Role,
@@ -774,16 +781,15 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send content_block_start event
 	contentStartEventType := "content_block_start"
-	contentStartText := resp.Content[0].Text
-	if totalDuration > 0 {
-		contentStartText = ""
+	var contentStartText string
+	if !paced {
+		contentStartText = resp.Content[0].Text
 	}
-	contentStartEvent := map[string]interface{}{
+	contentStartEvent := map[string]any{
 		"type":  contentStartEventType,
 		"index": 0,
-		"content_block": map[string]interface{}{
+		"content_block": map[string]any{
 			"type": "text",
 			"text": contentStartText,
 		},
@@ -793,41 +799,31 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send content_block_delta event(s)
 	deltaEventType := "content_block_delta"
-	if totalDuration == 0 {
-		deltaEvent := map[string]interface{}{
+	writeDelta := func(text string) bool {
+		deltaEvent := map[string]any{
 			"type":  deltaEventType,
 			"index": 0,
-			"delta": map[string]interface{}{
+			"delta": map[string]any{
 				"type": "text_delta",
-				"text": resp.Content[0].Text,
+				"text": text,
 			},
 		}
 		deltaBytes, _ := json.Marshal(deltaEvent)
-		if !writeChunk(deltaEventType, deltaBytes) {
+		return writeChunk(deltaEventType, deltaBytes)
+	}
+	if !paced {
+		if !writeDelta(resp.Content[0].Text) {
 			return
 		}
 	} else {
-		if !s.streamPacedChunks(ctx, totalDuration, resp.Content[0].Text, func(_ bool, chunk string) bool {
-			deltaEvent := map[string]interface{}{
-				"type":  deltaEventType,
-				"index": 0,
-				"delta": map[string]interface{}{
-					"type": "text_delta",
-					"text": chunk,
-				},
-			}
-			deltaBytes, _ := json.Marshal(deltaEvent)
-			return writeChunk(deltaEventType, deltaBytes)
-		}) {
+		if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(resp.Content[0].Text), writeDelta) {
 			return
 		}
 	}
 
-	// Send content_block_stop event
 	contentStopEventType := "content_block_stop"
-	contentStopEvent := map[string]interface{}{
+	contentStopEvent := map[string]any{
 		"type":  contentStopEventType,
 		"index": 0,
 	}
@@ -836,11 +832,10 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send message_delta event
 	deltaMsgEventType := "message_delta"
-	deltaMsgEvent := map[string]interface{}{
+	deltaMsgEvent := map[string]any{
 		"type": deltaMsgEventType,
-		"delta": map[string]interface{}{
+		"delta": map[string]any{
 			"stop_reason":   resp.StopReason,
 			"stop_sequence": resp.StopSequence,
 		},
@@ -851,13 +846,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send message_stop event
 	stopEventType := "message_stop"
-	stopEvent := map[string]interface{}{
+	stopEvent := map[string]any{
 		"type": stopEventType,
 	}
 	stopBytes, _ := json.Marshal(stopEvent)
-	writeChunk(stopEventType, stopBytes)
+	_ = writeChunk(stopEventType, stopBytes)
 }
 
 func (s *Server) tracingMiddleware(next http.Handler) http.Handler {
