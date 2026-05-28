@@ -72,15 +72,10 @@ func (p *PTY) Close() error {
 		if pErr != nil {
 			p.Logf("PTY: Close failed: %v", pErr)
 		}
-		eErr := p.Expecter.Close("PTY close")
-		if eErr != nil {
-			p.Logf("PTY: close expecter failed: %v", eErr)
-		}
+		p.Expecter.Close("PTY close")
 		if pErr != nil {
 			p.closeErr = pErr
-			return
 		}
-		p.closeErr = eErr
 	})
 	return p.closeErr
 }
@@ -135,12 +130,6 @@ func (p *PTYCmd) Close() error {
 	if pErr != nil {
 		p.Logf("PTYCmd: Close failed: %v", pErr)
 	}
-	eErr := p.Expecter.Close("PTYCmd close")
-	if eErr != nil {
-		p.Logf("PTYCmd: close expecter failed: %v", eErr)
-	}
-	if pErr != nil {
-		return pErr
-	}
-	return eErr
+	p.Expecter.Close("PTYCmd close")
+	return pErr
 }
