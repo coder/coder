@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func New(t *testing.T, r io.Reader, name string) *Expecter {
@@ -68,6 +69,22 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	return ex
 }
 
+func NewAttachedToInvocation(t *testing.T, invocation *serpent.Invocation) *Expecter {
+	r, w := io.Pipe()
+	invocation.Stdout = w
+	invocation.Stderr = w
+	e := New(t, r, "cmd")
+
+	t.Cleanup(func() {
+		// Serpent doesn't handle closing stdout after running the Invocation; normally the OS does that automatically when
+		// the process exits. Close it here at the end of the test to ensure we don't leak goroutines reading from the
+		// stdout/stderr.
+		_ = w.Close()
+		e.Close("test end")
+	})
+	return e
+}
+
 type Expecter struct {
 	t    *testing.T
 	out  *stdbuf
@@ -84,7 +101,7 @@ func (e *Expecter) Rename(name string) {
 	e.name.Store(name)
 }
 
-func (e *Expecter) Close(reason string) error {
+func (e *Expecter) Close(reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
@@ -94,6 +111,7 @@ func (e *Expecter) Close(reason string) error {
 	select {
 	case <-ctx.Done():
 		e.fatalf("close", "copy did not close in time")
+		return
 	case <-e.copyDone:
 	}
 
@@ -102,12 +120,11 @@ func (e *Expecter) Close(reason string) error {
 	select {
 	case <-ctx.Done():
 		e.fatalf("close", "log pipe did not close in time")
+		return
 	case <-e.logDone:
 	}
 
 	e.Logf("closed expecter")
-
-	return nil
 }
 
 func (e *Expecter) logClose(name string, c io.Closer) {
