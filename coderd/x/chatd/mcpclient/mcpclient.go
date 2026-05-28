@@ -72,6 +72,7 @@ func ConnectAll(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
+	userHeaderValues []database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
@@ -83,6 +84,14 @@ func ConnectAll(
 	)
 	for _, tok := range tokens {
 		tokensByConfigID[tok.MCPServerConfigID] = tok
+	}
+
+	// Same indexing for the calling user's custom_headers values.
+	userHeaderValuesByConfigID := make(
+		map[uuid.UUID]database.McpServerUserHeaderValue, len(userHeaderValues),
+	)
+	for _, hv := range userHeaderValues {
+		userHeaderValuesByConfigID[hv.MCPServerConfigID] = hv
 	}
 
 	var (
@@ -110,7 +119,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				ctx, logger, cfg, tokensByConfigID, userHeaderValuesByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -174,11 +183,12 @@ func connectOne(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userHeaderValuesByConfigID map[uuid.UUID]database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userHeaderValuesByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
 	// transport is created so any auth header already set above
@@ -324,6 +334,7 @@ func buildAuthHeaders(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userHeaderValuesByConfigID map[uuid.UUID]database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
@@ -384,6 +395,35 @@ func buildAuthHeaders(
 				)
 			} else {
 				for k, v := range custom {
+					headers[k] = v
+				}
+			}
+		}
+		// Overlay user-supplied values for keys the admin marked as
+		// user-set. Validation guarantees these are disjoint from
+		// CustomHeaders, but the overlay is well-defined either way.
+		if len(cfg.CustomHeadersUserKeys) > 0 {
+			row, ok := userHeaderValuesByConfigID[cfg.ID]
+			if !ok {
+				logger.Warn(ctx,
+					"no user header values for MCP server",
+					slog.F("server_slug", cfg.Slug),
+				)
+				break
+			}
+			var user map[string]string
+			if err := json.Unmarshal(
+				[]byte(row.HeaderValues), &user,
+			); err != nil {
+				logger.Warn(ctx,
+					"failed to parse user header values JSON",
+					slog.F("server_slug", cfg.Slug),
+					slog.Error(err),
+				)
+				break
+			}
+			for _, k := range cfg.CustomHeadersUserKeys {
+				if v, ok := user[k]; ok && v != "" {
 					headers[k] = v
 				}
 			}

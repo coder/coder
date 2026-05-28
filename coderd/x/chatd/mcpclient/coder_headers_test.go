@@ -65,7 +65,7 @@ func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 	}
 
 	tools, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, uuid.Nil, nil,
 		coderHeaders,
 	)
 	t.Cleanup(cleanup)
@@ -115,7 +115,7 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 	})
 
 	tools, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, uuid.Nil, nil,
 		coderHeaders,
 	)
 	t.Cleanup(cleanup)
@@ -158,7 +158,7 @@ func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 	})
 
 	tools, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, uuid.Nil, nil,
 		coderHeaders,
 	)
 	t.Cleanup(cleanup)
@@ -204,7 +204,7 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 	})
 
 	tools, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, uuid.Nil, nil,
 		coderHeaders,
 	)
 	t.Cleanup(cleanup)
@@ -257,6 +257,7 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 		ctx, logger,
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{token},
+		nil,
 		uuid.Nil, nil,
 		coderHeaders,
 	)
@@ -306,7 +307,7 @@ func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
 	})
 
 	tools, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, uuid.Nil, nil,
 		coderHeaders,
 	)
 	t.Cleanup(cleanup)

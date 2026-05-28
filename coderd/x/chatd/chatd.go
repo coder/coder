@@ -7130,8 +7130,9 @@ func (p *Server) runChat(
 	// resolution. These queries have no dependencies on each other and all
 	// hit different tables.
 	var (
-		mcpConfigs []database.MCPServerConfig
-		mcpTokens  []database.MCPServerUserToken
+		mcpConfigs      []database.MCPServerConfig
+		mcpTokens       []database.MCPServerUserToken
+		mcpHeaderValues []database.McpServerUserHeaderValue
 	)
 	var g errgroup.Group
 	g.Go(func() error {
@@ -7174,6 +7175,22 @@ func (p *Server) runChat(
 			if err != nil {
 				logger.Warn(ctx,
 					"failed to load MCP user tokens",
+					slog.Error(err),
+				)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			var err error
+			// If header-values loading fails, ConnectAll proceeds
+			// without user values; custom_headers servers that
+			// require user-set keys will be missing those headers.
+			mcpHeaderValues, err = p.db.GetMCPServerUserHeaderValuesByUserID(
+				ctx, chat.OwnerID,
+			)
+			if err != nil {
+				logger.Warn(ctx,
+					"failed to load MCP user header values",
 					slog.Error(err),
 				)
 			}
@@ -7493,7 +7510,7 @@ func (p *Server) runChat(
 			// Refresh expired OAuth2 tokens before connecting.
 			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
-				ctx, logger, mcpConnectConfigs, mcpTokens, chat.OwnerID, p.oidcTokenSource,
+				ctx, logger, mcpConnectConfigs, mcpTokens, mcpHeaderValues, chat.OwnerID, p.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
 			)
 			return nil
