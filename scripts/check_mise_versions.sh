@@ -34,6 +34,18 @@ check_equal() {
 	fi
 }
 
+check_sha256_format() {
+	local label="$1"
+	local value="$2"
+
+	if [[ -z "${value}" ]]; then
+		error "Missing mise value for ${label}"
+	fi
+	if [[ ! "${value}" =~ ^[a-f0-9]{64}$ ]]; then
+		error "Expected 64-character lowercase SHA256 for ${label}: ${value}"
+	fi
+}
+
 mise_version="$(sed -n 's/^min_version = "\([^"]*\)"/\1/p' mise.toml)"
 check_not_empty "mise.toml min_version" "${mise_version}"
 
@@ -60,8 +72,14 @@ checksum_version="$(
 )"
 check_equal ".github/actions/setup-mise/checksums.toml" "${checksum_version}" "${mise_version}"
 
-linux_x64_checksum="$(./scripts/mise_checksum.sh .github/actions/setup-mise/checksums.toml "${mise_version}" linux-x64)"
-check_not_empty ".github/actions/setup-mise/checksums.toml linux-x64" "${linux_x64_checksum}"
+declare -A setup_mise_checksums=()
+for target in linux-x64 linux-arm64 macos-x64 macos-arm64 windows-x64; do
+	checksum="$(./scripts/mise_checksum.sh .github/actions/setup-mise/checksums.toml "${mise_version}" "${target}")"
+	check_not_empty ".github/actions/setup-mise/checksums.toml ${target}" "${checksum}"
+	check_sha256_format ".github/actions/setup-mise/checksums.toml ${target}" "${checksum}"
+	setup_mise_checksums["${target}"]="${checksum}"
+done
+linux_x64_checksum="${setup_mise_checksums["linux-x64"]}"
 
 sri_sha256_to_hex() {
 	local label="$1"
@@ -95,8 +113,7 @@ declare -A flake_targets=(
 )
 for system in "${!flake_targets[@]}"; do
 	target="${flake_targets[${system}]}"
-	expected_checksum="$(./scripts/mise_checksum.sh .github/actions/setup-mise/checksums.toml "${mise_version}" "${target}")"
-	check_not_empty ".github/actions/setup-mise/checksums.toml ${target}" "${expected_checksum}"
+	expected_checksum="${setup_mise_checksums[${target}]}"
 
 	flake_hash="$(
 		awk -v nix_system="${system}" '
@@ -119,6 +136,7 @@ wrapper_version="$(sed -n 's/^MISE_VERSION="v\([^"]*\)"/\1/p' scripts/dogfood/mi
 check_equal "scripts/dogfood/mise-oci-wrapper.sh" "${wrapper_version}" "${mise_version}"
 wrapper_checksum="$(sed -n 's/^MISE_SHA256="\([a-f0-9]*\)"/\1/p' scripts/dogfood/mise-oci-wrapper.sh)"
 check_equal "scripts/dogfood/mise-oci-wrapper.sh sha256" "${wrapper_checksum}" "${linux_x64_checksum}"
+check_sha256_format "scripts/dogfood/mise-oci-wrapper.sh sha256" "${wrapper_checksum}"
 
 for dockerfile in dogfood/coder/ubuntu-*/Dockerfile.base; do
 	dockerfile_version="$(sed -n 's/.*MISE_VERSION=v\([0-9.]*\).*/\1/p' "${dockerfile}" | head -n 1)"
@@ -126,6 +144,7 @@ for dockerfile in dogfood/coder/ubuntu-*/Dockerfile.base; do
 
 	dockerfile_checksum="$(sed -n 's/.*MISE_SHA256=\([a-f0-9]*\).*/\1/p' "${dockerfile}" | head -n 1)"
 	check_equal "${dockerfile} sha256" "${dockerfile_checksum}" "${linux_x64_checksum}"
+	check_sha256_format "${dockerfile} sha256" "${dockerfile_checksum}"
 done
 
 log "Mise version check passed, all versions are ${mise_version}"

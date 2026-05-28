@@ -55,5 +55,5 @@ runs:
 
     - name: Install node_modules
       shell: bash
-      run: ../scripts/pnpm_install.sh
-      working-directory: ${{ inputs.directory }}
+      run: "${GITHUB_WORKSPACE}/scripts/pnpm_install.sh"
+      working-directory: ${{ github.workspace }}/${{ inputs.directory }}

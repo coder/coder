@@ -60,7 +60,8 @@ jobs:
           set -euo pipefail
 
           # Keep this package version in sync with the pinned Linkspector action below.
-          range="$(npm view @umbrelladocs/linkspector@0.4.7 dependencies.puppeteer)"
+          linkspector_package="@umbrelladocs/linkspector@0.4.7"
+          range="$(npm view "${linkspector_package}" dependencies.puppeteer)"
           version="$(
             npm view "puppeteer@${range}" version --json |
               node -e '
@@ -73,7 +74,7 @@ jobs:
               '
           )"
           if [[ -z "${version}" || "${version}" == "undefined" ]]; then
-            echo "::error::Failed to resolve Puppeteer version"
+            echo "::error::Failed to resolve Puppeteer version for range '${range}' from ${linkspector_package}, got '${version}'"
             exit 1
           fi
 
