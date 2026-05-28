@@ -63,30 +63,28 @@ func TestReportBoundaryLogs(t *testing.T) {
 				return database.BoundarySession{ID: arg.ID}, nil
 			})
 
-		// Expect two log inserts (one allowed, one denied).
+		// Expect a single batch insert with both logs.
 		dbM.EXPECT().
-			InsertBoundaryLog(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
+			InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 				assert.Equal(t, sessionID, arg.SessionID)
-				assert.Equal(t, int32(0), arg.SequenceNumber)
-				assert.Equal(t, "http", arg.Proto)
-				assert.Equal(t, "GET", arg.Method)
-				assert.Equal(t, "https://example.com", arg.Detail)
-				assert.True(t, arg.MatchedRule.Valid)
-				assert.Equal(t, "domain=example.com", arg.MatchedRule.String)
-				return database.BoundaryLog{ID: arg.ID}, nil
-			})
+				require.Len(t, arg.ID, 2)
 
-		dbM.EXPECT().
-			InsertBoundaryLog(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
-				assert.Equal(t, sessionID, arg.SessionID)
-				assert.Equal(t, int32(1), arg.SequenceNumber)
-				assert.Equal(t, "http", arg.Proto)
-				assert.Equal(t, "POST", arg.Method)
-				assert.Equal(t, "https://evil.com/exfil", arg.Detail)
-				assert.False(t, arg.MatchedRule.Valid)
-				return database.BoundaryLog{ID: arg.ID}, nil
+				// First log: allowed GET.
+				assert.Equal(t, int32(0), arg.SequenceNumber[0])
+				assert.Equal(t, "http", arg.Proto[0])
+				assert.Equal(t, "GET", arg.Method[0])
+				assert.Equal(t, "https://example.com", arg.Detail[0])
+				assert.Equal(t, "domain=example.com", arg.MatchedRule[0])
+
+				// Second log: denied POST.
+				assert.Equal(t, int32(1), arg.SequenceNumber[1])
+				assert.Equal(t, "http", arg.Proto[1])
+				assert.Equal(t, "POST", arg.Method[1])
+				assert.Equal(t, "https://evil.com/exfil", arg.Detail[1])
+				assert.Equal(t, "", arg.MatchedRule[1])
+
+				return []database.BoundaryLog{{ID: arg.ID[0]}, {ID: arg.ID[1]}}, nil
 			})
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
@@ -145,8 +143,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 		// InsertBoundarySession should NOT be called.
 
 		dbM.EXPECT().
-			InsertBoundaryLog(gomock.Any(), gomock.Any()).
-			Return(database.BoundaryLog{}, nil)
+			InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+			Return([]database.BoundaryLog{{}}, nil)
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
 			SessionId:           sessionID.String(),
@@ -202,8 +200,8 @@ func TestReportBoundaryLogs(t *testing.T) {
 			Times(1)
 
 		dbM.EXPECT().
-			InsertBoundaryLog(gomock.Any(), gomock.Any()).
-			Return(database.BoundaryLog{}, nil).
+			InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+			Return([]database.BoundaryLog{{}}, nil).
 			Times(2) // One per batch
 
 		req := &agentproto.ReportBoundaryLogsRequest{
@@ -285,7 +283,7 @@ func TestReportBoundaryLogs(t *testing.T) {
 			GetBoundarySessionByID(gomock.Any(), sessionID).
 			Return(database.BoundarySession{ID: sessionID}, nil)
 
-		// No InsertBoundaryLog expected because the HTTP request is nil.
+		// No InsertBoundaryLogs expected because the HTTP request is nil.
 
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
 			SessionId:           sessionID.String(),
@@ -361,9 +359,9 @@ func TestReportBoundaryLogs(t *testing.T) {
 			Return(database.BoundarySession{ID: sessionID}, nil)
 
 		dbM.EXPECT().
-			InsertBoundaryLog(gomock.Any(), gomock.Any()).
-			Return(database.BoundaryLog{}, nil).
-			Times(2)
+			InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+			Return([]database.BoundaryLog{{}, {}}, nil).
+			Times(1)
 
 		_, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
 			SessionId:           sessionID.String(),

@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +47,12 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 		}
 	}
 
+	// Collect batch insert params while iterating.
+	var batch database.InsertBoundaryLogsParams
+	if persistEnabled {
+		batch.SessionID = sessionID
+	}
+
 	for _, l := range req.Logs {
 		var logTime time.Time
 		if l.Time != nil {
@@ -84,17 +89,32 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 			a.Log.With(fields...).Info(ctx, "boundary_request")
 
 			if persistEnabled {
-				insertErr := a.insertHTTPLog(ctx, sessionID, l, r.HttpRequest, now, logTime)
-				if insertErr != nil {
-					a.Log.Error(ctx, "failed to insert boundary log",
-						slog.F("session_id", sessionID.String()),
-						slog.F("sequence_number", l.SequenceNumber),
-						slog.Error(insertErr))
+				var matchedRule string
+				if l.Allowed && r.HttpRequest.MatchedRule != "" {
+					matchedRule = r.HttpRequest.MatchedRule
 				}
+				batch.ID = append(batch.ID, uuid.New())
+				batch.SequenceNumber = append(batch.SequenceNumber, l.SequenceNumber)
+				batch.CapturedAt = append(batch.CapturedAt, now)
+				batch.CreatedAt = append(batch.CreatedAt, logTime)
+				batch.Proto = append(batch.Proto, "http")
+				batch.Method = append(batch.Method, r.HttpRequest.Method)
+				batch.Detail = append(batch.Detail, r.HttpRequest.Url)
+				batch.MatchedRule = append(batch.MatchedRule, matchedRule)
 			}
 		default:
 			a.Log.Warn(ctx, "unknown resource type",
 				slog.F("workspace_id", a.WorkspaceID.String()))
+		}
+	}
+
+	// Batch-insert all collected logs in a single query.
+	if persistEnabled && len(batch.ID) > 0 {
+		if _, insertErr := a.Database.InsertBoundaryLogs(ctx, batch); insertErr != nil {
+			a.Log.Error(ctx, "failed to insert boundary logs",
+				slog.F("session_id", sessionID.String()),
+				slog.F("count", len(batch.ID)),
+				slog.Error(insertErr))
 		}
 	}
 
@@ -134,37 +154,6 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		return xerrors.Errorf("insert boundary session: %w", err)
 	}
 
-	return nil
-}
-
-// insertHTTPLog persists a single HTTP boundary log entry.
-func (a *BoundaryLogsAPI) insertHTTPLog(
-	ctx context.Context,
-	sessionID uuid.UUID,
-	l *agentproto.BoundaryLog,
-	httpReq *agentproto.BoundaryLog_HttpRequest,
-	capturedAt time.Time,
-	createdAt time.Time,
-) error {
-	var matchedRule sql.NullString
-	if l.Allowed && httpReq.MatchedRule != "" {
-		matchedRule = sql.NullString{String: httpReq.MatchedRule, Valid: true}
-	}
-
-	_, err := a.Database.InsertBoundaryLog(ctx, database.InsertBoundaryLogParams{
-		ID:             uuid.New(),
-		SessionID:      sessionID,
-		SequenceNumber: l.SequenceNumber,
-		CapturedAt:     capturedAt,
-		CreatedAt:      createdAt,
-		Proto:          "http",
-		Method:         httpReq.Method,
-		Detail:         httpReq.Url,
-		MatchedRule:    matchedRule,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert boundary log: %w", err)
-	}
 	return nil
 }
 
