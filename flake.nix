@@ -152,7 +152,7 @@
         # `make gen` across platforms.
         terraform_1_15_5 =
           let
-            hashes = {
+            releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
                 hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
@@ -170,7 +170,7 @@
                 hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
               };
             };
-            target = hashes.${system} or null;
+            target = releases.${system} or null;
           in
           if target != null then
             pkgs.runCommand "terraform-1.15.5" {
