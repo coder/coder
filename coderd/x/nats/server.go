@@ -1,9 +1,6 @@
 package nats
 
 import (
-	"net"
-	"net/url"
-	"strconv"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -17,8 +14,6 @@ const readyTimeout = 10 * time.Second
 // server runs with a loopback random client listener and an optional
 // cluster route listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
-	opts = defaultOptions(opts)
-
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
@@ -54,23 +49,12 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			routePoolSize = defaultRoutePoolSize
 		}
 
-		routes, err := parsePeerAddresses(opts.PeerAddresses)
-		if err != nil {
-			return nil, err
-		}
-		selfRoute := &url.URL{
-			Scheme: "nats",
-			Host:   net.JoinHostPort(clusterHost, strconv.Itoa(clusterPort)),
-		}
-		routes = filterSelfRoutes(routes, selfRoute)
-
 		sopts.Cluster = natsserver.ClusterOpts{
 			Name:     defaultClusterName,
 			Host:     clusterHost,
 			Port:     clusterPort,
 			PoolSize: routePoolSize,
 		}
-		sopts.Routes = routes
 	}
 
 	return sopts, nil

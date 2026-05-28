@@ -26,15 +26,12 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	if err != nil {
 		return err
 	}
-	selfRoutes := []*url.URL{{
-		Scheme: "nats",
-		Host:   net.JoinHostPort(p.serverOpts.Cluster.Host, strconv.Itoa(p.serverOpts.Cluster.Port)),
-	}}
-	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
-		selfRoutes = append(selfRoutes, &url.URL{Scheme: "nats", Host: clusterAddr.String()})
-	}
-	routes = filterSelfRoutes(routes, selfRoutes...)
-	if routeURLsEqual(p.currentRoutes, routes) {
+
+	self := &url.URL{Scheme: "nats", Host: p.ns.ClusterAddr().String()}
+	routes = filterSelfRoutes(routes, self)
+	routes = sortRouteURLs(routes)
+
+	if sortedURLsEqual(p.currentRoutes, routes) {
 		return nil
 	}
 
@@ -46,20 +43,6 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	p.serverOpts = newOpts.Clone()
 	p.currentRoutes = cloneRouteURLs(routes)
 	return nil
-}
-
-func clusterRequested(opts Options) bool {
-	return opts.ClusterHost != "" ||
-		opts.ClusterPort != 0 ||
-		opts.RoutePoolSize != 0 ||
-		len(opts.PeerAddresses) > 0
-}
-
-func defaultOptions(opts Options) Options {
-	if !clusterRequested(opts) {
-		opts.disableCluster = true
-	}
-	return opts
 }
 
 func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
@@ -85,31 +68,13 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 	for _, route := range routesByAddress {
 		routes = append(routes, route)
 	}
-	// Sort them so that we can easily check for equality on incoming SetPeerAddresses calls.
-	slices.SortFunc(routes, func(a, b *url.URL) int {
-		return strings.Compare(a.String(), b.String())
-	})
 	return routes, nil
 }
 
-func filterSelfRoutes(routes []*url.URL, selfRoutes ...*url.URL) []*url.URL {
-	self := make(map[string]struct{}, len(selfRoutes))
-	for _, route := range selfRoutes {
-		if route == nil {
-			continue
-		}
-		self[route.Host] = struct{}{}
-	}
-	if len(self) == 0 {
-		return routes
-	}
-
+func filterSelfRoutes(routes []*url.URL, self *url.URL) []*url.URL {
 	filtered := routes[:0]
 	for _, route := range routes {
-		if route == nil {
-			continue
-		}
-		if _, ok := self[route.Host]; ok {
+		if route.String() == self.String() {
 			continue
 		}
 		filtered = append(filtered, route)
@@ -135,7 +100,15 @@ func normalizeHostPort(address string) (string, error) {
 	return net.JoinHostPort(host, strconv.Itoa(portNumber)), nil
 }
 
-func routeURLsEqual(a, b []*url.URL) bool {
+func sortRouteURLs(routes []*url.URL) []*url.URL {
+	slices.SortFunc(routes, func(a, b *url.URL) int {
+		return strings.Compare(a.String(), b.String())
+	})
+	return routes
+}
+
+// sortedURLsEqual assumes sorted slices.
+func sortedURLsEqual(a, b []*url.URL) bool {
 	if len(a) != len(b) {
 		return false
 	}

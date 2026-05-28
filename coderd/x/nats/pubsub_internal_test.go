@@ -537,7 +537,7 @@ func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 	t.Helper()
 	want, err := parsePeerAddresses(addresses)
 	require.NoError(t, err)
-	require.True(t, routeURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
+	require.True(t, sortedURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
 }
 
 func routeStrings(routes []*url.URL) []string {

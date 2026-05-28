@@ -85,9 +85,6 @@ type Options struct {
 	// default when cluster mode is enabled.
 	RoutePoolSize int
 
-	// PeerAddresses are the initial host:port cluster route addresses.
-	PeerAddresses []string
-
 	disableCluster bool
 }
 
@@ -232,8 +229,6 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	opts = defaultOptions(opts)
-
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
