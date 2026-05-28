@@ -140,10 +140,13 @@ if [[ " $* " == *" --check "* ]]; then
 	fi
 fi
 
-# The committed testdata encodes linux/amd64 values from the coder_provisioner
-# data source. Regenerating on a non-Linux host would bake in darwin/arm64 (or
-# similar) and dirty the tree. Guard here so local runs on macOS are safe.
+# Committed testdata encodes linux/amd64 values from coder_provisioner.
+# Regenerating elsewhere bakes in the host OS/arch.
 if [[ "$(uname)" != "Linux" ]]; then
+	if ((upgrade)); then
+		echo "ERROR: --upgrade is not supported on $(uname); run on Linux or via CI."
+		exit 1
+	fi
 	echo "Note: skipping testdata regeneration on $(uname); regenerate on Linux or via CI."
 	exit 0
 fi

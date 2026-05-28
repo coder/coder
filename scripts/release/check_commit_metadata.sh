@@ -87,8 +87,7 @@ main() {
 		[support]="Support"
 		[tailnet]="Networking"
 	)
-	# shfmt (>=3.13) parses [install.sh] as floating-point arithmetic in array
-	# literals, so this entry is assigned after the declaration instead.
+	# shfmt (>=3.13) parses [install.sh] as floating-point arithmetic in array literals.
 	humanized_areas["install.sh"]="Installer"
 
 	# Get hashes for all cherry-picked commits between the selected ref

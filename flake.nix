@@ -148,40 +148,36 @@
           vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
         };
 
-        # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
-        # so `make gen` remains deterministic across platforms.
+        # Pin to provisioner/terraform/testdata/version.txt for deterministic
+        # `make gen` across platforms.
         terraform_1_15_5 =
           let
-            terraformPlatform =
-              if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-                {
-                  platform = "linux_amd64";
-                  hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
-                }
-              else if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isAarch64 then
-                {
-                  platform = "linux_arm64";
-                  hash = "sha256-Bue0jegmFGxtkzG6NbE9oSMy2Dkr4w0d1reJukcT//A=";
-                }
-              else if pkgs.stdenv.isDarwin && pkgs.stdenv.hostPlatform.isAarch64 then
-                {
-                  platform = "darwin_arm64";
-                  hash = "sha256-ARN2YFEABbkYu6ghVIZvvqxDkxY9gnfCq+hh37WELDw=";
-                }
-              else if pkgs.stdenv.isDarwin && pkgs.stdenv.hostPlatform.isx86_64 then
-                {
-                  platform = "darwin_amd64";
-                  hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
-                }
-              else
-                null;
+            hashes = {
+              x86_64-linux = {
+                platform = "linux_amd64";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+              };
+              aarch64-linux = {
+                platform = "linux_arm64";
+                hash = "sha256-Bue0jegmFGxtkzG6NbE9oSMy2Dkr4w0d1reJukcT//A=";
+              };
+              aarch64-darwin = {
+                platform = "darwin_arm64";
+                hash = "sha256-ARN2YFEABbkYu6ghVIZvvqxDkxY9gnfCq+hh37WELDw=";
+              };
+              x86_64-darwin = {
+                platform = "darwin_amd64";
+                hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
+              };
+            };
+            target = hashes.${system} or null;
           in
-          if terraformPlatform != null then
+          if target != null then
             pkgs.runCommand "terraform-1.15.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_${terraformPlatform.platform}.zip";
-                hash = terraformPlatform.hash;
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_${target.platform}.zip";
+                hash = target.hash;
               };
             } ''
               mkdir -p "$out/bin"
