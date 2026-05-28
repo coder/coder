@@ -61,6 +61,10 @@ func terminalMessage(classified ClassifiedError) string {
 			subject,
 		)
 
+	case codersdk.ChatErrorKindMissingKey:
+		return "This conversation was started with an API key that is no longer available." +
+			" Send your message again to continue."
+
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
@@ -102,6 +106,8 @@ func retryMessage(classified ClassifiedError) string {
 		return fmt.Sprintf(
 			"%s rejected the model configuration.", subject,
 		)
+	case codersdk.ChatErrorKindMissingKey:
+		return "The API key for this conversation is no longer available."
 	default:
 		return fmt.Sprintf(
 			"%s returned an unexpected error.", subject,
