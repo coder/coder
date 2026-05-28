@@ -55,7 +55,7 @@ INSERT INTO boundary_logs (
 )
 SELECT
     unnest(@id :: uuid[]),
-    unnest(@session_id :: uuid[]),
+    @session_id :: uuid,
     unnest(@sequence_number :: int[]),
     unnest(@captured_at :: timestamptz[]),
     unnest(@created_at :: timestamptz[]),

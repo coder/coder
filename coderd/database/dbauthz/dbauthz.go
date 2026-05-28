@@ -5482,12 +5482,10 @@ func (q *querier) InsertBoundaryLog(ctx context.Context, arg database.InsertBoun
 }
 
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
-	// All entries in a batch share the same session. Authorize once
-	// using the session's denormalized owner_id.
-	if len(arg.SessionID) == 0 {
-		return nil, nil
-	}
-	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID[0])
+	// SessionID is a scalar; every row in the batch belongs to the
+	// same session. Authorize once using the session's denormalized
+	// owner_id.
+	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
 	if err != nil {
 		return nil, xerrors.Errorf("get boundary session for owner: %w", err)
 	}

@@ -3721,7 +3721,7 @@ INSERT INTO boundary_logs (
 )
 SELECT
     unnest($1 :: uuid[]),
-    unnest($2 :: uuid[]),
+    $2 :: uuid,
     unnest($3 :: int[]),
     unnest($4 :: timestamptz[]),
     unnest($5 :: timestamptz[]),
@@ -3734,7 +3734,7 @@ RETURNING id, session_id, sequence_number, captured_at, created_at, proto, metho
 
 type InsertBoundaryLogsParams struct {
 	ID             []uuid.UUID `db:"id" json:"id"`
-	SessionID      []uuid.UUID `db:"session_id" json:"session_id"`
+	SessionID      uuid.UUID   `db:"session_id" json:"session_id"`
 	SequenceNumber []int32     `db:"sequence_number" json:"sequence_number"`
 	CapturedAt     []time.Time `db:"captured_at" json:"captured_at"`
 	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
@@ -3747,7 +3747,7 @@ type InsertBoundaryLogsParams struct {
 func (q *sqlQuerier) InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertBoundaryLogs,
 		pq.Array(arg.ID),
-		pq.Array(arg.SessionID),
+		arg.SessionID,
 		pq.Array(arg.SequenceNumber),
 		pq.Array(arg.CapturedAt),
 		pq.Array(arg.CreatedAt),
