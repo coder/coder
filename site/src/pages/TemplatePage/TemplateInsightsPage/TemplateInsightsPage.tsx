@@ -331,7 +331,6 @@ interface UsersLatencyPanelProps extends PanelProps {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
 	dataProtectionEnabled: boolean | undefined;
-	dpTier: number | undefined;
 }
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
@@ -397,7 +396,6 @@ interface UsersActivityPanelProps extends PanelProps {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
 	dataProtectionEnabled: boolean | undefined;
-	dpTier: number | undefined;
 }
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
