@@ -4602,9 +4602,6 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY boundary_logs
-    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
