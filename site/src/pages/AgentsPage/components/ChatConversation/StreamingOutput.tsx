@@ -1,3 +1,4 @@
+import { BrainIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -36,7 +37,8 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 const StreamingThinkingPlaceholder: FC = () => (
 	<div data-transcript-row="" className="text-content-secondary">
 		<TranscriptRow className="w-full gap-2">
-			<Shimmer as="span" className="text-[13px] leading-relaxed">
+			<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+			<Shimmer as="span" className="text-[13px] leading-6">
 				Thinking
 			</Shimmer>
 		</TranscriptRow>

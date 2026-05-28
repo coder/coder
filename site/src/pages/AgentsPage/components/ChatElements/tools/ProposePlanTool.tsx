@@ -11,6 +11,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
 import { TranscriptRow } from "../TranscriptRow";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
@@ -73,8 +74,13 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<TranscriptRow className="gap-1.5 text-content-secondary">
-				<span className="text-[13px]">
+			<TranscriptRow className="gap-2 text-content-secondary">
+				<ToolIcon
+					name="propose_plan"
+					isError={effectiveError}
+					isRunning={isRunning}
+				/>
+				<span className="text-[13px] leading-6">
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
@@ -138,7 +144,7 @@ export const ProposePlanTool: React.FC<{
 				)
 			)}
 			{fetchLoading && (
-				<TranscriptRow className="gap-1.5 text-[13px] text-content-secondary">
+				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
 					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</TranscriptRow>

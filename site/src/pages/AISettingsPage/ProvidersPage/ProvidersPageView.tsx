@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import type { AIProvider } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -9,6 +9,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -87,12 +88,8 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					Bedrock. Providers configured here power Coder Agents, AI Gateway, and
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
-					<Link
-						to={docs("/ai-coder/ai-gateway/auth#enable-or-disable-byok")}
-						target="_blank"
-						rel="noreferrer"
-					>
-						Manage deployment-wide BYOK
+					<Link href={docs("/ai-coder/ai-gateway/auth#enable-or-disable-byok")}>
+						View docs
 					</Link>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

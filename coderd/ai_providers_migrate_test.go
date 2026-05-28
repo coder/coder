@@ -371,14 +371,15 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// vercel is a valid ai_provider_type DB value but the aibridge
-		// runtime has no constructor for it, so the seed switch falls
-		// into the default branch and skips the row.
+		// A TYPE that isn't part of the ai_provider_type enum falls
+		// into the default branch and the row is skipped rather than
+		// rejected, so deployments don't fail to start over a single
+		// typo'd provider.
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{
-					Type:    "vercel",
-					Name:    "vercel-instance",
+					Type:    "not-a-real-provider",
+					Name:    "ghost",
 					BaseURL: "https://example.com",
 				},
 				{

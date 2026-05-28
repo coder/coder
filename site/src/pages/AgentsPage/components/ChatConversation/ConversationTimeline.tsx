@@ -1,4 +1,9 @@
-import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
+import {
+	BrainIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	PencilIcon,
+} from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -160,13 +165,16 @@ const ReasoningDisclosure = memo<{
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
 					header={
-						isStreaming ? (
-							<Shimmer as="span" className="text-[13px]">
-								{title}
-							</Shimmer>
-						) : (
-							<span className="text-[13px]">{title}</span>
-						)
+						<>
+							<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+							{isStreaming ? (
+								<Shimmer as="span" className="text-[13px] leading-6">
+									{title}
+								</Shimmer>
+							) : (
+								<span className="text-[13px] leading-6">{title}</span>
+							)}
+						</>
 					}
 				>
 					{hasText && (

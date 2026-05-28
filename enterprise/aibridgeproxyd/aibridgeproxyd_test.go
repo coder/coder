@@ -158,6 +158,7 @@ type testProxyConfig struct {
 	allowedPrivateCIDRs      []string
 	newDumper                func(string, string) aibridgeproxyd.RoundTripDumper
 	metrics                  *aibridgeproxyd.Metrics
+	refreshProviders         aibridgeproxyd.RefreshProvidersFunc
 }
 
 type testProxyOption func(*testProxyConfig)
@@ -250,6 +251,12 @@ func withListenerTLS(certFile, keyFile string) testProxyOption {
 	}
 }
 
+func withRefreshProviders(fn aibridgeproxyd.RefreshProvidersFunc) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.refreshProviders = fn
+	}
+}
+
 // newTestProxy creates a new AI Bridge Proxy server for testing.
 // It uses the shared MITM certificate and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
@@ -289,6 +296,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		AllowedPrivateCIDRs:      cfg.allowedPrivateCIDRs,
 		NewDumper:                cfg.newDumper,
 		Metrics:                  cfg.metrics,
+		RefreshProviders:         cfg.refreshProviders,
 	}
 	if cfg.certStore != nil {
 		aibridgeOpts.CertStore = cfg.certStore
