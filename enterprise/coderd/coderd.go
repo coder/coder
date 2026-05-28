@@ -620,10 +620,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/{agent}/credentials", api.workspaceExternalAgentCredentials)
 		})
-		r.With(
-			apiKeyMiddleware,
-			api.RequireFeatureMW(codersdk.FeatureWorkspaceExternalAgent),
-		).Post("/workspaces/external-agent/tokens", api.workspaceExternalAgentTokensByWorkspaceIDs)
 	})
 
 	if len(options.SCIMAPIKey) != 0 {

@@ -839,39 +839,6 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
 }
 
-// ExternalAgentTokensByWorkspaceIDsRequest is the request body for the
-// multi-workspace external-agent token fetch endpoint.
-type ExternalAgentTokensByWorkspaceIDsRequest struct {
-	WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
-}
-
-// ExternalAgentTokensByWorkspaceIDsRow is a single token entry in ExternalAgentTokensByWorkspaceIDsResponse.
-type ExternalAgentTokensByWorkspaceIDsRow struct {
-	WorkspaceID uuid.UUID `json:"workspace_id"`
-	AgentID     uuid.UUID `json:"agent_id"`
-	AgentName   string    `json:"agent_name"`
-	AgentToken  string    `json:"agent_token"`
-}
-
-// ExternalAgentTokensByWorkspaceIDsResponse is the response for ExternalAgentTokensByWorkspaceIDs.
-type ExternalAgentTokensByWorkspaceIDsResponse struct {
-	Agents []ExternalAgentTokensByWorkspaceIDsRow `json:"agents"`
-}
-
-// ExternalAgentTokensByWorkspaceIDs fetches external-agent tokens for multiple workspaces in one round-trip.
-func (c *Client) ExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) (ExternalAgentTokensByWorkspaceIDsResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaces/external-agent/tokens", ExternalAgentTokensByWorkspaceIDsRequest{WorkspaceIDs: workspaceIDs})
-	if err != nil {
-		return ExternalAgentTokensByWorkspaceIDsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ExternalAgentTokensByWorkspaceIDsResponse{}, ReadBodyAsError(res)
-	}
-	var resp ExternalAgentTokensByWorkspaceIDsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
 // WorkspaceBuildUpdate contains information about a workspace build state change.
 // This is published via the /watch-all-workspacebuilds SSE endpoint when the
 // workspace-build-updates experiment is enabled.
