@@ -2125,7 +2125,20 @@ LEFT JOIN LATERAL (
 	SELECT
 		(ARRAY_AGG(ai.client ORDER BY ai.started_at, ai.id))[1] AS client,
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
+		-- Order providers by usage frequency (most-used first) so the
+		-- "primary" chat provider appears at index 0 even when a
+		-- secondary provider (e.g. Anthropic Haiku for title generation)
+		-- is also present in the session.
+		(SELECT array_agg(sub.provider ORDER BY sub.cnt DESC, sub.provider)
+		 FROM (
+		   SELECT ai2.provider, COUNT(*) AS cnt
+		   FROM aibridge_interceptions ai2
+		   WHERE ai2.session_id = sp.session_id
+		     AND ai2.initiator_id = sp.initiator_id
+		     AND ai2.ended_at IS NOT NULL
+		   GROUP BY ai2.provider
+		 ) sub
+		) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids
 	FROM aibridge_interceptions ai

@@ -840,6 +840,49 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.ElementsMatch(t, []string{"claude-4", "gpt-4"}, s4.Models)
 	})
 
+	// Regression test for https://linear.app/codercom/issue/AIGOV-403
+	t.Run("ProviderOrderByFrequency", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Simulate an OpenAI chat session with 3 OpenAI interceptions
+		// and 1 Anthropic interception (title generation via Haiku).
+		for i := range 3 {
+			endedAt := now.Add(time.Duration(i+1) * time.Minute)
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "openai",
+				Model:           "gpt-4o",
+				StartedAt:       now.Add(time.Duration(i) * time.Minute),
+				Client:          sql.NullString{String: "cursor", Valid: true},
+				ClientSessionID: sql.NullString{String: "session-freq", Valid: true},
+			}, &endedAt)
+		}
+		// Single Anthropic title-generation interception in the same session.
+		haikuEnded := now.Add(30 * time.Second)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-haiku-4-5",
+			StartedAt:       now.Add(10 * time.Second),
+			Client:          sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID: sql.NullString{String: "session-freq", Valid: true},
+		}, &haikuEnded)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 1)
+
+		s := res.Sessions[0]
+		require.Equal(t, "session-freq", s.ID)
+		// OpenAI must be first because it has more interceptions.
+		require.Equal(t, []string{"openai", "anthropic"}, s.Providers)
+	})
+
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
