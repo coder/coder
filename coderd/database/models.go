@@ -5001,6 +5001,7 @@ type MCPServerConfig struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CustomHeadersUserKeys   []string       `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
 }
 
 type MCPServerUserToken struct {
@@ -5013,6 +5014,16 @@ type MCPServerUserToken struct {
 	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
 	TokenType         string         `db:"token_type" json:"token_type"`
 	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type McpServerUserHeaderValue struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	HeaderValues      string         `db:"header_values" json:"header_values"`
+	HeaderValuesKeyID sql.NullString `db:"header_values_key_id" json:"header_values_key_id"`
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 }
