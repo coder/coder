@@ -424,6 +424,31 @@ func (p *Server) prepareQuickgenDebugCandidate(
 	return runCtx, debugModel, finishDebugRun
 }
 
+const quickgenStructuredOutputReady = "Ready to provide the structured output."
+
+func syntheticObjectGenerationPrompt(systemPrompt string, userInput string) fantasy.Prompt {
+	return fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: systemPrompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: userInput},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: quickgenStructuredOutputReady},
+			},
+		},
+	}
+}
+
 // generateTitle calls the model with a title-generation system prompt
 // and returns the normalized result. It retries transient LLM errors
 // (rate limits, overloaded, etc.) with exponential backoff.
@@ -468,20 +493,7 @@ func generateStructuredTitleWithUsage(
 		return "", fantasy.Usage{}, xerrors.New("title input was empty")
 	}
 
-	prompt := fantasy.Prompt{
-		{
-			Role: fantasy.MessageRoleSystem,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: systemPrompt},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: userInput},
-			},
-		},
-	}
+	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
 
 	var maxOutputTokens int64 = 256
 	var result *fantasy.ObjectResult[generatedTitle]
@@ -908,20 +920,7 @@ func generateStructuredTurnStatusLabel(
 		return "", xerrors.New("turn status label input was empty")
 	}
 
-	prompt := fantasy.Prompt{
-		{
-			Role: fantasy.MessageRoleSystem,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: systemPrompt},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: userInput},
-			},
-		},
-	}
+	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
 
 	var maxOutputTokens int64 = 64
 	var result *fantasy.ObjectResult[generatedTurnStatusLabel]

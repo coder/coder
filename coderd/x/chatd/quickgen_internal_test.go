@@ -417,6 +417,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	model := &chattest.FakeModel{
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Equal(t, "propose_title", call.SchemaName)
+			requireSyntheticQuickgenPrompt(t, call.Prompt, userPrompt)
 			return &fantasy.ObjectResponse{
 				Object: map[string]any{"title": wantTitle},
 			}, nil
@@ -494,7 +495,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 				deadline,
 				2*time.Second,
 			)
-			require.Len(t, call.Prompt, 2)
+			requireSyntheticQuickgenPrompt(t, call.Prompt, "refresh chat title")
 			require.Equal(t, "propose_title", call.SchemaName)
 			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
 		},
@@ -524,7 +525,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 
 	model := &chattest.FakeModel{
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			require.Len(t, call.Prompt, 2)
+			requireSyntheticQuickgenPrompt(t, call.Prompt, truncateRunes(longFirstUserText, 1000))
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
 			require.Contains(t, systemText.Text, truncateRunes(longFirstUserText, 1000))
@@ -687,6 +688,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	body := testutil.TryReceive(t.Context(), t, requests)
 	require.Equal(t, "required", body["tool_choice"])
+	requireOpenAICompatLastMessageRole(t, body, "assistant")
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -764,6 +766,40 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 	return model
 }
 
+func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInput string) {
+	t.Helper()
+
+	require.Len(t, prompt, 3)
+	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.NotEqual(t, fantasy.MessageRoleUser, prompt[len(prompt)-1].Role)
+
+	require.NotEmpty(t, prompt[1].Content)
+	require.NotEmpty(t, prompt[2].Content)
+
+	userText, ok := prompt[1].Content[0].(fantasy.TextPart)
+	require.True(t, ok)
+	require.Equal(t, userInput, userText.Text)
+
+	assistantText, ok := prompt[2].Content[0].(fantasy.TextPart)
+	require.True(t, ok)
+	require.Equal(t, quickgenStructuredOutputReady, assistantText.Text)
+}
+
+func requireOpenAICompatLastMessageRole(t *testing.T, body map[string]any, want string) {
+	t.Helper()
+
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, messages)
+
+	lastMessage, ok := messages[len(messages)-1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, want, lastMessage["role"])
+	require.NotEqual(t, "user", lastMessage["role"])
+}
+
 func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
@@ -773,6 +809,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		model := &chattest.FakeModel{
 			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				requireSyntheticQuickgenPrompt(t, call.Prompt, "done")
 				return &fantasy.ObjectResponse{
 					Object: map[string]any{"label": "Submitted PR"},
 				}, nil
@@ -797,6 +834,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
+		requireOpenAICompatLastMessageRole(t, body, "assistant")
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
