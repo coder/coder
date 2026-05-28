@@ -27,8 +27,6 @@ const ConnectionLogPage: FC = () => {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
-	const dpTier = dpStatus.data?.tier;
-	const isAuditor = dpStatus.data?.auditor;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const connectionlogsQuery = usePaginatedQuery(
@@ -97,9 +95,6 @@ const ConnectionLogPage: FC = () => {
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}
-				dataProtectionEnabled={dataProtectionEnabled}
-				dpTier={dpTier}
-				isAuditor={isAuditor}
 			/>
 		</>
 	);

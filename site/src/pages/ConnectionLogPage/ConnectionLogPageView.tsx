@@ -1,6 +1,5 @@
 import type { ComponentProps, FC } from "react";
 import type { ConnectionLog } from "#/api/typesGenerated";
-import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -33,9 +32,6 @@ interface ConnectionLogPageViewProps {
 	error?: unknown;
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
-	dataProtectionEnabled?: boolean;
-	dpTier?: number;
-	isAuditor?: boolean;
 }
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
@@ -45,9 +41,6 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	error,
 	filterProps,
 	connectionLogsQuery: paginationResult,
-	dataProtectionEnabled,
-	isAuditor,
-	dpTier,
 }) => {
 	const isLoading =
 		(connectionLogs === undefined ||
@@ -69,12 +62,6 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 					View workspace connection events.
 				</PageHeaderSubtitle>
 			</PageHeader>
-
-			<DataProtectionBanner
-				dataProtectionEnabled={dataProtectionEnabled}
-				tier={dpTier}
-				isAuditor={isAuditor}
-			/>
 
 			{isConnectionLogVisible ? (
 				<>

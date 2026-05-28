@@ -27991,6 +27991,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserDPMBannerHidden = `-- name: GetUserDPMBannerHidden :one
+SELECT
+	value::boolean as dpm_banner_hidden
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_dpm_banner_hidden'
+`
+
+func (q *sqlQuerier) GetUserDPMBannerHidden(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserDPMBannerHidden, userID)
+	var dpm_banner_hidden bool
+	err := row.Scan(&dpm_banner_hidden)
+	return dpm_banner_hidden, err
+}
+
 const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one
 SELECT
 	value AS shell_tool_display_mode
@@ -28623,6 +28640,33 @@ func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg Upda
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const updateUserDPMBannerHidden = `-- name: UpdateUserDPMBannerHidden :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_dpm_banner_hidden', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_dpm_banner_hidden'
+RETURNING value::boolean AS dpm_banner_hidden
+`
+
+type UpdateUserDPMBannerHiddenParams struct {
+	UserID          uuid.UUID `db:"user_id" json:"user_id"`
+	DpmBannerHidden bool      `db:"dpm_banner_hidden" json:"dpm_banner_hidden"`
+}
+
+func (q *sqlQuerier) UpdateUserDPMBannerHidden(ctx context.Context, arg UpdateUserDPMBannerHiddenParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserDPMBannerHidden, arg.UserID, arg.DpmBannerHidden)
+	var dpm_banner_hidden bool
+	err := row.Scan(&dpm_banner_hidden)
+	return dpm_banner_hidden, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

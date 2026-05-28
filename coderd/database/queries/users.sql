@@ -324,6 +324,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING value::boolean AS task_notification_alert_dismissed;
 
+-- name: GetUserDPMBannerHidden :one
+SELECT
+	value::boolean as dpm_banner_hidden
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_dpm_banner_hidden';
+
+-- name: UpdateUserDPMBannerHidden :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_dpm_banner_hidden', (@dpm_banner_hidden::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @dpm_banner_hidden
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_dpm_banner_hidden'
+RETURNING value::boolean AS dpm_banner_hidden;
+
 -- name: GetUserThinkingDisplayMode :one
 SELECT
 	value AS thinking_display_mode

@@ -1,8 +1,9 @@
 import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { type UseQueryResult, type UseMutationResult, useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
+import type { UserPreferenceSettings, UpdateUserPreferenceSettingsRequest } from "#/api/typesGenerated";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -12,6 +13,7 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "#/api/queries/notifications";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
@@ -266,11 +268,56 @@ const NotificationsPage: FC = () => {
 			) : (
 				<Loader />
 			)}
+
+			<DPMBannerToggle
+				preferencesQuery={preferencesQuery}
+				updatePreferencesMutation={updatePreferencesMutation}
+			/>
 		</>
 	);
 };
 
 export default NotificationsPage;
+
+
+interface DPMBannerToggleProps {
+	preferencesQuery: UseQueryResult<UserPreferenceSettings>;
+	updatePreferencesMutation: UseMutationResult<UserPreferenceSettings, unknown, UpdateUserPreferenceSettingsRequest>;
+}
+
+const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
+	preferencesQuery,
+	updatePreferencesMutation,
+}) => {
+	const dpStatus = useQuery(dataProtectionStatus());
+
+	if (!dpStatus.data?.enabled) {
+		return null;
+	}
+
+	const isHidden = preferencesQuery.data?.dpm_banner_hidden ?? false;
+
+	return (
+		<div className="border-t border-solid border-border pt-8 mt-4">
+			<h2 className="text-lg font-semibold mb-2">Data Protection</h2>
+			<label className="flex items-center gap-3 cursor-pointer">
+				<input
+					type="checkbox"
+					checked={!isHidden}
+					onChange={(e) => {
+						updatePreferencesMutation.mutate({
+							dpm_banner_hidden: !e.target.checked,
+						});
+					}}
+					className="size-4"
+				/>
+				<span className="text-sm text-content-secondary">
+					Show Data Protection Mode banner
+				</span>
+			</label>
+		</div>
+	);
+};
 
 function canSeeNotificationGroup(
 	group: string,

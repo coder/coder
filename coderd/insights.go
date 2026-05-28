@@ -911,6 +911,7 @@ func (api *API) dataProtectionStatus(rw http.ResponseWriter, r *http.Request) {
 		Enabled: enabled,
 		Tier:    tier,
 		Auditor: auditor,
+		InfoURL: api.DeploymentValues.DataProtection.InfoURL.Value(),
 	})
 }
 

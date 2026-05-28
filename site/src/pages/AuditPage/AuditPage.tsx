@@ -26,8 +26,6 @@ const AuditPage: FC = () => {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
-	const dpTier = dpStatus.data?.tier;
-	const isAuditor = dpStatus.data?.auditor;
 
 	/**
 	 * There is an implicit link between auditsQuery and filter via the
@@ -102,9 +100,6 @@ const AuditPage: FC = () => {
 						organization: showOrganizations ? organizationsMenu : undefined,
 					},
 				}}
-				dataProtectionEnabled={dataProtectionEnabled}
-				dpTier={dpTier}
-				isAuditor={isAuditor}
 			/>
 		</>
 	);

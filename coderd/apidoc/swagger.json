@@ -22547,6 +22547,9 @@
 				"code_diff_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"
 				},
+				"dpm_banner_hidden": {
+					"type": "boolean"
+				},
 				"shell_tool_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"
 				},
@@ -23026,6 +23029,9 @@
 				},
 				"code_diff_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"
+				},
+				"dpm_banner_hidden": {
+					"type": "boolean"
 				},
 				"shell_tool_display_mode": {
 					"$ref": "#/definitions/codersdk.AgentDisplayMode"

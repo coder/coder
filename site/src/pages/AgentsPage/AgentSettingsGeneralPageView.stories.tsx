@@ -9,6 +9,7 @@ import {
 
 const preferencesData = {
 	task_notification_alert_dismissed: false,
+	dpm_banner_hidden: false,
 	thinking_display_mode: "auto" as const,
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,

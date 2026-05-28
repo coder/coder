@@ -1099,22 +1099,14 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
-templateBuilder:
-  # Disable the template builder feature for guided template creation. When
-  # disabled, all /api/v2/templatebuilder/* endpoints return 404.
-  # (default: <unset>, type: bool)
-  disabled: false
-  # The base URL of the module registry used by the template builder for module
-  # source paths.
-  # (default: https://registry.coder.com, type: string)
-  registryURL: https://registry.coder.com
 # Configure Data Protection Mode for compliance with employee data protection
 # regulations (e.g., German labor law). When enabled, individual user identifiers
 # are obfuscated in all reporting surfaces.
 dataProtection:
-  # Set the Data Protection Mode tier. 'off' disables protection, 'tier-1'
-  # obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API
-  # endpoints with statistical data. Requires a server restart to change.
+  # Set the Data Protection Mode. 'off' disables protection, 'tier-1' obfuscates
+  # individual user identifiers across all UI and API surfaces at read time,
+  # 'tier-2' additionally prevents user-identifying data from being stored in
+  # analytics and audit tables. Requires a server restart to change.
   # (default: off, type: string)
   mode: "off"
   # Deprecated: use --data-protection-mode instead. When true, equivalent to
@@ -1126,3 +1118,16 @@ dataProtection:
   # indirect identification.
   # (default: 5, type: int)
   minGroupSize: 5
+  # URL shown in the Data Protection Mode banner for users to learn more about the
+  # organization's data protection policy.
+  # (default: <unset>, type: string)
+  infoURL: ""
+templateBuilder:
+  # Disable the template builder feature for guided template creation. When
+  # disabled, all /api/v2/templatebuilder/* endpoints return 404.
+  # (default: <unset>, type: bool)
+  disabled: false
+  # The base URL of the module registry used by the template builder for module
+  # source paths.
+  # (default: https://registry.coder.com, type: string)
+  registryURL: https://registry.coder.com

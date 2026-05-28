@@ -214,6 +214,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 				key: ["me", "preferences"],
 				data: {
 					task_notification_alert_dismissed: true,
+					dpm_banner_hidden: false,
 					thinking_display_mode: "auto" as const,
 					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
@@ -240,6 +241,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			"updateUserPreferenceSettings",
 		).mockResolvedValue({
 			task_notification_alert_dismissed: false,
+					dpm_banner_hidden: false,
 			thinking_display_mode: "auto",
 			shell_tool_display_mode: "auto",
 			code_diff_display_mode: "auto",
@@ -258,6 +260,7 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 				expect(updatePreferencesSpy).toHaveBeenCalledWith(
 					expect.objectContaining({
 						task_notification_alert_dismissed: false,
+					dpm_banner_hidden: false,
 					}),
 				);
 			});

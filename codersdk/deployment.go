@@ -790,14 +790,16 @@ type DataProtectionConfig struct {
 	Mode         serpent.String      `json:"mode,omitempty" typescript:",notnull"`
 	Auditors     serpent.StringArray `json:"auditors,omitempty" typescript:",notnull"`
 	MinGroupSize serpent.Int64       `json:"min_group_size,omitempty" typescript:",notnull"`
+	InfoURL      serpent.String      `json:"-"` // not exposed in API config response
 }
 
 // DataProtectionStatus is the per-request DPM status returned by
 // GET /deployment/data-protection-status.
 type DataProtectionStatus struct {
-	Enabled bool `json:"enabled"`
-	Tier    int  `json:"tier"`
-	Auditor bool `json:"auditor"`
+	Enabled bool   `json:"enabled"`
+	Tier    int    `json:"tier"`
+	Auditor bool   `json:"auditor"`
+	InfoURL string `json:"info_url,omitempty"`
 }
 
 // DataProtectionResolveResponse is returned by
@@ -4671,6 +4673,16 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.DataProtection.MinGroupSize,
 			Group:       &deploymentGroupDataProtection,
 			YAML:        "minGroupSize",
+		},
+		{
+			Name:        "Data Protection Info URL",
+			Description: "URL shown in the Data Protection Mode banner for users to learn more about the organization's data protection policy.",
+			Flag:        "data-protection-info-url",
+			Env:         "CODER_DATA_PROTECTION_INFO_URL",
+			Default:     "",
+			Value:       &c.DataProtection.InfoURL,
+			Group:       &deploymentGroupDataProtection,
+			YAML:        "infoURL",
 		},
 		{
 			Name: "Enable Authorization Recordings",

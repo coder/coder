@@ -3,7 +3,6 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { paginatedInterceptions } from "#/api/queries/aiBridge";
 import { dataProtectionStatus } from "#/api/queries/deployment";
-import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -30,7 +29,6 @@ const RequestLogsPage: FC = () => {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
-	const isAuditor = dpStatus.data?.auditor;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery({
@@ -83,11 +81,6 @@ const RequestLogsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
 			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
-
-			<DataProtectionBanner
-				dataProtectionEnabled={dataProtectionEnabled}
-				isAuditor={isAuditor}
-			/>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}

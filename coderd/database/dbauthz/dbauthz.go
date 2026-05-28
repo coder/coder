@@ -4694,6 +4694,10 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 	return q.db.GetUserCount(ctx, includeSystem)
 }
 
+func (q *querier) GetUserDPMBannerHidden(ctx context.Context, userID uuid.UUID) (bool, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
 		return 0, err
@@ -7453,6 +7457,10 @@ func (q *querier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg databas
 		return "", err
 	}
 	return q.db.UpdateUserCodeDiffDisplayMode(ctx, arg)
+}
+
+func (q *querier) UpdateUserDPMBannerHidden(ctx context.Context, arg database.UpdateUserDPMBannerHiddenParams) (bool, error) {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {

@@ -3986,6 +3986,7 @@ export interface DataProtectionStatus {
 	readonly enabled: boolean;
 	readonly tier: number;
 	readonly auditor: boolean;
+	readonly info_url?: string;
 }
 
 // From codersdk/database.go
@@ -9009,6 +9010,7 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
+	readonly dpm_banner_hidden?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
@@ -9437,6 +9439,7 @@ export interface UserParameter {
 // From codersdk/users.go
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
+	readonly dpm_banner_hidden: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;

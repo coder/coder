@@ -2089,27 +2089,6 @@ How long expired API keys are retained before being deleted. Keeping expired key
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
 
-### --disable-template-builder
-
-|             |                                              |
-|-------------|----------------------------------------------|
-| Type        | <code>bool</code>                            |
-| Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
-| YAML        | <code>templateBuilder.disabled</code>        |
-
-Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
-
-### --template-builder-registry-url
-
-|             |                                                   |
-|-------------|---------------------------------------------------|
-| Type        | <code>string</code>                               |
-| Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
-| YAML        | <code>templateBuilder.registryURL</code>          |
-| Default     | <code>https://registry.coder.com</code>           |
-
-The base URL of the module registry used by the template builder for module source paths.
-
 ### --data-protection-mode
 
 |             |                                          |
@@ -2119,7 +2098,7 @@ The base URL of the module registry used by the template builder for module sour
 | YAML        | <code>dataProtection.mode</code>         |
 | Default     | <code>off</code>                         |
 
-Set the Data Protection Mode tier. 'off' disables protection, 'tier-1' obfuscates UI reporting surfaces, 'tier-2' extends obfuscation to all API endpoints with statistical data. Requires a server restart to change.
+Set the Data Protection Mode. 'off' disables protection, 'tier-1' obfuscates individual user identifiers across all UI and API surfaces at read time, 'tier-2' additionally prevents user-identifying data from being stored in analytics and audit tables. Requires a server restart to change.
 
 ### --data-protection-enabled
 
@@ -2151,3 +2130,34 @@ Comma-separated list of email addresses of users designated as data protection a
 | Default     | <code>5</code>                                     |
 
 Minimum number of users in a report group before individual (obfuscated) data is shown. Groups smaller than this threshold are suppressed entirely to prevent indirect identification.
+
+### --data-protection-info-url
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_DATA_PROTECTION_INFO_URL</code> |
+| YAML        | <code>dataProtection.infoURL</code>          |
+
+URL shown in the Data Protection Mode banner for users to learn more about the organization's data protection policy.
+
+### --disable-template-builder
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
+| YAML        | <code>templateBuilder.disabled</code>        |
+
+Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+
+### --template-builder-registry-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
+| YAML        | <code>templateBuilder.registryURL</code>          |
+| Default     | <code>https://registry.coder.com</code>           |
+
+The base URL of the module registry used by the template builder for module source paths.

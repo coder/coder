@@ -35,7 +35,6 @@ import {
 	ActiveUsersTitle,
 } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
@@ -117,8 +116,7 @@ export default function TemplateInsightsPage() {
 
 	const dpStatus = useQuery(dataProtectionStatus());
 	const dataProtectionEnabled = dpStatus.data?.enabled;
-	const dpTier = dpStatus.data?.tier;
-	const isAuditor = dpStatus.data?.auditor;
+
 
 	return (
 		<RequirePermission isFeatureVisible={canViewInsights}>
@@ -139,8 +137,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 				dataProtectionEnabled={dataProtectionEnabled}
-				dpTier={dpTier}
-				isAuditor={isAuditor}
+
 			/>
 		</RequirePermission>
 	);
@@ -242,9 +239,8 @@ interface TemplateInsightsPageViewProps {
 	controls: ReactNode;
 	interval: InsightsInterval;
 	dataProtectionEnabled: boolean | undefined;
-	dpTier: number | undefined;
-	isAuditor: boolean | undefined;
 }
+
 
 export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	templateInsights,
@@ -253,16 +249,10 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	controls,
 	interval,
 	dataProtectionEnabled,
-	isAuditor,
-	dpTier,
 }) => {
+
 	return (
 		<>
-			<DataProtectionBanner
-				dataProtectionEnabled={dataProtectionEnabled}
-				tier={dpTier}
-				isAuditor={isAuditor}
-			/>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
 			<div className="grid gap-6 grid-cols-3 grid-rows-[440px_440px_auto]">
 				<ActiveUsersPanel

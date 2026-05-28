@@ -3,8 +3,6 @@ import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation } from "react-router";
 import { chatCostSummary } from "#/api/queries/chats";
-import { dataProtectionStatus } from "#/api/queries/deployment";
-import { DataProtectionBanner } from "#/components/DataProtectionBanner";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
@@ -31,10 +29,6 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const [anchor] = useState<Dayjs>(() => dayjs());
 	const dateRange = createDateRange(now ?? anchor);
 
-	const dpStatus = useQuery(dataProtectionStatus());
-	const dataProtectionEnabled = dpStatus.data?.enabled;
-	const isAuditor = dpStatus.data?.auditor;
-
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {
 			start_date: dateRange.startDate,
@@ -50,10 +44,6 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 					to: { pathname: "/agents", search: location.search },
 					label: "Agents",
 				}}
-			/>
-			<DataProtectionBanner
-				dataProtectionEnabled={dataProtectionEnabled}
-				isAuditor={isAuditor}
 			/>
 			<AgentAnalyticsPageView
 				summary={summaryQuery.data}

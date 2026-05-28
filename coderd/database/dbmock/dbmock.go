@@ -5685,6 +5685,21 @@ func (mr *MockStoreMockRecorder) GetUserCount(ctx, includeSystem any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), ctx, includeSystem)
 }
 
+// GetUserDPMBannerHidden mocks base method.
+func (m *MockStore) GetUserDPMBannerHidden(ctx context.Context, userID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserDPMBannerHidden", ctx, userID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserDPMBannerHidden indicates an expected call of GetUserDPMBannerHidden.
+func (mr *MockStoreMockRecorder) GetUserDPMBannerHidden(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserDPMBannerHidden", reflect.TypeOf((*MockStore)(nil).GetUserDPMBannerHidden), ctx, userID)
+}
+
 // GetUserGroupSpendLimit mocks base method.
 func (m *MockStore) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -10004,6 +10019,21 @@ func (m *MockStore) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateUserCodeDiffDisplayMode(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCodeDiffDisplayMode", reflect.TypeOf((*MockStore)(nil).UpdateUserCodeDiffDisplayMode), ctx, arg)
+}
+
+// UpdateUserDPMBannerHidden mocks base method.
+func (m *MockStore) UpdateUserDPMBannerHidden(ctx context.Context, arg database.UpdateUserDPMBannerHiddenParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserDPMBannerHidden", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserDPMBannerHidden indicates an expected call of UpdateUserDPMBannerHidden.
+func (mr *MockStoreMockRecorder) UpdateUserDPMBannerHidden(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserDPMBannerHidden", reflect.TypeOf((*MockStore)(nil).UpdateUserDPMBannerHidden), ctx, arg)
 }
 
 // UpdateUserDeletedByID mocks base method.

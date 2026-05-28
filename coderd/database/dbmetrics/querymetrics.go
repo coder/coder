@@ -3033,6 +3033,14 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserDPMBannerHidden(ctx context.Context, userID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserDPMBannerHidden(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserDPMBannerHidden").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserDPMBannerHidden").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserGroupSpendLimit(ctx context.Context, userID database.GetUserGroupSpendLimitParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserGroupSpendLimit(ctx, userID)
@@ -5302,6 +5310,14 @@ func (m queryMetricsStore) UpdateUserCodeDiffDisplayMode(ctx context.Context, ar
 	r0, r1 := m.s.UpdateUserCodeDiffDisplayMode(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserCodeDiffDisplayMode").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserCodeDiffDisplayMode").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserDPMBannerHidden(ctx context.Context, arg database.UpdateUserDPMBannerHiddenParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserDPMBannerHidden(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserDPMBannerHidden").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserDPMBannerHidden").Inc()
 	return r0, r1
 }
 

@@ -1336,6 +1336,17 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	dpmBannerHidden, err := api.Database.GetUserDPMBannerHidden(ctx, user.ID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user preference settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1374,6 +1385,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
+		DPMBannerHidden:                dpmBannerHidden,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
@@ -1457,6 +1469,21 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			settings.TaskNotificationAlertDismissed, err = tx.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return newUserPreferenceSettingsAPIError("Error reading task notification alert dismissed.", err)
+			}
+		}
+
+		if params.DPMBannerHidden != nil {
+			settings.DPMBannerHidden, err = tx.UpdateUserDPMBannerHidden(ctx, database.UpdateUserDPMBannerHiddenParams{
+				UserID:          user.ID,
+				DpmBannerHidden: *params.DPMBannerHidden,
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating DPM banner hidden.", err)
+			}
+		} else {
+			settings.DPMBannerHidden, err = tx.GetUserDPMBannerHidden(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading DPM banner hidden.", err)
 			}
 		}
 
