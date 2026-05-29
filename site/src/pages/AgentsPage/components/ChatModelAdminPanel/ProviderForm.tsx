@@ -51,7 +51,7 @@ interface ProviderFormProps {
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onUpdateModel: (
+	onCascadeUpdateModel: (
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
@@ -67,7 +67,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onUpdateModel,
+	onCascadeUpdateModel,
 	allModelConfigs,
 	onBack,
 }) => {
@@ -423,7 +423,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								await cascadeDisableProviderModels({
 									associatedModels: providerState.modelConfigs,
 									allModels: allModelConfigs,
-									updateModelConfig: onUpdateModel,
+									updateModelConfig: onCascadeUpdateModel,
 								});
 							} catch (error) {
 								toast.error(

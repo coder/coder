@@ -259,6 +259,10 @@ interface ChatModelAdminPanelProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
+	onCascadeUpdateModel: (
+		modelConfigId: string,
+		req: TypesGen.UpdateChatModelConfigRequest,
+	) => Promise<unknown>;
 	onDeleteModel: (modelConfigId: string) => Promise<void>;
 	isCreatingModel: boolean;
 	isUpdatingModel: boolean;
@@ -285,6 +289,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	providerMutationError,
 	onCreateModel,
 	onUpdateModel,
+	onCascadeUpdateModel,
 	onDeleteModel,
 	isCreatingModel,
 	isUpdatingModel,
@@ -327,7 +332,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						onCreateProvider={onCreateProvider}
 						onUpdateProvider={onUpdateProvider}
 						onDeleteProvider={onDeleteProvider}
-						onUpdateModel={onUpdateModel}
+						onCascadeUpdateModel={onCascadeUpdateModel}
 						allModelConfigs={modelConfigs}
 					/>
 				) : (

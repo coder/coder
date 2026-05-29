@@ -246,6 +246,7 @@ const meta: Meta<typeof ChatModelAdminPanel> = {
 		providerMutationError: null,
 		onCreateModel: fn(async () => ({})),
 		onUpdateModel: fn(async () => ({})),
+		onCascadeUpdateModel: fn(async () => ({})),
 		onDeleteModel: fn(async () => undefined),
 		isCreatingModel: false,
 		isUpdatingModel: false,
@@ -2380,7 +2381,7 @@ export const ProviderDeleteWaitingForModels: Story = {
 			await body.findByRole("button", { name: "Delete provider" }),
 		).toBeDisabled();
 		expect(args.onDeleteProvider).not.toHaveBeenCalled();
-		expect(args.onUpdateModel).not.toHaveBeenCalled();
+		expect(args.onCascadeUpdateModel).not.toHaveBeenCalled();
 	},
 };
 
@@ -2476,19 +2477,19 @@ export const ProviderDeleteConfirmed: Story = {
 		);
 
 		await waitFor(() => {
-			expect(args.onUpdateModel).toHaveBeenCalledTimes(3);
+			expect(args.onCascadeUpdateModel).toHaveBeenCalledTimes(3);
 		});
-		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+		expect(args.onCascadeUpdateModel).toHaveBeenNthCalledWith(
 			1,
 			"model-anthropic-fallback",
 			{ is_default: true },
 		);
-		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+		expect(args.onCascadeUpdateModel).toHaveBeenNthCalledWith(
 			2,
 			"model-openai-default",
 			{ enabled: false },
 		);
-		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+		expect(args.onCascadeUpdateModel).toHaveBeenNthCalledWith(
 			3,
 			"model-openai-secondary",
 			{ enabled: false },
@@ -2503,7 +2504,7 @@ export const ProviderDeleteConfirmed: Story = {
 export const ProviderDeleteCascadeFailure: Story = {
 	args: {
 		...providerDeleteCascadeArgs,
-		onUpdateModel: fn(async (id: string) => {
+		onCascadeUpdateModel: fn(async (id: string) => {
 			if (id === "model-openai-default") {
 				throw new Error("Failed to disable model.");
 			}
@@ -2520,13 +2521,14 @@ export const ProviderDeleteCascadeFailure: Story = {
 		);
 
 		await waitFor(() => {
-			expect(args.onUpdateModel).toHaveBeenCalledWith(
+			expect(args.onCascadeUpdateModel).toHaveBeenCalledWith(
 				"model-anthropic-fallback",
 				{ is_default: true },
 			);
-			expect(args.onUpdateModel).toHaveBeenCalledWith("model-openai-default", {
-				enabled: false,
-			});
+			expect(args.onCascadeUpdateModel).toHaveBeenCalledWith(
+				"model-openai-default",
+				{ enabled: false },
+			);
 		});
 		expect(args.onDeleteProvider).not.toHaveBeenCalled();
 		await expect(await body.findByRole("dialog")).toBeInTheDocument();

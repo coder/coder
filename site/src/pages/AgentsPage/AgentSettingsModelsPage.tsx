@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { API } from "#/api/api";
 import {
 	chatModelConfigs,
 	chatModels,
@@ -83,6 +84,9 @@ const AgentSettingsModelsPage: FC = () => {
 				onCreateModel={(req) => createModelMutation.mutateAsync(req)}
 				onUpdateModel={(modelConfigId, req) =>
 					updateModelMutation.mutateAsync({ modelConfigId, req })
+				}
+				onCascadeUpdateModel={(modelConfigId, req) =>
+					API.experimental.updateChatModelConfig(modelConfigId, req)
 				}
 				onDeleteModel={(id) => deleteModelMutation.mutateAsync(id)}
 				isCreatingModel={createModelMutation.isPending}

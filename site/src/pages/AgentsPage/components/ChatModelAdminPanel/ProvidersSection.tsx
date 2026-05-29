@@ -82,7 +82,7 @@ interface ProvidersSectionProps {
 		req: UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onUpdateModel: (
+	onCascadeUpdateModel: (
 		modelConfigId: string,
 		req: UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
@@ -99,7 +99,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onUpdateModel,
+	onCascadeUpdateModel,
 	allModelConfigs,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -210,7 +210,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					}
 				}}
 				onBack={clearProviderView}
-				onUpdateModel={onUpdateModel}
+				onCascadeUpdateModel={onCascadeUpdateModel}
 				allModelConfigs={allModelConfigs}
 			/>
 		);
