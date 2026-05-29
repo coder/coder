@@ -749,6 +749,23 @@ const githubMCP = makeMCPServer({
 
 const githubMCPConnected = { ...githubMCP, auth_connected: true };
 
+const honchoMCP = makeMCPServer({
+	id: "mcp-honcho",
+	display_name: "Honcho",
+	slug: "honcho",
+	availability: "default_on",
+	auth_type: "custom_headers",
+	has_custom_headers: true,
+	custom_headers_user_keys: ["X-Honcho-User-Token"],
+	custom_headers_user_key_descriptions: {
+		"X-Honcho-User-Token": "Your personal Honcho API token.",
+	},
+	auth_connected: false,
+	enabled: true,
+});
+
+const honchoMCPConnected = { ...honchoMCP, auth_connected: true };
+
 const mcpDefaults = {
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
@@ -771,6 +788,24 @@ export const WithMCPNeedingAuth: Story = {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, githubMCP],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+};
+
+/** MCP server needing custom-headers user values. Shows Configure button. */
+export const WithMCPNeedingCustomHeaders: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, honchoMCP],
+		selectedMCPServerIds: [sentryMCP.id, honchoMCP.id],
+	},
+};
+
+/** MCP server with custom_headers fully configured. Shows toggle. */
+export const WithMCPCustomHeadersConnected: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, honchoMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, honchoMCPConnected.id],
 	},
 };
 

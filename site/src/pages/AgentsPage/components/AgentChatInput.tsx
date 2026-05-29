@@ -20,7 +20,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -46,7 +46,6 @@ import {
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
@@ -80,6 +79,11 @@ import {
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import {
+	MCPServerAuthControl,
+	mcpServerNeedsAuth,
+	userMCPServersSettingsPath,
+} from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -488,6 +492,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		);
 	};
 
+	const navigate = useNavigate();
+
+	const handleMcpConfigureHeaders = () => {
+		setPlusMenuOpen(false);
+		navigate(userMCPServersSettingsPath);
+	};
+
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
 	);
@@ -501,7 +512,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
 			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
+			!mcpServerNeedsAuth(s),
 	);
 
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
@@ -1254,9 +1265,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														isForceOn ||
 														(selectedMCPServerIds?.includes(server.id) ??
 															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
-														!server.auth_connected;
 													const isConnecting = mcpConnectingId === server.id;
 													return (
 														<div
@@ -1275,32 +1283,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 																{server.display_name}
 															</span>
-															{needsAuth ? (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
-																	disabled={
-																		isDisabled || mcpConnectingId !== null
-																	}
-																>
-																	{isConnecting ? (
-																		<Spinner loading className="h-2.5 w-2.5" />
-																	) : null}
-																	Auth
-																</Button>
-															) : (
-																<Switch
-																	size="sm"
-																	checked={isSelected}
-																	onCheckedChange={(checked) =>
-																		handleMcpToggle(server.id, checked)
-																	}
-																	disabled={isDisabled || isForceOn}
-																	aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-																/>
-															)}
+															<MCPServerAuthControl
+																server={server}
+																isSelected={isSelected}
+																isConnecting={isConnecting}
+																disabled={isDisabled}
+																connectingDisabled={mcpConnectingId !== null}
+																forceOn={isForceOn}
+																onConnect={handleMcpConnect}
+																onConfigure={handleMcpConfigureHeaders}
+																onToggle={handleMcpToggle}
+																switchSize="sm"
+															/>
 														</div>
 													);
 												})}
