@@ -4,12 +4,12 @@ import {
 	CompassIcon,
 	FilePenLineIcon,
 	FileTextIcon,
+	LightbulbIcon,
 	LogInIcon,
 	MonitorIcon,
 	PowerIcon,
 	RouteIcon,
 	ServerIcon,
-	SparklesIcon,
 	TerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
@@ -118,7 +118,7 @@ export const ToolIcon: React.FC<{
 		case "chat_summarized":
 			return <BotIcon className={base} />;
 		case "thinking":
-			return <SparklesIcon className={base} />;
+			return <LightbulbIcon className={base} />;
 		case "propose_plan":
 			return <RouteIcon className={base} />;
 		case "ask_user_question":
