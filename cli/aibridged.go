@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,10 +102,18 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 	return nil
 }
 
-// BuildProviders loads every ai_providers row (including disabled)
-// and returns the active provider list plus per-row outcomes. Per-row
-// build errors are logged and excluded from providers but recorded in
-// outcomes; only DB query failures propagate.
+// BuildProviders loads all ai_providers rows (enabled and disabled),
+// attaches keys to enabled rows, and constructs the equivalent
+// [aibridge.Provider] instances. The database is the single source of
+// truth for runtime provider configuration.
+//
+// Disabled rows produce a Provider stub with Enabled() == false so the
+// bridge can answer requests targeting them with a 503 sentinel.
+//
+// Per-provider construction errors are logged and the offending row is
+// excluded from the returned snapshot; only a failure of the DB query
+// itself is propagated. This keeps a single misconfigured row from
+// taking the whole daemon down.
 func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
 	authCtx := dbauthz.AsAIBridged(ctx)
@@ -160,12 +169,9 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 			Name: row.Name,
 			Type: string(row.Type),
 		}
-		if !row.Enabled {
-			outcome.Status = aibridged.ProviderStatusDisabled
-			outcomes = append(outcomes, outcome)
-			continue
+		if row.Enabled {
+			enabledCount++
 		}
-		enabledCount++
 		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
@@ -179,13 +185,17 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 			)
 			continue
 		}
-		outcome.Status = aibridged.ProviderStatusEnabled
+		if row.Enabled {
+			outcome.Status = aibridged.ProviderStatusEnabled
+		} else {
+			outcome.Status = aibridged.ProviderStatusDisabled
+		}
 		outcomes = append(outcomes, outcome)
 		providers = append(providers, prov)
 	}
 
-	if enabledCount > 0 && len(providers) == 0 {
-		logger.Warn(ctx, "all enabled ai providers failed to build; daemon will start with zero providers")
+	if enabledCount > 0 && !slices.ContainsFunc(providers, func(p aibridge.Provider) bool { return p.Enabled() }) {
+		logger.Warn(ctx, "all enabled ai providers failed to build; only disabled providers remain")
 	}
 
 	return providers, outcomes, nil
@@ -193,11 +203,18 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 
 // buildAIProviderFromRow decodes the settings blob and constructs the
 // appropriate [aibridge.Provider] for a single ai_providers row.
+// Disabled rows return a Provider stub carrying only Name and
+// Disabled: true; settings decode, key loading, and credential checks
+// are skipped because the provider will never call upstream.
 func buildAIProviderFromRow(
 	row database.AIProvider,
 	keys []database.AIProviderKey,
 	cfg codersdk.AIBridgeConfig,
 ) (aibridge.Provider, error) {
+	if !row.Enabled {
+		return disabledProviderFromRow(row)
+	}
+
 	settings, err := db2sdk.AIProviderSettings(row.Settings)
 	if err != nil {
 		return nil, xerrors.Errorf("decode settings: %w", err)
@@ -285,6 +302,14 @@ func buildAIProviderFromRow(
 	default:
 		return nil, xerrors.Errorf("unsupported provider type: %q", row.Type)
 	}
+}
+
+// disabledProviderFromRow builds a Provider stub for a disabled row.
+// Using provider.DisabledStub rather than a concrete provider avoids
+// duplicating the row.Type switch and ensures that a new AiProviderType
+// value is automatically handled without requiring a matching case here.
+func disabledProviderFromRow(row database.AIProvider) (aibridge.Provider, error) {
+	return aibridge.NewDisabledProviderStub(row.Name, string(row.Type)), nil
 }
 
 // buildAIProviderKeyPool builds a [keypool.Pool]. Callers must check

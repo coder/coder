@@ -17,9 +17,9 @@ const (
 )
 
 // ProviderOutcome classifies one ai_providers row, including disabled
-// and errored rows the pool excludes. Err is populated only when
-// Status == ProviderStatusError; the build error is already logged at
-// the call site.
+// rows (which the pool keeps as 503 stubs) and errored rows (which the
+// pool excludes). Err is populated only when Status == ProviderStatusError;
+// the build error is already logged at the call site.
 type ProviderOutcome struct {
 	Name   string
 	Type   string
