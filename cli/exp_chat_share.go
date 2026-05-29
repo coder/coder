@@ -63,16 +63,6 @@ func parseChatShareActorRole(raw string) ([2]string, error) {
 	return [2]string{name, parts[1]}, nil
 }
 
-func parseChatShareActor(raw string) ([2]string, error) {
-	if strings.Contains(raw, ":") {
-		return [2]string{}, xerrors.New("roles are only accepted by chat share add")
-	}
-	if raw == "" || !codersdk.UsernameValidRegex.MatchString(raw) {
-		return [2]string{}, xerrors.New("invalid name")
-	}
-	return [2]string{raw, ""}, nil
-}
-
 func stringToChatRole(role string) (codersdk.ChatRole, error) {
 	switch role {
 	case string(codersdk.ChatRoleRead):
@@ -84,8 +74,8 @@ func stringToChatRole(role string) (codersdk.ChatRole, error) {
 	}
 }
 
-func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (map[string]codersdk.ChatRole, map[string]codersdk.ChatRole, error) {
-	userRoles := make(map[string]codersdk.ChatRole, len(params.Users))
+func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (userRoles map[string]codersdk.ChatRole, groupRoles map[string]codersdk.ChatRole, err error) {
+	userRoles = make(map[string]codersdk.ChatRole, len(params.Users))
 	if len(params.Users) > 0 {
 		orgMembers, err := params.Client.OrganizationMembers(ctx, params.OrgID)
 		if err != nil {
@@ -118,7 +108,7 @@ func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (
 		}
 	}
 
-	groupRoles := make(map[string]codersdk.ChatRole, len(params.Groups))
+	groupRoles = make(map[string]codersdk.ChatRole, len(params.Groups))
 	if len(params.Groups) > 0 {
 		orgGroups, err := params.Client.Groups(ctx, codersdk.GroupArguments{
 			Organization: params.OrgID.String(),

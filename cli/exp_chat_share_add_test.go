@@ -35,7 +35,7 @@ func TestExpChatShareAdd(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--user", toShareWithUser.Username+":read")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL updates require the chat owner to fetch and modify the chat.
 
 		out := new(bytes.Buffer)
 		inv.Stdout = out
@@ -73,7 +73,7 @@ func TestExpChatShareAdd(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--user", toShareWithUser.Username)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL updates require the chat owner to fetch and modify the chat.
 
 		out := new(bytes.Buffer)
 		inv.Stdout = out
@@ -113,7 +113,7 @@ func TestExpChatShareAdd(t *testing.T) {
 			"exp", "chat", "share", "add", chat.ID.String(),
 			fmt.Sprintf("--user=%s:read,%s:read", toShareWithUser1.Username, toShareWithUser2.Username),
 		)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL updates require the chat owner to fetch and modify the chat.
 
 		out := new(bytes.Buffer)
 		inv.Stdout = out
@@ -158,7 +158,7 @@ func TestExpChatShareAdd(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--user", toShareWithUser.Username+":write")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL updates require the chat owner to fetch and modify the chat.
 
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
