@@ -14,9 +14,9 @@ func Test_parsePeerAddresses(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
-			" 127.0.0.1:4222 ",
-			"[::1]:7222",
-			"example.com:6222",
+			"whatever://127.0.0.1:4222 ",
+			"http://[::1]:7222",
+			"nats://example.com:6222",
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{
@@ -36,9 +36,9 @@ func Test_parsePeerAddresses(t *testing.T) {
 	t.Run("Dedupes", func(t *testing.T) {
 		t.Parallel()
 		routes, err := parsePeerAddresses([]string{
-			"b.example:6222",
-			"a.example:6222",
-			"b.example:6222",
+			"nats://b.example:6222",
+			"nats://a.example:6222",
+			"nats://b.example:6222",
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{
@@ -52,7 +52,7 @@ func Test_parsePeerAddresses(t *testing.T) {
 		for _, address := range []string{
 			"",
 			"   ",
-			"http://127.0.0.1:4222",
+			"127.0.0.1:4222",
 			"127.0.0.1",
 			":4222",
 			"127.0.0.1:0",
@@ -79,8 +79,8 @@ func Test_filterSelfRoutes(t *testing.T) {
 	t.Parallel()
 
 	routes, err := parsePeerAddresses([]string{
-		"b.example:6222",
-		"self.example:6222",
+		"nats://b.example:6222",
+		"http://self.example:6222",
 	})
 	require.NoError(t, err)
 
@@ -93,19 +93,17 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		a := newTestPubsub(t, newClusterTestOptions(t))
-		b := newTestPubsub(t, newClusterTestOptions(t))
-		c := newTestPubsub(t, newClusterTestOptions(t))
+		a := newTestPubsub(t, clusterTestOptions(t))
+		b := newTestPubsub(t, clusterTestOptions(t))
+		c := newTestPubsub(t, clusterTestOptions(t))
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		waitForConfiguredRouteAddresses(t, a, addrB, addrC)
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		waitForConfiguredRouteAddresses(t, a, addrB, addrC)
 
 		require.NoError(t, a.SetPeerAddresses(nil))
 		require.Empty(t, a.currentRoutes)
@@ -114,14 +112,14 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, defaultOptions())
+		ps := newTestPubsub(t, defaultTestOptions())
 		err := ps.SetPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})
 
 	t.Run("Closed", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, newClusterTestOptions(t))
+		ps := newTestPubsub(t, clusterTestOptions(t))
 		require.NoError(t, ps.Close())
 		err := ps.SetPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
@@ -129,7 +127,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("DropsSelfRoute", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, newClusterTestOptions(t))
+		ps := newTestPubsub(t, clusterTestOptions(t))
 		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
 	})

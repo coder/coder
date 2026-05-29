@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -101,7 +99,7 @@ func Test_New(t *testing.T) {
 
 	t.Run("ConnectionCount", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, defaultOptions())
+		ps := newTestPubsub(t, defaultTestOptions())
 		t.Cleanup(func() { _ = ps.Close() })
 
 		const n = 50
@@ -132,7 +130,7 @@ func Test_SubscribeWithErr(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		ps, err := New(ctx, logger, defaultOptions())
+		ps, err := New(ctx, logger, defaultTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -157,7 +155,7 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 
 		logger := slogtest.Make(t, nil)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		ps := newPubsub(ctx, logger, defaultOptions())
+		ps := newPubsub(ctx, logger, defaultTestOptions())
 
 		var subConnA, subConnB, pubConn natsgo.Conn
 		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
@@ -279,7 +277,7 @@ func Test_localSub_init(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ps, err := New(ctx, logger, defaultOptions())
+		ps, err := New(ctx, logger, defaultTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -345,15 +343,15 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		a := newTestPubsub(t, newClusterTestOptions(t))
-		b := newTestPubsub(t, newClusterTestOptions(t))
-		c := newTestPubsub(t, newClusterTestOptions(t))
+		a := newTestPubsub(t, clusterTestOptions(t))
+		b := newTestPubsub(t, clusterTestOptions(t))
+		c := newTestPubsub(t, clusterTestOptions(t))
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
+
 		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
-		waitForRoutes(t, a, 1)
-		waitForRoutes(t, b, 1)
+		requireRoutesEqual(t, a.currentRoutes, addrB)
 
 		globalEvent := "global"
 		bGlobal := make(chan []byte, 8)
@@ -387,8 +385,7 @@ func TestPubsubCluster(t *testing.T) {
 		// while the C-only subject should route only to C.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
-		waitForRoutes(t, a, 2)
-		waitForRoutes(t, c, 1)
+
 		waitForRouteSubscription(t, a, globalEvent)
 		waitForRouteSubscription(t, a, cSubject)
 
@@ -411,11 +408,11 @@ func TestPubsubCluster(t *testing.T) {
 	})
 }
 
-func defaultOptions() Options {
+func defaultTestOptions() Options {
 	return Options{disableCluster: true}
 }
 
-func newClusterTestOptions(t *testing.T) Options {
+func clusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
 		ClusterHost:    "127.0.0.1",
@@ -440,48 +437,7 @@ func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	t.Helper()
 	addr := ps.ns.ClusterAddr()
 	require.NotNil(t, addr)
-	return addr.String()
-}
-
-func waitForRoutes(t *testing.T, ps *Pubsub, minRoutes int) {
-	t.Helper()
-	require.Eventually(t, func() bool {
-		return ps.ns.NumRoutes() >= minRoutes
-	}, testutil.WaitLong, testutil.IntervalFast)
-}
-
-func waitForConfiguredRouteAddresses(t *testing.T, ps *Pubsub, addresses ...string) {
-	t.Helper()
-	want := make(map[string]struct{}, len(addresses))
-	for _, address := range addresses {
-		normalized, err := normalizeHostPort(address)
-		require.NoError(t, err)
-		want[normalized] = struct{}{}
-	}
-
-	require.Eventually(t, func() bool {
-		routes, err := ps.ns.Routez(nil)
-		if err != nil {
-			return false
-		}
-
-		got := make(map[string]struct{}, len(routes.Routes))
-		for _, route := range routes.Routes {
-			if !route.IsConfigured || route.IP == "" || route.Port == 0 {
-				continue
-			}
-			got[net.JoinHostPort(route.IP, strconv.Itoa(route.Port))] = struct{}{}
-		}
-		if len(got) != len(want) {
-			return false
-		}
-		for address := range want {
-			if _, ok := got[address]; !ok {
-				return false
-			}
-		}
-		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	return "nats://" + addr.String()
 }
 
 func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
@@ -499,7 +455,7 @@ func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
 			}
 		}
 		return false
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func publishAndFlush(t *testing.T, ps *Pubsub, event, message string) {

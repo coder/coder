@@ -83,18 +83,30 @@ func filterSelfRoutes(routes []*url.URL, self *url.URL) []*url.URL {
 }
 
 func normalizeHostPort(address string) (string, error) {
-	if strings.ContainsAny(address, "/?#") {
-		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+	route, err := url.Parse(address)
+	if err != nil {
+		return "", xerrors.Errorf("parse peer address %q: %w", address, err)
 	}
-	host, port, err := net.SplitHostPort(address)
-	if err != nil || host == "" || port == "" {
-		return "", xerrors.Errorf("peer address %q must include host and port", address)
-	}
-	if strings.Contains(host, "@") {
+	if route.User != nil {
 		return "", xerrors.Errorf("peer address %q must not include userinfo", address)
 	}
+	if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
+		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+	}
+
+	host, port, err := net.SplitHostPort(route.Host)
+	if err != nil {
+		return "", xerrors.Errorf("split %q host port: %w", address, err)
+	}
+	if host == "" || port == "" {
+		return "", xerrors.Errorf("%q must include host and port", address)
+	}
+
 	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber <= 0 || portNumber > 65535 {
+	if err != nil {
+		return "", xerrors.Errorf("parse %q port: %w", address, err)
+	}
+	if portNumber <= 0 || portNumber > 65535 {
 		return "", xerrors.Errorf("peer address %q must include a valid port", address)
 	}
 	return net.JoinHostPort(host, strconv.Itoa(portNumber)), nil
