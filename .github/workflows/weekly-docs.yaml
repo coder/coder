@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - "docs/**"
+      - ".github/workflows/weekly-docs.yaml"
 
 permissions:
   contents: read
