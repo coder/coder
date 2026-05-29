@@ -91,21 +91,23 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
-		// Changing the API key alone does NOT count as drift: keys
-		// live in a separate table and operators rotate them via the
-		// API. Only changes to non-credential provider-level fields
-		// (base_url, type, Bedrock region/model) trip the drift check.
+		// Changing the API key counts as drift: keys are included
+		// in the canonical hash so operators notice when env-var
+		// credential changes are ignored by an existing provider.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
-
-		// Changing the base URL is real drift.
-		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+
+		// Changing the base URL is also real drift.
+		cfg.LegacyOpenAI.Key = serpent.String("sk-original")
+		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
-	t.Run("BedrockCredentialRotationIsNotDrift", func(t *testing.T) {
+	t.Run("BedrockCredentialChangeIsDrift", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -120,17 +122,20 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
-		// Rotating the Bedrock access key and secret in env must NOT
-		// trip the drift check: they're credentials, equivalent to
-		// bearer API keys, and operators rotate them via the API.
+		// Rotating the Bedrock access key in env trips the drift
+		// check so operators know the change did not take effect.
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-rotated")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 
 		// Changing the Bedrock region (a non-credential field) is
-		// real drift.
+		// also real drift.
+		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-original")
+		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-original")
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
@@ -293,6 +298,57 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Equal(t, "sk-ant-1", anKeys[0].APIKey)
 	})
 
+	t.Run("IndexedProvidersKeyDriftWithMultipleKeysAndProviders", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "primary-openai",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-openai-1", "sk-openai-2"},
+				},
+				{
+					Type:    "anthropic",
+					Name:    "primary-anthropic",
+					BaseURL: "https://api.anthropic.com/",
+					Keys:    []string{"sk-ant-1", "sk-ant-2"},
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		// Reordering keys must not count as drift. The canonical hash
+		// sorts keys before hashing, so equivalent key sets remain
+		// stable across restarts.
+		cfg.Providers[0].Keys = []string{"sk-openai-2", "sk-openai-1"}
+		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-1"}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		// Changing one key on one provider must block startup even
+		// when multiple providers are configured.
+		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-rotated"}
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		require.Contains(t, err.Error(), `"primary-anthropic"`)
+
+		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
+		require.NoError(t, err)
+		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"sk-openai-1", "sk-openai-2"}, []string{oaKeys[0].APIKey, oaKeys[1].APIKey})
+
+		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
+		require.NoError(t, err)
+		anKeys, err := db.GetAIProviderKeysByProviderID(ctx, an.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"sk-ant-1", "sk-ant-2"}, []string{anKeys[0].APIKey, anKeys[1].APIKey})
+	})
+
 	t.Run("BedrockIndexedProviderHasNoKeys", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -424,7 +480,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, all, "expected no active rows after soft-delete + re-seed")
 	})
 
-	t.Run("ExistingKeysArePreserved", func(t *testing.T) {
+	t.Run("ExistingKeysBlockOnDrift", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -440,15 +496,17 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
 
-		// Operator rotates the env key. The seed must not duplicate
-		// keys on a row that already exists; the new key is only
-		// installed via the API/CRUD layer in this flow.
+		// Operator rotates the env key. The seed now blocks startup
+		// because the keys differ, alerting the operator.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 
+		// The original key is still in the database.
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
-		require.Len(t, keys, 1, "env reseed must not duplicate keys on existing rows")
+		require.Len(t, keys, 1)
 		require.Equal(t, "sk-original", keys[0].APIKey)
 	})
 
