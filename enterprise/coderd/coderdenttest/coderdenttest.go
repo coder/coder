@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	entprebuilds "github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
+	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -73,6 +74,7 @@ type Options struct {
 	LicenseOptions             *LicenseOptions
 	DontAddLicense             bool
 	DontAddFirstUser           bool
+	ReplicaManager             *replicasync.Manager
 	ReplicaSyncUpdateInterval  time.Duration
 	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
@@ -103,6 +105,23 @@ func NewWithAPI(t *testing.T, options *Options) (
 	}
 	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
+	replicaManager := options.ReplicaManager
+	if replicaManager == nil {
+		var err error
+		replicaManager, err = replicasync.New(context.Background(), oop.Logger, oop.Database, oop.Pubsub, &replicasync.Options{
+			RelayAddress: serverURL.String(),
+			// #nosec G115 - DERP region IDs are small and fit in int32.
+			RegionID:       int32(oop.DeploymentValues.DERP.Server.RegionID.Value()),
+			UpdateInterval: options.ReplicaSyncUpdateInterval,
+		})
+		require.NoError(t, err)
+	}
+	replicaManagerOwnedByAPI := false
+	defer func() {
+		if !replicaManagerOwnedByAPI {
+			_ = replicaManager.Close()
+		}
+	}()
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		ConnectionLogging:          options.ConnectionLogging,
@@ -112,6 +131,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		UseLegacySCIM:              options.UseLegacySCIM,
 		DERPServerRelayAddress:     serverURL.String(),
 		DERPServerRegionID:         int(oop.DeploymentValues.DERP.Server.RegionID.Value()),
+		ReplicaManager:             replicaManager,
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,
@@ -123,6 +143,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)
+	replicaManagerOwnedByAPI = true
 	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {

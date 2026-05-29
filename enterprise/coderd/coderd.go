@@ -689,17 +689,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
-	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-		ID:           api.AGPL.ID,
-		RelayAddress: options.DERPServerRelayAddress,
-		// #nosec G115 - DERP region IDs are small and fit in int32
-		RegionID:       int32(options.DERPServerRegionID),
-		TLSConfig:      meshTLSConfig,
-		UpdateInterval: options.ReplicaSyncUpdateInterval,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("initialize replica: %w", err)
+	if options.ReplicaManager == nil {
+		return nil, xerrors.New("replica manager is required")
 	}
+	api.replicaManager = options.ReplicaManager
 	replicaManagerPtr.Store(api.replicaManager)
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 		if natsPubsub, ok := api.Pubsub.(*natspubsub.Pubsub); ok {
@@ -797,6 +790,10 @@ type Options struct {
 	UseLegacySCIM bool
 
 	ExternalTokenEncryption []dbcrypt.Cipher
+
+	// ReplicaManager detects and syncs multiple Coder replicas. When provided,
+	// the API owns and closes it.
+	ReplicaManager *replicasync.Manager
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration

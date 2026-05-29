@@ -7,7 +7,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -98,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -779,25 +777,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.Database = database.New(sqlDB)
-			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				ps, err := natspubsub.New(ctx, logger.Named("pubsub"), natspubsub.Options{
-					ClusterAuthToken: token,
-				})
-				if err != nil {
-					return xerrors.Errorf("create nats pubsub: %w", err)
-				}
-				options.Pubsub = ps
-			} else {
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
-				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
-				}
-				options.Pubsub = ps
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(ps)
-				}
+			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			if err != nil {
+				return xerrors.Errorf("create pubsub: %w", err)
+			}
+			options.Pubsub = ps
+			if options.DeploymentValues.Prometheus.Enable {
+				options.PrometheusRegistry.MustRegister(ps)
 			}
 			defer options.Pubsub.Close()
 

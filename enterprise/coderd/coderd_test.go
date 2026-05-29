@@ -629,7 +629,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
+	db, pgPubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	clusterToken := "shared-token"
 
@@ -641,11 +641,20 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = natsA.Close() })
+	replicaA, err := replicasync.New(ctx, logger.Named("replica-a"), db, pgPubsub, &replicasync.Options{
+		ID:             uuid.New(),
+		RelayAddress:   fmt.Sprintf("nats://127.0.0.1:%d", portA),
+		RegionID:       12344,
+		UpdateInterval: testutil.IntervalFast,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = replicaA.Close() })
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{string(codersdk.ExperimentNATSPubsub)}
 	coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		EntitlementsUpdateInterval: 25 * time.Millisecond,
+		ReplicaManager:             replicaA,
 		ReplicaSyncUpdateInterval:  25 * time.Millisecond,
 		Options: &coderdtest.Options{
 			Logger:           &logger,
@@ -664,7 +673,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = natsB.Close() })
 
-	mgr, err := replicasync.New(ctx, logger.Named("replica-b"), db, natsB, &replicasync.Options{
+	mgr, err := replicasync.New(ctx, logger.Named("replica-b"), db, pgPubsub, &replicasync.Options{
 		ID:             uuid.New(),
 		RelayAddress:   fmt.Sprintf("nats://127.0.0.1:%d", portB),
 		RegionID:       12345,
