@@ -9921,8 +9921,9 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      uuid.New(),
-			EndedAt: time.Now(),
+			ID:             uuid.New(),
+			EndedAt:        time.Now(),
+			CredentialHint: "sk-a...efgh",
 		})
 		require.ErrorContains(t, err, "no rows in result set")
 		require.EqualValues(t, database.AIBridgeInterception{}, got)
@@ -9957,18 +9958,21 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		endedAt := time.Now()
 		// Mark first interception as done
 		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      intc0.ID,
-			EndedAt: endedAt,
+			ID:             intc0.ID,
+			EndedAt:        endedAt,
+			CredentialHint: "sk-a...efgh",
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, updated.ID, intc0.ID)
 		require.True(t, updated.EndedAt.Valid)
 		require.WithinDuration(t, endedAt, updated.EndedAt.Time, 5*time.Second)
+		require.Equal(t, "sk-a...efgh", updated.CredentialHint)
 
 		// Updating first interception again should fail
 		updated, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      intc0.ID,
-			EndedAt: endedAt.Add(time.Hour),
+			ID:             intc0.ID,
+			EndedAt:        endedAt.Add(time.Hour),
+			CredentialHint: "sk-a...efgh",
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
@@ -9978,6 +9982,52 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, got.EndedAt.Valid)
 		}
+	})
+
+	t.Run("CentralizedHintUpdated", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+			CredentialHint: "",
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:             intc.ID,
+			EndedAt:        time.Now(),
+			CredentialHint: "sk-a...efgh",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "sk-a...efgh", updated.CredentialHint)
+	})
+
+	t.Run("BYOKHintPreserved", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindByok,
+			CredentialHint: "sk-u...byok",
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:             intc.ID,
+			EndedAt:        time.Now(),
+			CredentialHint: "sk-a...efgh",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "sk-u...byok", updated.CredentialHint)
 	})
 }
 

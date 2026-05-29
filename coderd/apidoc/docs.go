@@ -15303,6 +15303,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_log:*",
+                "boundary_log:create",
+                "boundary_log:delete",
+                "boundary_log:read",
                 "boundary_usage:*",
                 "boundary_usage:delete",
                 "boundary_usage:read",
@@ -15529,6 +15533,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryLogAll",
+                "APIKeyScopeBoundaryLogCreate",
+                "APIKeyScopeBoundaryLogDelete",
+                "APIKeyScopeBoundaryLogRead",
                 "APIKeyScopeBoundaryUsageAll",
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
@@ -16594,7 +16602,8 @@ const docTemplate = `{
                 "auth",
                 "config",
                 "usage_limit",
-                "missing_key"
+                "missing_key",
+                "provider_disabled"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16605,7 +16614,8 @@ const docTemplate = `{
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
-                "ChatErrorKindMissingKey"
+                "ChatErrorKindMissingKey",
+                "ChatErrorKindProviderDisabled"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -22327,6 +22337,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_log",
                 "boundary_usage",
                 "chat",
                 "connection_log",
@@ -22377,6 +22388,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
                 "ResourceConnectionLog",

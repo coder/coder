@@ -3761,11 +3761,11 @@ func (m queryMetricsStore) InsertAuditLog(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
+func (m queryMetricsStore) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertBoundaryLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertBoundaryLog").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertBoundaryLog").Inc()
+	r0, r1 := m.s.InsertBoundaryLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertBoundaryLogs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertBoundaryLogs").Inc()
 	return r0, r1
 }
 

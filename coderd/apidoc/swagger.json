@@ -13687,6 +13687,10 @@
 				"audit_log:*",
 				"audit_log:create",
 				"audit_log:read",
+				"boundary_log:*",
+				"boundary_log:create",
+				"boundary_log:delete",
+				"boundary_log:read",
 				"boundary_usage:*",
 				"boundary_usage:delete",
 				"boundary_usage:read",
@@ -13913,6 +13917,10 @@
 				"APIKeyScopeAuditLogAll",
 				"APIKeyScopeAuditLogCreate",
 				"APIKeyScopeAuditLogRead",
+				"APIKeyScopeBoundaryLogAll",
+				"APIKeyScopeBoundaryLogCreate",
+				"APIKeyScopeBoundaryLogDelete",
+				"APIKeyScopeBoundaryLogRead",
 				"APIKeyScopeBoundaryUsageAll",
 				"APIKeyScopeBoundaryUsageDelete",
 				"APIKeyScopeBoundaryUsageRead",
@@ -14932,7 +14940,8 @@
 				"auth",
 				"config",
 				"usage_limit",
-				"missing_key"
+				"missing_key",
+				"provider_disabled"
 			],
 			"x-enum-varnames": [
 				"ChatErrorKindGeneric",
@@ -14943,7 +14952,8 @@
 				"ChatErrorKindAuth",
 				"ChatErrorKindConfig",
 				"ChatErrorKindUsageLimit",
-				"ChatErrorKindMissingKey"
+				"ChatErrorKindMissingKey",
+				"ChatErrorKindProviderDisabled"
 			]
 		},
 		"codersdk.ChatFileMetadata": {
@@ -20458,6 +20468,7 @@
 				"assign_org_role",
 				"assign_role",
 				"audit_log",
+				"boundary_log",
 				"boundary_usage",
 				"chat",
 				"connection_log",
@@ -20508,6 +20519,7 @@
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",
 				"ResourceAuditLog",
+				"ResourceBoundaryLog",
 				"ResourceBoundaryUsage",
 				"ResourceChat",
 				"ResourceConnectionLog",

@@ -249,7 +249,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'user_skill:read',
     'user_skill:update',
     'user_skill:delete',
-    'user_skill:*'
+    'user_skill:*',
+    'boundary_log:*',
+    'boundary_log:create',
+    'boundary_log:delete',
+    'boundary_log:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1252,6 +1256,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION remove_mcp_server_config_id_from_chats() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	UPDATE chats
+	SET mcp_server_ids = array_remove(mcp_server_ids, OLD.id)
+	WHERE OLD.id = ANY(mcp_server_ids);
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1510,7 +1525,8 @@ CREATE TABLE boundary_sessions (
     workspace_agent_id uuid NOT NULL,
     confined_process_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid
 );
 
 COMMENT ON TABLE boundary_sessions IS 'Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.';
@@ -1524,6 +1540,8 @@ COMMENT ON COLUMN boundary_sessions.confined_process_name IS 'Name of the confin
 COMMENT ON COLUMN boundary_sessions.started_at IS 'Time when the first log for this session was received by coderd.';
 
 COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was last updated.';
+
+COMMENT ON COLUMN boundary_sessions.owner_id IS 'The ID of the user who owns the workspace. NULL if the user has been deleted.';
 
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
@@ -4485,6 +4503,10 @@ CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_message
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
+CREATE TRIGGER remove_chat_mcp_server_config_id BEFORE DELETE ON mcp_server_configs FOR EACH ROW EXECUTE FUNCTION remove_mcp_server_config_id_from_chats();
+
+COMMENT ON TRIGGER remove_chat_mcp_server_config_id ON mcp_server_configs IS 'When an MCP server config is deleted, this trigger removes its ID from all chats.';
+
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
@@ -4549,6 +4571,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);

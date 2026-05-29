@@ -195,6 +195,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
+	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
@@ -221,6 +222,8 @@ func Classify(err error) ClassifiedError {
 	// over whatever HTTP status code the provider happened to use.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
+	// Provider-disabled must precede timeout because disabled providers
+	// return 503, which matches the timeout rule.
 	rules := []struct {
 		match     bool
 		kind      codersdk.ChatErrorKind
@@ -250,6 +253,11 @@ func Classify(err error) ClassifiedError {
 			match:     rateLimitMatch && !configMatch,
 			kind:      codersdk.ChatErrorKindRateLimit,
 			retryable: true,
+		},
+		{
+			match:     providerDisabledMatch,
+			kind:      codersdk.ChatErrorKindProviderDisabled,
+			retryable: false,
 		},
 		{
 			match:     timeoutMatch && !configMatch,

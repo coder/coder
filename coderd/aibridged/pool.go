@@ -30,7 +30,9 @@ const (
 type Pooler interface {
 	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	// ReplaceProviders swaps the providers used to construct future
-	// RequestBridge instances and clears the cache.
+	// RequestBridge instances and clears the cache. Disabled providers
+	// must be included; the bridge serves a 503 sentinel on their
+	// routes.
 	ReplaceProviders(providers []aibridge.Provider)
 	Shutdown(ctx context.Context) error
 }
@@ -53,7 +55,8 @@ var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
-	// providers is the live provider set used by new RequestBridge instances.
+	// providers is the live provider set used by new RequestBridge
+	// instances. Includes disabled providers.
 	providers       atomic.Pointer[[]aibridge.Provider]
 	providerVersion atomic.Int64
 	logger          slog.Logger
