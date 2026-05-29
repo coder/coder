@@ -39,7 +39,7 @@ func TestExpChatShareRemove(t *testing.T) {
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "exp", "chat", "share", "remove", chat.ID.String(), "--user", sharedUser.Username)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL updates require the chat owner to fetch and modify the chat.
 
 		out := new(bytes.Buffer)
 		inv.Stdout = out
