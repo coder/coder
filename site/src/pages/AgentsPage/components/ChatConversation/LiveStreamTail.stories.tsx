@@ -351,7 +351,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 	},
 };
 
-/** Provider detail renders as a muted secondary line under the main error. */
+/** Provider detail renders in a monospace block for generic errors. */
 export const GenericErrorShowsProviderDetail: Story = {
 	args: {
 		...defaultArgs,
