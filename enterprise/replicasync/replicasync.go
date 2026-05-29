@@ -359,11 +359,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	callbacks := make([]func(), 0, len(m.callbacks))
 	for _, callback := range m.callbacks {
-		callbacks = append(callbacks, callback)
-	}
-	for _, callback := range callbacks {
 		go callback()
 	}
 	return nil
@@ -448,16 +444,15 @@ func (m *Manager) regionID() int32 {
 // callback. Passing nil removes the named callback.
 func (m *Manager) SetCallback(name string, callback func()) {
 	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if callback == nil {
 		delete(m.callbacks, name)
-		m.mutex.Unlock()
 		return
 	}
 	if m.callbacks == nil {
 		m.callbacks = make(map[string]func())
 	}
 	m.callbacks[name] = callback
-	m.mutex.Unlock()
 	// Instantly call the callback to inform replicas!
 	go callback()
 }

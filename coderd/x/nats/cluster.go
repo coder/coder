@@ -143,6 +143,7 @@ func routesWithAuth(routes []*url.URL, token string) []*url.URL {
 	return withAuth
 }
 
+// sortedURLsEqual assumes sorted slices.
 func sortedURLsEqual(a, b []*url.URL) bool {
 	if len(a) != len(b) {
 		return false

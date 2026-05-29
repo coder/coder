@@ -107,8 +107,6 @@ func replicaNATSPeerAddresses(rm *replicasync.Manager) []string {
 		if replica.RelayAddress == "" {
 			continue
 		}
-		// coderd/x/nats accepts relay-style URLs here and normalizes the host
-		// to the NATS route port.
 		addresses = append(addresses, replica.RelayAddress)
 	}
 	return addresses
