@@ -258,8 +258,8 @@ const UpdateProviderPageView: React.FC = () => {
 									{willReassignDefault && (
 										<li>
 											{hasDefaultReplacement
-												? "The default model will be reassigned."
-												: "No other model exists to become the default."}
+												? "Your default model will be disabled. Another model will be chosen automatically."
+												: "Your default model will be disabled. No other model is available to become the default."}
 										</li>
 									)}
 								</ul>

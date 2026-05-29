@@ -153,7 +153,9 @@ export const DeleteDialogWithAssociatedModels: Story = {
 		).toBeInTheDocument();
 		await expect(screen.getByText("2 models")).toBeInTheDocument();
 		await expect(
-			screen.getByText("No other model exists to become the default."),
+			screen.getByText(
+				"Your default model will be disabled. No other model is available to become the default.",
+			),
 		).toBeInTheDocument();
 	},
 };
