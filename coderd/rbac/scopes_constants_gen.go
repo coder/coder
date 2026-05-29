@@ -7,9 +7,9 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
-	ScopeAiGatewayCoderdKeyCreate            ScopeName = "ai_gateway_coderd_key:create"
-	ScopeAiGatewayCoderdKeyDelete            ScopeName = "ai_gateway_coderd_key:delete"
-	ScopeAiGatewayCoderdKeyRead              ScopeName = "ai_gateway_coderd_key:read"
+	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
+	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
+	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -190,9 +190,9 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
-		ScopeAiGatewayCoderdKeyCreate,
-		ScopeAiGatewayCoderdKeyDelete,
-		ScopeAiGatewayCoderdKeyRead,
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -374,9 +374,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
-		ScopeAiGatewayCoderdKeyCreate,
-		ScopeAiGatewayCoderdKeyDelete,
-		ScopeAiGatewayCoderdKeyRead,
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,

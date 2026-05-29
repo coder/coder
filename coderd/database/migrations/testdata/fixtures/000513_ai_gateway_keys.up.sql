@@ -1,4 +1,4 @@
-INSERT INTO ai_gateway_coderd_keys (
+INSERT INTO ai_gateway_keys (
 	id,
 	created_at,
 	name,

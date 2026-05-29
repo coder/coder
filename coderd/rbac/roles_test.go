@@ -1205,12 +1205,12 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Only owners can manage AI Gateway coderd keys. They hold
+			// Only owners can manage AI Gateway keys. They hold
 			// a hashed bearer secret used to authenticate Gateway
 			// replicas to coderd. Keys are deployment-wide.
-			Name:     "AIGatewayCoderdKey",
+			Name:     "AIGatewayKey",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
-			Resource: rbac.ResourceAIGatewayCoderdKey,
+			Resource: rbac.ResourceAIGatewayKey,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {

@@ -324,10 +324,10 @@ const (
 	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
 	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
 	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
-	ApiKeyScopeAiGatewayCoderdKey                  APIKeyScope = "ai_gateway_coderd_key:*"
-	ApiKeyScopeAiGatewayCoderdKeyCreate            APIKeyScope = "ai_gateway_coderd_key:create"
-	ApiKeyScopeAiGatewayCoderdKeyDelete            APIKeyScope = "ai_gateway_coderd_key:delete"
-	ApiKeyScopeAiGatewayCoderdKeyRead              APIKeyScope = "ai_gateway_coderd_key:read"
+	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -593,10 +593,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
-		ApiKeyScopeAiGatewayCoderdKey,
-		ApiKeyScopeAiGatewayCoderdKeyCreate,
-		ApiKeyScopeAiGatewayCoderdKeyDelete,
-		ApiKeyScopeAiGatewayCoderdKeyRead:
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead:
 		return true
 	}
 	return false
@@ -830,10 +830,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
-		ApiKeyScopeAiGatewayCoderdKey,
-		ApiKeyScopeAiGatewayCoderdKeyCreate,
-		ApiKeyScopeAiGatewayCoderdKeyDelete,
-		ApiKeyScopeAiGatewayCoderdKeyRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead,
 	}
 }
 
@@ -3365,7 +3365,7 @@ const (
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
-	ResourceTypeAiGatewayCoderdKey          ResourceType = "ai_gateway_coderd_key"
+	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3438,7 +3438,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
-		ResourceTypeAiGatewayCoderdKey:
+		ResourceTypeAIGatewayKey:
 		return true
 	}
 	return false
@@ -3479,7 +3479,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
-		ResourceTypeAiGatewayCoderdKey,
+		ResourceTypeAIGatewayKey,
 	}
 }
 
@@ -4450,6 +4450,17 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
+type AIGatewayKey struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4496,17 +4507,6 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
-}
-
-// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
-type AiGatewayCoderdKey struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Name      string    `db:"name" json:"name"`
-	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.

@@ -36,7 +36,7 @@ type Auditable interface {
 		database.AiSeatState |
 		database.AIProvider |
 		database.AIProviderKey |
-		database.AiGatewayCoderdKey |
+		database.AIGatewayKey |
 		database.Chat |
 		database.AuditableGroupAiBudget |
 		database.UserSecret |
