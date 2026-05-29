@@ -897,17 +897,21 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 
 	// Capture the existing override (if any) so the audit log records the
 	// before-state. An absent row leaves aReq.Old as the zero value.
-	oldOverride, err := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		api.Logger.Error(ctx, "fetch existing user AI budget override for audit", slog.Error(err))
-		httpapi.InternalServerError(rw, err)
+	oldOverride, overrideErr := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
+	if overrideErr != nil && !errors.Is(overrideErr, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "fetch existing user AI budget override for audit", slog.Error(overrideErr))
+		httpapi.InternalServerError(rw, overrideErr)
 		return
 	}
 	var oldGroupName string
-	if err == nil {
-		if oldGroup, gerr := api.Database.GetGroupByID(ctx, oldOverride.GroupID); gerr == nil {
-			oldGroupName = oldGroup.Name
+	if overrideErr == nil {
+		oldGroup, groupErr := api.Database.GetGroupByID(ctx, oldOverride.GroupID)
+		if groupErr != nil {
+			api.Logger.Error(ctx, "fetch old group for user AI budget override audit", slog.Error(groupErr))
+			httpapi.InternalServerError(rw, groupErr)
+			return
 		}
+		oldGroupName = oldGroup.Name
 	}
 	aReq.Old = oldOverride.Auditable(user.Username, oldGroupName)
 
