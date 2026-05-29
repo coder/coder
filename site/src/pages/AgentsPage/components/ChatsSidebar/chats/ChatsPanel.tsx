@@ -413,7 +413,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 pt-6 mb-2">
+				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
 							Chats
