@@ -7,9 +7,11 @@ import {
 	useId,
 	useState,
 } from "react";
+import { useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { invalidateChatConfigurationQueries } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -20,6 +22,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cascadeDisableProviderModels } from "#/pages/AISettingsPage/utils/providerDelete";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
@@ -47,7 +50,7 @@ interface ProviderFormProps {
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onDisableModel: (
+	onUpdateModel: (
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
@@ -62,11 +65,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onDisableModel,
+	onUpdateModel,
 	allModelConfigs,
 	onBack,
 }) => {
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
 
 	const apiKeyInputId = useId();
@@ -383,36 +387,25 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					entity="provider"
 					description={deleteProviderDescription}
 					onConfirm={() => {
-						setIsCascadeDeleting(true);
-						const disabledIds = new Set(
-							providerState.modelConfigs.map((mc) => mc.id),
-						);
-						const hadDefault = providerState.modelConfigs.some(
-							(mc) => mc.is_default,
-						);
-						const chain = providerState.modelConfigs.reduce<Promise<unknown>>(
-							(prev, mc) =>
-								prev.then(() => onDisableModel(mc.id, { enabled: false })),
-							Promise.resolve(),
-						);
-						chain
-							.then(() => {
-								if (hadDefault) {
-									const newDefault = allModelConfigs.find(
-										(mc) => mc.enabled && !disabledIds.has(mc.id),
-									);
-									if (newDefault) {
-										return onDisableModel(newDefault.id, { is_default: true });
-									}
-								}
-							})
-							.then(() => onDeleteProvider(providerConfig.id))
-							.catch((error: unknown) => {
+						const deleteProvider = async () => {
+							setIsCascadeDeleting(true);
+							try {
+								await cascadeDisableProviderModels({
+									associatedModels: providerState.modelConfigs,
+									allModels: allModelConfigs,
+									updateModelConfig: onUpdateModel,
+								});
+								await onDeleteProvider(providerConfig.id);
+								setIsCascadeDeleting(false);
+							} catch (error) {
 								toast.error(
 									getErrorMessage(error, "Failed to delete provider."),
 								);
-							})
-							.then(() => setIsCascadeDeleting(false));
+								setIsCascadeDeleting(false);
+								await invalidateChatConfigurationQueries(queryClient);
+							}
+						};
+						void deleteProvider();
 					}}
 					isPending={isCascadeDeleting || isProviderMutationPending}
 					open={confirmingDelete}

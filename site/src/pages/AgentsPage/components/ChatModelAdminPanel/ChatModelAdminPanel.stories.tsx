@@ -2264,6 +2264,23 @@ export const ProviderDeleteConfirmation: Story = {
 				has_api_key: true,
 			}),
 		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-openai-default",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				is_default: true,
+			}),
+			createModelConfig({
+				id: "model-openai-secondary",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4o-mini",
+				display_name: "GPT-4o Mini",
+			}),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -2278,8 +2295,9 @@ export const ProviderDeleteConfirmation: Story = {
 		// The confirmation dialog should appear - leave it visible
 		// so the Chromatic snapshot captures this state.
 		await expect(
-			await body.findByText(/Are you sure you want to delete this provider/i),
+			await body.findByText(/Deleting this provider will also disable/i),
 		).toBeInTheDocument();
+		expect(body.getByText(/2 models/i)).toBeInTheDocument();
 		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),
@@ -2336,6 +2354,37 @@ export const ProviderDeleteConfirmed: Story = {
 				source: "database",
 				has_api_key: true,
 			}),
+			createProviderConfig({
+				id: "provider-anthropic",
+				provider: "anthropic",
+				display_name: "Anthropic",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-openai-default",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				is_default: true,
+			}),
+			createModelConfig({
+				id: "model-openai-secondary",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4o-mini",
+				display_name: "GPT-4o Mini",
+			}),
+			createModelConfig({
+				id: "model-anthropic-fallback",
+				provider: "anthropic",
+				ai_provider_id: "provider-anthropic",
+				model: "claude-sonnet-4",
+				display_name: "Claude Sonnet 4",
+			}),
 		],
 	},
 	play: async ({ canvasElement, args }) => {
@@ -2348,7 +2397,26 @@ export const ProviderDeleteConfirmed: Story = {
 			await body.findByRole("button", { name: "Delete provider" }),
 		);
 
-		// The delete callback should have been called.
+		await waitFor(() => {
+			expect(args.onUpdateModel).toHaveBeenCalledTimes(3);
+		});
+		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+			1,
+			"model-openai-default",
+			{
+				enabled: false,
+			},
+		);
+		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+			2,
+			"model-openai-secondary",
+			{ enabled: false },
+		);
+		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
+			3,
+			"model-anthropic-fallback",
+			{ is_default: true },
+		);
 		await waitFor(() => {
 			expect(args.onDeleteProvider).toHaveBeenCalledTimes(1);
 		});

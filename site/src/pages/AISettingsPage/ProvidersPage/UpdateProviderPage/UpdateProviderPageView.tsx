@@ -21,6 +21,7 @@ import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -30,6 +31,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { cascadeDisableProviderModels } from "#/pages/AISettingsPage/utils/providerDelete";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
@@ -247,11 +249,11 @@ const UpdateProviderPageView: React.FC = () => {
 					<DialogContent variant="destructive">
 						<DialogHeader>
 							<DialogTitle>Delete provider</DialogTitle>
+							<DialogDescription>
+								Deleting this provider is irreversible!
+							</DialogDescription>
 						</DialogHeader>
 						<div className="flex flex-col gap-3 text-sm text-content-secondary">
-							<p className="m-0 font-medium text-content-destructive">
-								Deleting this provider is irreversible!
-							</p>
 							{associatedModelCount > 0 && (
 								<ul className="m-0 pl-5">
 									<li>
@@ -306,31 +308,12 @@ const UpdateProviderPageView: React.FC = () => {
 									const deleteAll = async () => {
 										setIsCascadeDeleting(true);
 										try {
-											const hadDefault = associatedModels.some(
-												(mc) => mc.is_default,
-											);
-											const disabledIds = new Set(
-												associatedModels.map((mc) => mc.id),
-											);
-											for (const mc of associatedModels) {
-												await API.experimental.updateChatModelConfig(mc.id, {
-													enabled: false,
-												});
-											}
-											if (hadDefault) {
-												const allModels = modelConfigsQuery.data ?? [];
-												const newDefault = allModels.find(
-													(mc) => mc.enabled && !disabledIds.has(mc.id),
-												);
-												if (newDefault) {
-													await API.experimental.updateChatModelConfig(
-														newDefault.id,
-														{
-															is_default: true,
-														},
-													);
-												}
-											}
+											await cascadeDisableProviderModels({
+												associatedModels,
+												allModels: modelConfigsQuery.data ?? [],
+												updateModelConfig:
+													API.experimental.updateChatModelConfig,
+											});
 											await invalidateChatConfigurationQueries(queryClient);
 											deleteMutation.mutate(undefined, {
 												onSuccess: () => {

@@ -81,7 +81,7 @@ interface ProvidersSectionProps {
 		req: UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
-	onDisableModel: (
+	onUpdateModel: (
 		modelConfigId: string,
 		req: UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
@@ -97,7 +97,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
-	onDisableModel,
+	onUpdateModel,
 	allModelConfigs,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -207,7 +207,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					}
 				}}
 				onBack={clearProviderView}
-				onDisableModel={onDisableModel}
+				onUpdateModel={onUpdateModel}
 				allModelConfigs={allModelConfigs}
 			/>
 		);
