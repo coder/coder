@@ -226,12 +226,12 @@ func TestReplica(t *testing.T) {
 		second := make(chan struct{}, 2)
 		server.SetCallback("first", func() { first <- struct{}{} })
 		server.SetCallback("second", func() { second <- struct{}{} })
-		receiveCallback(t, first)
-		receiveCallback(t, second)
+		testutil.RequireReceive(ctx, t, first)
+		testutil.RequireReceive(ctx, t, second)
 
 		require.NoError(t, server.UpdateNow(ctx))
-		receiveCallback(t, first)
-		receiveCallback(t, second)
+		testutil.RequireReceive(ctx, t, first)
+		testutil.RequireReceive(ctx, t, second)
 	})
 	t.Run("SetCallbackReplaces", func(t *testing.T) {
 		t.Parallel()
@@ -251,12 +251,12 @@ func TestReplica(t *testing.T) {
 		first := make(chan struct{}, 2)
 		second := make(chan struct{}, 2)
 		server.SetCallback("same", func() { first <- struct{}{} })
-		receiveCallback(t, first)
+		testutil.RequireReceive(ctx, t, first)
 
 		server.SetCallback("same", func() { second <- struct{}{} })
-		receiveCallback(t, second)
+		testutil.RequireReceive(ctx, t, second)
 		require.NoError(t, server.UpdateNow(ctx))
-		receiveCallback(t, second)
+		testutil.RequireReceive(ctx, t, second)
 		requireNoCallback(t, first)
 	})
 	t.Run("SetCallbackDeletes", func(t *testing.T) {
@@ -276,7 +276,7 @@ func TestReplica(t *testing.T) {
 
 		called := make(chan struct{}, 2)
 		server.SetCallback("same", func() { called <- struct{}{} })
-		receiveCallback(t, called)
+		testutil.RequireReceive(ctx, t, called)
 
 		server.SetCallback("same", nil)
 		require.NoError(t, server.UpdateNow(ctx))
@@ -342,15 +342,6 @@ func TestReplica(t *testing.T) {
 			return server.Self().UpdatedAt.After(deleteTime)
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
-}
-
-func receiveCallback(t *testing.T, ch <-chan struct{}) {
-	t.Helper()
-	select {
-	case <-ch:
-	case <-time.After(testutil.WaitShort):
-		require.FailNow(t, "timed out waiting for callback")
-	}
 }
 
 func requireNoCallback(t *testing.T, ch <-chan struct{}) {
