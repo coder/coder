@@ -55,12 +55,11 @@ function setupDynamicParameterWebSocket(
 		},
 	};
 
-	jest.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-		(_versionId, _ownerId, callbacks) => {
+	jest
+		.spyOn(API, "templateVersionDynamicParameters")
+		.mockImplementation((_versionId, _ownerId, callbacks) => {
 			fakeSocket.addEventListener("message", (event) => {
-				callbacks.onMessage(
-					JSON.parse((event as MessageEvent<string>).data),
-				);
+				callbacks.onMessage(JSON.parse((event as MessageEvent<string>).data));
 			});
 			fakeSocket.addEventListener("error", () => {
 				callbacks.onError(
@@ -77,8 +76,7 @@ function setupDynamicParameterWebSocket(
 				}),
 			);
 			return fakeSocket as unknown as WebSocket;
-		},
-	);
+		});
 
 	return publisher;
 }
@@ -105,19 +103,23 @@ describe("WorkspaceParametersPageExperimental", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		jest.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
-			MockWorkspace,
-		);
-		jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-			MockTemplateVersionParameter1,
-			MockTemplateVersionParameter2,
-			MockTemplateVersionParameter4,
-		]);
-		jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
-			MockWorkspaceBuildParameter1,
-			MockWorkspaceBuildParameter2,
-			MockWorkspaceBuildParameter4,
-		]);
+		jest
+			.spyOn(API, "getWorkspaceByOwnerAndName")
+			.mockResolvedValueOnce(MockWorkspace);
+		jest
+			.spyOn(API, "getTemplateVersionRichParameters")
+			.mockResolvedValueOnce([
+				MockTemplateVersionParameter1,
+				MockTemplateVersionParameter2,
+				MockTemplateVersionParameter4,
+			]);
+		jest
+			.spyOn(API, "getWorkspaceBuildParameters")
+			.mockResolvedValueOnce([
+				MockWorkspaceBuildParameter1,
+				MockWorkspaceBuildParameter2,
+				MockWorkspaceBuildParameter4,
+			]);
 	});
 
 	afterEach(() => {

@@ -180,8 +180,9 @@ export function mockDynamicParameterWebSocket(
 		message = response as DynamicParametersResponse;
 	}
 	const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-	jest.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-		(_versionId, _ownerId, callbacks) => {
+	jest
+		.spyOn(API, "templateVersionDynamicParameters")
+		.mockImplementation((_versionId, _ownerId, callbacks) => {
 			mockWebSocket.addEventListener("message", (event) => {
 				callbacks.onMessage(JSON.parse(event.data));
 			});
@@ -199,7 +200,6 @@ export function mockDynamicParameterWebSocket(
 			);
 
 			return mockWebSocket;
-		},
-	);
+		});
 	return [mockWebSocket, mockPublisher];
 }

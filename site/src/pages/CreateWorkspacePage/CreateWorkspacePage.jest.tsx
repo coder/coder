@@ -385,9 +385,9 @@ describe("CreateWorkspacePage", () => {
 
 	describe("External Authentication", () => {
 		it("displays external auth providers", async () => {
-			jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
-				MockTemplateVersionExternalAuthGithub,
-			]);
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -401,9 +401,11 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("shows authenticated state for connected providers", async () => {
-			jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
-				MockTemplateVersionExternalAuthGithubAuthenticated,
-			]);
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -415,9 +417,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("prevents auto-creation when required external auth is missing", async () => {
-			jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
-				MockTemplateVersionExternalAuthGithub,
-			]);
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
@@ -439,12 +441,14 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Auto-creation Mode", () => {
 		it("falls back to form mode when auto-creation fails", async () => {
-			jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
-				MockTemplateVersionExternalAuthGithubAuthenticated,
-			]);
-			jest.spyOn(API, "createWorkspace").mockRejectedValue(
-				new Error("Auto-creation failed"),
-			);
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
+			jest
+				.spyOn(API, "createWorkspace")
+				.mockRejectedValue(new Error("Auto-creation failed"));
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
