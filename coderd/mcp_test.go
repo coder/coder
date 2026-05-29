@@ -2595,4 +2595,120 @@ func TestMCPServerUserHeaderValuesEndpoints(t *testing.T) {
 		require.False(t, memberHV.HasValues["X-User-Token"], "User B HasValues must be false for X-User-Token")
 		require.False(t, memberHV.HasValues["X-Workspace"], "User B HasValues must be false for X-Workspace")
 	})
+
+	t.Run("PutRejectsControlCharsInValue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		for _, payload := range []string{
+			"jwt-a\r\nX-Injected: oops",
+			"jwt-a\nX-Injected: oops",
+			"jwt-a\x00",
+		} {
+			_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+				Values: map[string]string{"X-User-Token": payload},
+			})
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		}
+	})
+
+	t.Run("GetReturnsNotFoundWhenServerDisabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Disable the config.
+		disabled := false
+		_, err := client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		_, err = client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		_, err = client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt"},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("AdminUpdateClearsStoredValuesOnUserKeyChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Store both values and confirm auth_connected flips.
+		_, err := client.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-a", "X-Workspace": "main"},
+		})
+		require.NoError(t, err)
+		before, err := client.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.True(t, before.AuthConnected)
+
+		// Admin renames the user keys to a new disjoint set. Any
+		// orphaned stored values from the previous key set must be
+		// purged so the user is forced to re-supply credentials.
+		newKeys := []string{"X-Other-Token"}
+		_, err = client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeys: &newKeys,
+		})
+		require.NoError(t, err)
+
+		after, err := client.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, after.AuthConnected, "new key set must report disconnected")
+		hv, err := client.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, hv.HasValues["X-Other-Token"], "orphan-clear should reset all values")
+
+		// Restoring the original key set must not silently reactivate
+		// the previously stored credentials.
+		originalKeys := []string{"X-User-Token", "X-Workspace"}
+		_, err = client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeys: &originalKeys,
+		})
+		require.NoError(t, err)
+		restored, err := client.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, restored.AuthConnected, "restoring key set must NOT reactivate orphaned values")
+	})
+
+	t.Run("AdminUpdateRejectsCustomHeadersWithoutAnyEntries", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		cfg := createHonchoConfig(t, client)
+
+		// Try to drop both the admin custom_headers and the user keys
+		// while staying on custom_headers auth. This must be rejected
+		// so callers cannot leave the config in a degenerate state.
+		empty := map[string]string{}
+		emptyKeys := []string{}
+		_, err := client.UpdateMCPServerConfig(ctx, cfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeaders:         &empty,
+			CustomHeadersUserKeys: &emptyKeys,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
 }
