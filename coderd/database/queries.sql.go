@@ -2449,6 +2449,23 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 	return i, err
 }
 
+const deleteUserAIBudgetOverride = `-- name: DeleteUserAIBudgetOverride :one
+DELETE FROM user_ai_budget_overrides WHERE user_id = $1 RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
@@ -2486,6 +2503,25 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 	row := q.db.QueryRowContext(ctx, getGroupAIBudget, groupID)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
+SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
+FROM user_ai_budget_overrides
+WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, getUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -2540,6 +2576,35 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 	row := q.db.QueryRowContext(ctx, upsertGroupAIBudget, arg.GroupID, arg.SpendLimitMicros)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
+INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+	group_id           = EXCLUDED.group_id,
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
+	updated_at         = NOW()
+RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+type UpsertUserAIBudgetOverrideParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
