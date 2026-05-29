@@ -8,7 +8,7 @@ import type {
 
 const aiProvidersListKey = ["ai", "providers"] as const;
 
-const aiProviderKeyFor = (idOrName: string) =>
+export const aiProviderKeyFor = (idOrName: string) =>
 	[...aiProvidersListKey, idOrName] as const;
 
 export const aiProvidersList = () => ({
