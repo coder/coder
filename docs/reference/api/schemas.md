@@ -13601,6 +13601,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------|---------|----------|--------------|-------------|
 | `spend_limit_micros` | integer | false    |              |             |
 
+## codersdk.UpsertUserAIBudgetOverrideRequest
+
+```json
+{
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                       |
+|----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
+| `spend_limit_micros` | integer | false    |              |                                                                                                   |
+
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 
 ```json
@@ -13729,6 +13745,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Property | Value(s)              |
 |----------|-----------------------|
 | `status` | `active`, `suspended` |
+
+## codersdk.UserAIBudgetOverride
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `created_at`         | string  | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
+| `updated_at`         | string  | false    |              |             |
+| `user_id`            | string  | false    |              |             |
 
 ## codersdk.UserActivity
 
