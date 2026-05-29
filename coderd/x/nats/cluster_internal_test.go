@@ -93,15 +93,9 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-<<<<<<< HEAD
 		a := newTestPubsub(t, clusterTestOptions(t))
 		b := newTestPubsub(t, clusterTestOptions(t))
 		c := newTestPubsub(t, clusterTestOptions(t))
-=======
-		a := newTestPubsub(t, newClusterOptions(t))
-		b := newTestPubsub(t, newClusterOptions(t))
-		c := newTestPubsub(t, newClusterOptions(t))
->>>>>>> 2fb1c9601f (test(coderd/x/nats): exercise cluster auth in OK test and tighten mismatched-token assertion)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
@@ -125,11 +119,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("Closed", func(t *testing.T) {
 		t.Parallel()
-<<<<<<< HEAD
 		ps := newTestPubsub(t, clusterTestOptions(t))
-=======
-		ps := newTestPubsub(t, newClusterOptions(t))
->>>>>>> 2fb1c9601f (test(coderd/x/nats): exercise cluster auth in OK test and tighten mismatched-token assertion)
 		require.NoError(t, ps.Close())
 		err := ps.SetPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
@@ -137,11 +127,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("DropsSelfRoute", func(t *testing.T) {
 		t.Parallel()
-<<<<<<< HEAD
 		ps := newTestPubsub(t, clusterTestOptions(t))
-=======
-		ps := newTestPubsub(t, newClusterOptions(t))
->>>>>>> 2fb1c9601f (test(coderd/x/nats): exercise cluster auth in OK test and tighten mismatched-token assertion)
 		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
 	})

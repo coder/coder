@@ -31,11 +31,13 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 
 	self := &url.URL{Scheme: "nats", Host: p.ns.ClusterAddr().String()}
 	routes = filterSelfRoutes(routes, self)
-	routes = sortRouteURLs(routes)
 
 	if p.opts.ClusterAuthToken != "" {
 		routes = routesWithAuth(routes, p.opts.ClusterAuthToken)
 	}
+
+	routes = sortRouteURLs(routes)
+
 	if sortedURLsEqual(p.currentRoutes, routes) {
 		return nil
 	}
@@ -122,31 +124,6 @@ func sortRouteURLs(routes []*url.URL) []*url.URL {
 		return strings.Compare(a.String(), b.String())
 	})
 	return routes
-}
-
-func addressHostPort(address string) (string, int, bool) {
-	trimmed := strings.TrimSpace(address)
-	if trimmed == "" {
-		return "", 0, false
-	}
-	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
-		if host, port, ok := splitValidHostPort(parsed.Host); ok {
-			return host, port, true
-		}
-	}
-	return splitValidHostPort(trimmed)
-}
-
-func splitValidHostPort(address string) (string, int, bool) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil || host == "" || port == "" {
-		return "", 0, false
-	}
-	portNumber, err := strconv.Atoi(port)
-	if err != nil || portNumber <= 0 || portNumber > 65535 {
-		return "", 0, false
-	}
-	return host, portNumber, true
 }
 
 func routesWithAuth(routes []*url.URL, token string) []*url.URL {
