@@ -249,7 +249,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'user_skill:read',
     'user_skill:update',
     'user_skill:delete',
-    'user_skill:*'
+    'user_skill:*',
+    'boundary_log:*',
+    'boundary_log:create',
+    'boundary_log:delete',
+    'boundary_log:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1485,7 +1489,8 @@ CREATE TABLE boundary_sessions (
     workspace_agent_id uuid NOT NULL,
     confined_process_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid
 );
 
 COMMENT ON TABLE boundary_sessions IS 'Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.';
@@ -1499,6 +1504,8 @@ COMMENT ON COLUMN boundary_sessions.confined_process_name IS 'Name of the confin
 COMMENT ON COLUMN boundary_sessions.started_at IS 'Time when the first log for this session was received by coderd.';
 
 COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was last updated.';
+
+COMMENT ON COLUMN boundary_sessions.owner_id IS 'The ID of the user who owns the workspace. NULL if the user has been deleted.';
 
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
@@ -4508,6 +4515,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);

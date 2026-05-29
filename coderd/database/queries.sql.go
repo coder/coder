@@ -3627,7 +3627,7 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id FROM boundary_sessions WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
@@ -3639,11 +3639,12 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
-const insertBoundaryLog = `-- name: InsertBoundaryLog :one
+const insertBoundaryLogs = `-- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
@@ -3654,62 +3655,80 @@ INSERT INTO boundary_logs (
     method,
     detail,
     matched_rule
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9
-) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+)
+SELECT
+    unnest($1 :: uuid[]),
+    $2 :: uuid,
+    unnest($3 :: int[]),
+    unnest($4 :: timestamptz[]),
+    unnest($5 :: timestamptz[]),
+    unnest($6 :: text[]),
+    unnest($7 :: text[]),
+    unnest($8 :: text[]),
+    unnest($9 :: text[])
+RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 `
 
-type InsertBoundaryLogParams struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
-	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
-	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	Proto          string         `db:"proto" json:"proto"`
-	Method         string         `db:"method" json:"method"`
-	Detail         string         `db:"detail" json:"detail"`
-	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+type InsertBoundaryLogsParams struct {
+	ID             []uuid.UUID `db:"id" json:"id"`
+	SessionID      uuid.UUID   `db:"session_id" json:"session_id"`
+	SequenceNumber []int32     `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     []time.Time `db:"captured_at" json:"captured_at"`
+	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
+	Proto          []string    `db:"proto" json:"proto"`
+	Method         []string    `db:"method" json:"method"`
+	Detail         []string    `db:"detail" json:"detail"`
+	MatchedRule    []string    `db:"matched_rule" json:"matched_rule"`
 }
 
-func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
-	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
-		arg.ID,
+func (q *sqlQuerier) InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertBoundaryLogs,
+		pq.Array(arg.ID),
 		arg.SessionID,
-		arg.SequenceNumber,
-		arg.CapturedAt,
-		arg.CreatedAt,
-		arg.Proto,
-		arg.Method,
-		arg.Detail,
-		arg.MatchedRule,
+		pq.Array(arg.SequenceNumber),
+		pq.Array(arg.CapturedAt),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Proto),
+		pq.Array(arg.Method),
+		pq.Array(arg.Detail),
+		pq.Array(arg.MatchedRule),
 	)
-	var i BoundaryLog
-	err := row.Scan(
-		&i.ID,
-		&i.SessionID,
-		&i.SequenceNumber,
-		&i.CapturedAt,
-		&i.CreatedAt,
-		&i.Proto,
-		&i.Method,
-		&i.Detail,
-		&i.MatchedRule,
-	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertBoundarySession = `-- name: InsertBoundarySession :one
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
+    owner_id,
     confined_process_name,
     started_at,
     updated_at
@@ -3718,22 +3737,25 @@ INSERT INTO boundary_sessions (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
+    $5,
+    $6
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id
 `
 
 type InsertBoundarySessionParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
-	StartedAt           time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID     `db:"workspace_agent_id" json:"workspace_agent_id"`
+	OwnerID             uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	ConfinedProcessName string        `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
 	row := q.db.QueryRowContext(ctx, insertBoundarySession,
 		arg.ID,
 		arg.WorkspaceAgentID,
+		arg.OwnerID,
 		arg.ConfinedProcessName,
 		arg.StartedAt,
 		arg.UpdatedAt,
@@ -3745,6 +3767,7 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
