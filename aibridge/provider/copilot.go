@@ -78,9 +78,7 @@ func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
 
-func (p *Copilot) Enabled() bool {
-	return !p.cfg.Disabled
-}
+func (*Copilot) Enabled() bool { return true }
 
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL

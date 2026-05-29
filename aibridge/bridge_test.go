@@ -220,7 +220,7 @@ func TestDisabledProviderHandler(t *testing.T) {
 	t.Cleanup(upstream.Close)
 
 	enabled := aibridge.NewOpenAIProvider(config.OpenAI{Name: "enabled-openai", BaseURL: upstream.URL})
-	disabled := aibridge.NewOpenAIProvider(config.OpenAI{Name: "disabled-openai", Disabled: true})
+	disabled := aibridge.NewDisabledProviderStub("disabled-openai", "openai")
 	bridge, err := aibridge.NewRequestBridge(
 		t.Context(),
 		[]provider.Provider{enabled, disabled},

@@ -57,6 +57,14 @@ func NewCopilotProvider(cfg config.Copilot) provider.Provider {
 	return provider.NewCopilot(cfg)
 }
 
+// NewDisabledProviderStub returns a Provider that reports Enabled() ==
+// false and has no-op implementations for all other methods. Use this
+// instead of constructing a concrete provider for disabled rows so that
+// adding a new provider type does not require updating a switch here.
+func NewDisabledProviderStub(name, providerType string) provider.Provider {
+	return provider.NewDisabledStub(name, providerType)
+}
+
 func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }

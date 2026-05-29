@@ -84,9 +84,7 @@ func (p *OpenAI) Name() string {
 	return p.cfg.Name
 }
 
-func (p *OpenAI) Enabled() bool {
-	return !p.cfg.Disabled
-}
+func (*OpenAI) Enabled() bool { return true }
 
 func (p *OpenAI) RoutePrefix() string {
 	// Route prefix includes version to match default OpenAI base URL.

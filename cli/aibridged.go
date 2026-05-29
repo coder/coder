@@ -304,26 +304,12 @@ func buildAIProviderFromRow(
 	}
 }
 
-// disabledProviderFromRow builds the minimal Provider stub used as a
-// placeholder for a disabled ai_providers row. Only Name and Disabled
-// are populated; the resulting Provider is never asked to serve a
-// request, so upstream configuration is omitted.
+// disabledProviderFromRow builds a Provider stub for a disabled row.
+// Using provider.DisabledStub rather than a concrete provider avoids
+// duplicating the row.Type switch and ensures that a new AiProviderType
+// value is automatically handled without requiring a matching case here.
 func disabledProviderFromRow(row database.AIProvider) (aibridge.Provider, error) {
-	switch row.Type {
-	case database.AiProviderTypeOpenai,
-		database.AiProviderTypeAzure,
-		database.AiProviderTypeGoogle,
-		database.AiProviderTypeOpenaiCompat,
-		database.AiProviderTypeOpenrouter,
-		database.AiProviderTypeVercel:
-		return aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{Name: row.Name, Disabled: true}), nil
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
-		return aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{Name: row.Name, Disabled: true}, nil), nil
-	case database.AiProviderTypeCopilot:
-		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{Name: row.Name, Disabled: true}), nil
-	default:
-		return nil, xerrors.Errorf("unsupported provider type: %q", row.Type)
-	}
+	return aibridge.NewDisabledProviderStub(row.Name, string(row.Type)), nil
 }
 
 // buildAIProviderKeyPool builds a [keypool.Pool]. Callers must check
