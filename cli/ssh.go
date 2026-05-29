@@ -697,7 +697,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			sshSession.Stderr = inv.Stderr
 
 			if requestPTY {
-				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				termType := os.Getenv("TERM")
+				if termType == "" {
+					termType = "xterm-256color"
+				}
+
+				err = sshSession.RequestPty(termType, 128, 128, gossh.TerminalModes{})
 				if err != nil {
 					return xerrors.Errorf("request pty: %w", err)
 				}
