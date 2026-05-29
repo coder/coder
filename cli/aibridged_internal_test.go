@@ -393,25 +393,60 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 
 	t.Run("DisabledRowClassifiedAsDisabled", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
 
-		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:    database.AiProviderTypeOpenai,
-			Name:    "openai-off",
-			BaseUrl: "https://api.openai.com/",
-		}, func(p *database.InsertAIProviderParams) {
-			p.Enabled = false
-		})
+		for _, tc := range []struct {
+			name string
+			row  database.AIProvider
+		}{
+			{
+				name: "OpenAI",
+				row: database.AIProvider{
+					Type:    database.AiProviderTypeOpenai,
+					Name:    "openai-off",
+					BaseUrl: "https://api.openai.com/",
+				},
+			},
+			{
+				// Anthropic and Bedrock have stricter credential checks
+				// than the OpenAI family; the disabled short-circuit
+				// must reach them too. No keys, no bedrock settings.
+				name: "Anthropic",
+				row: database.AIProvider{
+					Type:    database.AiProviderTypeAnthropic,
+					Name:    "anthropic-off",
+					BaseUrl: "https://api.anthropic.com/",
+				},
+			},
+			{
+				name: "Bedrock",
+				row: database.AIProvider{
+					Type:    database.AiProviderTypeBedrock,
+					Name:    "bedrock-off",
+					BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				logger := slogtest.Make(t, nil)
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
-		require.NoError(t, err)
-		assert.Empty(t, providers, "disabled providers must not be in the active snapshot")
-		require.Len(t, outcomes, 1)
-		assert.Equal(t, "openai-off", outcomes[0].Name)
-		assert.Equal(t, aibridged.ProviderStatusDisabled, outcomes[0].Status)
-		assert.NoError(t, outcomes[0].Err)
+				dbgen.AIProvider(t, db, tc.row, func(p *database.InsertAIProviderParams) {
+					p.Enabled = false
+				})
+
+				providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+				require.NoError(t, err)
+				require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
+				assert.Equal(t, tc.row.Name, providers[0].Name())
+				assert.False(t, providers[0].Enabled())
+				require.Len(t, outcomes, 1)
+				assert.Equal(t, tc.row.Name, outcomes[0].Name)
+				assert.Equal(t, aibridged.ProviderStatusDisabled, outcomes[0].Status)
+				assert.NoError(t, outcomes[0].Err)
+			})
+		}
 	})
 }
 
