@@ -278,6 +278,15 @@ const UpdateProviderPageView: React.FC = () => {
 						}
 					}}
 					onConfirm={() => {
+						const runDeleteProviderMutation = async () => {
+							await deleteMutation.mutateAsync();
+							toast.success(
+								`Provider "${provider.display_name || provider.name}" deleted.`,
+							);
+							setDeleteDialogOpen(false);
+							setDeleteConfirmText("");
+							void navigate(BACK_HREF, { replace: true });
+						};
 						const deleteProvider = async () => {
 							setIsCascadeDeleting(true);
 							try {
@@ -287,32 +296,25 @@ const UpdateProviderPageView: React.FC = () => {
 									updateModelConfig: API.experimental.updateChatModelConfig,
 								});
 								await invalidateChatConfigurationQueries(queryClient);
-								deleteMutation.mutate(undefined, {
-									onSuccess: () => {
-										toast.success(
-											`Provider "${provider.display_name || provider.name}" deleted.`,
-										);
-										setDeleteDialogOpen(false);
-										setDeleteConfirmText("");
-										void navigate(BACK_HREF, { replace: true });
-									},
-									onError: (error) => {
-										toast.error(
-											getErrorMessage(
-												error,
-												`Failed to delete provider "${provider.display_name || provider.name}".`,
-											),
-										);
-									},
-									onSettled: () => {
-										setIsCascadeDeleting(false);
-									},
-								});
 							} catch (error) {
 								toast.error(
 									getErrorMessage(
 										error,
 										"Failed to disable models for provider deletion.",
+									),
+								);
+								setIsCascadeDeleting(false);
+								await invalidateChatConfigurationQueries(queryClient);
+								return;
+							}
+							try {
+								await runDeleteProviderMutation();
+								setIsCascadeDeleting(false);
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										`Failed to delete provider "${provider.display_name || provider.name}".`,
 									),
 								);
 								setIsCascadeDeleting(false);
