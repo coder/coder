@@ -585,6 +585,14 @@ func (m queryMetricsStore) DeleteMCPServerUserHeaderValues(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerUserHeaderValuesByConfigID(ctx, mcpServerConfigID)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerUserHeaderValuesByConfigID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerUserHeaderValuesByConfigID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteMCPServerUserToken(ctx, arg)

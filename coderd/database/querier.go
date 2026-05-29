@@ -139,6 +139,11 @@ type sqlcQuerier interface {
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteMCPServerUserHeaderValues(ctx context.Context, arg DeleteMCPServerUserHeaderValuesParams) error
+	// Deletes every user's stored header values for the given MCP server
+	// config. Use when the admin changes auth_type away from custom_headers
+	// or alters custom_headers_user_keys so stale credentials do not
+	// silently reactivate when the key set is restored.
+	DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error

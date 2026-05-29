@@ -1697,6 +1697,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteMCPServerUserHeaderValues(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(value, policy.ActionUpdatePersonal).Returns()
 	}))
+	s.Run("DeleteMCPServerUserHeaderValuesByConfigID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteMCPServerUserHeaderValuesByConfigID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns()
+	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
 			DisplayName: "Test MCP Server",

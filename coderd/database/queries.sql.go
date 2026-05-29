@@ -15057,6 +15057,22 @@ func (q *sqlQuerier) DeleteMCPServerUserHeaderValues(ctx context.Context, arg De
 	return err
 }
 
+const deleteMCPServerUserHeaderValuesByConfigID = `-- name: DeleteMCPServerUserHeaderValuesByConfigID :exec
+DELETE FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = $1::uuid
+`
+
+// Deletes every user's stored header values for the given MCP server
+// config. Use when the admin changes auth_type away from custom_headers
+// or alters custom_headers_user_keys so stale credentials do not
+// silently reactivate when the key set is restored.
+func (q *sqlQuerier) DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserHeaderValuesByConfigID, mcpServerConfigID)
+	return err
+}
+
 const deleteMCPServerUserToken = `-- name: DeleteMCPServerUserToken :exec
 DELETE FROM
     mcp_server_user_tokens

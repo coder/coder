@@ -2121,6 +2121,17 @@ func (q *querier) DeleteMCPServerUserHeaderValues(ctx context.Context, arg datab
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.DeleteMCPServerUserHeaderValues)(ctx, arg)
 }
 
+func (q *querier) DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	// Admin-only operation. Called from the admin MCP server config
+	// update path when auth_type or custom_headers_user_keys changes,
+	// so stale per-user header values do not silently reactivate when
+	// the key set is restored.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerUserHeaderValuesByConfigID(ctx, mcpServerConfigID)
+}
+
 func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

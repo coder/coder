@@ -260,6 +260,16 @@ WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
 
+-- name: DeleteMCPServerUserHeaderValuesByConfigID :exec
+-- Deletes every user's stored header values for the given MCP server
+-- config. Use when the admin changes auth_type away from custom_headers
+-- or alters custom_headers_user_keys so stale credentials do not
+-- silently reactivate when the key set is restored.
+DELETE FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid;
+
 -- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats
 SET mcp_server_ids = (
