@@ -1961,6 +1961,7 @@ export type ChatErrorKind =
 	| "generic"
 	| "missing_key"
 	| "overloaded"
+	| "provider_disabled"
 	| "rate_limit"
 	| "startup_timeout"
 	| "timeout"
@@ -1972,6 +1973,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"generic",
 	"missing_key",
 	"overloaded",
+	"provider_disabled",
 	"rate_limit",
 	"startup_timeout",
 	"timeout",
