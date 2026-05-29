@@ -160,9 +160,9 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 				{status.phase === "failed" &&
 					status.detail &&
 					(status.kind === "generic" ? (
-						<pre className="mt-1 whitespace-pre-wrap break-words text-xs text-content-secondary font-mono bg-surface-secondary rounded-md p-2">
+						<code className="block whitespace-pre-wrap text-xs text-content-secondary font-mono bg-surface-secondary rounded-md">
 							{status.detail}
-						</pre>
+						</code>
 					) : (
 						<span className="mt-1 block text-content-secondary">
 							{status.detail}
