@@ -6639,21 +6639,21 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(key)
 	}))
 
-	s.Run("InsertAIGatewayCoderdKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		params := database.InsertAIGatewayCoderdKeyParams{}
-		row := database.InsertAIGatewayCoderdKeyRow{}
-		dbm.EXPECT().InsertAIGatewayCoderdKey(gomock.Any(), params).Return(row, nil).AnyTimes()
-		check.Args(params).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionCreate).Returns(row)
+	s.Run("InsertAIGatewayKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.InsertAIGatewayKeyParams{}
+		row := database.InsertAIGatewayKeyRow{}
+		dbm.EXPECT().InsertAIGatewayKey(gomock.Any(), params).Return(row, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAIGatewayKey, policy.ActionCreate).Returns(row)
 	}))
-	s.Run("ListAIGatewayCoderdKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		rows := []database.ListAIGatewayCoderdKeysRow{}
-		dbm.EXPECT().ListAIGatewayCoderdKeys(gomock.Any()).Return(rows, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionRead).Returns(rows)
+	s.Run("ListAIGatewayKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.ListAIGatewayKeysRow{}
+		dbm.EXPECT().ListAIGatewayKeys(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayKey, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("DeleteAIGatewayCoderdKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteAIGatewayKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().DeleteAIGatewayCoderdKey(gomock.Any(), id).Return(database.DeleteAIGatewayCoderdKeyRow{}, nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionDelete).Returns(database.DeleteAIGatewayCoderdKeyRow{})
+		dbm.EXPECT().DeleteAIGatewayKey(gomock.Any(), id).Return(database.DeleteAIGatewayKeyRow{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionDelete).Returns(database.DeleteAIGatewayKeyRow{})
 	}))
 }
 

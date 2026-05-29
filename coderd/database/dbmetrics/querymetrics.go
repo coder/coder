@@ -377,11 +377,11 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayCoderdKeyRow, error) {
+func (m queryMetricsStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.DeleteAIGatewayCoderdKey(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteAIGatewayCoderdKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayCoderdKey").Inc()
+	r0, r1 := m.s.DeleteAIGatewayKey(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIGatewayKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayKey").Inc()
 	return r0, r1
 }
 
@@ -3729,11 +3729,11 @@ func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg dat
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIGatewayCoderdKey(ctx context.Context, arg database.InsertAIGatewayCoderdKeyParams) (database.InsertAIGatewayCoderdKeyRow, error) {
+func (m queryMetricsStore) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertAIGatewayCoderdKey(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIGatewayCoderdKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayCoderdKey").Inc()
+	r0, r1 := m.s.InsertAIGatewayKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayKey").Inc()
 	return r0, r1
 }
 
@@ -4433,19 +4433,19 @@ func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIGatewayKeys(ctx)
+	m.queryLatencies.WithLabelValues("ListAIGatewayKeys").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIGatewayKeys").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListBoundaryLogsBySessionID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListBoundaryLogsBySessionID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) ListAIGatewayCoderdKeys(ctx context.Context) ([]database.ListAIGatewayCoderdKeysRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.ListAIGatewayCoderdKeys(ctx)
-	m.queryLatencies.WithLabelValues("ListAIGatewayCoderdKeys").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIGatewayCoderdKeys").Inc()
 	return r0, r1
 }
 

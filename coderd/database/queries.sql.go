@@ -111,12 +111,12 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
-const deleteAIGatewayCoderdKey = `-- name: DeleteAIGatewayCoderdKey :one
-DELETE FROM ai_gateway_coderd_keys WHERE id = $1
+const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
+DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_used_at
 `
 
-type DeleteAIGatewayCoderdKeyRow struct {
+type DeleteAIGatewayKeyRow struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	Name         string       `db:"name" json:"name"`
 	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
@@ -124,9 +124,9 @@ type DeleteAIGatewayCoderdKeyRow struct {
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
-func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayCoderdKeyRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteAIGatewayCoderdKey, id)
-	var i DeleteAIGatewayCoderdKeyRow
+func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIGatewayKey, id)
+	var i DeleteAIGatewayKeyRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -137,34 +137,34 @@ func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
-const insertAIGatewayCoderdKey = `-- name: InsertAIGatewayCoderdKey :one
-INSERT INTO ai_gateway_coderd_keys (id, name, secret_prefix, hashed_secret, created_at)
+const insertAIGatewayKey = `-- name: InsertAIGatewayKey :one
+INSERT INTO ai_gateway_keys (id, name, secret_prefix, hashed_secret, created_at)
 VALUES ($1, $4, $2, $3, NOW())
 RETURNING id, name, secret_prefix, created_at
 `
 
-type InsertAIGatewayCoderdKeyParams struct {
+type InsertAIGatewayKeyParams struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	Name         string    `db:"name" json:"name"`
 }
 
-type InsertAIGatewayCoderdKeyRow struct {
+type InsertAIGatewayKeyRow struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	Name         string    `db:"name" json:"name"`
 	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
 	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) InsertAIGatewayCoderdKey(ctx context.Context, arg InsertAIGatewayCoderdKeyParams) (InsertAIGatewayCoderdKeyRow, error) {
-	row := q.db.QueryRowContext(ctx, insertAIGatewayCoderdKey,
+func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayKey,
 		arg.ID,
 		arg.SecretPrefix,
 		arg.HashedSecret,
 		arg.Name,
 	)
-	var i InsertAIGatewayCoderdKeyRow
+	var i InsertAIGatewayKeyRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -174,13 +174,13 @@ func (q *sqlQuerier) InsertAIGatewayCoderdKey(ctx context.Context, arg InsertAIG
 	return i, err
 }
 
-const listAIGatewayCoderdKeys = `-- name: ListAIGatewayCoderdKeys :many
+const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
 SELECT id, name, secret_prefix, created_at, last_used_at
-FROM ai_gateway_coderd_keys
+FROM ai_gateway_keys
 ORDER BY created_at ASC
 `
 
-type ListAIGatewayCoderdKeysRow struct {
+type ListAIGatewayKeysRow struct {
 	ID           uuid.UUID    `db:"id" json:"id"`
 	Name         string       `db:"name" json:"name"`
 	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
@@ -188,15 +188,15 @@ type ListAIGatewayCoderdKeysRow struct {
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
-func (q *sqlQuerier) ListAIGatewayCoderdKeys(ctx context.Context) ([]ListAIGatewayCoderdKeysRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIGatewayCoderdKeys)
+func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIGatewayKeys)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIGatewayCoderdKeysRow
+	var items []ListAIGatewayKeysRow
 	for rows.Next() {
-		var i ListAIGatewayCoderdKeysRow
+		var i ListAIGatewayKeysRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,

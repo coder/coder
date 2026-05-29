@@ -603,19 +603,19 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
-// DeleteAIGatewayCoderdKey mocks base method.
-func (m *MockStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayCoderdKeyRow, error) {
+// DeleteAIGatewayKey mocks base method.
+func (m *MockStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAIGatewayCoderdKey", ctx, id)
-	ret0, _ := ret[0].(database.DeleteAIGatewayCoderdKeyRow)
+	ret := m.ctrl.Call(m, "DeleteAIGatewayKey", ctx, id)
+	ret0, _ := ret[0].(database.DeleteAIGatewayKeyRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// DeleteAIGatewayCoderdKey indicates an expected call of DeleteAIGatewayCoderdKey.
-func (mr *MockStoreMockRecorder) DeleteAIGatewayCoderdKey(ctx, id any) *gomock.Call {
+// DeleteAIGatewayKey indicates an expected call of DeleteAIGatewayKey.
+func (mr *MockStoreMockRecorder) DeleteAIGatewayKey(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIGatewayCoderdKey", reflect.TypeOf((*MockStore)(nil).DeleteAIGatewayCoderdKey), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIGatewayKey", reflect.TypeOf((*MockStore)(nil).DeleteAIGatewayKey), ctx, id)
 }
 
 // DeleteAIProviderByID mocks base method.
@@ -7004,19 +7004,19 @@ func (mr *MockStoreMockRecorder) InsertAIBridgeUserPrompt(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeUserPrompt", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeUserPrompt), ctx, arg)
 }
 
-// InsertAIGatewayCoderdKey mocks base method.
-func (m *MockStore) InsertAIGatewayCoderdKey(ctx context.Context, arg database.InsertAIGatewayCoderdKeyParams) (database.InsertAIGatewayCoderdKeyRow, error) {
+// InsertAIGatewayKey mocks base method.
+func (m *MockStore) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIGatewayCoderdKey", ctx, arg)
-	ret0, _ := ret[0].(database.InsertAIGatewayCoderdKeyRow)
+	ret := m.ctrl.Call(m, "InsertAIGatewayKey", ctx, arg)
+	ret0, _ := ret[0].(database.InsertAIGatewayKeyRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// InsertAIGatewayCoderdKey indicates an expected call of InsertAIGatewayCoderdKey.
-func (mr *MockStoreMockRecorder) InsertAIGatewayCoderdKey(ctx, arg any) *gomock.Call {
+// InsertAIGatewayKey indicates an expected call of InsertAIGatewayKey.
+func (mr *MockStoreMockRecorder) InsertAIGatewayKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIGatewayCoderdKey", reflect.TypeOf((*MockStore)(nil).InsertAIGatewayCoderdKey), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIGatewayKey", reflect.TypeOf((*MockStore)(nil).InsertAIGatewayKey), ctx, arg)
 }
 
 // InsertAIProvider mocks base method.
@@ -8309,19 +8309,19 @@ func (mr *MockStoreMockRecorder) ListAIBridgeUserPromptsByInterceptionIDs(ctx, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeUserPromptsByInterceptionIDs", reflect.TypeOf((*MockStore)(nil).ListAIBridgeUserPromptsByInterceptionIDs), ctx, interceptionIds)
 }
 
-// ListAIGatewayCoderdKeys mocks base method.
-func (m *MockStore) ListAIGatewayCoderdKeys(ctx context.Context) ([]database.ListAIGatewayCoderdKeysRow, error) {
+// ListAIGatewayKeys mocks base method.
+func (m *MockStore) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAIGatewayCoderdKeys", ctx)
-	ret0, _ := ret[0].([]database.ListAIGatewayCoderdKeysRow)
+	ret := m.ctrl.Call(m, "ListAIGatewayKeys", ctx)
+	ret0, _ := ret[0].([]database.ListAIGatewayKeysRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAIGatewayCoderdKeys indicates an expected call of ListAIGatewayCoderdKeys.
-func (mr *MockStoreMockRecorder) ListAIGatewayCoderdKeys(ctx any) *gomock.Call {
+// ListAIGatewayKeys indicates an expected call of ListAIGatewayKeys.
+func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayCoderdKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayCoderdKeys), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
 // ListAuthorizedAIBridgeClients mocks base method.

@@ -1907,11 +1907,11 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayCoderdKeyRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return database.DeleteAIGatewayCoderdKeyRow{}, err
+func (q *querier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayKey); err != nil {
+		return database.DeleteAIGatewayKeyRow{}, err
 	}
-	return q.db.DeleteAIGatewayCoderdKey(ctx, id)
+	return q.db.DeleteAIGatewayKey(ctx, id)
 }
 
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -5470,11 +5470,11 @@ func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.Ins
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
 
-func (q *querier) InsertAIGatewayCoderdKey(ctx context.Context, arg database.InsertAIGatewayCoderdKeyParams) (database.InsertAIGatewayCoderdKeyRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return database.InsertAIGatewayCoderdKeyRow{}, err
+func (q *querier) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayKey); err != nil {
+		return database.InsertAIGatewayKeyRow{}, err
 	}
-	return q.db.InsertAIGatewayCoderdKey(ctx, arg)
+	return q.db.InsertAIGatewayKey(ctx, arg)
 }
 
 func (q *querier) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
@@ -6252,18 +6252,18 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
+func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIGatewayKeys(ctx)
+}
+
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err
 	}
 	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
-}
-
-func (q *querier) ListAIGatewayCoderdKeys(ctx context.Context) ([]database.ListAIGatewayCoderdKeysRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return nil, err
-	}
-	return q.db.ListAIGatewayCoderdKeys(ctx)
 }
 
 func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
