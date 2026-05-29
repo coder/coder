@@ -222,6 +222,8 @@ func Classify(err error) ClassifiedError {
 	// over whatever HTTP status code the provider happened to use.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
+	// Provider-disabled must precede timeout because disabled providers
+	// return 503, which matches the timeout rule.
 	rules := []struct {
 		match     bool
 		kind      codersdk.ChatErrorKind
