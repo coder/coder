@@ -412,7 +412,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -420,8 +420,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, preferredConfig, gotConfig)
+	require.NotNil(t, got.model)
+	require.Equal(t, preferredConfig, got.config)
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
@@ -462,7 +462,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, gotKeys, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -470,9 +470,9 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, preferredConfig, gotConfig)
-	require.Equal(t, "test-key", gotKeys.APIKey("openai"))
+	require.NotNil(t, got.model)
+	require.Equal(t, preferredConfig, got.config)
+	require.Equal(t, "test-key", got.keys.APIKey("openai"))
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
@@ -497,7 +497,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -505,8 +505,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, preferredConfig, gotConfig)
+	require.NotNil(t, got.model)
+	require.Equal(t, preferredConfig, got.config)
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) {
@@ -525,7 +525,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -533,8 +533,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, overrideConfig, gotConfig)
+	require.NotNil(t, got.model)
+	require.Equal(t, overrideConfig, got.config)
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
@@ -553,7 +553,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -563,8 +563,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "credentials are unavailable")
-	require.Nil(t, model)
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, got.model)
+	require.Equal(t, database.ChatModelConfig{}, got.config)
 }
 
 func TestGenerateManualTitleCandidate_ActiveAPIKeyIDFallback(t *testing.T) {
@@ -687,7 +687,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	got, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -697,8 +697,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "title generation model override is unavailable")
-	require.Nil(t, model)
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, got.model)
+	require.Equal(t, database.ChatModelConfig{}, got.config)
 }
 
 func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.ChatMessage) {

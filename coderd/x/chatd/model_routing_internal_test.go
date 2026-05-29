@@ -1,8 +1,8 @@
 package chatd
 
 import (
-	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -375,26 +375,67 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	})
 }
 
-func TestAIGatewayRoundTripperCanSuppressSessionHeaders(t *testing.T) {
+func TestAIGatewayRoundTripperPreservesSessionHeaders(t *testing.T) {
 	t.Parallel()
 
+	seen := make(chan http.Header, 1)
+	rt := &aiGatewayRoundTripper{
+		base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			seen <- req.Header.Clone()
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		}),
+		apiKeyID: uuid.NewString(),
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://coder-aibridge/v1/responses", nil)
+	require.NoError(t, err)
+	req.Header.Set(chatprovider.HeaderCoderOwnerID, "owner-id")
+	req.Header.Set(chatprovider.HeaderCoderChatID, "chat-id")
+	req.Header.Set(chatprovider.HeaderCoderSubchatID, "subchat-id")
+	req.Header.Set(chatprovider.HeaderCoderWorkspaceID, "workspace-id")
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	got := <-seen
+	require.Equal(t, "owner-id", got.Get(chatprovider.HeaderCoderOwnerID))
+	require.Equal(t, "chat-id", got.Get(chatprovider.HeaderCoderChatID))
+	require.Equal(t, "subchat-id", got.Get(chatprovider.HeaderCoderSubchatID))
+	require.Equal(t, "workspace-id", got.Get(chatprovider.HeaderCoderWorkspaceID))
+}
+
+func TestAIGatewayQuickgenPromptSerializesFinalAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	const quickgenInput = "summarize failed workspace build logs"
 	tests := []struct {
-		name          string
-		ctx           func() context.Context
-		wantChatID    string
-		wantSubchatID string
+		name         string
+		providerType database.AIProviderType
+		modelName    string
+		wantPath     string
 	}{
 		{
-			name:          "preserves session headers by default",
-			ctx:           func() context.Context { return t.Context() },
-			wantChatID:    "chat-id",
-			wantSubchatID: "subchat-id",
+			name:         "OpenAIResponses",
+			providerType: database.AiProviderTypeOpenai,
+			modelName:    "gpt-4",
+			wantPath:     "/v1/responses",
 		},
 		{
-			name: "suppresses session headers when marked",
-			ctx: func() context.Context {
-				return contextWithoutAIBridgeSessionHeaders(t.Context())
-			},
+			name:         "AnthropicMessages",
+			providerType: database.AiProviderTypeAnthropic,
+			modelName:    "claude-haiku-4-5",
+			wantPath:     "/v1/messages",
+		},
+		{
+			name:         "OpenAICompatibleChatCompletions",
+			providerType: database.AiProviderTypeGoogle,
+			modelName:    "gemini-2.5-flash",
+			wantPath:     "/v1/chat/completions",
 		},
 	}
 
@@ -402,37 +443,172 @@ func TestAIGatewayRoundTripperCanSuppressSessionHeaders(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			seen := make(chan http.Header, 1)
-			rt := &aiGatewayRoundTripper{
-				base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-					seen <- req.Header.Clone()
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Header:     http.Header{},
-						Body:       io.NopCloser(strings.NewReader("")),
-						Request:    req,
-					}, nil
-				}),
-				apiKeyID: uuid.NewString(),
+			provider := aibridgeTestAIProvider(uuid.New(), "primary-"+tt.name, tt.providerType)
+			route := aibridgeTestRoute(provider)
+			model, requests := newCapturedAIGatewayModel(
+				t,
+				provider,
+				tt.modelName,
+				aibridgeQuickgenTitleResponse(tt.providerType),
+			)
+
+			title, _, err := generateStructuredTitleWithUsagePromptMode(
+				t.Context(),
+				model,
+				titleGenerationPrompt,
+				quickgenInput,
+				quickgenPromptModeForRoute(route),
+			)
+			require.NoError(t, err)
+			require.Equal(t, "Failed workspace logs", title)
+
+			got := <-requests
+			require.Equal(t, tt.wantPath, got.path)
+			switch tt.providerType {
+			case database.AiProviderTypeOpenai:
+				assertAIGatewayFinalRole(t, got.body, "input", "assistant", quickgenInput)
+			case database.AiProviderTypeAnthropic:
+				assertAIGatewayFinalRole(t, got.body, "messages", "assistant", quickgenInput)
+			default:
+				assertAIGatewayFinalRole(t, got.body, "messages", "assistant", quickgenInput)
+				require.Equal(t, "required", got.body["tool_choice"])
 			}
-			req, err := http.NewRequestWithContext(tt.ctx(), http.MethodPost, "http://coder-aibridge/v1/responses", nil)
-			require.NoError(t, err)
-			req.Header.Set(chatprovider.HeaderCoderOwnerID, "owner-id")
-			req.Header.Set(chatprovider.HeaderCoderChatID, "chat-id")
-			req.Header.Set(chatprovider.HeaderCoderSubchatID, "subchat-id")
-			req.Header.Set(chatprovider.HeaderCoderWorkspaceID, "workspace-id")
-
-			resp, err := rt.RoundTrip(req)
-			require.NoError(t, err)
-			require.NoError(t, resp.Body.Close())
-
-			got := <-seen
-			require.Equal(t, "owner-id", got.Get(chatprovider.HeaderCoderOwnerID))
-			require.Equal(t, tt.wantChatID, got.Get(chatprovider.HeaderCoderChatID))
-			require.Equal(t, tt.wantSubchatID, got.Get(chatprovider.HeaderCoderSubchatID))
-			require.Equal(t, "workspace-id", got.Get(chatprovider.HeaderCoderWorkspaceID))
 		})
 	}
+}
+
+func TestAIGatewayChatTurnSerializesFinalUserMessage(t *testing.T) {
+	t.Parallel()
+
+	const userInput = "please inspect the failing test"
+	model, requests := newCapturedAIGatewayModel(
+		t,
+		aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai),
+		"gpt-4",
+		`{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`,
+	)
+
+	_, err := model.Generate(t.Context(), fantasy.Call{Prompt: fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "You are a coding assistant."},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: userInput},
+			},
+		},
+	}})
+	require.NoError(t, err)
+
+	got := <-requests
+	require.Equal(t, "/v1/responses", got.path)
+	assertAIGatewayFinalRole(t, got.body, "input", "user", userInput)
+}
+
+type capturedAIGatewayRequest struct {
+	path string
+	body map[string]any
+}
+
+func newCapturedAIGatewayModel(
+	t *testing.T,
+	provider database.AIProvider,
+	modelName string,
+	responseBody string,
+) (fantasy.LanguageModel, <-chan capturedAIGatewayRequest) {
+	t.Helper()
+
+	requests := make(chan capturedAIGatewayRequest, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(req.Body).Decode(&body))
+		requests <- capturedAIGatewayRequest{path: req.URL.Path, body: body}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(responseBody)),
+			Request:    req,
+		}, nil
+	})}
+	server := &Server{
+		aiGatewayRoutingEnabled:  true,
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+	}
+	model, err := server.newModel(
+		t.Context(),
+		aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, modelName),
+		aibridgeTestRoute(provider),
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+	)
+	require.NoError(t, err)
+	return model, requests
+}
+
+func aibridgeQuickgenTitleResponse(providerType database.AIProviderType) string {
+	switch providerType {
+	case database.AiProviderTypeOpenai:
+		return `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"{\"title\":\"Failed workspace logs\"}"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+	case database.AiProviderTypeAnthropic:
+		return `{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"tool_use","id":"toolu_test","name":"propose_title","input":{"title":"Failed workspace logs"}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}}`
+	default:
+		return `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"gemini-2.5-flash","choices":[{"index":0,"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_structured_output","type":"function","function":{"name":"propose_title","arguments":"{\"title\":\"Failed workspace logs\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+	}
+}
+
+func assertAIGatewayFinalRole(
+	t *testing.T,
+	body map[string]any,
+	messageKey string,
+	role string,
+	text string,
+) {
+	t.Helper()
+
+	messages, ok := body[messageKey].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, messages)
+	last, ok := messages[len(messages)-1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, role, last["role"])
+	requireRoleText(t, messages, "user", text)
+}
+
+func requireRoleText(t *testing.T, messages []any, role string, text string) {
+	t.Helper()
+
+	for _, message := range messages {
+		messageMap, ok := message.(map[string]any)
+		if !ok || messageMap["role"] != role {
+			continue
+		}
+		if messageContentContainsText(messageMap["content"], text) {
+			return
+		}
+	}
+	t.Fatalf("no %s message contained %q", role, text)
+}
+
+func messageContentContainsText(value any, text string) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.Contains(typed, text)
+	case []any:
+		for _, item := range typed {
+			itemMap, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			itemText, ok := itemMap["text"].(string)
+			if ok && strings.Contains(itemText, text) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {

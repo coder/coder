@@ -415,9 +415,8 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
-		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Equal(t, "propose_title", call.SchemaName)
-			require.True(t, suppressAIBridgeSessionHeadersFromContext(ctx))
 			requireSyntheticQuickgenPrompt(t, call.Prompt, userPrompt)
 			return &fantasy.ObjectResponse{
 				Object: map[string]any{"title": wantTitle},
@@ -496,7 +495,6 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 				deadline,
 				2*time.Second,
 			)
-			require.True(t, suppressAIBridgeSessionHeadersFromContext(ctx))
 			requireSyntheticQuickgenPrompt(t, call.Prompt, "refresh chat title")
 			require.Equal(t, "propose_title", call.SchemaName)
 			return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
@@ -526,8 +524,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	}
 
 	model := &chattest.FakeModel{
-		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			require.True(t, suppressAIBridgeSessionHeadersFromContext(ctx))
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			requireSyntheticQuickgenPrompt(t, call.Prompt, truncateRunes(longFirstUserText, maxLatestUserMessageRunes))
 			// The manual title system prompt also includes the latest user excerpt.
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
@@ -672,6 +669,97 @@ func TestFallbackTurnStatusLabel(t *testing.T) {
 	}
 }
 
+func TestQuickgenAIGatewayPromptModeEndsWithAssistant(t *testing.T) {
+	t.Parallel()
+
+	t.Run("automatic title", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				require.Equal(t, "propose_title", call.SchemaName)
+				requireSyntheticQuickgenPromptMode(
+					t,
+					call.Prompt,
+					"summarize failed workspace build logs",
+					quickgenPromptModeAIGateway,
+				)
+				return &fantasy.ObjectResponse{Object: map[string]any{"title": "Failed workspace logs"}}, nil
+			},
+		}
+
+		title, _, err := generateStructuredTitleWithUsagePromptMode(
+			t.Context(),
+			model,
+			titleGenerationPrompt,
+			"summarize failed workspace build logs",
+			quickgenPromptModeAIGateway,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Failed workspace logs", title)
+	})
+
+	t.Run("manual title", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				require.Equal(t, "propose_title", call.SchemaName)
+				requireSyntheticQuickgenPromptMode(
+					t,
+					call.Prompt,
+					"refresh chat title",
+					quickgenPromptModeAIGateway,
+				)
+				return &fantasy.ObjectResponse{Object: map[string]any{"title": "Refresh title"}}, nil
+			},
+		}
+
+		title, _, err := generateManualTitleWithPromptMode(
+			t.Context(),
+			[]database.ChatMessage{
+				mustChatMessage(
+					t,
+					database.ChatMessageRoleUser,
+					database.ChatMessageVisibilityBoth,
+					codersdk.ChatMessageText("refresh chat title"),
+				),
+			},
+			model,
+			quickgenPromptModeAIGateway,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Refresh title", title)
+	})
+
+	t.Run("turn status label", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				requireSyntheticQuickgenPromptMode(
+					t,
+					call.Prompt,
+					"done",
+					quickgenPromptModeAIGateway,
+				)
+				return &fantasy.ObjectResponse{Object: map[string]any{"label": "Submitted PR"}}, nil
+			},
+		}
+
+		label, err := generateStructuredTurnStatusLabelWithPromptMode(
+			t.Context(),
+			model,
+			turnStatusLabelPrompt,
+			"done",
+			quickgenPromptModeAIGateway,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+	})
+}
+
 func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *testing.T) {
 	t.Parallel()
 
@@ -769,8 +857,22 @@ func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
 
 func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInput string) {
 	t.Helper()
+	requireSyntheticQuickgenPromptMode(t, prompt, userInput, quickgenPromptModeDefault)
+}
 
-	require.Len(t, prompt, 2)
+func requireSyntheticQuickgenPromptMode(
+	t *testing.T,
+	prompt fantasy.Prompt,
+	userInput string,
+	promptMode quickgenPromptMode,
+) {
+	t.Helper()
+
+	wantLen := 2
+	if promptMode == quickgenPromptModeAIGateway {
+		wantLen = 3
+	}
+	require.Len(t, prompt, wantLen)
 	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
 	require.Len(t, prompt[1].Content, 1)
@@ -778,6 +880,15 @@ func requireSyntheticQuickgenPrompt(t *testing.T, prompt fantasy.Prompt, userInp
 	userText, ok := prompt[1].Content[0].(fantasy.TextPart)
 	require.True(t, ok)
 	require.Equal(t, userInput, userText.Text)
+
+	if promptMode != quickgenPromptModeAIGateway {
+		return
+	}
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	require.Len(t, prompt[2].Content, 1)
+	assistantText, ok := prompt[2].Content[0].(fantasy.TextPart)
+	require.True(t, ok)
+	require.Equal(t, quickgenAssistantPromptMarker, assistantText.Text)
 }
 
 func requireOpenAICompatFinalUserMessage(t *testing.T, body map[string]any, userInput string) {
@@ -800,9 +911,8 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{
-			GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				require.Equal(t, "propose_turn_status_label", call.SchemaName)
-				require.True(t, suppressAIBridgeSessionHeadersFromContext(ctx))
 				requireSyntheticQuickgenPrompt(t, call.Prompt, "done")
 				return &fantasy.ObjectResponse{
 					Object: map[string]any{"label": "Submitted PR"},

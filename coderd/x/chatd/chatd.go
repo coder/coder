@@ -3212,9 +3212,9 @@ func (p *Server) generateManualTitleCandidate(
 		}
 	}
 
-	model, modelConfig, modelKeys, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
+	modelResolution, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
 	result := manualTitleCandidateResult{
-		modelConfig:    modelConfig,
+		modelConfig:    modelResolution.config,
 		activeAPIKeyID: modelOpts.ActiveAPIKeyID,
 		hasMessages:    true,
 	}
@@ -3223,22 +3223,27 @@ func (p *Server) generateManualTitleCandidate(
 	}
 
 	titleCtx := ctx
-	titleModel := model
+	titleModel := modelResolution.model
 	finishDebugRun := func(error) {}
 	if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
 		titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
 			ctx,
 			debugSvc,
 			chat,
-			modelConfig,
-			modelKeys,
+			modelResolution.config,
+			modelResolution.keys,
 			modelOpts,
 			messages,
-			model,
+			modelResolution.model,
 		)
 	}
 
-	title, usage, err := generateManualTitle(titleCtx, messages, titleModel)
+	title, usage, err := generateManualTitleWithPromptMode(
+		titleCtx,
+		messages,
+		titleModel,
+		quickgenPromptModeForRoute(modelResolution.route),
+	)
 	finishDebugRun(err)
 	result.title = title
 	result.usage = usage
@@ -3249,7 +3254,7 @@ func (p *Server) generateManualTitleCandidate(
 		}
 		return result, &manualTitleGenerationError{
 			cause:          wrappedErr,
-			modelConfig:    modelConfig,
+			modelConfig:    modelResolution.config,
 			usage:          usage,
 			activeAPIKeyID: modelOpts.ActiveAPIKeyID,
 		}
@@ -3599,14 +3604,21 @@ func prepareChatTurnDebugRun(
 	return runCtx, finishDebugRun
 }
 
+type manualTitleModelResolution struct {
+	model  fantasy.LanguageModel
+	config database.ChatModelConfig
+	keys   chatprovider.ProviderAPIKeys
+	route  resolvedModelRoute
+}
+
 func (p *Server) resolveManualTitleModel(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	overrideConfig, overrideModel, overrideKeys, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+) (manualTitleModelResolution, error) {
+	overrideConfig, overrideModel, overrideKeys, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
 		keys,
@@ -3614,7 +3626,7 @@ func (p *Server) resolveManualTitleModel(
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			return manualTitleModelResolution{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -3624,7 +3636,12 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(overrideErr),
 		)
 	} else if overrideSet {
-		return overrideModel, overrideConfig, overrideKeys, nil
+		return manualTitleModelResolution{
+			model:  overrideModel,
+			config: overrideConfig,
+			keys:   overrideKeys,
+			route:  overrideRoute,
+		}, nil
 	}
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
@@ -3667,7 +3684,12 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
 	}
 
-	return model, config, route.directProviderKeys(), nil
+	return manualTitleModelResolution{
+		model:  model,
+		config: config,
+		keys:   route.directProviderKeys(),
+		route:  route,
+	}, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(
@@ -3675,17 +3697,17 @@ func (p *Server) resolveFallbackManualTitleModel(
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
+) (manualTitleModelResolution, error) {
 	config, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+		return manualTitleModelResolution{}, xerrors.Errorf(
 			"resolve fallback manual title model config: %w",
 			err,
 		)
 	}
 	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config, keys)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
+		return manualTitleModelResolution{}, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
@@ -3694,12 +3716,17 @@ func (p *Server) resolveFallbackManualTitleModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+		return manualTitleModelResolution{}, xerrors.Errorf(
 			"create fallback manual title model: %w",
 			err,
 		)
 	}
-	return model, config, route.directProviderKeys(), nil
+	return manualTitleModelResolution{
+		model:  model,
+		config: config,
+		keys:   route.directProviderKeys(),
+		route:  route,
+	}, nil
 }
 
 func mergeManualTitleMessages(

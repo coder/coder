@@ -28,6 +28,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+type quickgenPromptMode int
+
+const (
+	quickgenPromptModeDefault quickgenPromptMode = iota
+	quickgenPromptModeAIGateway
+)
+
+const quickgenAssistantPromptMarker = "Ready to produce the requested structured response."
+
+func quickgenPromptModeForRoute(route resolvedModelRoute) quickgenPromptMode {
+	if route.kind == modelRouteKindAIGateway {
+		return quickgenPromptModeAIGateway
+	}
+	return quickgenPromptModeDefault
+}
+
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Populate the title field with the result. " +
 	"Return only the title text in 2-8 words. " +
@@ -246,7 +262,12 @@ func (p *Server) maybeGenerateChatTitle(
 			)
 		}
 
-		title, err := generateTitle(candidateCtx, candidateModel, input)
+		title, err := generateTitle(
+			candidateCtx,
+			candidateModel,
+			input,
+			quickgenPromptModeForRoute(candidate.route),
+		)
 		finishDebugRun(err)
 		if err != nil {
 			lastErr = err
@@ -424,8 +445,12 @@ func (p *Server) prepareQuickgenDebugCandidate(
 	return runCtx, debugModel, finishDebugRun
 }
 
-func syntheticObjectGenerationPrompt(systemPrompt, userInput string) fantasy.Prompt {
-	return fantasy.Prompt{
+func syntheticObjectGenerationPrompt(
+	systemPrompt string,
+	userInput string,
+	promptMode quickgenPromptMode,
+) fantasy.Prompt {
+	prompt := fantasy.Prompt{
 		{
 			Role: fantasy.MessageRoleSystem,
 			Content: []fantasy.MessagePart{
@@ -439,6 +464,15 @@ func syntheticObjectGenerationPrompt(systemPrompt, userInput string) fantasy.Pro
 			},
 		},
 	}
+	if promptMode == quickgenPromptModeAIGateway {
+		prompt = append(prompt, fantasy.Message{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: quickgenAssistantPromptMarker},
+			},
+		})
+	}
+	return prompt
 }
 
 // generateTitle calls the model with a title-generation system prompt
@@ -448,8 +482,9 @@ func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	input string,
+	promptMode quickgenPromptMode,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input, promptMode)
 	if err != nil {
 		return "", err
 	}
@@ -461,12 +496,14 @@ func generateStructuredTitle(
 	model fantasy.LanguageModel,
 	systemPrompt string,
 	userInput string,
+	promptMode quickgenPromptMode,
 ) (string, error) {
-	title, _, err := generateStructuredTitleWithUsage(
+	title, _, err := generateStructuredTitleWithUsagePromptMode(
 		ctx,
 		model,
 		systemPrompt,
 		userInput,
+		promptMode,
 	)
 	if err != nil {
 		return "", err
@@ -480,13 +517,28 @@ func generateStructuredTitleWithUsage(
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
+	return generateStructuredTitleWithUsagePromptMode(
+		ctx,
+		model,
+		systemPrompt,
+		userInput,
+		quickgenPromptModeDefault,
+	)
+}
+
+func generateStructuredTitleWithUsagePromptMode(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	systemPrompt string,
+	userInput string,
+	promptMode quickgenPromptMode,
+) (string, fantasy.Usage, error) {
 	userInput = strings.TrimSpace(userInput)
 	if userInput == "" {
 		return "", fantasy.Usage{}, xerrors.New("title input was empty")
 	}
 
-	ctx = contextWithoutAIBridgeSessionHeaders(ctx)
-	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
+	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput, promptMode)
 
 	var maxOutputTokens int64 = 256
 	var result *fantasy.ObjectResult[generatedTitle]
@@ -776,6 +828,20 @@ func generateManualTitle(
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
 ) (string, fantasy.Usage, error) {
+	return generateManualTitleWithPromptMode(
+		ctx,
+		messages,
+		fallbackModel,
+		quickgenPromptModeDefault,
+	)
+}
+
+func generateManualTitleWithPromptMode(
+	ctx context.Context,
+	messages []database.ChatMessage,
+	fallbackModel fantasy.LanguageModel,
+	promptMode quickgenPromptMode,
+) (string, fantasy.Usage, error) {
 	turns := extractManualTitleTurns(messages)
 	selected := selectManualTitleTurnIndexes(turns)
 
@@ -802,11 +868,12 @@ func generateManualTitle(
 		userInput = strings.TrimSpace(firstUserText)
 	}
 
-	title, usage, err := generateStructuredTitleWithUsage(
+	title, usage, err := generateStructuredTitleWithUsagePromptMode(
 		titleCtx,
 		fallbackModel,
 		systemPrompt,
 		userInput,
+		promptMode,
 	)
 	if err != nil {
 		return "", usage, err
@@ -884,11 +951,12 @@ func (p *Server) generateTurnStatusLabel(
 			)
 		}
 
-		generatedLabel, err := generateStructuredTurnStatusLabel(
+		generatedLabel, err := generateStructuredTurnStatusLabelWithPromptMode(
 			candidateCtx,
 			candidateModel,
 			turnStatusLabelPrompt,
 			input,
+			quickgenPromptModeForRoute(candidate.route),
 		)
 		finishDebugRun(err)
 		if err != nil {
@@ -908,13 +976,28 @@ func generateStructuredTurnStatusLabel(
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
+	return generateStructuredTurnStatusLabelWithPromptMode(
+		ctx,
+		model,
+		systemPrompt,
+		userInput,
+		quickgenPromptModeDefault,
+	)
+}
+
+func generateStructuredTurnStatusLabelWithPromptMode(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	systemPrompt string,
+	userInput string,
+	promptMode quickgenPromptMode,
+) (string, error) {
 	userInput = strings.TrimSpace(userInput)
 	if userInput == "" {
 		return "", xerrors.New("turn status label input was empty")
 	}
 
-	ctx = contextWithoutAIBridgeSessionHeaders(ctx)
-	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput)
+	prompt := syntheticObjectGenerationPrompt(systemPrompt, userInput, promptMode)
 
 	var maxOutputTokens int64 = 64
 	var result *fantasy.ObjectResult[generatedTurnStatusLabel]

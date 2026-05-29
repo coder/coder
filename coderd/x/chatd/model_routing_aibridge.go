@@ -27,19 +27,6 @@ const (
 	aibridgeDelegatedBYOKMarker = "delegated"
 )
 
-// Synthetic quickgen calls are still routed through AI Bridge, but they should
-// not become promptless root cards in the user's chat session timeline.
-type suppressAIBridgeSessionHeadersKey struct{}
-
-func contextWithoutAIBridgeSessionHeaders(ctx context.Context) context.Context {
-	return context.WithValue(ctx, suppressAIBridgeSessionHeadersKey{}, true)
-}
-
-func suppressAIBridgeSessionHeadersFromContext(ctx context.Context) bool {
-	suppress, _ := ctx.Value(suppressAIBridgeSessionHeadersKey{}).(bool)
-	return suppress
-}
-
 type aiGatewayModelRoute struct {
 	Provider          database.AIProvider
 	ModelProviderHint string
@@ -89,10 +76,6 @@ type aiGatewayRoundTripper struct {
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
 	cloned := req.Clone(ctx)
-	if suppressAIBridgeSessionHeadersFromContext(req.Context()) {
-		cloned.Header.Del(chatprovider.HeaderCoderChatID)
-		cloned.Header.Del(chatprovider.HeaderCoderSubchatID)
-	}
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)
 	}
