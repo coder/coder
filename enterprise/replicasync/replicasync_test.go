@@ -222,18 +222,16 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		var first atomic.Int64
-		var second atomic.Int64
-		server.SetCallback("first", func() { first.Add(1) })
-		server.SetCallback("second", func() { second.Add(1) })
-		require.Eventually(t, func() bool {
-			return first.Load() >= 1 && second.Load() >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		first := make(chan struct{}, 2)
+		second := make(chan struct{}, 2)
+		server.SetCallback("first", func() { first <- struct{}{} })
+		server.SetCallback("second", func() { second <- struct{}{} })
+		receiveCallback(t, first)
+		receiveCallback(t, second)
 
 		require.NoError(t, server.UpdateNow(ctx))
-		require.Eventually(t, func() bool {
-			return first.Load() >= 2 && second.Load() >= 2
-		}, testutil.WaitShort, testutil.IntervalFast)
+		receiveCallback(t, first)
+		receiveCallback(t, second)
 	})
 	t.Run("SetCallbackReplaces", func(t *testing.T) {
 		t.Parallel()
@@ -250,23 +248,16 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		var first atomic.Int64
-		var second atomic.Int64
-		server.SetCallback("same", func() { first.Add(1) })
-		require.Eventually(t, func() bool {
-			return first.Load() >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
-		firstAfterInitial := first.Load()
+		first := make(chan struct{}, 2)
+		second := make(chan struct{}, 2)
+		server.SetCallback("same", func() { first <- struct{}{} })
+		receiveCallback(t, first)
 
-		server.SetCallback("same", func() { second.Add(1) })
-		require.Eventually(t, func() bool {
-			return second.Load() >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
+		server.SetCallback("same", func() { second <- struct{}{} })
+		receiveCallback(t, second)
 		require.NoError(t, server.UpdateNow(ctx))
-		require.Eventually(t, func() bool {
-			return second.Load() >= 2
-		}, testutil.WaitShort, testutil.IntervalFast)
-		require.Equal(t, firstAfterInitial, first.Load())
+		receiveCallback(t, second)
+		requireNoCallback(t, first)
 	})
 	t.Run("SetCallbackDeletes", func(t *testing.T) {
 		t.Parallel()
@@ -283,16 +274,13 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		var count atomic.Int64
-		server.SetCallback("same", func() { count.Add(1) })
-		require.Eventually(t, func() bool {
-			return count.Load() >= 1
-		}, testutil.WaitShort, testutil.IntervalFast)
-		afterInitial := count.Load()
+		called := make(chan struct{}, 2)
+		server.SetCallback("same", func() { called <- struct{}{} })
+		receiveCallback(t, called)
 
 		server.SetCallback("same", nil)
 		require.NoError(t, server.UpdateNow(ctx))
-		require.Equal(t, afterInitial, count.Load())
+		requireNoCallback(t, called)
 	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
@@ -354,6 +342,24 @@ func TestReplica(t *testing.T) {
 			return server.Self().UpdatedAt.After(deleteTime)
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+}
+
+func receiveCallback(t *testing.T, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(testutil.WaitShort):
+		require.FailNow(t, "timed out waiting for callback")
+	}
+}
+
+func requireNoCallback(t *testing.T, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+		require.FailNow(t, "unexpected callback")
+	default:
+	}
 }
 
 type derpyHandler struct {

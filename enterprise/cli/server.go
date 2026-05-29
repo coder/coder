@@ -149,11 +149,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			return nil, nil, xerrors.Errorf("initialize replica: %w", err)
 		}
 		o.ReplicaManager = replicaManager
-		defer func() {
-			if o.ReplicaManager == replicaManager {
-				_ = replicaManager.Close()
-			}
-		}()
 
 		if agplcoderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value()).Enabled(codersdk.ExperimentNATSPubsub) {
 			token := fmt.Sprintf("%x", sha256.Sum256([]byte(options.DeploymentValues.PostgresURL.String())))
@@ -170,10 +165,10 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// Create the enterprise API.
 		api, err := coderd.New(ctx, o)
 		if err != nil {
+			_ = replicaManager.Close()
 			_ = closers.Close()
 			return nil, nil, err
 		}
-		o.ReplicaManager = nil
 		closers.Add(api)
 
 		// Start the enterprise usage publisher routine. This won't do anything

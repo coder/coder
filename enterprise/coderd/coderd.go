@@ -67,50 +67,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-const (
-	replicaCallbackNATSPeers  = "nats_peers"
-	replicaCallbackEnterprise = "enterprise"
-)
-
-func setNATSPeers(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
-	updates := make(chan struct{}, 1)
-	signal := func() {
-		select {
-		case updates <- struct{}{}:
-		default:
-		}
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-updates:
-				if err := ps.SetPeerAddresses(replicaNATSPeerAddresses(rm)); err != nil {
-					logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
-				}
-			}
-		}
-	}()
-
-	rm.SetCallback(replicaCallbackNATSPeers, signal)
-}
-
-func replicaNATSPeerAddresses(rm *replicasync.Manager) []string {
-	addresses := make([]string, 0)
-	for _, replica := range rm.AllPrimary() {
-		if replica.ID == rm.ID() {
-			continue
-		}
-		if replica.RelayAddress == "" {
-			continue
-		}
-		addresses = append(addresses, replica.RelayAddress)
-	}
-	return addresses
-}
-
 // New constructs an Enterprise coderd API instance.
 // This handler is designed to wrap the AGPL Coder code and
 // layer Enterprise functionality on top as much as possible.
@@ -1441,4 +1397,48 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 		api.AGPL.WorkspaceBuilderMetrics,
 	)
 	return reconciler, prebuilds.NewEnterpriseClaimer()
+}
+
+const (
+	replicaCallbackNATSPeers  = "nats_peers"
+	replicaCallbackEnterprise = "enterprise"
+)
+
+func setNATSPeers(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
+	updates := make(chan struct{}, 1)
+	signal := func() {
+		select {
+		case updates <- struct{}{}:
+		default:
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-updates:
+				if err := ps.SetPeerAddresses(replicaNATSPeerAddresses(rm)); err != nil {
+					logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
+				}
+			}
+		}
+	}()
+
+	rm.SetCallback(replicaCallbackNATSPeers, signal)
+}
+
+func replicaNATSPeerAddresses(rm *replicasync.Manager) []string {
+	addresses := make([]string, 0)
+	for _, replica := range rm.AllPrimary() {
+		if replica.ID == rm.ID() {
+			continue
+		}
+		if replica.RelayAddress == "" {
+			continue
+		}
+		addresses = append(addresses, replica.RelayAddress)
+	}
+	return addresses
 }

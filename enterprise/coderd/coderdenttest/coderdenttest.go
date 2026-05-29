@@ -113,12 +113,14 @@ func NewWithAPI(t *testing.T, options *Options) (
 		oop.ID = replicaManager.ID()
 	}
 	if replicaManager == nil {
-		var err error
+		meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(serverURL.Hostname(), oop.TLSCertificates)
+		require.NoError(t, err)
 		replicaManager, err = replicasync.New(context.Background(), oop.Logger, oop.Database, oop.Pubsub, &replicasync.Options{
 			ID:           oop.ID,
 			RelayAddress: serverURL.String(),
 			// #nosec G115 - DERP region IDs are small and fit in int32.
 			RegionID:       int32(oop.DeploymentValues.DERP.Server.RegionID.Value()),
+			TLSConfig:      meshTLSConfig,
 			UpdateInterval: options.ReplicaSyncUpdateInterval,
 		})
 		require.NoError(t, err)
