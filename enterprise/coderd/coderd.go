@@ -67,22 +67,51 @@ import (
 	"github.com/coder/quartz"
 )
 
+const (
+	replicaCallbackNATSPeers    = "nats_peers"
+	replicaCallbackDERPMesh     = "derp_mesh"
+	replicaCallbackEntitlements = "entitlements"
+)
+
 func setNATSPeers(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
-	rm.AddCallback(func() {
-		addresses := make([]string, 0)
-		for _, replica := range rm.AllPrimary() {
-			if replica.ID == rm.ID() {
-				continue
-			}
-			if replica.RelayAddress == "" {
-				continue
-			}
-			addresses = append(addresses, replica.RelayAddress)
+	updates := make(chan struct{}, 1)
+	signal := func() {
+		select {
+		case updates <- struct{}{}:
+		default:
 		}
-		if err := ps.SetPeerAddresses(addresses); err != nil {
-			logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-updates:
+				if err := ps.SetPeerAddresses(replicaNATSPeerAddresses(rm)); err != nil {
+					logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
+				}
+			}
 		}
-	})
+	}()
+
+	rm.SetCallback(replicaCallbackNATSPeers, signal)
+}
+
+func replicaNATSPeerAddresses(rm *replicasync.Manager) []string {
+	addresses := make([]string, 0)
+	for _, replica := range rm.AllPrimary() {
+		if replica.ID == rm.ID() {
+			continue
+		}
+		if replica.RelayAddress == "" {
+			continue
+		}
+		// coderd/x/nats accepts relay-style URLs here and normalizes the host
+		// to the NATS route port.
+		addresses = append(addresses, replica.RelayAddress)
+	}
+	return addresses
 }
 
 // New constructs an Enterprise coderd API instance.
@@ -979,9 +1008,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.AddCallback(func() {
-					// Only update DERP mesh if the built-in server is enabled.
-					if api.Options.DeploymentValues.DERP.Server.Enable {
+				if api.Options.DeploymentValues.DERP.Server.Enable {
+					api.replicaManager.SetCallback(replicaCallbackDERPMesh, func() {
 						addresses := make([]string, 0)
 						for _, replica := range api.replicaManager.Regional() {
 							// Don't add replicas with an empty relay address.
@@ -991,15 +1019,20 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 							addresses = append(addresses, replica.RelayAddress)
 						}
 						api.derpMesh.SetAddresses(addresses, false)
-					}
+					})
+				} else {
+					api.replicaManager.SetCallback(replicaCallbackDERPMesh, nil)
+				}
+				api.replicaManager.SetCallback(replicaCallbackEntitlements, func() {
 					_ = api.updateEntitlements(api.ctx)
 				})
 			} else {
 				coordinator = agpltailnet.NewCoordinator(api.Logger)
+				api.replicaManager.SetCallback(replicaCallbackDERPMesh, nil)
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.AddCallback(func() {
+				api.replicaManager.SetCallback(replicaCallbackEntitlements, func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)

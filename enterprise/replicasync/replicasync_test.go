@@ -224,8 +224,8 @@ func TestReplica(t *testing.T) {
 
 		var first atomic.Int64
 		var second atomic.Int64
-		server.AddCallback(func() { first.Add(1) })
-		server.AddCallback(func() { second.Add(1) })
+		server.SetCallback("first", func() { first.Add(1) })
+		server.SetCallback("second", func() { second.Add(1) })
 		require.Eventually(t, func() bool {
 			return first.Load() >= 1 && second.Load() >= 1
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -234,6 +234,65 @@ func TestReplica(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return first.Load() >= 2 && second.Load() >= 2
 		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+	t.Run("SetCallbackReplaces", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		var first atomic.Int64
+		var second atomic.Int64
+		server.SetCallback("same", func() { first.Add(1) })
+		require.Eventually(t, func() bool {
+			return first.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		firstAfterInitial := first.Load()
+
+		server.SetCallback("same", func() { second.Add(1) })
+		require.Eventually(t, func() bool {
+			return second.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.NoError(t, server.UpdateNow(ctx))
+		require.Eventually(t, func() bool {
+			return second.Load() >= 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, firstAfterInitial, first.Load())
+	})
+	t.Run("SetCallbackDeletes", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		var count atomic.Int64
+		server.SetCallback("same", func() { count.Add(1) })
+		require.Eventually(t, func() bool {
+			return count.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		afterInitial := count.Load()
+
+		server.SetCallback("same", nil)
+		require.NoError(t, server.UpdateNow(ctx))
+		require.Equal(t, afterInitial, count.Load())
 	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
@@ -261,7 +320,7 @@ func TestReplica(t *testing.T) {
 			done := false
 
 			var m sync.Mutex
-			server.AddCallback(func() {
+			server.SetCallback("all-primary", func() {
 				m.Lock()
 				defer m.Unlock()
 				if len(server.AllPrimary()) != count {

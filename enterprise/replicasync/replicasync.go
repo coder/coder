@@ -125,7 +125,7 @@ type Manager struct {
 	self      database.Replica
 	mutex     sync.Mutex
 	peers     []database.Replica
-	callbacks []func()
+	callbacks map[string]func()
 }
 
 func (m *Manager) ID() uuid.UUID {
@@ -359,7 +359,10 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	callbacks := append([]func(){}, m.callbacks...)
+	callbacks := make([]func(), 0, len(m.callbacks))
+	for _, callback := range m.callbacks {
+		callbacks = append(callbacks, callback)
+	}
 	for _, callback := range callbacks {
 		go callback()
 	}
@@ -440,11 +443,20 @@ func (m *Manager) regionID() int32 {
 	return m.self.RegionID
 }
 
-// AddCallback adds a function to execute whenever new peers
-// are refreshed or updated.
-func (m *Manager) AddCallback(callback func()) {
+// SetCallback sets a named function to execute whenever new peers are refreshed
+// or updated. Calling SetCallback again with the same name replaces the prior
+// callback. Passing nil removes the named callback.
+func (m *Manager) SetCallback(name string, callback func()) {
 	m.mutex.Lock()
-	m.callbacks = append(m.callbacks, callback)
+	if callback == nil {
+		delete(m.callbacks, name)
+		m.mutex.Unlock()
+		return
+	}
+	if m.callbacks == nil {
+		m.callbacks = make(map[string]func())
+	}
+	m.callbacks[name] = callback
 	m.mutex.Unlock()
 	// Instantly call the callback to inform replicas!
 	go callback()
