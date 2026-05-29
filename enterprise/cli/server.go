@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
@@ -138,10 +137,8 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		if err != nil {
 			return nil, nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
 		}
-		replicaID := uuid.New()
-		options.ID = replicaID
 		replicaManager, err := replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-			ID:           replicaID,
+			ID:           options.ID,
 			RelayAddress: options.DeploymentValues.DERP.Server.RelayURL.String(),
 			// #nosec G115 - DERP region IDs are small and fit in int32
 			RegionID:       int32(options.DeploymentValues.DERP.Server.RegionID.Value()),

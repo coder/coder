@@ -105,10 +105,17 @@ func NewWithAPI(t *testing.T, options *Options) (
 	}
 	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
+	if oop.ID == uuid.Nil {
+		oop.ID = uuid.New()
+	}
 	replicaManager := options.ReplicaManager
+	if replicaManager != nil {
+		oop.ID = replicaManager.ID()
+	}
 	if replicaManager == nil {
 		var err error
 		replicaManager, err = replicasync.New(context.Background(), oop.Logger, oop.Database, oop.Pubsub, &replicasync.Options{
+			ID:           oop.ID,
 			RelayAddress: serverURL.String(),
 			// #nosec G115 - DERP region IDs are small and fit in int32.
 			RegionID:       int32(oop.DeploymentValues.DERP.Server.RegionID.Value()),

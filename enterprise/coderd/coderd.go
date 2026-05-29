@@ -226,11 +226,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	// The API replica ID must match the replica manager ID because other
 	// replicas use this ID to relay work back to the owning API instance.
-	if options.ReplicaManager == nil {
-		return nil, xerrors.New("replica manager is required")
-	}
-	if options.Options.ID == uuid.Nil {
-		options.Options.ID = options.ReplicaManager.ID()
+	if options.Options.ID != options.ReplicaManager.ID() {
+		return nil, xerrors.Errorf("replica manager ID %s does not match coderd ID %s", options.ReplicaManager.ID(), options.Options.ID)
 	}
 
 	api := &API{
