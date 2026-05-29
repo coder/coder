@@ -234,8 +234,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableUserAiBudgetOverride{}: {
 		"user_id":            ActionIgnore, // Username is already included in the title.
 		"username":           ActionIgnore, // Username is already included in the title.
-		"group_id":           ActionIgnore,
-		"group_name":         ActionTrack, // Track group_name, the human-readable version.
+		"group_id":           ActionTrack,
+		"group_name":         ActionTrack,
 		"spend_limit_micros": ActionIgnore,
 		"spend_limit":        ActionTrack,  // Track spend_limit, the human-readable version.
 		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.

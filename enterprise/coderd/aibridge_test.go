@@ -3140,10 +3140,12 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Contains(t, upsertDiff, "group_name")
 		require.Equal(t, "", upsertDiff["group_name"].Old)
 		require.Equal(t, group.Name, upsertDiff["group_name"].New)
+		require.Contains(t, upsertDiff, "group_id")
+		require.Equal(t, "", upsertDiff["group_id"].Old)
+		require.Equal(t, group.ID.String(), upsertDiff["group_id"].New)
 		// Fields marked ActionIgnore must not appear in the diff.
 		require.NotContains(t, upsertDiff, "user_id")
 		require.NotContains(t, upsertDiff, "username")
-		require.NotContains(t, upsertDiff, "group_id")
 		require.NotContains(t, upsertDiff, "spend_limit_micros")
 		require.NotContains(t, upsertDiff, "created_at")
 		require.NotContains(t, upsertDiff, "updated_at")
@@ -3162,6 +3164,9 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Contains(t, deleteDiff, "group_name")
 		require.Equal(t, group.Name, deleteDiff["group_name"].Old)
 		require.Equal(t, "", deleteDiff["group_name"].New)
+		require.Contains(t, deleteDiff, "group_id")
+		require.Equal(t, group.ID.String(), deleteDiff["group_id"].Old)
+		require.Equal(t, "", deleteDiff["group_id"].New)
 	})
 
 	t.Run("Audit/ReassignsGroup", func(t *testing.T) {
@@ -3222,6 +3227,9 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Contains(t, updateDiff, "group_name")
 		require.Equal(t, groupA.Name, updateDiff["group_name"].Old)
 		require.Equal(t, groupB.Name, updateDiff["group_name"].New)
+		require.Contains(t, updateDiff, "group_id")
+		require.Equal(t, groupA.ID.String(), updateDiff["group_id"].Old)
+		require.Equal(t, groupB.ID.String(), updateDiff["group_id"].New)
 		require.Contains(t, updateDiff, "spend_limit")
 		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
 		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
