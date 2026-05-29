@@ -22,6 +22,7 @@ import {
 } from "#/api/queries/notifications";
 import {
 	preferenceSettings,
+	preferencesQueryKey,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
 import type {
@@ -303,6 +304,7 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 	updatePreferencesMutation,
 }) => {
 	const dpStatus = useQuery(dataProtectionStatus());
+	const queryClient = useQueryClient();
 
 	if (!dpStatus.data?.enabled) {
 		return null;
@@ -320,6 +322,16 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 							id={switchId}
 							checked={!isHidden}
 							onCheckedChange={(checked) => {
+								const current =
+									queryClient.getQueryData<UserPreferenceSettings>(
+										preferencesQueryKey,
+									);
+								if (current) {
+									queryClient.setQueryData<UserPreferenceSettings>(
+										preferencesQueryKey,
+										{ ...current, dpm_banner_hidden: !checked },
+									);
+								}
 								updatePreferencesMutation.mutate({
 									dpm_banner_hidden: !checked,
 								});

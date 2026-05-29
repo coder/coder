@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "react-query";
 import type { FC } from "react";
 import { dataProtectionStatus } from "#/api/queries/deployment";
-import { preferenceSettings, updatePreferenceSettings } from "#/api/queries/users";
+import {
+	preferenceSettings,
+	preferencesQueryKey,
+	updatePreferenceSettings,
+} from "#/api/queries/users";
+import type { UserPreferenceSettings } from "#/api/typesGenerated";
 import { XIcon } from "lucide-react";
 
 export const DataProtectionBanner: FC = () => {
@@ -23,6 +28,14 @@ export const DataProtectionBanner: FC = () => {
 	const infoURL = dpStatus.data.info_url;
 
 	const handleDismiss = () => {
+		const current =
+			queryClient.getQueryData<UserPreferenceSettings>(preferencesQueryKey);
+		if (current) {
+			queryClient.setQueryData<UserPreferenceSettings>(preferencesQueryKey, {
+				...current,
+				dpm_banner_hidden: true,
+			});
+		}
 		updatePrefs.mutate({ dpm_banner_hidden: true });
 	};
 
