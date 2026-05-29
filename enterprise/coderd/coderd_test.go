@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/audit"
@@ -622,6 +623,95 @@ func TestMultiReplica_EmptyRelayAddress_DisabledDERP(t *testing.T) {
 		}
 		cancel()
 	}
+}
+
+func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+	clusterToken := "shared-token"
+
+	portA := natsTestTCPPort(t)
+	natsA, err := natspubsub.New(ctx, logger.Named("nats-a"), natspubsub.Options{
+		ClusterHost:      "127.0.0.1",
+		ClusterPort:      portA,
+		ClusterAuthToken: clusterToken,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = natsA.Close() })
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentNATSPubsub)}
+	coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		EntitlementsUpdateInterval: 25 * time.Millisecond,
+		ReplicaSyncUpdateInterval:  25 * time.Millisecond,
+		Options: &coderdtest.Options{
+			Logger:           &logger,
+			Database:         db,
+			Pubsub:           natsA,
+			DeploymentValues: dv,
+		},
+	})
+
+	portB := natsTestTCPPort(t)
+	natsB, err := natspubsub.New(ctx, logger.Named("nats-b"), natspubsub.Options{
+		ClusterHost:      "127.0.0.1",
+		ClusterPort:      portB,
+		ClusterAuthToken: clusterToken,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = natsB.Close() })
+
+	mgr, err := replicasync.New(ctx, logger.Named("replica-b"), db, natsB, &replicasync.Options{
+		ID:             uuid.New(),
+		RelayAddress:   fmt.Sprintf("nats://127.0.0.1:%d", portB),
+		RegionID:       12345,
+		UpdateInterval: testutil.IntervalFast,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = mgr.Close() })
+
+	subject := "nats.replica." + strings.ReplaceAll(uuid.NewString(), "-", ".")
+	messages := make(chan []byte, 1)
+	cancel, err := natsB.Subscribe(subject, func(_ context.Context, msg []byte) {
+		messages <- msg
+	})
+	require.NoError(t, err)
+	defer cancel()
+
+	payload := []byte("from-replicasync-peers")
+	var publishErr error
+	var flushErr error
+	require.Eventually(t, func() bool {
+		publishErr = natsA.Publish(subject, payload)
+		if publishErr != nil {
+			return false
+		}
+		flushErr = natsA.Flush()
+		if flushErr != nil {
+			return false
+		}
+		select {
+		case got := <-messages:
+			return string(got) == string(payload)
+		default:
+			return false
+		}
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.NoError(t, publishErr)
+	require.NoError(t, flushErr)
+}
+
+func natsTestTCPPort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+	addr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	return addr.Port
 }
 
 func TestSCIMDisabled(t *testing.T) {
