@@ -132,7 +132,7 @@ on connecting your JetBrains IDEs.
 [code-server](https://github.com/coder/code-server) is our supported method of
 running VS Code in the web browser.
 Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the
-[documentation for code-server](https://coder.com/docs/code-server/latest).
+[documentation for code-server](https://coder.com/docs/code-server).
 
 ![code-server in a workspace](../../images/code-server-ide.png)
 

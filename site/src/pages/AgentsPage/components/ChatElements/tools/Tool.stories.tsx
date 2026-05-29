@@ -299,6 +299,7 @@ export const ExecuteModelIntent: Story = {
 
 export const ExecuteModelIntentRunning: Story = {
 	args: {
+		shellToolDisplayMode: "always_expanded",
 		status: "running",
 		args: {
 			command: executeCommand,
