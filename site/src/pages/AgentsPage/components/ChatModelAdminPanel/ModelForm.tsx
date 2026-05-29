@@ -8,6 +8,7 @@ import {
 import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
 	InputGroup,
@@ -114,6 +115,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
 	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
+
+	// True when the model's original provider has been deleted.
+	const isProviderDeleted =
+		isEditing &&
+		Boolean(
+			editingModel?.ai_provider_id && !selectedProviderState?.providerConfig,
+		);
 	const initialValues = {
 		...buildInitialModelFormValues(initialModel),
 		...(isDuplicating && { isDefault: false }),
@@ -343,6 +351,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 					</p>
 				)}
 			</div>
+			{isProviderDeleted && (
+				<Alert severity="warning" className="mb-4">
+					<AlertDescription>
+						This model's provider was deleted. Remove and re-add this model to
+						reconfigure it.
+					</AlertDescription>
+				</Alert>
+			)}
 			{/* Header - editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
