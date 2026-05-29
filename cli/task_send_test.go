@@ -237,7 +237,10 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		// Given: An initializing task (workspace running, no agent
-		// connected).
+		// connected). Close the agent, pause, then resume so the
+		// workspace is started but no agent is connected. The
+		// command enters waitForTaskIdle directly (initializing
+		// path), where we verify it handles an external pause.
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
@@ -246,8 +249,6 @@ func Test_TaskSend(t *testing.T) {
 		resumeTask(setupCtx, t, setup.userClient, setup.task)
 
 		// Set up mock clock and traps before starting the command.
-		// Without a mock clock the poll can race with the stop build
-		// and see a transient 'unknown' status instead of 'paused'.
 		mClock := quartz.NewMock(t)
 		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
 		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
@@ -271,23 +272,28 @@ func Test_TaskSend(t *testing.T) {
 		tickCall.MustRelease(ctx)
 		tickTrap.Close()
 
-		// Fire the immediate first poll (time.Nanosecond initial interval).
-		// This poll sees 'initializing' because no agent is connected.
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees 'initializing' and continues.
 		mClock.Advance(time.Nanosecond).MustWait(ctx)
-
-		// Wait for Reset (confirms first poll completed).
 		resetCall := resetTrap.MustWait(ctx)
 		resetCall.MustRelease(ctx)
-		resetTrap.Close()
 
-		// Pause the task while waitForTaskIdle is polling. Since
-		// no agent is connected, the task stays initializing until
-		// we pause it, at which point the status becomes paused.
+		// Fire the second poll. The goroutine is again frozen at
+		// ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// pause the task. The stop build completes, so the DB has
+		// (stop, succeeded) = 'paused'.
 		pauseTask(ctx, t, setup.userClient, setup.task)
 
-		// Fire second poll at the regular 5s interval. The stop
-		// build has completed, so the poll sees 'paused'.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees 'paused'.
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
 
 		// Then: The command should fail because the task was paused.
 		err := w.Wait()
@@ -328,23 +334,31 @@ func Test_TaskSend(t *testing.T) {
 		tickCall.MustRelease(ctx)
 		tickTrap.Close()
 
-		// Fire the immediate first poll (time.Nanosecond initial interval).
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees "working" and continues.
 		mClock.Advance(time.Nanosecond).MustWait(ctx)
-
-		// Wait for Reset (confirms first poll completed and saw "working").
 		resetCall := resetTrap.MustWait(ctx)
 		resetCall.MustRelease(ctx)
-		resetTrap.Close()
 
-		// Transition the app back to idle so waitForTaskIdle proceeds.
+		// Fire the second poll. The goroutine is again frozen
+		// at ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// transition the app to idle.
 		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "task-sidebar",
 			State:   codersdk.WorkspaceAppStatusStateIdle,
 			Message: "ready",
 		}))
 
-		// Fire second poll at the regular 5s interval.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees "idle".
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
 
 		// Then: The command should complete successfully.
 		require.NoError(t, w.Wait())
