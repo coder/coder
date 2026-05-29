@@ -1,4 +1,4 @@
-import { type FC, Fragment, useEffect } from "react";
+import { type FC, Fragment, useEffect, useState } from "react";
 import {
 	type UseMutationResult,
 	type UseQueryResult,
@@ -303,12 +303,14 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 	updatePreferencesMutation,
 }) => {
 	const dpStatus = useQuery(dataProtectionStatus());
+	const [localHidden, setLocalHidden] = useState<boolean | null>(null);
 
 	if (!dpStatus.data?.enabled) {
 		return null;
 	}
 
-	const isHidden = preferencesQuery.data?.dpm_banner_hidden ?? false;
+	const isHidden =
+		localHidden ?? preferencesQuery.data?.dpm_banner_hidden ?? false;
 	const switchId = "dpm-banner-toggle";
 
 	return (
@@ -320,6 +322,7 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 							id={switchId}
 							checked={!isHidden}
 							onCheckedChange={(checked) => {
+								setLocalHidden(!checked);
 								updatePreferencesMutation.mutate({
 									dpm_banner_hidden: !checked,
 								});
