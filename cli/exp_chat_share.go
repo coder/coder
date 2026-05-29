@@ -47,21 +47,20 @@ func parseChatShareID(raw string) (uuid.UUID, error) {
 }
 
 func parseChatShareActorRole(raw string) ([2]string, error) {
-	if strings.Count(raw, ":") > 1 {
+	name, role, hasRole := strings.Cut(raw, ":")
+	if strings.Contains(role, ":") {
 		return [2]string{}, xerrors.New("must match pattern 'name:role'")
 	}
-	parts := strings.SplitN(raw, ":", 2)
-	name := parts[0]
 	if name == "" || !codersdk.UsernameValidRegex.MatchString(name) {
 		return [2]string{}, xerrors.New("invalid name")
 	}
-	if len(parts) == 1 {
+	if !hasRole {
 		return [2]string{name, ""}, nil
 	}
-	if parts[1] == "" {
+	if role == "" {
 		return [2]string{}, xerrors.New("role cannot be empty")
 	}
-	return [2]string{name, parts[1]}, nil
+	return [2]string{name, role}, nil
 }
 
 func stringToChatRole(role string) (codersdk.ChatRole, error) {
