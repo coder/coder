@@ -48,7 +48,15 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 
 	// Collect batch insert params while iterating.
 	batch := database.InsertBoundaryLogsParams{
-		SessionID: sessionID,
+		SessionID:      sessionID,
+		ID:             nil,
+		SequenceNumber: nil,
+		CapturedAt:     nil,
+		CreatedAt:      nil,
+		Proto:          nil,
+		Method:         nil,
+		Detail:         nil,
+		MatchedRule:    nil,
 	}
 
 	for _, l := range req.Logs {
@@ -140,14 +148,17 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 	_, err = a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
 		ID:                  sessionID,
 		WorkspaceAgentID:    a.AgentID,
+		OwnerID:             uuid.NullUUID{},
 		ConfinedProcessName: confinedProcess,
 		StartedAt:           now,
 		UpdatedAt:           now,
 	})
 	if err != nil {
-		// If another replica raced us, the insert will fail
-		// with a unique constraint violation. Treat that as
-		// success.
+		// Two coderd replicas may receive the first batch for
+		// this session simultaneously, both observe it missing,
+		// and both attempt the INSERT. The second INSERT fails
+		// with a primary-key unique violation. Treat it as
+		// success because the session now exists.
 		if database.IsUniqueViolation(err, database.UniqueBoundarySessionsPkey) {
 			return nil
 		}
