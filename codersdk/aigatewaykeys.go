@@ -11,9 +11,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// AIGatewayCoderdKey is a shared secret used by a standalone AI Gateway
+// AIGatewayKey is a shared secret used by a standalone AI Gateway
 // to authenticate into coderd.
-type AIGatewayCoderdKey struct {
+type AIGatewayKey struct {
 	ID         uuid.UUID  `json:"id" format:"uuid"`
 	Name       string     `json:"name"`
 	KeyPrefix  string     `json:"key_prefix"`
@@ -21,14 +21,14 @@ type AIGatewayCoderdKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty" format:"date-time"`
 }
 
-// CreateAIGatewayCoderdKeyRequest requests a new AI Gateway coderd key.
-type CreateAIGatewayCoderdKeyRequest struct {
+// CreateAIGatewayKeyRequest requests a new AI Gateway key.
+type CreateAIGatewayKeyRequest struct {
 	Name string `json:"name" validate:"required"`
 }
 
-// CreateAIGatewayCoderdKeyResponse returns all key information.
+// CreateAIGatewayKeyResponse returns all key information.
 // Key value is only returned here and cannot be recovered afterwards.
-type CreateAIGatewayCoderdKeyResponse struct {
+type CreateAIGatewayKeyResponse struct {
 	ID        uuid.UUID `json:"id" format:"uuid"`
 	Name      string    `json:"name"`
 	Key       string    `json:"key"`
@@ -36,24 +36,24 @@ type CreateAIGatewayCoderdKeyResponse struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 }
 
-// CreateAIGatewayCoderdKey creates a new AI Gateway coderd key.
-func (c *Client) CreateAIGatewayCoderdKey(ctx context.Context, req CreateAIGatewayCoderdKeyRequest) (CreateAIGatewayCoderdKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/aibridge/coderd-keys", req)
+// CreateAIGatewayKey creates a new AI Gateway key.
+func (c *Client) CreateAIGatewayKey(ctx context.Context, req CreateAIGatewayKeyRequest) (CreateAIGatewayKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/aibridge/keys", req)
 	if err != nil {
-		return CreateAIGatewayCoderdKeyResponse{}, xerrors.Errorf("make request: %w", err)
+		return CreateAIGatewayKeyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return CreateAIGatewayCoderdKeyResponse{}, ReadBodyAsError(res)
+		return CreateAIGatewayKeyResponse{}, ReadBodyAsError(res)
 	}
-	var resp CreateAIGatewayCoderdKeyResponse
+	var resp CreateAIGatewayKeyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// ListAIGatewayCoderdKeys lists all AI Gateway coderd keys.
-func (c *Client) ListAIGatewayCoderdKeys(ctx context.Context) ([]AIGatewayCoderdKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/coderd-keys", nil)
+// ListAIGatewayKeys lists all AI Gateway keys.
+func (c *Client) ListAIGatewayKeys(ctx context.Context) ([]AIGatewayKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/keys", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
 	}
@@ -62,14 +62,14 @@ func (c *Client) ListAIGatewayCoderdKeys(ctx context.Context) ([]AIGatewayCoderd
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var resp []AIGatewayCoderdKey
+	var resp []AIGatewayKey
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// DeleteAIGatewayCoderdKey deletes an AI Gateway coderd key by ID.
-func (c *Client) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
+// DeleteAIGatewayKey deletes an AI Gateway key by ID.
+func (c *Client) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/aibridge/coderd-keys/%s", id.String()), nil)
+		fmt.Sprintf("/api/v2/aibridge/keys/%s", id.String()), nil)
 	if err != nil {
 		return xerrors.Errorf("make request: %w", err)
 	}

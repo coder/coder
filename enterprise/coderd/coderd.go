@@ -299,14 +299,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/coderd-keys", func(r chi.Router) {
+		r.Route("/aibridge/keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
-			r.Get("/", api.aiGatewayCoderdKeys)
-			r.Post("/", api.postAIGatewayCoderdKey)
-			r.Delete("/{key}", api.deleteAIGatewayCoderdKey)
+			r.Get("/", api.aiGatewayKeys)
+			r.Post("/", api.postAIGatewayKey)
+			r.Delete("/{key}", api.deleteAIGatewayKey)
 		})
 	})
 

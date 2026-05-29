@@ -304,12 +304,12 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
-// From codersdk/aigatewaycoderdkeys.go
+// From codersdk/aigatewaykeys.go
 /**
- * AIGatewayCoderdKey is a shared secret used by a standalone AI Gateway
+ * AIGatewayKey is a shared secret used by a standalone AI Gateway
  * to authenticate into coderd.
  */
-export interface AIGatewayCoderdKey {
+export interface AIGatewayKey {
 	readonly id: string;
 	readonly name: string;
 	readonly key_prefix: string;
@@ -3257,20 +3257,20 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
-// From codersdk/aigatewaycoderdkeys.go
+// From codersdk/aigatewaykeys.go
 /**
- * CreateAIGatewayCoderdKeyRequest requests a new AI Gateway coderd key.
+ * CreateAIGatewayKeyRequest requests a new AI Gateway key.
  */
-export interface CreateAIGatewayCoderdKeyRequest {
+export interface CreateAIGatewayKeyRequest {
 	readonly name: string;
 }
 
-// From codersdk/aigatewaycoderdkeys.go
+// From codersdk/aigatewaykeys.go
 /**
- * CreateAIGatewayCoderdKeyResponse returns all key information.
+ * CreateAIGatewayKeyResponse returns all key information.
  * Key value is only returned here and cannot be recovered afterwards.
  */
-export interface CreateAIGatewayCoderdKeyResponse {
+export interface CreateAIGatewayKeyResponse {
 	readonly id: string;
 	readonly name: string;
 	readonly key: string;

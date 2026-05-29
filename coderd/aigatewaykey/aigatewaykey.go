@@ -1,4 +1,4 @@
-package aigatewaycoderdkey
+package aigatewaykey
 
 import (
 	"github.com/google/uuid"
@@ -21,14 +21,14 @@ const (
 
 // New generates an AI Gateway Coderd key. Returns InsertParams ready
 // for the database query.
-func New(name string) (database.InsertAIGatewayCoderdKeyParams, string, error) {
+func New(name string) (database.InsertAIGatewayKeyParams, string, error) {
 	secret, hashed, err := apikey.GenerateSecret(KeyLength)
 	if err != nil {
-		return database.InsertAIGatewayCoderdKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
+		return database.InsertAIGatewayKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
 	}
 	visiblePrefix := secret[:KeyPrefixLength]
 
-	return database.InsertAIGatewayCoderdKeyParams{
+	return database.InsertAIGatewayKeyParams{
 		ID:           uuid.New(),
 		Name:         name,
 		SecretPrefix: visiblePrefix,
