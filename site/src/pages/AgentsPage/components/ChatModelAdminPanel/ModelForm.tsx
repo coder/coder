@@ -396,16 +396,22 @@ export const ModelForm: FC<ModelFormProps> = ({
 										form.setFieldValue("enabled", v);
 									}}
 									aria-label="Enabled"
-									disabled={isSaving || defaultModelDisableGuard}
+									disabled={
+										isSaving ||
+										defaultModelDisableGuard ||
+										(isProviderDeleted && !form.values.enabled)
+									}
 								/>
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
 							{defaultModelDisableGuard
 								? "Default model cannot be disabled. Remove default status first."
-								: form.values.enabled
-									? "Disable this model. It will be hidden from users."
-									: "Enable this model. It will be visible to users."}
+								: isProviderDeleted && !form.values.enabled
+									? "This model's provider was deleted."
+									: form.values.enabled
+										? "Disable this model. It will be hidden from users."
+										: "Enable this model. It will be visible to users."}
 						</TooltipContent>
 					</Tooltip>
 				)}
@@ -652,7 +658,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 						<Button
 							size="lg"
 							type="submit"
-							disabled={isSaving || !form.isValid || hasFieldErrors}
+							disabled={
+								isSaving || !form.isValid || hasFieldErrors || isProviderDeleted
+							}
 						>
 							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
 							{isEditing
