@@ -295,7 +295,8 @@ export const TerminalProviderDisabledError: Story = {
 		liveStatus: buildLiveStatus({
 			streamError: {
 				kind: "provider_disabled",
-				message: "The OpenAI provider has been disabled. Contact your Coder administrator.",
+				message:
+					"The OpenAI provider has been disabled. Contact your Coder administrator.",
 				provider: "openai",
 				retryable: false,
 				statusCode: 503,
