@@ -13,7 +13,7 @@ type UsageLimitData = Partial<
  * - "usage_limit": the user hit a spending cap (409 + valid usage data).
  * - other kinds come from normalized stream/provider failures such as
  *   "generic", "overloaded", "rate_limit", "timeout",
- *   "startup_timeout", "auth", and "config".
+ *   "startup_timeout", "auth", "config", and "provider_disabled".
  */
 export type ChatDetailError = {
 	message: string;
