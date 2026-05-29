@@ -31,12 +31,11 @@ func (r *RootCmd) chatShareCommand() *serpent.Command {
 const chatShareDefaultGroupDisplay = "-"
 
 type chatRoleLookupParams struct {
-	Client      *codersdk.Client
-	OrgID       uuid.UUID
-	OrgName     string
-	Users       [][2]string
-	Groups      [][2]string
-	DefaultRole codersdk.ChatRole
+	Client  *codersdk.Client
+	OrgID   uuid.UUID
+	OrgName string
+	Users   [][2]string
+	Groups  [][2]string
 }
 
 func parseChatShareID(raw string) (uuid.UUID, error) {
@@ -49,19 +48,23 @@ func parseChatShareID(raw string) (uuid.UUID, error) {
 
 func parseChatShareActorRole(raw string) ([2]string, error) {
 	name, role, hasRole := strings.Cut(raw, ":")
-	if strings.Contains(role, ":") {
+	if !hasRole || role == "" || strings.Contains(role, ":") {
 		return [2]string{}, xerrors.New("must match pattern 'name:role'")
 	}
 	if name == "" || !codersdk.UsernameValidRegex.MatchString(name) {
 		return [2]string{}, xerrors.New("invalid name")
 	}
-	if !hasRole {
-		return [2]string{name, ""}, nil
-	}
-	if role == "" {
-		return [2]string{}, xerrors.New("role cannot be empty")
-	}
 	return [2]string{name, role}, nil
+}
+
+func parseChatShareActor(raw string) (string, error) {
+	if strings.Contains(raw, ":") {
+		return "", xerrors.New("roles are only accepted by chat share add")
+	}
+	if raw == "" || !codersdk.UsernameValidRegex.MatchString(raw) {
+		return "", xerrors.New("invalid name")
+	}
+	return raw, nil
 }
 
 func stringToChatRole(role string) (codersdk.ChatRole, error) {
@@ -86,9 +89,6 @@ func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (
 		for _, user := range params.Users {
 			username := user[0]
 			role := user[1]
-			if role == "" {
-				role = string(params.DefaultRole)
-			}
 
 			userID := ""
 			for _, member := range orgMembers {
@@ -121,9 +121,6 @@ func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (
 		for _, group := range params.Groups {
 			groupName := group[0]
 			role := group[1]
-			if role == "" {
-				role = string(params.DefaultRole)
-			}
 
 			var orgGroup *codersdk.Group
 			for _, candidate := range orgGroups {

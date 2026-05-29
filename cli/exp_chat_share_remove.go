@@ -44,26 +44,20 @@ func (r *RootCmd) chatShareRemoveCommand() *serpent.Command {
 
 			userRoleStrings := make([][2]string, len(users))
 			for i, user := range users {
-				parsed, err := parseChatShareActorRole(user)
+				parsed, err := parseChatShareActor(user)
 				if err != nil {
 					return xerrors.Errorf("invalid user format %q: %w", user, err)
 				}
-				if parsed[1] != "" {
-					return xerrors.Errorf("invalid user format %q: roles are only accepted by chat share add", user)
-				}
-				userRoleStrings[i] = parsed
+				userRoleStrings[i] = [2]string{parsed, string(codersdk.ChatRoleDeleted)}
 			}
 
 			groupRoleStrings := make([][2]string, len(groups))
 			for i, group := range groups {
-				parsed, err := parseChatShareActorRole(group)
+				parsed, err := parseChatShareActor(group)
 				if err != nil {
 					return xerrors.Errorf("invalid group format %q: %w", group, err)
 				}
-				if parsed[1] != "" {
-					return xerrors.Errorf("invalid group format %q: roles are only accepted by chat share add", group)
-				}
-				groupRoleStrings[i] = parsed
+				groupRoleStrings[i] = [2]string{parsed, string(codersdk.ChatRoleDeleted)}
 			}
 
 			client, err := r.InitClient(inv)
@@ -78,11 +72,10 @@ func (r *RootCmd) chatShareRemoveCommand() *serpent.Command {
 			}
 
 			userRoles, groupRoles, err := fetchChatUsersAndGroups(inv.Context(), chatRoleLookupParams{
-				Client:      client,
-				OrgID:       chat.OrganizationID,
-				Users:       userRoleStrings,
-				Groups:      groupRoleStrings,
-				DefaultRole: codersdk.ChatRoleDeleted,
+				Client: client,
+				OrgID:  chat.OrganizationID,
+				Users:  userRoleStrings,
+				Groups: groupRoleStrings,
 			})
 			if err != nil {
 				return err
