@@ -252,6 +252,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
 		: "";
 
+	const didSubmit = useRef(false);
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
@@ -265,7 +266,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		},
 		validationSchema: getProviderFormSchema(editing),
 		validateOnMount: true,
-		onSubmit: onSubmit ?? (() => {}),
+		onSubmit: (values) => {
+			didSubmit.current = true;
+			return onSubmit?.(values);
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
@@ -282,6 +286,8 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 	};
 
+	// Restores the mask when the user leaves the field without entering
+	// a new value, keeping the saved-credential appearance.
 	const handleCredentialBlur = (
 		field: "apiKey" | "accessKey" | "accessKeySecret",
 	) => {
@@ -297,16 +303,19 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// as `null`, so a truthy check covers both null and undefined.
 	const previousIsLoading = useRef(isLoading);
 	useEffect(() => {
-		if (previousIsLoading.current && !isLoading && !submitError) {
-			// Restore credential fields to their initial masked sentinels so
-			// the raw key is never left visible after a successful save.
-			const remaskedValues = {
-				...form.values,
-				apiKey: maskedApiKey,
-				accessKey: maskedAccessKey,
-				accessKeySecret: maskedAccessKeySecret,
-			};
-			form.resetForm({ values: remaskedValues });
+		if (previousIsLoading.current && !isLoading) {
+			if (didSubmit.current && !submitError) {
+				// Restore credential fields to their initial masked sentinels so
+				// the raw key is never left visible after a successful save.
+				const remaskedValues = {
+					...form.values,
+					apiKey: maskedApiKey,
+					accessKey: maskedAccessKey,
+					accessKeySecret: maskedAccessKeySecret,
+				};
+				form.resetForm({ values: remaskedValues });
+			}
+			didSubmit.current = false;
 		}
 		previousIsLoading.current = isLoading;
 	}, [

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import { ProviderForm, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
 
 const meta: Meta<typeof ProviderForm> = {
@@ -16,28 +17,12 @@ const meta: Meta<typeof ProviderForm> = {
 export default meta;
 type Story = StoryObj<typeof ProviderForm>;
 
-type Deferred = {
-	promise: Promise<void>;
-	resolve: () => void;
-};
-
-const createDeferred = (): Deferred => {
-	let resolve: (() => void) | undefined;
-	const promise = new Promise<void>((res) => {
-		resolve = res;
-	});
-	if (resolve === undefined) {
-		throw new Error("deferred resolver was not initialized");
-	}
-	return { promise, resolve };
-};
-
 const SuccessfulSubmitProviderForm = ({
 	args,
 	deferred,
 }: {
 	args: ComponentProps<typeof ProviderForm>;
-	deferred: Deferred;
+	deferred: Deferred<void>;
 }) => {
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -55,8 +40,64 @@ const SuccessfulSubmitProviderForm = ({
 	);
 };
 
-let bedrockSubmitDeferred = createDeferred();
-let apiKeySubmitDeferred = createDeferred();
+const FailedSubmitProviderForm = ({
+	args,
+	deferred,
+}: {
+	args: ComponentProps<typeof ProviderForm>;
+	deferred: Deferred<void>;
+}) => {
+	const [isLoading, setIsLoading] = useState(false);
+	const [submitError, setSubmitError] = useState<unknown>();
+
+	return (
+		<ProviderForm
+			{...args}
+			isLoading={isLoading}
+			submitError={submitError}
+			onSubmit={async (values) => {
+				args.onSubmit?.(values);
+				setIsLoading(true);
+				await deferred.promise;
+				setSubmitError(new Error(errorSubmitMessage));
+				setIsLoading(false);
+			}}
+		/>
+	);
+};
+
+const ExternalLoadingProviderForm = ({
+	args,
+	deferred,
+}: {
+	args: ComponentProps<typeof ProviderForm>;
+	deferred: Deferred<void>;
+}) => {
+	const [isLoading, setIsLoading] = useState(false);
+
+	return (
+		<>
+			<ProviderForm {...args} isLoading={isLoading} />
+			<button
+				type="button"
+				onClick={async () => {
+					setIsLoading(true);
+					await deferred.promise;
+					setIsLoading(false);
+				}}
+			>
+				Simulate external save
+			</button>
+		</>
+	);
+};
+
+const errorSubmitMessage = "Failed to update provider.";
+
+let bedrockSubmitDeferred = createDeferred<void>();
+let apiKeySubmitDeferred = createDeferred<void>();
+let failedSubmitDeferred = createDeferred<void>();
+let externalSaveDeferred = createDeferred<void>();
 
 export const AddAnthropicDefault: Story = {};
 
@@ -91,7 +132,7 @@ export const AddBedrock: Story = {
 
 export const EditBedrockKeepCredentials: Story = {
 	render: (args) => {
-		bedrockSubmitDeferred = createDeferred();
+		bedrockSubmitDeferred = createDeferred<void>();
 		return (
 			<SuccessfulSubmitProviderForm
 				args={args}
@@ -116,7 +157,7 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const accessKeyInput = await canvas.findByLabelText(/^access key$/i);
+		const accessKeyInput = await canvas.findByLabelText(/^access key\s*\*?$/i);
 		const accessKeySecretInput =
 			await canvas.findByLabelText(/access key secret/i);
 
@@ -138,6 +179,7 @@ export const EditBedrockKeepCredentials: Story = {
 		expect(accessKeyInput).toHaveValue("AKIAI1lO0EXAMPLE");
 
 		await userEvent.click(accessKeySecretInput);
+		await waitFor(() => expect(accessKeySecretInput).toHaveValue(""));
 		await userEvent.type(accessKeySecretInput, "wJalrI1lO0Secret");
 		expect(accessKeySecretInput).toHaveValue("wJalrI1lO0Secret");
 
@@ -214,7 +256,7 @@ export const Submitting: Story = {
 
 export const CredentialFocusClear: Story = {
 	render: (args) => {
-		apiKeySubmitDeferred = createDeferred();
+		apiKeySubmitDeferred = createDeferred<void>();
 		return (
 			<SuccessfulSubmitProviderForm
 				args={args}
@@ -279,6 +321,103 @@ export const CredentialFocusClear: Story = {
 		);
 	},
 };
+export const FailedSubmitKeepsCredential: Story = {
+	render: (args) => {
+		failedSubmitDeferred = createDeferred<void>();
+		return (
+			<FailedSubmitProviderForm args={args} deferred={failedSubmitDeferred} />
+		);
+	},
+	args: {
+		editing: true,
+		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		initialValues: {
+			type: "anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
+			baseUrl: "https://api.anthropic.com",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+		await userEvent.type(apiKeyInput, "sk-ant-I1lO0-new-secret");
+
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Failed Anthropic");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiKey: "sk-ant-I1lO0-new-secret",
+				}),
+			),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		failedSubmitDeferred.resolve();
+		await expect(await canvas.findByText(errorSubmitMessage)).toBeVisible();
+		expect(apiKeyInput).toHaveValue("sk-ant-I1lO0-new-secret");
+	},
+};
+
+export const ExternalLoadingKeepsCredential: Story = {
+	render: (args) => {
+		externalSaveDeferred = createDeferred<void>();
+		return (
+			<ExternalLoadingProviderForm
+				args={args}
+				deferred={externalSaveDeferred}
+			/>
+		);
+	},
+	args: {
+		editing: true,
+		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		initialValues: {
+			type: "anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
+			baseUrl: "https://api.anthropic.com",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+		await userEvent.type(apiKeyInput, "sk-ant-I1lO0-new-secret");
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /simulate external save/i }),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		externalSaveDeferred.resolve();
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		expect(apiKeyInput).toHaveValue("sk-ant-I1lO0-new-secret");
+	},
+};
+
 export const UnsavedChangesPrompt: Story = {
 	args: {
 		editing: true,
