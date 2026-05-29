@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
@@ -243,6 +243,18 @@ export const CustomHeadersNeedsConfig: Story = {
 	args: {
 		servers: [honchoServer],
 		selectedServerIds: [honchoServer.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", { name: /MCP servers/i });
+		await userEvent.click(trigger);
+		// The popover content renders into a portal outside the canvas,
+		// so use the document-scoped screen helper to find the Configure
+		// button rendered against the honchoServer row.
+		const configure = await screen.findByRole("button", {
+			name: /Configure/i,
+		});
+		expect(configure).toBeInTheDocument();
 	},
 };
 

@@ -2554,4 +2554,45 @@ func TestMCPServerUserHeaderValuesEndpoints(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, fetched.AuthConnected)
 	})
+
+	t.Run("AuthConnectedIsIsolatedPerUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		cfg := createHonchoConfig(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		// User A (admin) stores all required user-set values.
+		_, err := adminClient.UpdateMCPServerUserHeaderValues(ctx, cfg.ID, codersdk.UpdateMCPServerUserHeaderValuesRequest{
+			Values: map[string]string{"X-User-Token": "jwt-a", "X-Workspace": "main"},
+		})
+		require.NoError(t, err)
+
+		// User A sees auth_connected=true via both list and get.
+		adminList, err := adminClient.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, adminList, 1)
+		require.True(t, adminList[0].AuthConnected, "User A should see auth_connected=true")
+		adminGet, err := adminClient.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.True(t, adminGet.AuthConnected, "User A should see auth_connected=true on get")
+
+		// User B (different user, same org) must NOT see
+		// auth_connected=true; user-stored values are per-user and
+		// must not leak across accounts.
+		memberList, err := memberClient.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, memberList, 1)
+		require.False(t, memberList[0].AuthConnected, "User B should NOT inherit User A's auth_connected")
+		memberGet, err := memberClient.MCPServerConfigByID(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, memberGet.AuthConnected, "User B should NOT inherit User A's auth_connected on get")
+
+		// User B's own GET on user-header values reports the unset state.
+		memberHV, err := memberClient.MCPServerUserHeaderValues(ctx, cfg.ID)
+		require.NoError(t, err)
+		require.False(t, memberHV.HasValues["X-User-Token"], "User B HasValues must be false for X-User-Token")
+		require.False(t, memberHV.HasValues["X-Workspace"], "User B HasValues must be false for X-Workspace")
+	})
 }

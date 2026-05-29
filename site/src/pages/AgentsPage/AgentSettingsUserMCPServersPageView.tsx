@@ -1,5 +1,5 @@
 import { ServerIcon } from "lucide-react";
-import { type FC, useId, useMemo, useState } from "react";
+import { type FC, useEffect, useId, useMemo, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -85,6 +85,8 @@ export interface AgentSettingsUserMCPServersPageViewProps {
 	readonly isSavingHeaderValues: boolean;
 	readonly isClearingHeaderValues: boolean;
 	readonly saveHeaderValuesError: unknown;
+	/** Clear stale mutation error state when a configure dialog opens. */
+	readonly onResetSaveHeaderValuesError?: () => void;
 }
 
 // ── Page view ──────────────────────────────────────────────────
@@ -103,6 +105,7 @@ export const AgentSettingsUserMCPServersPageView: FC<
 	isSavingHeaderValues,
 	isClearingHeaderValues,
 	saveHeaderValuesError,
+	onResetSaveHeaderValuesError,
 }) => {
 	const [configuringServer, setConfiguringServer] =
 		useState<TypesGen.MCPServerConfig | null>(null);
@@ -169,6 +172,7 @@ export const AgentSettingsUserMCPServersPageView: FC<
 						: undefined
 				}
 				onClose={() => setConfiguringServer(null)}
+				onOpen={onResetSaveHeaderValuesError}
 				onSave={onSaveHeaderValues}
 				onClear={onClearHeaderValues}
 				isSaving={isSavingHeaderValues}
@@ -262,6 +266,9 @@ interface ConfigureHeadersDialogProps {
 	readonly server: TypesGen.MCPServerConfig | null;
 	readonly headerHasValues: Record<string, boolean> | undefined;
 	readonly onClose: () => void;
+	/** Called once when a new dialog session begins so the parent can
+	 * reset stale mutation error/state from the previous session. */
+	readonly onOpen?: () => void;
 	readonly onSave: (
 		server: TypesGen.MCPServerConfig,
 		values: Record<string, string>,
@@ -276,6 +283,7 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 	server,
 	headerHasValues,
 	onClose,
+	onOpen,
 	onSave,
 	onClear,
 	isSaving,
@@ -294,6 +302,18 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 	const [draft, setDraft] = useState<Record<string, string>>({});
 
 	const open = server !== null;
+
+	// When a new server is opened, reset the parent mutation state so a
+	// previous server's error banner does not bleed into this session.
+	const openServerId = server?.id ?? null;
+	useEffect(() => {
+		if (openServerId !== null) {
+			onOpen?.();
+		}
+		// We only want to fire when the open server identity changes,
+		// not on every render of the onOpen callback reference.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [openServerId]);
 	const hasAnyExisting = requiredKeys.some(
 		(k) => headerHasValues?.[k] === true,
 	);
@@ -308,14 +328,26 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 				values[key] = v;
 			}
 		}
-		await onSave(server, values);
+		try {
+			await onSave(server, values);
+		} catch {
+			// Error is surfaced via the `error` prop; keep the dialog open
+			// so the user can correct and retry.
+			return;
+		}
 		setDraft({});
 		onClose();
 	};
 
 	const handleClear = async () => {
 		if (!server) return;
-		await onClear(server);
+		try {
+			await onClear(server);
+		} catch {
+			// Error is surfaced via the `error` prop; keep the dialog open
+			// so the user can retry.
+			return;
+		}
 		setDraft({});
 		onClose();
 	};

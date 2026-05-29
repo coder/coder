@@ -82,6 +82,13 @@ const AgentSettingsUserMCPServersPage: FC = () => {
 		[deleteMutation],
 	);
 
+	// Reset the inline error state from the previous configure-dialog
+	// session so the next user does not see a stale failure banner.
+	const onResetSaveHeaderValuesError = useCallback(() => {
+		updateMutation.reset();
+		deleteMutation.reset();
+	}, [updateMutation, deleteMutation]);
+
 	// OAuth2 connect: open the experimental MCP OAuth2 connect URL in a popup
 	// and refresh the server list when the popup posts back.
 	const [oauth2PopupRef, setOAuth2PopupRef] = useState<Window | null>(null);
@@ -132,6 +139,7 @@ const AgentSettingsUserMCPServersPage: FC = () => {
 			isSavingHeaderValues={updateMutation.isPending}
 			isClearingHeaderValues={deleteMutation.isPending}
 			saveHeaderValuesError={updateMutation.error ?? deleteMutation.error}
+			onResetSaveHeaderValuesError={onResetSaveHeaderValuesError}
 		/>
 	);
 };
