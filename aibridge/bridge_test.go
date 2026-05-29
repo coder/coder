@@ -228,23 +228,26 @@ func TestDisabledProviderHandler(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	t.Run("DisabledProviderReturnsSentinel", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "Bridged", path: "/disabled-openai/v1/chat/completions"},
+		{name: "Passthrough", path: "/disabled-openai/v1/models"},
+		{name: "Unknown", path: "/disabled-openai/anything/else"},
+	} {
+		t.Run("DisabledProviderReturnsSentinel/"+tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		for _, path := range []string{
-			"/disabled-openai/v1/chat/completions", // Bridged.
-			"/disabled-openai/v1/models",           // Passthrough.
-			"/disabled-openai/anything/else",       // Unknown.
-		} {
-			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req := httptest.NewRequest(http.MethodPost, tc.path, nil)
 			resp := httptest.NewRecorder()
 			bridge.ServeHTTP(resp, req)
 
-			assert.Equal(t, http.StatusServiceUnavailable, resp.Code, "path %s", path)
-			assert.Contains(t, resp.Body.String(), aibridge.ErrorCodeProviderDisabled, "path %s", path)
-			assert.Contains(t, resp.Body.String(), "disabled-openai", "path %s", path)
-		}
-	})
+			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+			assert.Contains(t, resp.Body.String(), aibridge.ErrorCodeProviderDisabled)
+			assert.Contains(t, resp.Body.String(), "disabled-openai")
+		})
+	}
 
 	t.Run("EnabledProviderUnaffected", func(t *testing.T) {
 		t.Parallel()

@@ -54,8 +54,6 @@ type Provider interface {
 	// Defaults to Type() when not explicitly configured.
 	Name() string
 	// Enabled reports whether the provider should serve requests.
-	// Disabled providers stay in the bridge so their routes return a
-	// 503 sentinel instead of falling through to the catch-all 404.
 	Enabled() bool
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string

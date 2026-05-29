@@ -183,11 +183,12 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	}, nil
 }
 
-// disabledProviderHandler returns 503 with [ErrorCodeProviderDisabled]
-// as the response body for every request targeting name.
+// disabledProviderHandler returns 503 with a body containing
+// [ErrorCodeProviderDisabled] and the provider name for every request
+// targeting name.
 func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Info(r.Context(), "refusing request for disabled ai provider",
+		logger.Debug(r.Context(), "refusing request for disabled ai provider",
 			slog.F("provider", name),
 			slog.F("path", r.URL.Path),
 			slog.F("method", r.Method),

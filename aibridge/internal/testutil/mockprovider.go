@@ -15,7 +15,7 @@ import (
 type MockProvider struct {
 	NameStr         string
 	URL             string
-	IsDisabled      bool
+	Disabled        bool
 	Bridged         []string
 	Passthrough     []string
 	InterceptorFunc func(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error)
@@ -23,7 +23,7 @@ type MockProvider struct {
 
 func (m *MockProvider) Type() string                { return m.NameStr }
 func (m *MockProvider) Name() string                { return m.NameStr }
-func (m *MockProvider) Enabled() bool               { return !m.IsDisabled }
+func (m *MockProvider) Enabled() bool               { return !m.Disabled }
 func (m *MockProvider) BaseURL() string             { return m.URL }
 func (m *MockProvider) RoutePrefix() string         { return fmt.Sprintf("/%s", m.NameStr) }
 func (m *MockProvider) BridgedRoutes() []string     { return m.Bridged }
