@@ -8,7 +8,14 @@ RETURNING *;
 
 -- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = @ended_at::timestamptz
+	SET ended_at = @ended_at::timestamptz,
+		-- BYOK records its hint at the start of the interception.
+		-- Centralized uses key failover, so its hint is only known
+		-- at end-of-interception.
+		credential_hint = CASE
+			WHEN credential_kind = 'centralized' THEN @credential_hint::text
+			ELSE credential_hint
+		END
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL

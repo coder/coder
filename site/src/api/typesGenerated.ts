@@ -554,6 +554,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_log:*"
+	| "boundary_log:create"
+	| "boundary_log:delete"
+	| "boundary_log:read"
 	| "boundary_usage:*"
 	| "boundary_usage:delete"
 	| "boundary_usage:read"
@@ -780,6 +784,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_log:*",
+	"boundary_log:create",
+	"boundary_log:delete",
+	"boundary_log:read",
 	"boundary_usage:*",
 	"boundary_usage:delete",
 	"boundary_usage:read",
@@ -1961,6 +1969,7 @@ export type ChatErrorKind =
 	| "generic"
 	| "missing_key"
 	| "overloaded"
+	| "provider_disabled"
 	| "rate_limit"
 	| "startup_timeout"
 	| "timeout"
@@ -1972,6 +1981,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"generic",
 	"missing_key",
 	"overloaded",
+	"provider_disabled",
 	"rate_limit",
 	"startup_timeout",
 	"timeout",
@@ -6870,6 +6880,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
 	| "connection_log"
@@ -6920,6 +6931,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_log",
 	"boundary_usage",
 	"chat",
 	"connection_log",
@@ -9148,6 +9160,16 @@ export interface UpsertGroupAIBudgetRequest {
 	readonly spend_limit_micros: number;
 }
 
+// From codersdk/aibridge.go
+export interface UpsertUserAIBudgetOverrideRequest {
+	/**
+	 * GroupID is the group the user's spend is attributed to. The user must
+	 * be a member of this group.
+	 */
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+}
+
 // From codersdk/workspaceagentportshare.go
 export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -9190,6 +9212,15 @@ export interface User extends ReducedUser {
 	 * field, even when false.
 	 */
 	readonly has_ai_seat: boolean;
+}
+
+// From codersdk/aibridge.go
+export interface UserAIBudgetOverride {
+	readonly user_id: string;
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/chats.go

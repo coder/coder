@@ -222,8 +222,9 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:      intcID,
-		EndedAt: in.EndedAt.AsTime(),
+		ID:             intcID,
+		EndedAt:        in.EndedAt.AsTime(),
+		CredentialHint: in.CredentialHint,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
