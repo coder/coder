@@ -29,11 +29,10 @@ func (r *RootCmd) chatShareCommand() *serpent.Command {
 const chatShareDefaultGroupDisplay = "-"
 
 type chatRoleLookupParams struct {
-	Client  *codersdk.Client
-	OrgID   uuid.UUID
-	OrgName string
-	Users   [][2]string
-	Groups  [][2]string
+	Client *codersdk.Client
+	OrgID  uuid.UUID
+	Users  [][2]string
+	Groups [][2]string
 }
 
 func parseChatShareID(raw string) (uuid.UUID, error) {
@@ -86,7 +85,7 @@ func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (
 				}
 			}
 			if userID == "" {
-				return nil, nil, xerrors.Errorf("could not find user %s in the organization %s", username, params.OrgName)
+				return nil, nil, xerrors.Errorf("could not find user %s in the organization %s", username, params.OrgID.String())
 			}
 
 			chatRole, err := stringToChatRole(role)
@@ -118,7 +117,7 @@ func fetchChatUsersAndGroups(ctx context.Context, params chatRoleLookupParams) (
 				}
 			}
 			if orgGroup == nil {
-				return nil, nil, xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, params.OrgName)
+				return nil, nil, xerrors.Errorf("could not find group named %s belonging to the organization %s", groupName, params.OrgID.String())
 			}
 
 			chatRole, err := stringToChatRole(role)

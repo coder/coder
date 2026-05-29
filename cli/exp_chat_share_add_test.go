@@ -152,6 +152,29 @@ func TestExpChatShareAdd(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid role \"write\"")
 	})
 
+	t.Run("RejectsMissingUserWithOrganizationID", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "share add missing user",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--user", "missing-user:read")
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL operations require the chat owner in this fixture.
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "could not find user missing-user in the organization")
+		require.Contains(t, err.Error(), firstUser.OrganizationID.String())
+	})
+
 	t.Run("RequiresActor", func(t *testing.T) {
 		t.Parallel()
 
