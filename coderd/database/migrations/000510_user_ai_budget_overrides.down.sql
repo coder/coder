@@ -4,4 +4,4 @@ DROP TRIGGER IF EXISTS trigger_delete_user_ai_budget_overrides_on_group_member_d
 DROP FUNCTION IF EXISTS delete_user_ai_budget_overrides_on_group_member_delete;
 DROP TRIGGER IF EXISTS trigger_enforce_user_ai_budget_override_membership ON user_ai_budget_overrides;
 DROP FUNCTION IF EXISTS enforce_user_ai_budget_override_membership;
-DROP TABLE user_ai_budget_overrides;
+DROP TABLE IF EXISTS user_ai_budget_overrides CASCADE;
