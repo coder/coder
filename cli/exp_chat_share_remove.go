@@ -44,18 +44,24 @@ func (r *RootCmd) chatShareRemoveCommand() *serpent.Command {
 
 			userRoleStrings := make([][2]string, len(users))
 			for i, user := range users {
-				parsed, err := parseChatShareActor(user)
+				parsed, err := parseChatShareActorRole(user)
 				if err != nil {
 					return xerrors.Errorf("invalid user format %q: %w", user, err)
+				}
+				if parsed[1] != "" {
+					return xerrors.Errorf("invalid user format %q: roles are only accepted by chat share add", user)
 				}
 				userRoleStrings[i] = parsed
 			}
 
 			groupRoleStrings := make([][2]string, len(groups))
 			for i, group := range groups {
-				parsed, err := parseChatShareActor(group)
+				parsed, err := parseChatShareActorRole(group)
 				if err != nil {
 					return xerrors.Errorf("invalid group format %q: %w", group, err)
+				}
+				if parsed[1] != "" {
+					return xerrors.Errorf("invalid group format %q: roles are only accepted by chat share add", group)
 				}
 				groupRoleStrings[i] = parsed
 			}
