@@ -116,10 +116,21 @@ func SeedAIProvidersFromEnv(
 				if err != nil {
 					return xerrors.Errorf("decode existing settings for %q: %w", dp.Name, err)
 				}
+				// Load existing bearer keys so the canonical hash
+				// includes credentials for comparison.
+				existingKeyRows, err := tx.GetAIProviderKeysByProviderID(sysCtx, existing.ID)
+				if err != nil {
+					return xerrors.Errorf("load existing keys for %q: %w", dp.Name, err)
+				}
+				existingKeys := make([]string, 0, len(existingKeyRows))
+				for _, k := range existingKeyRows {
+					existingKeys = append(existingKeys, k.APIKey)
+				}
 				existingDP := desiredAIProvider{
 					Type:    existing.Type,
 					BaseURL: existing.BaseUrl,
 					Bedrock: existingSettings.Bedrock,
+					Keys:    existingKeys,
 				}
 				existingHash := computeProviderHash(existingDP.canonical())
 				if existingHash == dp.Hash {
@@ -196,18 +207,15 @@ func SeedAIProvidersFromEnv(
 // canonicalAIProvider is the shape we hash to detect drift between the
 // configured environment and the row stored in the database. The fields
 // we hash are exactly the operator-controllable inputs that affect
-// runtime behavior. Credentials are intentionally NOT part of the hash
-// so operators can rotate them via the API without forcing a server
-// restart. This applies to both bearer API keys (stored in
-// ai_provider_keys) and to Bedrock access key/secret pairs (stored in
-// the settings blob because Bedrock authenticates via settings rather
-// than a bearer token).
+// runtime behavior, including credentials.
+//
 // Model and SmallFastModel are excluded: they're tunables, and their
 // serpent defaults shift across releases.
 type canonicalAIProvider struct {
 	Type          string `json:"type"`
 	BaseURL       string `json:"base_url"`
 	BedrockRegion string `json:"bedrock_region"`
+	KeysHash      string `json:"keys_hash"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -235,7 +243,37 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	if d.Bedrock != nil {
 		c.BedrockRegion = d.Bedrock.Region
 	}
+	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock)
 	return c
+}
+
+// computeKeysHash produces a deterministic hash over the bearer API
+// keys and, for Bedrock providers, the access key and secret.
+func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSettings) string {
+	// Collect all credential material in a deterministic order.
+	// Bearer keys are sorted so reordering in env vars does not
+	// trigger a false-positive drift.
+	sorted := make([]string, len(bearerKeys))
+	copy(sorted, bearerKeys)
+	slices.Sort(sorted)
+
+	h := sha256.New()
+	for _, k := range sorted {
+		_, _ = h.Write([]byte(k))
+		// Separator so "ab"+"c" != "a"+"bc".
+		_, _ = h.Write([]byte{0})
+	}
+	if bedrock != nil {
+		if bedrock.AccessKey != nil {
+			_, _ = h.Write([]byte(*bedrock.AccessKey))
+		}
+		_, _ = h.Write([]byte{0})
+		if bedrock.AccessKeySecret != nil {
+			_, _ = h.Write([]byte(*bedrock.AccessKeySecret))
+		}
+		_, _ = h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func computeProviderHash(c canonicalAIProvider) string {
