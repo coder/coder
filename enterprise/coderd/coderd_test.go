@@ -682,7 +682,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	subject := "nats.replica." + strings.ReplaceAll(uuid.NewString(), "-", ".")
+	subject := "nats.replica"
 	messages := make(chan []byte, 1)
 	cancel, err := natsB.Subscribe(subject, func(_ context.Context, msg []byte) {
 		messages <- msg
@@ -708,7 +708,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	require.NoError(t, publishErr)
 	require.NoError(t, flushErr)
 }

@@ -115,13 +115,10 @@ func NewWithAPI(t *testing.T, options *Options) (
 			UpdateInterval: options.ReplicaSyncUpdateInterval,
 		})
 		require.NoError(t, err)
-	}
-	replicaManagerOwnedByAPI := false
-	defer func() {
-		if !replicaManagerOwnedByAPI {
+		t.Cleanup(func() {
 			_ = replicaManager.Close()
-		}
-	}()
+		})
+	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		ConnectionLogging:          options.ConnectionLogging,
@@ -143,7 +140,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)
-	replicaManagerOwnedByAPI = true
 	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
