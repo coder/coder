@@ -106,6 +106,24 @@ A static key sent as a header on every request.
 Arbitrary key-value header pairs sent on every request. At least one header
 is required when this mode is selected.
 
+#### User-set custom headers
+
+Individual header keys can be marked as **user-set** in the admin form. Coder
+stops storing an admin value for those keys and lists them in
+`custom_headers_user_keys`. Each user then supplies their own value in
+`Agents` > `Settings` > `MCP Servers`. At request time Coder merges the
+user's stored value with the admin-set headers and sends the combined map
+to the MCP server.
+
+The values are encrypted at rest with the same key set as the rest of the
+MCP server config. Admins cannot read or list per-user values; clearing a
+user's values is a per-user action from the same settings page or through
+`DELETE /api/experimental/mcp/servers/{id}/user-headers`.
+
+Use this mode when the MCP server identifies callers by a stable header
+name but expects each user to present their own credential (for example,
+a long-lived per-user JWT).
+
 ### User OIDC Identity
 
 Forwards the calling user's OIDC access token (stored in
