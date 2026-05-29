@@ -27,7 +27,7 @@ func TestExpChatShareGroups(t *testing.T) {
 		group := createChatShareGroup(t, client, firstUser.OrganizationID, "chat-share-add-group")
 		chat := createChatShareChat(t, db, firstUser.OrganizationID, firstUser.UserID, "share add group")
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--group", group.Name)
+		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--group", group.Name+":read")
 		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL operations require the chat owner in this fixture.
 
 		out := new(bytes.Buffer)
