@@ -2,6 +2,7 @@ package keypool
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 
@@ -68,42 +69,45 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 		return nil, err
 	}
 
-	// Fresh walker per request, independent of other inflight requests.
-	walker := t.config.Pool.Walker()
-	for {
-		key, keyPoolErr := walker.Next()
-		if keyPoolErr != nil {
-			resp := t.config.BuildKeyPoolResponse(keyPoolErr)
-			if resp == nil {
-				// Fallback if BuildKeyPoolResponse returns nil.
-				body := []byte(`{"error":"key pool unavailable"}`)
-				resp = utils.NewJSONErrorResponse(http.StatusBadGateway, 0, body)
+	// result carries both return values of one attempt so the failover loop
+	// hands back a success or a transport error as a single atomic payload.
+	type result struct {
+		resp *http.Response
+		err  error
+	}
+	res, keyPoolErr := Failover(req.Context(), t.config.Pool, t.config.Logger, t.config.ProviderName,
+		func(ctx context.Context, key *Key) (result, *Failure) {
+			// Clone per attempt so the original request isn't mutated.
+			outReq := req.Clone(ctx)
+			if body != nil {
+				outReq.Body = io.NopCloser(bytes.NewReader(body))
 			}
-			return resp, nil
-		}
+			t.config.InjectAuthKey(&outReq.Header, key.Value())
 
-		// Clone per attempt so the original request isn't mutated.
-		outReq := req.Clone(req.Context())
-		if body != nil {
-			outReq.Body = io.NopCloser(bytes.NewReader(body))
+			resp, rtErr := t.inner.RoundTrip(outReq)
+			if rtErr != nil {
+				// Transport-level error, not a key issue: stop and return.
+				return result{resp, rtErr}, nil
+			}
+			failure := Classify(resp)
+			if failure != nil {
+				// Drain the discarded response before retrying with the next key.
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
+			}
+			return result{resp, nil}, failure
+		})
+	if keyPoolErr != nil {
+		resp := t.config.BuildKeyPoolResponse(keyPoolErr)
+		if resp == nil {
+			// Fallback if BuildKeyPoolResponse returns nil.
+			body := []byte(`{"error":"key pool unavailable"}`)
+			resp = utils.NewJSONErrorResponse(http.StatusBadGateway, 0, body)
 		}
-		t.config.InjectAuthKey(&outReq.Header, key.Value())
-
-		resp, rtErr := t.inner.RoundTrip(outReq)
-		if rtErr != nil {
-			// Transport-level error, not a key issue.
-			return resp, rtErr
-		}
-		// MarkKeyOnStatus returns true on key-specific failures (e.g. 401/403/429).
-		if MarkKeyOnStatus(req.Context(), key, resp, t.config.Logger, t.config.ProviderName) {
-			// Drain and retry with the next key.
-			_, _ = io.Copy(io.Discard, resp.Body)
-			_ = resp.Body.Close()
-			continue
-		}
-		// Success or non-key error, forward as-is.
 		return resp, nil
 	}
+	// Success or non-key transport error, forward as-is.
+	return res.resp, res.err
 }
 
 // bufferBody reads the request body fully so it can be replayed

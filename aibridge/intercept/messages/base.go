@@ -589,6 +589,18 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	)
 }
 
+// classifyError maps a centralized-request error to a *keypool.Failure by
+// extracting the Anthropic SDK error and classifying its HTTP response. A
+// non-SDK error (transport failure, context cancellation) yields nil so the
+// failover loop returns it to the caller instead of retrying.
+func (i *interceptionBase) classifyError(err error) *keypool.Failure {
+	var apiErr *anthropic.Error
+	if !errors.As(err, &apiErr) {
+		return nil
+	}
+	return keypool.Classify(apiErr.Response)
+}
+
 // ResponseErrorFromKeyPool translates a *keypool.Error into
 // a developer-facing ResponseError shaped for the Anthropic API.
 func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {

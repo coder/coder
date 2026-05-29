@@ -367,29 +367,30 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // Errors that aren't key-specific don't trigger failover and
 // are returned to the caller.
 func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
-	walker := i.cfg.KeyPool.Walker()
-	for {
-		key, keyPoolErr := walker.Next()
-		if keyPoolErr != nil {
-			return nil, keyPoolErr
-		}
-		// Record the key in use so the hint reflects the last attempted key.
-		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
-
-		msg, err := i.newMessageWithKey(ctx, svc,
-			option.WithAPIKey(key.Value()),
-			// Disable SDK retries because the failover loop
-			// handles retries via key rotation.
-			option.WithMaxRetries(0),
-		)
-		// Key-specific failure: try the next key.
-		if i.markKeyOnError(ctx, key, err) {
-			continue
-		}
-		// Either success (msg, nil) or a non-key error (nil, err):
-		// nothing to retry, return as-is.
-		return msg, err
+	// result carries both return values of one attempt so the failover loop
+	// hands back a success or a non-key error as a single atomic payload.
+	type result struct {
+		msg *anthropic.Message
+		err error
 	}
+	res, keyPoolErr := keypool.Failover(ctx, i.cfg.KeyPool, i.logger, i.providerName,
+		func(ctx context.Context, key *keypool.Key) (result, *keypool.Failure) {
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			i.logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
+			msg, err := i.newMessageWithKey(ctx, svc,
+				option.WithAPIKey(key.Value()),
+				// Disable SDK retries because the failover loop
+				// handles retries via key rotation.
+				option.WithMaxRetries(0),
+			)
+			return result{msg, err}, i.classifyError(err)
+		})
+	if keyPoolErr != nil {
+		return nil, keyPoolErr
+	}
+	// Either success (msg, nil) or a non-key error (nil, err): return as-is.
+	return res.msg, res.err
 }
