@@ -924,17 +924,18 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	u, err := user.Current()
 	require.NoError(t, err, "get current user")
 
-	name := filepath.Join(u.HomeDir, "motd")
+	motdPath := filepath.Join(u.HomeDir, "motd")
+	hushloginPath := filepath.Join(u.HomeDir, ".hushlogin")
 
 	// Neither banner nor MOTD should show if not a login shell.
 	t.Run("NotLogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
+			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
 			Message: wantMaybeServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -953,35 +954,53 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
+			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
 			Message: wantMaybeServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 
-			// Create hushlogin to silence motd.
-			err = afero.WriteFile(fs, name, []byte{}, 0o600)
+			// Place an empty .hushlogin in the user's home so the agent's
+			// isQuietLogin lookup succeeds and showMOTD is skipped.
+			err = afero.WriteFile(fs, hushloginPath, []byte{}, 0o600)
 			require.NoError(t, err, "write hushlogin file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
+		// The agent writes the announcement banner (and would write the
+		// MOTD, if it were not silenced) synchronously in
+		// agentssh.startPTYSession before it forks the user's shell. We
+		// drive the test entirely off those writes, observed on the SSH
+		// session's output stream, and never depend on the remote shell
+		// reading our stdin or exiting cleanly.
+		//
+		// Earlier revisions of this subtest wrote "exit 0" to a client
+		// PTY and then called session.Wait(). Under -race that pattern
+		// occasionally hangs forever: the bytes arrive at the agent
+		// before the shell is in its read loop and get silently dropped,
+		// so the shell never exits and the go test watchdog kills the
+		// binary.
+		stdout := testutil.NewWaitBuffer()
 		ptty := ptytest.New(t)
-		var stdout bytes.Buffer
-		session.Stdout = &stdout
+		session.Stdout = stdout
 		session.Stderr = ptty.Output()
 		session.Stdin = ptty.Input()
-		err = session.Shell()
-		require.NoError(t, err)
+		require.NoError(t, session.Shell())
 
-		ptty.WriteLine("exit 0")
-		err = session.Wait()
-		require.NoError(t, err)
+		bannerCtx, bannerCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer bannerCancel()
+		stdout.RequireWaitFor(bannerCtx, t, wantMaybeServiceBanner)
 
-		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
+		// Banner is written immediately before MOTD on the agent (see
+		// agentssh.startPTYSession). If MOTD were going to appear it
+		// would arrive within milliseconds of the banner, so a short
+		// Never window is sufficient to confirm hushlogin took effect.
+		require.Never(t, func() bool {
+			return strings.Contains(stdout.String(), wantNotMOTD)
+		}, testutil.IntervalSlow, testutil.IntervalFast, "should not show motd")
 	})
 }
 
