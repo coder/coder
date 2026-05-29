@@ -408,10 +408,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							Cancel
 						</Button>
 					</Link>
-					<Button
-						disabled={isLoading || !form.dirty || !form.isValid}
-						type="submit"
-					>
+					<Button disabled={isLoading || !form.isValid} type="submit">
 						<Spinner loading={isLoading} />
 						{editing ? "Update provider" : "Add provider"}
 					</Button>
