@@ -2037,6 +2037,49 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+const mcpServerUserHeaderValuesKey = (id: string) =>
+	["mcp-server-user-header-values", id] as const;
+
+export const mcpServerUserHeaderValues = (id: string) => ({
+	queryKey: mcpServerUserHeaderValuesKey(id),
+	queryFn: (): Promise<TypesGen.MCPServerUserHeaderValues> =>
+		API.experimental.getMCPServerUserHeaderValues(id),
+});
+
+type UpdateMCPServerUserHeaderValuesArgs = {
+	id: string;
+	req: TypesGen.UpdateMCPServerUserHeaderValuesRequest;
+};
+
+export const updateMCPServerUserHeaderValues = (queryClient: QueryClient) => ({
+	mutationFn: ({ id, req }: UpdateMCPServerUserHeaderValuesArgs) =>
+		API.experimental.updateMCPServerUserHeaderValues(id, req),
+	onSuccess: async (
+		_data: unknown,
+		variables: UpdateMCPServerUserHeaderValuesArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerUserHeaderValuesKey(variables.id),
+			}),
+			invalidateMCPServerConfigQueries(queryClient),
+		]);
+	},
+});
+
+export const deleteMCPServerUserHeaderValues = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) =>
+		API.experimental.deleteMCPServerUserHeaderValues(id),
+	onSuccess: async (_data: unknown, id: string) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerUserHeaderValuesKey(id),
+			}),
+			invalidateMCPServerConfigQueries(queryClient),
+		]);
+	},
+});
+
 type SetChatUserRoleVariables = {
 	chatId: string;
 	userId: string;

@@ -143,6 +143,13 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							state={location.state}
 						/>
 					)}
+					<SettingsNavItem
+						icon={ServerIcon}
+						label="MCP Servers"
+						active={settingsSection === "user-mcp-servers"}
+						to="/agents/settings/user-mcp-servers"
+						state={location.state}
+					/>
 					{isAdmin && (
 						<SettingsNavItem
 							icon={Settings2Icon}
