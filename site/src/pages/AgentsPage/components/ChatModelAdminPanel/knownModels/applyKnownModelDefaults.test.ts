@@ -294,7 +294,7 @@ describe("applyKnownModelDefaults", () => {
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
 			provider: "anthropic",
-			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
 		});
 
 		expect(getPath(result.values, "config.anthropic.effort")).toBe("high");
@@ -327,7 +327,7 @@ describe("applyKnownModelDefaults", () => {
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
 			provider: "anthropic",
-			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
 		});
 
 		expect(getPath(result.values, "config.anthropic.sendReasoning")).toBe("");
