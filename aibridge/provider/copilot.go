@@ -78,6 +78,8 @@ func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
 
+func (*Copilot) Enabled() bool { return true }
+
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
 }
