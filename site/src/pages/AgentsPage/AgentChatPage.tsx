@@ -1163,9 +1163,11 @@ const AgentChatPage: FC = () => {
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
+			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
 				kind: "generic",
-				message: error.message || "An unexpected error occurred.",
+				message: getErrorMessage(error, "An unexpected error occurred."),
+				...(detail ? { detail } : {}),
 			};
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
