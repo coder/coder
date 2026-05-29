@@ -97,15 +97,19 @@ describe("CreateWorkspacePage", () => {
 				within(instanceTypeField).getByRole("combobox");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
-			jest.useFakeTimers({ shouldAdvanceTime: true });
+			jest.useFakeTimers();
 
-			await userEvent.click(instanceTypeSelect);
+			await waitFor(async () => {
+				await userEvent.click(instanceTypeSelect);
+			});
 
 			const mediumOption = await screen.findByRole("option", {
 				name: /t3\.medium/i,
 			});
 
-			await userEvent.click(mediumOption);
+			await waitFor(async () => {
+				await userEvent.click(mediumOption);
+			});
 
 			await act(async () => {
 				await jest.runAllTimersAsync();

@@ -43,7 +43,7 @@ function setupDynamicParameterWebSocket(
 		removeEventListener: (type: string, cb: (e: unknown) => void) => {
 			subs[type]?.delete(cb);
 		},
-		close: vi.fn(),
+		close: jest.fn(),
 	};
 
 	const publisher: Publisher = {
@@ -55,7 +55,7 @@ function setupDynamicParameterWebSocket(
 		},
 	};
 
-	vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
+	jest.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
 		(_versionId, _ownerId, callbacks) => {
 			fakeSocket.addEventListener("message", (event) => {
 				callbacks.onMessage(
@@ -104,16 +104,16 @@ describe("WorkspaceParametersPageExperimental", () => {
 	};
 
 	beforeEach(() => {
-		vi.clearAllMocks();
-		vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+		jest.clearAllMocks();
+		jest.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
 			MockWorkspace,
 		);
-		vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+		jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
 			MockTemplateVersionParameter1,
 			MockTemplateVersionParameter2,
 			MockTemplateVersionParameter4,
 		]);
-		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+		jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter2,
 			MockWorkspaceBuildParameter4,
@@ -121,8 +121,8 @@ describe("WorkspaceParametersPageExperimental", () => {
 	});
 
 	afterEach(() => {
-		vi.useRealTimers();
-		vi.restoreAllMocks();
+		jest.useRealTimers();
+		jest.restoreAllMocks();
 	});
 
 	it("does not clobber touched parameters", async () => {
