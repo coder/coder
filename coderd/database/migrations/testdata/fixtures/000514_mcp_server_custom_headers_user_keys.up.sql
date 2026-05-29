@@ -1,4 +1,4 @@
--- Migration 500 adds custom_headers_user_keys to mcp_server_configs and
+-- Migration 514 adds custom_headers_user_keys to mcp_server_configs and
 -- creates mcp_server_user_header_values. Insert a fixture row exercising
 -- the user-set header values flow.
 
