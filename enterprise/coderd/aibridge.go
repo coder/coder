@@ -983,8 +983,6 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	})
 	defer commitAudit()
 
-	aReq.Old = userOverride.Auditable(user.Username, group.Name)
-
 	_, err = api.Database.DeleteUserAIBudgetOverride(ctx, user.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -995,6 +993,10 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	// Populate the audit snapshot only after delete succeeds. Setting
+	// it earlier would record a phantom entry if delete races a
+	// concurrent delete and returns 404.
+	aReq.Old = userOverride.Auditable(user.Username, group.Name)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
