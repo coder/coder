@@ -57,7 +57,7 @@ func TestExpChatShareAdd(t *testing.T) {
 		assert.Contains(t, out.String(), string(codersdk.ChatRoleRead))
 	})
 
-	t.Run("ShareWithUserDefaultReadRole", func(t *testing.T) {
+	t.Run("RequiresRole", func(t *testing.T) {
 		t.Parallel()
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
@@ -68,29 +68,16 @@ func TestExpChatShareAdd(t *testing.T) {
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "share add user default role",
+			Title:             "share add user missing role",
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "exp", "chat", "share", "add", chat.ID.String(), "--user", toShareWithUser.Username)
 		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL operations require the chat owner in this fixture.
 
-		out := new(bytes.Buffer)
-		inv.Stdout = out
 		err := inv.WithContext(ctx).Run()
-		require.NoError(t, err)
-
-		acl, err := codersdk.NewExperimentalClient(client).GetChatACL(ctx, chat.ID)
-		require.NoError(t, err)
-		assert.Contains(t, acl.Users, codersdk.ChatUser{
-			MinimalUser: codersdk.MinimalUser{
-				ID:        toShareWithUser.ID,
-				Username:  toShareWithUser.Username,
-				Name:      toShareWithUser.Name,
-				AvatarURL: toShareWithUser.AvatarURL,
-			},
-			Role: codersdk.ChatRoleRead,
-		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must match pattern 'name:role'")
 	})
 
 	t.Run("ShareWithMultipleUsers", func(t *testing.T) {

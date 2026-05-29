@@ -19,12 +19,12 @@ func (r *RootCmd) chatShareAddCommand() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",
-				Description: "A comma separated list of users to share the chat with.",
+				Description: "A comma separated list of users and roles to share the chat with.",
 				Flag:        "user",
 				Value:       serpent.StringArrayOf(&users),
 			}, {
 				Name:        "group",
-				Description: "A comma separated list of groups to share the chat with.",
+				Description: "A comma separated list of groups and roles to share the chat with.",
 				Flag:        "group",
 				Value:       serpent.StringArrayOf(&groups),
 			},
@@ -72,11 +72,10 @@ func (r *RootCmd) chatShareAddCommand() *serpent.Command {
 			}
 
 			userRoles, groupRoles, err := fetchChatUsersAndGroups(inv.Context(), chatRoleLookupParams{
-				Client:      client,
-				OrgID:       chat.OrganizationID,
-				Users:       userRoleStrings,
-				Groups:      groupRoleStrings,
-				DefaultRole: codersdk.ChatRoleRead,
+				Client: client,
+				OrgID:  chat.OrganizationID,
+				Users:  userRoleStrings,
+				Groups: groupRoleStrings,
 			})
 			if err != nil {
 				return err
