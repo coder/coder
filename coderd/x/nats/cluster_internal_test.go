@@ -114,7 +114,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, newNonClusterTestOptions())
+		ps := newTestPubsub(t, defaultOptions())
 		err := ps.SetPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})

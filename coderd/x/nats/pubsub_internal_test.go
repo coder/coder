@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
@@ -87,7 +86,7 @@ func Test_pickConn(t *testing.T) {
 func subjectForConn(t *testing.T, pool []*natsgo.Conn, conn *natsgo.Conn, prefix string) string {
 	t.Helper()
 
-	for i := 0; i < 10_000; i++ {
+	for i := range 10_000 {
 		subject := fmt.Sprintf("%s_%d", prefix, i)
 		if pickConn(pool, subject) == conn {
 			return subject
@@ -102,17 +101,13 @@ func Test_New(t *testing.T) {
 
 	t.Run("ConnectionCount", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		ps, err := New(ctx, logger, newNonClusterTestOptions())
-		require.NoError(t, err)
+		ps := newTestPubsub(t, defaultOptions())
 		t.Cleanup(func() { _ = ps.Close() })
 
 		const n = 50
 		cancels := make([]func(), 0, n)
-		for i := 0; i < n; i++ {
-			c, err := ps.Subscribe(fmt.Sprintf("cc_evt_%d", i), func(context.Context, []byte) {})
+		for i := range n {
+			c, err := ps.Subscribe(fmt.Sprintf("cc_evt_%d", i), func(_ context.Context, _ []byte) {})
 			require.NoError(t, err)
 			cancels = append(cancels, c)
 		}
@@ -135,10 +130,9 @@ func Test_SubscribeWithErr(t *testing.T) {
 
 	t.Run("SameSubjectSharesSubscription", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		ps, err := New(ctx, logger, newNonClusterTestOptions())
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps, err := New(ctx, logger, defaultOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -160,10 +154,10 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 
 	t.Run("DisconnectSignalsDropsForMatchingSubscriberConn", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ps := newPubsub(ctx, logger, newNonClusterTestOptions())
+
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps := newPubsub(ctx, logger, defaultOptions())
 
 		var subConnA, subConnB, pubConn natsgo.Conn
 		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
@@ -210,8 +204,7 @@ func Test_localSub_init(t *testing.T) {
 
 	t.Run("SerializesCallbacks", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		dataStarted := make(chan struct{})
 		dropDelivered := make(chan struct{})
@@ -224,7 +217,7 @@ func Test_localSub_init(t *testing.T) {
 
 		s := &localSub{
 			ctx:    ctx,
-			cancel: cancel,
+			cancel: func() {},
 			listener: func(_ context.Context, _ []byte, ferr error) {
 				if active.Add(1) != 1 {
 					concurrent.Store(true)
@@ -284,10 +277,9 @@ func Test_localSub_init(t *testing.T) {
 
 	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		ps, err := New(ctx, logger, newNonClusterTestOptions())
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ps, err := New(ctx, logger, defaultOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -317,7 +309,7 @@ func Test_localSub_init(t *testing.T) {
 
 		total := defaultListenerQueueSize + 256
 		payload := make([]byte, 4*1024)
-		for i := 0; i < total; i++ {
+		for range total {
 			require.NoError(t, ps.Publish("iso_slow", payload))
 			require.NoError(t, ps.Publish("iso_fast", []byte("ping")))
 		}
@@ -363,7 +355,7 @@ func TestPubsubCluster(t *testing.T) {
 		waitForRoutes(t, a, 1)
 		waitForRoutes(t, b, 1)
 
-		globalEvent := uniqueSubject("global")
+		globalEvent := "global"
 		bGlobal := make(chan []byte, 8)
 		cancelBGlobal, err := b.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
 			bGlobal <- msg
@@ -383,7 +375,7 @@ func TestPubsubCluster(t *testing.T) {
 		require.NoError(t, err)
 		defer cancelCGlobal()
 
-		cSubject := uniqueSubject("c-only-subscriber")
+		cSubject := "c-only-subscriber"
 		cUnique := make(chan []byte, 8)
 		cancelCUnique, err := c.Subscribe(cSubject, func(_ context.Context, msg []byte) {
 			cUnique <- msg
@@ -419,7 +411,7 @@ func TestPubsubCluster(t *testing.T) {
 	})
 }
 
-func newNonClusterTestOptions() Options {
+func defaultOptions() Options {
 	return Options{disableCluster: true}
 }
 
@@ -427,30 +419,19 @@ func newClusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
 		ClusterHost:    "127.0.0.1",
-		ClusterPort:    tcpPort(t),
+		ClusterPort:    natsserver.RANDOM_PORT,
 		disableCluster: false,
 	}
 }
 
-func tcpPort(t *testing.T) int {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-	addr, ok := listener.Addr().(*net.TCPAddr)
-	require.True(t, ok)
-	return addr.Port
-}
-
 func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx, cancel := context.WithCancel(context.Background())
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
-		cancel()
 	})
 	return ps
 }
@@ -552,8 +533,4 @@ func routeStrings(routes []*url.URL) []string {
 		strings = append(strings, route.String())
 	}
 	return strings
-}
-
-func uniqueSubject(prefix string) string {
-	return fmt.Sprintf("cluster.%s.%d", prefix, time.Now().UnixNano())
 }
