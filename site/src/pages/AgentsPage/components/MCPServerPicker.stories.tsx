@@ -28,6 +28,8 @@ const createServerConfig = (
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
 	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
+	custom_headers_user_key_descriptions:
+		overrides.custom_headers_user_key_descriptions ?? {},
 	tool_allow_list: overrides.tool_allow_list ?? [],
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",

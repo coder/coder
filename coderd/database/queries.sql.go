@@ -15077,7 +15077,7 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 WHERE
@@ -15127,6 +15127,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			pq.Array(&i.CustomHeadersUserKeys),
+			&i.CustomHeadersUserKeyDescriptions,
 		); err != nil {
 			return nil, err
 		}
@@ -15143,7 +15144,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 
 const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 WHERE
@@ -15194,6 +15195,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			pq.Array(&i.CustomHeadersUserKeys),
+			&i.CustomHeadersUserKeyDescriptions,
 		); err != nil {
 			return nil, err
 		}
@@ -15210,7 +15212,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 WHERE
@@ -15252,13 +15254,14 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		pq.Array(&i.CustomHeadersUserKeys),
+		&i.CustomHeadersUserKeyDescriptions,
 	)
 	return i, err
 }
 
 const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 WHERE
@@ -15300,13 +15303,14 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		pq.Array(&i.CustomHeadersUserKeys),
+		&i.CustomHeadersUserKeyDescriptions,
 	)
 	return i, err
 }
 
 const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 ORDER BY
@@ -15354,6 +15358,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			pq.Array(&i.CustomHeadersUserKeys),
+			&i.CustomHeadersUserKeyDescriptions,
 		); err != nil {
 			return nil, err
 		}
@@ -15370,7 +15375,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 
 const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 FROM
     mcp_server_configs
 WHERE
@@ -15420,6 +15425,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			pq.Array(&i.CustomHeadersUserKeys),
+			&i.CustomHeadersUserKeyDescriptions,
 		); err != nil {
 			return nil, err
 		}
@@ -15603,6 +15609,7 @@ INSERT INTO mcp_server_configs (
     custom_headers,
     custom_headers_key_id,
     custom_headers_user_keys,
+    custom_headers_user_key_descriptions,
     tool_allow_list,
     tool_deny_list,
     availability,
@@ -15632,49 +15639,51 @@ INSERT INTO mcp_server_configs (
     $17::text,
     $18::text,
     $19::text[],
-    $20::text[],
+    $20::jsonb,
     $21::text[],
-    $22::text,
-    $23::boolean,
+    $22::text[],
+    $23::text,
     $24::boolean,
     $25::boolean,
     $26::boolean,
-    $27::uuid,
-    $28::uuid
+    $27::boolean,
+    $28::uuid,
+    $29::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 `
 
 type InsertMCPServerConfigParams struct {
-	DisplayName             string         `db:"display_name" json:"display_name"`
-	Slug                    string         `db:"slug" json:"slug"`
-	Description             string         `db:"description" json:"description"`
-	IconURL                 string         `db:"icon_url" json:"icon_url"`
-	Transport               string         `db:"transport" json:"transport"`
-	Url                     string         `db:"url" json:"url"`
-	AuthType                string         `db:"auth_type" json:"auth_type"`
-	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
-	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
-	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
-	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
-	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
-	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	CustomHeadersUserKeys   []string       `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
-	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string         `db:"availability" json:"availability"`
-	Enabled                 bool           `db:"enabled" json:"enabled"`
-	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
-	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
-	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
-	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
-	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	DisplayName                      string          `db:"display_name" json:"display_name"`
+	Slug                             string          `db:"slug" json:"slug"`
+	Description                      string          `db:"description" json:"description"`
+	IconURL                          string          `db:"icon_url" json:"icon_url"`
+	Transport                        string          `db:"transport" json:"transport"`
+	Url                              string          `db:"url" json:"url"`
+	AuthType                         string          `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID                   string          `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret               string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID          sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL                    string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL                   string          `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes                     string          `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader                     string          `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue                      string          `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID                 sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders                    string          `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID               sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	CustomHeadersUserKeys            []string        `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
+	CustomHeadersUserKeyDescriptions json.RawMessage `db:"custom_headers_user_key_descriptions" json:"custom_headers_user_key_descriptions"`
+	ToolAllowList                    []string        `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList                     []string        `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability                     string          `db:"availability" json:"availability"`
+	Enabled                          bool            `db:"enabled" json:"enabled"`
+	ModelIntent                      bool            `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode                  bool            `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders              bool            `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CreatedBy                        uuid.UUID       `db:"created_by" json:"created_by"`
+	UpdatedBy                        uuid.UUID       `db:"updated_by" json:"updated_by"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
@@ -15698,6 +15707,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
 		pq.Array(arg.CustomHeadersUserKeys),
+		arg.CustomHeadersUserKeyDescriptions,
 		pq.Array(arg.ToolAllowList),
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
@@ -15741,6 +15751,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		pq.Array(&i.CustomHeadersUserKeys),
+		&i.CustomHeadersUserKeyDescriptions,
 	)
 	return i, err
 }
@@ -15768,50 +15779,52 @@ SET
     custom_headers = $17::text,
     custom_headers_key_id = $18::text,
     custom_headers_user_keys = $19::text[],
-    tool_allow_list = $20::text[],
-    tool_deny_list = $21::text[],
-    availability = $22::text,
-    enabled = $23::boolean,
-    model_intent = $24::boolean,
-    allow_in_plan_mode = $25::boolean,
-    forward_coder_headers = $26::boolean,
-    updated_by = $27::uuid,
+    custom_headers_user_key_descriptions = $20::jsonb,
+    tool_allow_list = $21::text[],
+    tool_deny_list = $22::text[],
+    availability = $23::text,
+    enabled = $24::boolean,
+    model_intent = $25::boolean,
+    allow_in_plan_mode = $26::boolean,
+    forward_coder_headers = $27::boolean,
+    updated_by = $28::uuid,
     updated_at = NOW()
 WHERE
-    id = $28::uuid
+    id = $29::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
 `
 
 type UpdateMCPServerConfigParams struct {
-	DisplayName             string         `db:"display_name" json:"display_name"`
-	Slug                    string         `db:"slug" json:"slug"`
-	Description             string         `db:"description" json:"description"`
-	IconURL                 string         `db:"icon_url" json:"icon_url"`
-	Transport               string         `db:"transport" json:"transport"`
-	Url                     string         `db:"url" json:"url"`
-	AuthType                string         `db:"auth_type" json:"auth_type"`
-	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
-	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
-	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
-	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
-	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
-	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	CustomHeadersUserKeys   []string       `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
-	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string         `db:"availability" json:"availability"`
-	Enabled                 bool           `db:"enabled" json:"enabled"`
-	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
-	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
-	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
-	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
-	ID                      uuid.UUID      `db:"id" json:"id"`
+	DisplayName                      string          `db:"display_name" json:"display_name"`
+	Slug                             string          `db:"slug" json:"slug"`
+	Description                      string          `db:"description" json:"description"`
+	IconURL                          string          `db:"icon_url" json:"icon_url"`
+	Transport                        string          `db:"transport" json:"transport"`
+	Url                              string          `db:"url" json:"url"`
+	AuthType                         string          `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID                   string          `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret               string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID          sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL                    string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL                   string          `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes                     string          `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader                     string          `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue                      string          `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID                 sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders                    string          `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID               sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	CustomHeadersUserKeys            []string        `db:"custom_headers_user_keys" json:"custom_headers_user_keys"`
+	CustomHeadersUserKeyDescriptions json.RawMessage `db:"custom_headers_user_key_descriptions" json:"custom_headers_user_key_descriptions"`
+	ToolAllowList                    []string        `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList                     []string        `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability                     string          `db:"availability" json:"availability"`
+	Enabled                          bool            `db:"enabled" json:"enabled"`
+	ModelIntent                      bool            `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode                  bool            `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders              bool            `db:"forward_coder_headers" json:"forward_coder_headers"`
+	UpdatedBy                        uuid.UUID       `db:"updated_by" json:"updated_by"`
+	ID                               uuid.UUID       `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error) {
@@ -15835,6 +15848,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
 		pq.Array(arg.CustomHeadersUserKeys),
+		arg.CustomHeadersUserKeyDescriptions,
 		pq.Array(arg.ToolAllowList),
 		pq.Array(arg.ToolDenyList),
 		arg.Availability,
@@ -15878,6 +15892,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		pq.Array(&i.CustomHeadersUserKeys),
+		&i.CustomHeadersUserKeyDescriptions,
 	)
 	return i, err
 }

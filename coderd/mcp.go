@@ -268,10 +268,24 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	customHeadersUserKeys, err := validateCustomHeaderUserKeys(req.CustomHeadersUserKeys, req.CustomHeaders)
+	if len(req.CustomHeadersUserKeyDescriptions) > 0 && req.AuthType != "custom_headers" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "custom_headers_user_key_descriptions is only valid when auth_type is custom_headers.",
+		})
+		return
+	}
+	customHeadersUserKeys, customHeadersUserKeyDescriptions, err := validateCustomHeaderUserKeys(req.CustomHeadersUserKeys, req.CustomHeaders, req.CustomHeadersUserKeyDescriptions)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid custom_headers_user_keys.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	customHeadersUserKeyDescriptionsJSON, err := marshalCustomHeaderUserKeyDescriptions(customHeadersUserKeyDescriptions)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid custom_headers_user_key_descriptions.",
 			Detail:  err.Error(),
 		})
 		return
@@ -300,34 +314,35 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-				DisplayName:             strings.TrimSpace(req.DisplayName),
-				Slug:                    strings.TrimSpace(req.Slug),
-				Description:             strings.TrimSpace(req.Description),
-				IconURL:                 strings.TrimSpace(req.IconURL),
-				Transport:               strings.TrimSpace(req.Transport),
-				Url:                     strings.TrimSpace(req.URL),
-				AuthType:                strings.TrimSpace(req.AuthType),
-				OAuth2ClientID:          "",
-				OAuth2ClientSecret:      "",
-				OAuth2ClientSecretKeyID: sql.NullString{},
-				OAuth2AuthURL:           "",
-				OAuth2TokenURL:          "",
-				OAuth2Scopes:            "",
-				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
-				APIKeyValueKeyID:        sql.NullString{},
-				CustomHeaders:           customHeadersJSON,
-				CustomHeadersKeyID:      sql.NullString{},
-				CustomHeadersUserKeys:   customHeadersUserKeys,
-				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
-				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
-				Availability:            strings.TrimSpace(req.Availability),
-				Enabled:                 req.Enabled,
-				ModelIntent:             req.ModelIntent,
-				AllowInPlanMode:         req.AllowInPlanMode,
-				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
+				DisplayName:                      strings.TrimSpace(req.DisplayName),
+				Slug:                             strings.TrimSpace(req.Slug),
+				Description:                      strings.TrimSpace(req.Description),
+				IconURL:                          strings.TrimSpace(req.IconURL),
+				Transport:                        strings.TrimSpace(req.Transport),
+				Url:                              strings.TrimSpace(req.URL),
+				AuthType:                         strings.TrimSpace(req.AuthType),
+				OAuth2ClientID:                   "",
+				OAuth2ClientSecret:               "",
+				OAuth2ClientSecretKeyID:          sql.NullString{},
+				OAuth2AuthURL:                    "",
+				OAuth2TokenURL:                   "",
+				OAuth2Scopes:                     "",
+				APIKeyHeader:                     strings.TrimSpace(req.APIKeyHeader),
+				APIKeyValue:                      strings.TrimSpace(req.APIKeyValue),
+				APIKeyValueKeyID:                 sql.NullString{},
+				CustomHeaders:                    customHeadersJSON,
+				CustomHeadersKeyID:               sql.NullString{},
+				CustomHeadersUserKeys:            customHeadersUserKeys,
+				CustomHeadersUserKeyDescriptions: customHeadersUserKeyDescriptionsJSON,
+				ToolAllowList:                    coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+				ToolDenyList:                     coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+				Availability:                     strings.TrimSpace(req.Availability),
+				Enabled:                          req.Enabled,
+				ModelIntent:                      req.ModelIntent,
+				AllowInPlanMode:                  req.AllowInPlanMode,
+				ForwardCoderHeaders:              req.ForwardCoderHeaders,
+				CreatedBy:                        apiKey.UserID,
+				UpdatedBy:                        apiKey.UserID,
 			})
 			if err != nil {
 				switch {
@@ -389,34 +404,35 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 			// Update the record with discovered OAuth2 credentials.
 			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-				ID:                      inserted.ID,
-				DisplayName:             inserted.DisplayName,
-				Slug:                    inserted.Slug,
-				Description:             inserted.Description,
-				IconURL:                 inserted.IconURL,
-				Transport:               inserted.Transport,
-				Url:                     inserted.Url,
-				AuthType:                inserted.AuthType,
-				OAuth2ClientID:          result.clientID,
-				OAuth2ClientSecret:      result.clientSecret,
-				OAuth2ClientSecretKeyID: sql.NullString{},
-				OAuth2AuthURL:           result.authURL,
-				OAuth2TokenURL:          result.tokenURL,
-				OAuth2Scopes:            oauth2Scopes,
-				APIKeyHeader:            inserted.APIKeyHeader,
-				APIKeyValue:             inserted.APIKeyValue,
-				APIKeyValueKeyID:        inserted.APIKeyValueKeyID,
-				CustomHeaders:           inserted.CustomHeaders,
-				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
-				CustomHeadersUserKeys:   inserted.CustomHeadersUserKeys,
-				ToolAllowList:           inserted.ToolAllowList,
-				ToolDenyList:            inserted.ToolDenyList,
-				Availability:            inserted.Availability,
-				Enabled:                 inserted.Enabled,
-				ModelIntent:             inserted.ModelIntent,
-				AllowInPlanMode:         inserted.AllowInPlanMode,
-				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
-				UpdatedBy:               apiKey.UserID,
+				ID:                               inserted.ID,
+				DisplayName:                      inserted.DisplayName,
+				Slug:                             inserted.Slug,
+				Description:                      inserted.Description,
+				IconURL:                          inserted.IconURL,
+				Transport:                        inserted.Transport,
+				Url:                              inserted.Url,
+				AuthType:                         inserted.AuthType,
+				OAuth2ClientID:                   result.clientID,
+				OAuth2ClientSecret:               result.clientSecret,
+				OAuth2ClientSecretKeyID:          sql.NullString{},
+				OAuth2AuthURL:                    result.authURL,
+				OAuth2TokenURL:                   result.tokenURL,
+				OAuth2Scopes:                     oauth2Scopes,
+				APIKeyHeader:                     inserted.APIKeyHeader,
+				APIKeyValue:                      inserted.APIKeyValue,
+				APIKeyValueKeyID:                 inserted.APIKeyValueKeyID,
+				CustomHeaders:                    inserted.CustomHeaders,
+				CustomHeadersKeyID:               inserted.CustomHeadersKeyID,
+				CustomHeadersUserKeys:            inserted.CustomHeadersUserKeys,
+				CustomHeadersUserKeyDescriptions: inserted.CustomHeadersUserKeyDescriptions,
+				ToolAllowList:                    inserted.ToolAllowList,
+				ToolDenyList:                     inserted.ToolDenyList,
+				Availability:                     inserted.Availability,
+				Enabled:                          inserted.Enabled,
+				ModelIntent:                      inserted.ModelIntent,
+				AllowInPlanMode:                  inserted.AllowInPlanMode,
+				ForwardCoderHeaders:              inserted.ForwardCoderHeaders,
+				UpdatedBy:                        apiKey.UserID,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -461,34 +477,35 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:             strings.TrimSpace(req.DisplayName),
-		Slug:                    strings.TrimSpace(req.Slug),
-		Description:             strings.TrimSpace(req.Description),
-		IconURL:                 strings.TrimSpace(req.IconURL),
-		Transport:               strings.TrimSpace(req.Transport),
-		Url:                     strings.TrimSpace(req.URL),
-		AuthType:                strings.TrimSpace(req.AuthType),
-		OAuth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
-		OAuth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
-		OAuth2ClientSecretKeyID: sql.NullString{},
-		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
-		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
-		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
-		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
-		APIKeyValueKeyID:        sql.NullString{},
-		CustomHeaders:           customHeadersJSON,
-		CustomHeadersKeyID:      sql.NullString{},
-		CustomHeadersUserKeys:   customHeadersUserKeys,
-		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
-		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
-		Availability:            strings.TrimSpace(req.Availability),
-		Enabled:                 req.Enabled,
-		ModelIntent:             req.ModelIntent,
-		AllowInPlanMode:         req.AllowInPlanMode,
-		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		DisplayName:                      strings.TrimSpace(req.DisplayName),
+		Slug:                             strings.TrimSpace(req.Slug),
+		Description:                      strings.TrimSpace(req.Description),
+		IconURL:                          strings.TrimSpace(req.IconURL),
+		Transport:                        strings.TrimSpace(req.Transport),
+		Url:                              strings.TrimSpace(req.URL),
+		AuthType:                         strings.TrimSpace(req.AuthType),
+		OAuth2ClientID:                   strings.TrimSpace(req.OAuth2ClientID),
+		OAuth2ClientSecret:               strings.TrimSpace(req.OAuth2ClientSecret),
+		OAuth2ClientSecretKeyID:          sql.NullString{},
+		OAuth2AuthURL:                    strings.TrimSpace(req.OAuth2AuthURL),
+		OAuth2TokenURL:                   strings.TrimSpace(req.OAuth2TokenURL),
+		OAuth2Scopes:                     strings.TrimSpace(req.OAuth2Scopes),
+		APIKeyHeader:                     strings.TrimSpace(req.APIKeyHeader),
+		APIKeyValue:                      strings.TrimSpace(req.APIKeyValue),
+		APIKeyValueKeyID:                 sql.NullString{},
+		CustomHeaders:                    customHeadersJSON,
+		CustomHeadersKeyID:               sql.NullString{},
+		CustomHeadersUserKeys:            customHeadersUserKeys,
+		CustomHeadersUserKeyDescriptions: customHeadersUserKeyDescriptionsJSON,
+		ToolAllowList:                    coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+		ToolDenyList:                     coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+		Availability:                     strings.TrimSpace(req.Availability),
+		Enabled:                          req.Enabled,
+		ModelIntent:                      req.ModelIntent,
+		AllowInPlanMode:                  req.AllowInPlanMode,
+		ForwardCoderHeaders:              req.ForwardCoderHeaders,
+		CreatedBy:                        apiKey.UserID,
+		UpdatedBy:                        apiKey.UserID,
 	})
 	if err != nil {
 		switch {
@@ -750,19 +767,49 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		customHeadersUserKeys := existing.CustomHeadersUserKeys
-		if req.CustomHeadersUserKeys != nil {
+		existingDescriptions, descErr := decodeCustomHeaderUserKeyDescriptions(existing.CustomHeadersUserKeyDescriptions)
+		if descErr != nil {
+			return descErr
+		}
+		customHeadersUserKeyDescriptions := existingDescriptions
+		switch {
+		case req.CustomHeadersUserKeys != nil:
 			if authType != "custom_headers" && len(*req.CustomHeadersUserKeys) > 0 {
 				return &mcpValidationError{msg: "custom_headers_user_keys is only valid when auth_type is custom_headers."}
 			}
-			cleaned, vErr := validateCustomHeaderUserKeys(*req.CustomHeadersUserKeys, finalAdminHeaders)
+			// When the caller didn't send descriptions, carry over
+			// the existing map but silently drop entries whose key
+			// is no longer in the new key set; the validator would
+			// otherwise reject this routine refresh.
+			var descriptionsInput map[string]string
+			if req.CustomHeadersUserKeyDescriptions != nil {
+				if authType != "custom_headers" && len(*req.CustomHeadersUserKeyDescriptions) > 0 {
+					return &mcpValidationError{msg: "custom_headers_user_key_descriptions is only valid when auth_type is custom_headers."}
+				}
+				descriptionsInput = *req.CustomHeadersUserKeyDescriptions
+			} else {
+				descriptionsInput = filterDescriptionsToKeys(existingDescriptions, *req.CustomHeadersUserKeys)
+			}
+			cleanedKeys, cleanedDescriptions, vErr := validateCustomHeaderUserKeys(*req.CustomHeadersUserKeys, finalAdminHeaders, descriptionsInput)
 			if vErr != nil {
 				return &mcpValidationError{msg: vErr.Error()}
 			}
-			customHeadersUserKeys = cleaned
-		} else if req.CustomHeaders != nil && len(existing.CustomHeadersUserKeys) > 0 {
+			customHeadersUserKeys = cleanedKeys
+			customHeadersUserKeyDescriptions = cleanedDescriptions
+		case req.CustomHeadersUserKeyDescriptions != nil:
+			// Keys unchanged; descriptions are being replaced.
+			if authType != "custom_headers" && len(*req.CustomHeadersUserKeyDescriptions) > 0 {
+				return &mcpValidationError{msg: "custom_headers_user_key_descriptions is only valid when auth_type is custom_headers."}
+			}
+			_, cleanedDescriptions, vErr := validateCustomHeaderUserKeys(existing.CustomHeadersUserKeys, finalAdminHeaders, *req.CustomHeadersUserKeyDescriptions)
+			if vErr != nil {
+				return &mcpValidationError{msg: vErr.Error()}
+			}
+			customHeadersUserKeyDescriptions = cleanedDescriptions
+		case req.CustomHeaders != nil && len(existing.CustomHeadersUserKeys) > 0:
 			// Admin headers changed but user keys did not; re-validate
 			// the unchanged user keys against the new admin map.
-			if _, vErr := validateCustomHeaderUserKeys(existing.CustomHeadersUserKeys, finalAdminHeaders); vErr != nil {
+			if _, _, vErr := validateCustomHeaderUserKeys(existing.CustomHeadersUserKeys, finalAdminHeaders, existingDescriptions); vErr != nil {
 				return &mcpValidationError{msg: vErr.Error()}
 			}
 		}
@@ -819,6 +866,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
 				customHeadersUserKeys = nil
+				customHeadersUserKeyDescriptions = nil
 			case "oauth2":
 				apiKeyHeader = ""
 				apiKeyValue = ""
@@ -826,6 +874,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
 				customHeadersUserKeys = nil
+				customHeadersUserKeyDescriptions = nil
 			case "api_key":
 				oauth2ClientID = ""
 				oauth2ClientSecret = ""
@@ -836,6 +885,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
 				customHeadersUserKeys = nil
+				customHeadersUserKeyDescriptions = nil
 			case "custom_headers":
 				oauth2ClientID = ""
 				oauth2ClientSecret = ""
@@ -862,38 +912,45 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				customHeaders = "{}"
 				customHeadersKeyID = sql.NullString{}
 				customHeadersUserKeys = nil
+				customHeadersUserKeyDescriptions = nil
 			}
 		}
 
+		customHeadersUserKeyDescriptionsJSON, mErr := marshalCustomHeaderUserKeyDescriptions(customHeadersUserKeyDescriptions)
+		if mErr != nil {
+			return mErr
+		}
+
 		updated, err = tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-			DisplayName:             displayName,
-			Slug:                    slug,
-			Description:             description,
-			IconURL:                 iconURL,
-			Transport:               transport,
-			Url:                     serverURL,
-			AuthType:                authType,
-			OAuth2ClientID:          oauth2ClientID,
-			OAuth2ClientSecret:      oauth2ClientSecret,
-			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
-			OAuth2AuthURL:           oauth2AuthURL,
-			OAuth2TokenURL:          oauth2TokenURL,
-			OAuth2Scopes:            oauth2Scopes,
-			APIKeyHeader:            apiKeyHeader,
-			APIKeyValue:             apiKeyValue,
-			APIKeyValueKeyID:        apiKeyValueKeyID,
-			CustomHeaders:           customHeaders,
-			CustomHeadersKeyID:      customHeadersKeyID,
-			CustomHeadersUserKeys:   coalesceStringSlice(customHeadersUserKeys),
-			ToolAllowList:           toolAllowList,
-			ToolDenyList:            toolDenyList,
-			Availability:            availability,
-			Enabled:                 enabled,
-			ModelIntent:             modelIntent,
-			AllowInPlanMode:         allowInPlanMode,
-			ForwardCoderHeaders:     forwardCoderHeaders,
-			UpdatedBy:               apiKey.UserID,
-			ID:                      existing.ID,
+			DisplayName:                      displayName,
+			Slug:                             slug,
+			Description:                      description,
+			IconURL:                          iconURL,
+			Transport:                        transport,
+			Url:                              serverURL,
+			AuthType:                         authType,
+			OAuth2ClientID:                   oauth2ClientID,
+			OAuth2ClientSecret:               oauth2ClientSecret,
+			OAuth2ClientSecretKeyID:          oauth2ClientSecretKeyID,
+			OAuth2AuthURL:                    oauth2AuthURL,
+			OAuth2TokenURL:                   oauth2TokenURL,
+			OAuth2Scopes:                     oauth2Scopes,
+			APIKeyHeader:                     apiKeyHeader,
+			APIKeyValue:                      apiKeyValue,
+			APIKeyValueKeyID:                 apiKeyValueKeyID,
+			CustomHeaders:                    customHeaders,
+			CustomHeadersKeyID:               customHeadersKeyID,
+			CustomHeadersUserKeys:            coalesceStringSlice(customHeadersUserKeys),
+			CustomHeadersUserKeyDescriptions: customHeadersUserKeyDescriptionsJSON,
+			ToolAllowList:                    toolAllowList,
+			ToolDenyList:                     toolDenyList,
+			Availability:                     availability,
+			Enabled:                          enabled,
+			ModelIntent:                      modelIntent,
+			AllowInPlanMode:                  allowInPlanMode,
+			ForwardCoderHeaders:              forwardCoderHeaders,
+			UpdatedBy:                        apiKey.UserID,
+			ID:                               existing.ID,
 		})
 		return err
 	}, nil)
@@ -1565,6 +1622,7 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 // SDK type. Secrets are never returned; only has_* booleans are set.
 // Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
 func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
+	descriptions, _ := decodeCustomHeaderUserKeyDescriptions(config.CustomHeadersUserKeyDescriptions)
 	return codersdk.MCPServerConfig{
 		ID:          config.ID,
 		DisplayName: config.DisplayName,
@@ -1587,7 +1645,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		HasCustomHeaders: len(config.CustomHeaders) > 0 && config.CustomHeaders != "{}",
 
-		CustomHeadersUserKeys: coalesceStringSlice(config.CustomHeadersUserKeys),
+		CustomHeadersUserKeys:            coalesceStringSlice(config.CustomHeadersUserKeys),
+		CustomHeadersUserKeyDescriptions: descriptions,
 
 		ToolAllowList: coalesceStringSlice(config.ToolAllowList),
 		ToolDenyList:  coalesceStringSlice(config.ToolDenyList),
@@ -1629,6 +1688,37 @@ func marshalCustomHeaders(headers map[string]string) (string, error) {
 		return "", err
 	}
 	return string(encoded), nil
+}
+
+// marshalCustomHeaderUserKeyDescriptions encodes the per-key
+// description map for storage in the JSONB column. A nil or empty
+// map produces an empty JSON object so the NOT NULL column never
+// receives SQL NULL.
+func marshalCustomHeaderUserKeyDescriptions(descriptions map[string]string) (json.RawMessage, error) {
+	if len(descriptions) == 0 {
+		return json.RawMessage("{}"), nil
+	}
+	encoded, err := json.Marshal(descriptions)
+	if err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
+// decodeCustomHeaderUserKeyDescriptions decodes the JSONB column
+// into a Go map. Empty or null payloads decode to an empty map.
+func decodeCustomHeaderUserKeyDescriptions(raw json.RawMessage) (map[string]string, error) {
+	if len(raw) == 0 || string(raw) == "{}" || string(raw) == "null" {
+		return map[string]string{}, nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, xerrors.Errorf("decode custom_headers_user_key_descriptions: %w", err)
+	}
+	if out == nil {
+		return map[string]string{}, nil
+	}
+	return out, nil
 }
 
 // mcpValidationError signals that the InTx update closure failed due
@@ -1682,42 +1772,88 @@ func mcpCustomHeadersConnected(stored map[string]string, requiredKeys []string) 
 	return true
 }
 
+// filterDescriptionsToKeys returns a copy of descriptions that only
+// contains entries whose key matches (case-insensitively) an entry
+// in keys. This is used when an admin updates the user-key list
+// without explicitly providing descriptions, so orphaned
+// descriptions for removed keys are silently dropped.
+func filterDescriptionsToKeys(descriptions map[string]string, keys []string) map[string]string {
+	if len(descriptions) == 0 || len(keys) == 0 {
+		return map[string]string{}
+	}
+	allowed := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		allowed[strings.ToLower(strings.TrimSpace(k))] = struct{}{}
+	}
+	filtered := make(map[string]string, len(descriptions))
+	for k, v := range descriptions {
+		if _, ok := allowed[strings.ToLower(strings.TrimSpace(k))]; ok {
+			filtered[k] = v
+		}
+	}
+	return filtered
+}
+
 // validateCustomHeaderUserKeys returns the cleaned (trimmed, deduped)
-// list of user-set custom header names. Header names are compared
-// case-insensitively per RFC 7230, but the original casing is
-// preserved for storage.
+// list of user-set custom header names and the cleaned description
+// map. Header names are compared case-insensitively per RFC 7230, but
+// the original casing is preserved for storage.
 //
 // It rejects: empty entries (after trim), case-insensitive duplicates,
-// and any name that collides (case-insensitively) with a key in
-// adminHeaders.
+// any name that collides (case-insensitively) with a key in
+// adminHeaders, and any description whose key does not match (case-
+// insensitively) one of the user keys.
 //
-// An empty userKeys input returns an empty slice and no error; the
-// caller is responsible for any auth-type-specific "at least one
-// header" check.
-func validateCustomHeaderUserKeys(userKeys []string, adminHeaders map[string]string) ([]string, error) {
+// Empty-string description values are dropped. Description keys are
+// rewritten to use the canonical casing from cleaned user keys so
+// callers can index by exact match.
+//
+// An empty userKeys input returns an empty slice, an empty map, and
+// no error; the caller is responsible for any auth-type-specific
+// "at least one header" check.
+func validateCustomHeaderUserKeys(userKeys []string, adminHeaders map[string]string, descriptions map[string]string) ([]string, map[string]string, error) {
 	if len(userKeys) == 0 {
-		return []string{}, nil
+		if len(descriptions) > 0 {
+			return nil, nil, xerrors.New("custom_headers_user_key_descriptions requires at least one entry in custom_headers_user_keys")
+		}
+		return []string{}, map[string]string{}, nil
 	}
-	seen := make(map[string]struct{}, len(userKeys))
+	seen := make(map[string]string, len(userKeys))
 	cleaned := make([]string, 0, len(userKeys))
 	for _, raw := range userKeys {
 		k := strings.TrimSpace(raw)
 		if k == "" {
-			return nil, xerrors.New("custom_headers_user_keys entries must not be empty")
+			return nil, nil, xerrors.New("custom_headers_user_keys entries must not be empty")
 		}
 		lk := strings.ToLower(k)
 		if _, dup := seen[lk]; dup {
-			return nil, xerrors.Errorf("duplicate custom_headers_user_keys entry %q", k)
+			return nil, nil, xerrors.Errorf("duplicate custom_headers_user_keys entry %q", k)
 		}
-		seen[lk] = struct{}{}
+		seen[lk] = k
 		cleaned = append(cleaned, k)
 	}
 	for adminKey := range adminHeaders {
 		if _, conflict := seen[strings.ToLower(strings.TrimSpace(adminKey))]; conflict {
-			return nil, xerrors.Errorf("custom_headers_user_keys must be disjoint from custom_headers; %q is set by both", adminKey)
+			return nil, nil, xerrors.Errorf("custom_headers_user_keys must be disjoint from custom_headers; %q is set by both", adminKey)
 		}
 	}
-	return cleaned, nil
+	cleanedDescriptions := make(map[string]string, len(descriptions))
+	for rawKey, rawValue := range descriptions {
+		lk := strings.ToLower(strings.TrimSpace(rawKey))
+		canonical, ok := seen[lk]
+		if !ok {
+			return nil, nil, xerrors.Errorf("custom_headers_user_key_descriptions key %q is not in custom_headers_user_keys", rawKey)
+		}
+		if _, dup := cleanedDescriptions[canonical]; dup {
+			return nil, nil, xerrors.Errorf("duplicate custom_headers_user_key_descriptions entry %q", rawKey)
+		}
+		value := strings.TrimSpace(rawValue)
+		if value == "" {
+			continue
+		}
+		cleanedDescriptions[canonical] = value
+	}
+	return cleaned, cleanedDescriptions, nil
 }
 
 // trimStringSlice trims whitespace from each element and drops empty

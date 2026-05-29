@@ -3408,6 +3408,13 @@ export interface CreateMCPServerConfigRequest {
 	 * from CustomHeaders keys and from each other (case-insensitive).
 	 */
 	readonly custom_headers_user_keys?: readonly string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions optionally provides helper text
+	 * per user-set header key. Keys must be a (case-insensitive) subset
+	 * of CustomHeadersUserKeys; descriptions for unknown keys are
+	 * rejected. Empty strings are dropped.
+	 */
+	readonly custom_headers_user_key_descriptions?: Record<string, string>;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
@@ -5186,6 +5193,13 @@ export interface MCPServerConfig {
 	 * set must be disjoint from the admin-set CustomHeaders keys.
 	 */
 	readonly custom_headers_user_keys: readonly string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions maps a user-set custom header
+	 * name to optional helper text the admin wrote to explain what
+	 * the user should enter. Keys are case-insensitively a subset of
+	 * CustomHeadersUserKeys. Missing entries mean "no description".
+	 */
+	readonly custom_headers_user_key_descriptions: Record<string, string>;
 	/**
 	 * Tool governance.
 	 */
@@ -8794,6 +8808,12 @@ export interface UpdateMCPServerConfigRequest {
 	 * user-supplied header names. See MCPServerConfig.CustomHeadersUserKeys.
 	 */
 	readonly custom_headers_user_keys?: string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions, when non-nil, replaces the
+	 * per-key description map. Pass an empty map to clear all
+	 * descriptions. See MCPServerConfig.CustomHeadersUserKeyDescriptions.
+	 */
+	readonly custom_headers_user_key_descriptions?: Record<string, string>;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;

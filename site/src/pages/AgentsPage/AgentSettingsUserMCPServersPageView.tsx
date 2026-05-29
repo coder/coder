@@ -287,6 +287,10 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 		() => server?.custom_headers_user_keys ?? [],
 		[server],
 	);
+	const descriptions = useMemo(
+		() => server?.custom_headers_user_key_descriptions ?? {},
+		[server],
+	);
 	const [draft, setDraft] = useState<Record<string, string>>({});
 
 	const open = server !== null;
@@ -350,6 +354,7 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 					{requiredKeys.map((key) => {
 						const existing = headerHasValues?.[key] === true;
 						const inputId = `${inputIdPrefix}-${key}`;
+						const description = descriptions[key];
 						return (
 							<div key={key} className="space-y-1">
 								<label
@@ -363,6 +368,11 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 										</span>
 									)}
 								</label>
+								{description && (
+									<p className="m-0 text-xs text-content-secondary">
+										{description}
+									</p>
+								)}
 								<Input
 									id={inputId}
 									className="font-mono text-[13px] [-webkit-text-security:disc]"

@@ -1,5 +1,9 @@
 ALTER TABLE mcp_server_configs
-    ADD COLUMN custom_headers_user_keys TEXT[] NOT NULL DEFAULT '{}';
+    ADD COLUMN custom_headers_user_keys TEXT[] NOT NULL DEFAULT '{}',
+    -- Optional admin-supplied helper text per user-set custom header key.
+    -- Shown to end users in the settings UI when they fill in their value.
+    -- Keys must be a subset of custom_headers_user_keys (case-insensitive).
+    ADD COLUMN custom_headers_user_key_descriptions JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE mcp_server_user_header_values (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

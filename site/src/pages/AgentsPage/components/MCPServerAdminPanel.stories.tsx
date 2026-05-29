@@ -29,6 +29,8 @@ const createServerConfig = (
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
 	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
+	custom_headers_user_key_descriptions:
+		overrides.custom_headers_user_key_descriptions ?? {},
 	tool_allow_list: overrides.tool_allow_list ?? [],
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
@@ -806,6 +808,12 @@ export const CreateServerCustomHeadersWithUserSet: Story = {
 			body.getByLabelText(/Header 2 value \(set by user\)/i),
 		).toHaveTextContent(/Set by each user/i);
 
+		// Fill in an optional description for the user-set row.
+		await userEvent.type(
+			body.getByLabelText(/Description \(optional\)/i),
+			"Your Honcho user ID.",
+		);
+
 		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
@@ -816,6 +824,9 @@ export const CreateServerCustomHeadersWithUserSet: Story = {
 				auth_type: "custom_headers",
 				custom_headers: { "X-Honcho-App": "shared-app-id" },
 				custom_headers_user_keys: ["X-Honcho-User"],
+				custom_headers_user_key_descriptions: {
+					"X-Honcho-User": "Your Honcho user ID.",
+				},
 			}),
 		);
 	},
@@ -836,6 +847,9 @@ export const EditServerWithCustomHeadersUserKeys: Story = {
 				auth_type: "custom_headers",
 				has_custom_headers: true,
 				custom_headers_user_keys: ["X-Honcho-User"],
+				custom_headers_user_key_descriptions: {
+					"X-Honcho-User": "Your Honcho user ID.",
+				},
 				availability: "default_on",
 				enabled: true,
 			}),
@@ -864,5 +878,10 @@ export const EditServerWithCustomHeadersUserKeys: Story = {
 			body.getByLabelText(/Header 1 value \(set by user\)/i),
 		).toBeInTheDocument();
 		expect(body.queryByLabelText(/^Header 1 value$/i)).not.toBeInTheDocument();
+
+		// Description for the pre-populated key should be displayed.
+		expect(body.getByLabelText(/Description \(optional\)/i)).toHaveValue(
+			"Your Honcho user ID.",
+		);
 	},
 };

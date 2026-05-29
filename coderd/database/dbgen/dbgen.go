@@ -331,34 +331,35 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	}
 
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
-		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
-		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
-		Description:             seed.Description,
-		IconURL:                 seed.IconURL,
-		Transport:               takeFirst(seed.Transport, "streamable_http"),
-		Url:                     takeFirst(seed.Url, "https://mcp.example.com"),
-		AuthType:                takeFirst(seed.AuthType, "none"),
-		OAuth2ClientID:          seed.OAuth2ClientID,
-		OAuth2ClientSecret:      seed.OAuth2ClientSecret,
-		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
-		OAuth2AuthURL:           seed.OAuth2AuthURL,
-		OAuth2TokenURL:          seed.OAuth2TokenURL,
-		OAuth2Scopes:            seed.OAuth2Scopes,
-		APIKeyHeader:            seed.APIKeyHeader,
-		APIKeyValue:             seed.APIKeyValue,
-		APIKeyValueKeyID:        seed.APIKeyValueKeyID,
-		CustomHeaders:           seed.CustomHeaders,
-		CustomHeadersKeyID:      seed.CustomHeadersKeyID,
-		CustomHeadersUserKeys:   takeFirstSlice(seed.CustomHeadersUserKeys, []string{}),
-		ToolAllowList:           takeFirstSlice(seed.ToolAllowList, []string{}),
-		ToolDenyList:            takeFirstSlice(seed.ToolDenyList, []string{}),
-		Availability:            takeFirst(seed.Availability, "default_off"),
-		Enabled:                 takeFirst(seed.Enabled, true),
-		ModelIntent:             seed.ModelIntent,
-		AllowInPlanMode:         seed.AllowInPlanMode,
-		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
-		CreatedBy:               createdBy,
-		UpdatedBy:               updatedBy,
+		DisplayName:                      takeFirst(seed.DisplayName, "Test MCP Server"),
+		Slug:                             takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Description:                      seed.Description,
+		IconURL:                          seed.IconURL,
+		Transport:                        takeFirst(seed.Transport, "streamable_http"),
+		Url:                              takeFirst(seed.Url, "https://mcp.example.com"),
+		AuthType:                         takeFirst(seed.AuthType, "none"),
+		OAuth2ClientID:                   seed.OAuth2ClientID,
+		OAuth2ClientSecret:               seed.OAuth2ClientSecret,
+		OAuth2ClientSecretKeyID:          seed.OAuth2ClientSecretKeyID,
+		OAuth2AuthURL:                    seed.OAuth2AuthURL,
+		OAuth2TokenURL:                   seed.OAuth2TokenURL,
+		OAuth2Scopes:                     seed.OAuth2Scopes,
+		APIKeyHeader:                     seed.APIKeyHeader,
+		APIKeyValue:                      seed.APIKeyValue,
+		APIKeyValueKeyID:                 seed.APIKeyValueKeyID,
+		CustomHeaders:                    seed.CustomHeaders,
+		CustomHeadersKeyID:               seed.CustomHeadersKeyID,
+		CustomHeadersUserKeys:            takeFirstSlice(seed.CustomHeadersUserKeys, []string{}),
+		CustomHeadersUserKeyDescriptions: takeFirstRawMessage(seed.CustomHeadersUserKeyDescriptions, json.RawMessage("{}")),
+		ToolAllowList:                    takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:                     takeFirstSlice(seed.ToolDenyList, []string{}),
+		Availability:                     takeFirst(seed.Availability, "default_off"),
+		Enabled:                          takeFirst(seed.Enabled, true),
+		ModelIntent:                      seed.ModelIntent,
+		AllowInPlanMode:                  seed.AllowInPlanMode,
+		ForwardCoderHeaders:              seed.ForwardCoderHeaders,
+		CreatedBy:                        createdBy,
+		UpdatedBy:                        updatedBy,
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg
@@ -2169,6 +2170,20 @@ func takeFirstSlice[T any](values ...[]T) []T {
 	return takeFirstF(values, func(v []T) bool {
 		return len(v) != 0
 	})
+}
+
+// takeFirstRawMessage returns the first json.RawMessage that is not
+// empty and not a JSON null/object literal that signals absence. Use
+// this for NOT NULL JSONB columns whose Go zero value would otherwise
+// produce a SQL NULL.
+func takeFirstRawMessage(values ...json.RawMessage) json.RawMessage {
+	for _, v := range values {
+		if len(v) == 0 {
+			continue
+		}
+		return v
+	}
+	return nil
 }
 
 func takeFirstMap[T, E comparable](values ...map[T]E) map[T]E {

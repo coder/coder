@@ -63,6 +63,12 @@ type MCPServerConfig struct {
 	// set must be disjoint from the admin-set CustomHeaders keys.
 	CustomHeadersUserKeys []string `json:"custom_headers_user_keys"`
 
+	// CustomHeadersUserKeyDescriptions maps a user-set custom header
+	// name to optional helper text the admin wrote to explain what
+	// the user should enter. Keys are case-insensitively a subset of
+	// CustomHeadersUserKeys. Missing entries mean "no description".
+	CustomHeadersUserKeyDescriptions map[string]string `json:"custom_headers_user_key_descriptions"`
+
 	// Tool governance.
 	ToolAllowList []string `json:"tool_allow_list"`
 	ToolDenyList  []string `json:"tool_deny_list"`
@@ -112,6 +118,12 @@ type CreateMCPServerConfigRequest struct {
 	// from CustomHeaders keys and from each other (case-insensitive).
 	CustomHeadersUserKeys []string `json:"custom_headers_user_keys,omitempty"`
 
+	// CustomHeadersUserKeyDescriptions optionally provides helper text
+	// per user-set header key. Keys must be a (case-insensitive) subset
+	// of CustomHeadersUserKeys; descriptions for unknown keys are
+	// rejected. Empty strings are dropped.
+	CustomHeadersUserKeyDescriptions map[string]string `json:"custom_headers_user_key_descriptions,omitempty"`
+
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
@@ -148,6 +160,11 @@ type UpdateMCPServerConfigRequest struct {
 	// CustomHeadersUserKeys, when non-nil, replaces the set of
 	// user-supplied header names. See MCPServerConfig.CustomHeadersUserKeys.
 	CustomHeadersUserKeys *[]string `json:"custom_headers_user_keys,omitempty"`
+
+	// CustomHeadersUserKeyDescriptions, when non-nil, replaces the
+	// per-key description map. Pass an empty map to clear all
+	// descriptions. See MCPServerConfig.CustomHeadersUserKeyDescriptions.
+	CustomHeadersUserKeyDescriptions *map[string]string `json:"custom_headers_user_key_descriptions,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

@@ -11,6 +11,7 @@ INSERT INTO mcp_server_configs (
     auth_type,
     custom_headers,
     custom_headers_user_keys,
+    custom_headers_user_key_descriptions,
     availability,
     enabled,
     created_by,
@@ -26,6 +27,7 @@ INSERT INTO mcp_server_configs (
     'custom_headers',
     '{"X-Org-ID":"acme"}',
     ARRAY['X-User-Token'],
+    '{"X-User-Token":"Personal access token for the upstream MCP server."}'::jsonb,
     'default_off',
     TRUE,
     '30095c71-380b-457a-8995-97b8ee6e5307', -- admin@coder.com

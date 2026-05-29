@@ -115,6 +115,14 @@ stops storing an admin value for those keys and lists them in
 user's stored value with the admin-set headers and sends the combined map
 to the MCP server.
 
+Admins can attach an optional **description** to each user-set key (for
+example "Personal access token from your Honcho profile"). Descriptions are
+stored alongside the keys in `custom_headers_user_key_descriptions` and
+rendered above the corresponding input on the user's settings page.
+Descriptions for keys that are not in `custom_headers_user_keys` are
+rejected, and orphaned descriptions are dropped automatically when the
+key list changes.
+
 The values are encrypted at rest with the same key set as the rest of the
 MCP server config. Admins cannot read or list per-user values; clearing a
 user's values is a per-user action from the same settings page or through

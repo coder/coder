@@ -29,6 +29,8 @@ const createServerConfig = (
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
 	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
+	custom_headers_user_key_descriptions:
+		overrides.custom_headers_user_key_descriptions ?? {},
 	tool_allow_list: overrides.tool_allow_list ?? [],
 	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
@@ -200,6 +202,10 @@ export const ConfigureSavesValues: Story = {
 				auth_type: "custom_headers",
 				has_custom_headers: true,
 				custom_headers_user_keys: ["X-Honcho-User", "X-Honcho-Session"],
+				custom_headers_user_key_descriptions: {
+					"X-Honcho-User":
+						"Your Honcho user ID, copy it from your Honcho profile.",
+				},
 				auth_connected: false,
 			}),
 		],
@@ -213,6 +219,9 @@ export const ConfigureSavesValues: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: /Configure/i }),
 		);
+
+		// The admin-supplied description shows above the matching input.
+		expect(await body.findByText(/Your Honcho user ID/i)).toBeInTheDocument();
 
 		const userInput = await body.findByLabelText(/X-Honcho-User value/i);
 		await userEvent.type(userInput, "user-jwt-abc");

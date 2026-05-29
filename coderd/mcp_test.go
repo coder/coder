@@ -601,6 +601,198 @@ func TestMCPServerConfigsCustomHeadersUserKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
+
+	t.Run("CreateRoundTripsDescriptions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-desc",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token", "X-User-Email"},
+			CustomHeadersUserKeyDescriptions: map[string]string{
+				"X-User-Token": "Your personal access token.",
+				"x-user-email": "  Your email address.  ", // matched case-insensitively, value trimmed
+			},
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-User-Token", "X-User-Email"}, created.CustomHeadersUserKeys)
+		require.Equal(t, map[string]string{
+			"X-User-Token": "Your personal access token.",
+			"X-User-Email": "Your email address.",
+		}, created.CustomHeadersUserKeyDescriptions)
+	})
+
+	t.Run("CreateRejectsDescriptionForUnknownKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:                      "Bad",
+			Slug:                             "bad-desc-key",
+			Transport:                        "streamable_http",
+			URL:                              "https://mcp.example.com/v1",
+			AuthType:                         "custom_headers",
+			CustomHeadersUserKeys:            []string{"X-User-Token"},
+			CustomHeadersUserKeyDescriptions: map[string]string{"X-Stranger": "unused"},
+			Availability:                     "default_on",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("CreateRejectsDescriptionsForOtherAuthType", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:                      "Bad",
+			Slug:                             "bad-desc-authtype",
+			Transport:                        "streamable_http",
+			URL:                              "https://mcp.example.com/v1",
+			AuthType:                         "none",
+			CustomHeadersUserKeyDescriptions: map[string]string{"X-Token": "nope"},
+			Availability:                     "default_on",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("UpdateReplacesDescriptionsOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-desc-upd",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-User-Token"},
+			CustomHeadersUserKeyDescriptions: map[string]string{
+				"X-User-Token": "Original description.",
+			},
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		require.NoError(t, err)
+
+		newDescriptions := map[string]string{"X-User-Token": "Updated description."}
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeyDescriptions: &newDescriptions,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-User-Token"}, updated.CustomHeadersUserKeys)
+		require.Equal(t, map[string]string{"X-User-Token": "Updated description."}, updated.CustomHeadersUserKeyDescriptions)
+	})
+
+	t.Run("UpdateClearsDescriptionsWithEmptyMap", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:                      "Honcho",
+			Slug:                             "honcho-desc-clear",
+			Transport:                        "streamable_http",
+			URL:                              "https://mcp.example.com/v1",
+			AuthType:                         "custom_headers",
+			CustomHeadersUserKeys:            []string{"X-User-Token"},
+			CustomHeadersUserKeyDescriptions: map[string]string{"X-User-Token": "Will be cleared."},
+			Availability:                     "default_on",
+			Enabled:                          true,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, created.CustomHeadersUserKeyDescriptions)
+
+		cleared := map[string]string{}
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeyDescriptions: &cleared,
+		})
+		require.NoError(t, err)
+		require.Empty(t, updated.CustomHeadersUserKeyDescriptions)
+	})
+
+	t.Run("UpdateDropsDescriptionsForRemovedKeys", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:           "Honcho",
+			Slug:                  "honcho-desc-drop",
+			Transport:             "streamable_http",
+			URL:                   "https://mcp.example.com/v1",
+			AuthType:              "custom_headers",
+			CustomHeadersUserKeys: []string{"X-Old-Token", "X-Keep-Token"},
+			CustomHeadersUserKeyDescriptions: map[string]string{
+				"X-Old-Token":  "Old.",
+				"X-Keep-Token": "Keep.",
+			},
+			Availability: "default_on",
+			Enabled:      true,
+		})
+		require.NoError(t, err)
+
+		// Replace keys without explicitly sending descriptions; the
+		// orphaned X-Old-Token entry should be silently dropped, the
+		// X-Keep-Token entry preserved.
+		newKeys := []string{"X-Keep-Token"}
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			CustomHeadersUserKeys: &newKeys,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"X-Keep-Token"}, updated.CustomHeadersUserKeys)
+		require.Equal(t, map[string]string{"X-Keep-Token": "Keep."}, updated.CustomHeadersUserKeyDescriptions)
+	})
+
+	t.Run("UpdateClearsDescriptionsOnAuthTypeChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:                      "Honcho",
+			Slug:                             "honcho-desc-authtype",
+			Transport:                        "streamable_http",
+			URL:                              "https://mcp.example.com/v1",
+			AuthType:                         "custom_headers",
+			CustomHeadersUserKeys:            []string{"X-User-Token"},
+			CustomHeadersUserKeyDescriptions: map[string]string{"X-User-Token": "To be cleared."},
+			Availability:                     "default_on",
+			Enabled:                          true,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, created.CustomHeadersUserKeyDescriptions)
+
+		newAuthType := "none"
+		updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+			AuthType: &newAuthType,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "none", updated.AuthType)
+		require.Empty(t, updated.CustomHeadersUserKeyDescriptions)
+	})
 }
 
 func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
