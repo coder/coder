@@ -5,8 +5,9 @@ Providers, models, and centrally managed credentials are deployment-wide
 settings managed by platform teams. Developers select from the set of models
 that an administrator has enabled.
 
-Optionally, administrators can allow developers to supply their own API keys
-for specific providers. See [User API keys](#user-api-keys-byok) below.
+Optionally, administrators can enable AI Gateway Bring Your Own Key (BYOK)
+so developers can supply personal API keys for providers. See
+[User API keys](#user-api-keys-byok) below.
 
 ## Providers
 
@@ -126,44 +127,24 @@ access to LLM providers. See
 [Architecture](./architecture.md#no-api-keys-in-workspaces) for details
 on this security model.
 
-## Key policy
+## Credential selection
 
-Each provider has three policy flags that control how provider credentials are
-sourced:
+Coder Agents use the AI providers configured by administrators. Provider API
+keys entered by administrators are centralized credentials for the deployment.
 
-| Setting                 | Default | Description                                                                                                              |
-|-------------------------|---------|--------------------------------------------------------------------------------------------------------------------------|
-| Central API key         | On      | The provider uses deployment-managed credentials configured by an administrator. For most providers, this is an API key. |
-| Allow user API keys     | Off     | Developers may supply their own API key for this provider.                                                               |
-| Central key as fallback | Off     | When user keys are allowed, fall back to deployment-managed credentials if a developer has not set a personal key.       |
+BYOK for Coder Agents is controlled by the global AI Gateway BYOK setting, not
+by per-provider key policy flags. When BYOK is enabled, users can save a
+personal API key for any enabled AI provider. When BYOK is disabled, saved user
+keys are ignored and users cannot add or update personal keys.
 
-At least one credential source must be enabled. These settings appear in the
-provider configuration form under **Key policy**.
+For each provider request, Coder selects credentials in this order:
 
-The interaction between these flags determines whether a provider is available
-to a given developer:
-
-| Central key | User keys allowed | Fallback | Developer has key | Result               |
-|-------------|-------------------|----------|-------------------|----------------------|
-| On          | Off               | N/A      | N/A               | Uses central key     |
-| Off         | On                | N/A      | Yes               | Uses developer's key |
-| Off         | On                | N/A      | No                | Unavailable          |
-| On          | On                | Off      | Yes               | Uses developer's key |
-| On          | On                | Off      | No                | Unavailable          |
-| On          | On                | On       | Yes               | Uses developer's key |
-| On          | On                | On       | No                | Uses central key     |
-
-When a developer's personal key is present, it always takes precedence over
-deployment-managed credentials for direct provider calls. When user keys are
-required and fallback is disabled, the provider is unavailable to developers who
-have not saved a personal key, even if deployment-managed credentials exist.
-This is intentional: it enforces that each developer authenticates with their
-own credentials.
-
-> [!NOTE]
-> Coder Agents requests routed through AI Gateway have a current credential
-> selection limitation and do not exactly follow this direct-provider matrix.
-> See the [AI Gateway-routed Agents credential matrix](../ai-gateway/clients/coder-agents.md#credential-selection-and-byok).
+1. If BYOK is enabled and the user has saved a personal key for the selected
+   provider, Coder uses the user's key.
+1. Otherwise, Coder uses centralized provider credentials when they are
+   configured.
+1. If neither a usable user key nor centralized credentials are available, the
+   provider is unavailable for that user.
 
 ## Models
 
@@ -327,18 +308,21 @@ and resolution falls through to the next.
 
 ## User API keys (BYOK)
 
-When an administrator enables **Allow user API keys** on a provider,
-developers can supply their own API key from the Agents settings page.
+When [AI Gateway BYOK](../ai-gateway/auth.md#enable-or-disable-byok) is
+enabled, developers can supply personal API keys for any enabled AI provider
+from the Agents settings page.
 
 ### Managing personal API keys
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** and select the **API Keys** tab.
-1. Each provider that allows user keys is listed with a status indicator:
-   - **Key saved**, your personal key is active and will be used for requests.
-   - **Using shared key**, no personal key set, but the central deployment
-     key is available as a fallback.
-   - **No key**, you must add a personal key before you can use this provider.
+1. Each enabled provider is listed with a status indicator:
+   - **Key saved**, your personal key is active and will be used for requests to
+     that provider.
+   - **Using shared key**, no personal key is set and Coder is using
+     deployment-managed credentials for that provider.
+   - **No key**, no personal key or deployment-managed credential is available.
+     Add a personal key before you use models from this provider.
 1. Enter your API key and click **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption
@@ -350,19 +334,19 @@ saved key, only whether one is set.
 When you start a chat, the control plane resolves which credential source to
 use for each provider:
 
-1. If you have a personal key for the provider, it is used.
-1. If you do not have a personal key and central key fallback is enabled,
-   deployment-managed credentials are used.
-1. If you do not have a personal key and fallback is disabled, the provider
-   is unavailable to you. Models from that provider will not appear in the
-   model selector.
+1. If BYOK is enabled and you have a personal key for the provider, Coder uses
+   your key.
+1. Otherwise, Coder uses deployment-managed credentials when they are configured
+   for the provider.
+1. If neither credential source is available, models from that provider are
+   unavailable to you.
 
 ### Removing a personal key
 
-Click **Remove** on the provider card in the API Keys settings tab. If
-central key fallback is enabled, subsequent requests will use the shared
-deployment-managed credentials. If fallback is disabled, the provider becomes
-unavailable until you add a new personal key.
+Click **Remove** on the provider card in the API Keys settings tab. Subsequent
+requests use deployment-managed credentials when they are configured for that
+provider. If no deployment-managed credential is available, add a new personal
+key before you use models from that provider.
 
 ## Using an LLM proxy
 

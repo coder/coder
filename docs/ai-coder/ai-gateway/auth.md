@@ -88,7 +88,7 @@ In BYOK mode, users need two credentials:
 
 BYOK and centralized modes can be used together.
 When a user provides their own credential, AI Gateway forwards it directly.
-When no user credential is present, AI Gateway falls back to the admin-configured provider key.
+When no user credential is present, AI Gateway uses the admin-configured provider key.
 This approach offers centralized keys as a default,
 while allowing individual users to bring their own key.
 

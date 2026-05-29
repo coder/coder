@@ -84,23 +84,19 @@ To migrate a provider that still points at `/api/v2/aibridge/...`:
 
 ## Credential selection and BYOK
 
-Coder Agents routed through AI Gateway does not exactly follow the direct
-provider key policy matrix in [Models](../../agents/models.md#key-policy). For
-this path, BYOK behavior is governed by the global AI Gateway BYOK setting and
-whether the user has a saved provider key.
+Coder Agents BYOK is controlled by the global AI Gateway BYOK setting. There is
+no separate per-provider BYOK setting or key-source policy for Agents. When
+BYOK is enabled, users can save a personal API key for any enabled AI provider
+from the Agents settings page.
 
 | Situation                                                                                       | Upstream credential behavior                                                                     |
 |-------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| Centralized provider key is configured and the user has no saved key                            | AI Gateway uses the centralized provider credential.                                             |
 | Global AI Gateway BYOK is disabled                                                              | AI Gateway uses centralized provider credentials. Saved user keys are ignored for this route.    |
-| Global AI Gateway BYOK is enabled and the user has a saved OpenAI-compatible key                | The user key is delegated through AI Gateway and used for the upstream OpenAI-shaped request.    |
-| Global AI Gateway BYOK is enabled and the user has a saved Anthropic or Bedrock key             | The user key is delegated through AI Gateway and used for the upstream Anthropic-shaped request. |
+| BYOK is enabled and the user has a saved OpenAI-compatible key for the selected provider        | The user key is delegated through AI Gateway and used for the upstream OpenAI-shaped request.    |
+| BYOK is enabled and the user has a saved Anthropic or Bedrock key for the selected provider     | The user key is delegated through AI Gateway and used for the upstream Anthropic-shaped request. |
+| BYOK is enabled and the user has no saved key for the selected provider                         | AI Gateway uses centralized provider credentials when they are configured.                       |
 | Required provider metadata, provider row, active delegated key, or transport support is missing | The Agents model request fails before Coder sends an upstream provider request.                  |
-
-This is a current limitation of the AI Gateway-routed Agents path. The key
-policy matrix in [Models](../../agents/models.md#key-policy) describes a
-separate direct-provider credential policy and should not be read as the AI
-Gateway-routed behavior.
+| No user key or centralized provider credential is available                                     | The provider is unavailable for that user.                                                       |
 
 ## Identity and audit
 
@@ -142,7 +138,7 @@ To verify routing:
 ## Related documentation
 
 - [Coder Agents: Models and providers](../../agents/models.md) for provider,
-  model, and direct key policy settings.
+  model, and credential selection settings.
 - [AI Gateway authentication](../auth.md) for centralized credentials and BYOK.
 - [AI Gateway setup](../setup.md) for enabling AI Gateway and configuring
   upstream provider endpoints.
