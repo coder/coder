@@ -3087,6 +3087,110 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		// The enterprise auditor is needed because the mock auditor does
+		// not compute diffs. We read straight from the audit_logs table to
+		// validate the diff content.
+		db, ps := dbtestutil.NewDB(t)
+		auditor := entaudit.NewAuditor(
+			db,
+			entaudit.DefaultFilter,
+			backends.NewPostgres(db, true),
+		)
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Database:         db,
+				Pubsub:           ps,
+				Auditor:          auditor,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+					codersdk.FeatureAuditLog:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "override-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Upsert (create-or-update) emits an AuditActionWrite entry.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Delete emits an AuditActionDelete entry against the same resource.
+		require.NoError(t, adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID))
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		upsertLog := rows[1].AuditLog
+		deleteLog := rows[0].AuditLog
+
+		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
+		require.Equal(t, targetUser.ID, upsertLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, upsertLog.ResourceType)
+		require.Equal(t, targetUser.Username, upsertLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
+
+		var upsertDiff audit.Map
+		require.NoError(t, json.Unmarshal(upsertLog.Diff, &upsertDiff))
+		require.Contains(t, upsertDiff, "spend_limit")
+		require.Equal(t, "$0.00", upsertDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", upsertDiff["spend_limit"].New)
+		require.Contains(t, upsertDiff, "group_name")
+		require.Equal(t, "", upsertDiff["group_name"].Old)
+		require.Equal(t, group.Name, upsertDiff["group_name"].New)
+		// Fields marked ActionIgnore must not appear in the diff.
+		require.NotContains(t, upsertDiff, "user_id")
+		require.NotContains(t, upsertDiff, "username")
+		require.NotContains(t, upsertDiff, "group_id")
+		require.NotContains(t, upsertDiff, "spend_limit_micros")
+		require.NotContains(t, upsertDiff, "created_at")
+		require.NotContains(t, upsertDiff, "updated_at")
+
+		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
+		require.Equal(t, targetUser.ID, deleteLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, deleteLog.ResourceType)
+		require.Equal(t, targetUser.Username, deleteLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
+
+		var deleteDiff audit.Map
+		require.NoError(t, json.Unmarshal(deleteLog.Diff, &deleteDiff))
+		require.Contains(t, deleteDiff, "spend_limit")
+		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
+		require.Equal(t, "", deleteDiff["spend_limit"].New)
+		require.Contains(t, deleteDiff, "group_name")
+		require.Equal(t, group.Name, deleteDiff["group_name"].Old)
+		require.Equal(t, "", deleteDiff["group_name"].New)
+	})
 }
 
 // TestUserAIBudgetOverrideRoleAccess verifies the authz matrix for the roles
