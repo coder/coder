@@ -148,9 +148,8 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			return nil, nil, xerrors.Errorf("initialize replica: %w", err)
 		}
 		o.ReplicaManager = replicaManager
-		replicaManagerOwnedByAPI := false
 		defer func() {
-			if !replicaManagerOwnedByAPI {
+			if o.ReplicaManager == replicaManager {
 				_ = replicaManager.Close()
 			}
 		}()
@@ -173,7 +172,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			_ = closers.Close()
 			return nil, nil, err
 		}
-		replicaManagerOwnedByAPI = true
+		o.ReplicaManager = nil
 		closers.Add(api)
 
 		// Start the enterprise usage publisher routine. This won't do anything
