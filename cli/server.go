@@ -2979,6 +2979,11 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
+const (
+	aiGatewayProviderEnvPrefix = "CODER_AI_GATEWAY_PROVIDER_"
+	aiBridgeProviderEnvPrefix  = "CODER_AIBRIDGE_PROVIDER_"
+)
+
 // ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIProviderConfig.
 // Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
@@ -2986,18 +2991,19 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 //
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
-	providers, err := readAIProvidersForPrefix(logger, environ, "CODER_AIBRIDGE_PROVIDER_")
+	providers, err := readAIProvidersForPrefix(logger, environ, aiBridgeProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
-	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, aiGatewayProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
 	if len(providers) > 0 && len(gatewayProviders) > 0 {
-		return nil, xerrors.New("cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*")
+		return nil, xerrors.Errorf("cannot mix %s* and %s* environment variables, please consolidate onto %s*", aiBridgeProviderEnvPrefix, aiGatewayProviderEnvPrefix, aiGatewayProviderEnvPrefix)
 	}
 	providers = append(providers, gatewayProviders...)
+	warnIfAIProvidersConfiguredFromEnv(context.Background(), logger, environ, providers)
 
 	// Post-parse validation.
 	names := make(map[string]int, len(providers))
@@ -3078,6 +3084,40 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 	}
 
 	return providers, nil
+}
+
+func warnIfAIProvidersConfiguredFromEnv(ctx context.Context, logger slog.Logger, environ []string, providers []codersdk.AIProviderConfig) {
+	if len(providers) == 0 {
+		return
+	}
+
+	prefix := aiProviderEnvPrefix(environ)
+	if prefix == "" {
+		return
+	}
+
+	logger.Warn(ctx,
+		"ai provider environment variables are deprecated for provider management and only seed provider rows at startup",
+		slog.F("env_prefix", prefix),
+		slog.F("replacement", "Manage AI Providers from the Coder UI or HTTP API."),
+	)
+}
+
+func aiProviderEnvPrefix(environ []string) string {
+	for _, raw := range environ {
+		name, _, found := strings.Cut(raw, "=")
+		if !found {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(name, aiBridgeProviderEnvPrefix):
+			return aiBridgeProviderEnvPrefix
+		case strings.HasPrefix(name, aiGatewayProviderEnvPrefix):
+			return aiGatewayProviderEnvPrefix
+		}
+	}
+
+	return ""
 }
 
 // readAIProvidersForPrefix parses provider env vars under a single

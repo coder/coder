@@ -874,26 +874,28 @@ ai_gateway:
   # Whether to start an in-memory AI Gateway instance.
   # (default: true, type: bool)
   enabled: true
-  # The base URL of the OpenAI API.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: https://api.openai.com/v1/, type: string)
   openai_base_url: https://api.openai.com/v1/
-  # The base URL of the Anthropic API.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
-  # The base URL to use for the AWS Bedrock API. Use this setting to specify an
-  # exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: <unset>, type: string)
   bedrock_base_url: ""
-  # The AWS Bedrock API region to use. Constructs a base URL to use for the AWS
-  # Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: <unset>, type: string)
   bedrock_region: ""
-  # The model to use when making requests to the AWS Bedrock API.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
   bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
-  # The small fast model to use when making requests to the AWS Bedrock API. Claude
-  # Code uses Haiku-class models to perform background tasks. See
-  # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+  # Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only
+  # seeds provider configuration at startup once-off, if configured.
   # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
   bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a

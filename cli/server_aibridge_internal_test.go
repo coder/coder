@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -573,6 +574,66 @@ func TestValidateLegacyAIBridgeConfig(t *testing.T) {
 			require.Contains(t, err.Error(), tt.errContains)
 		})
 	}
+}
+
+func TestWarnIfAIProvidersConfiguredFromEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoProviders", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
+			"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+		}, nil)
+
+		require.Empty(t, sink.Entries(nil))
+	})
+
+	t.Run("NoProviderEnv", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
+			"HOME=/home/coder",
+		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		require.Empty(t, sink.Entries(nil))
+	})
+
+	t.Run("AIGatewayPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
+			"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider rows at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assert.Equal(t, aiGatewayProviderEnvPrefix, entries[0].Fields[0].Value)
+		assert.Equal(t, "Manage AI Providers from the Coder UI or HTTP API.", entries[0].Fields[1].Value)
+	})
+
+	t.Run("AIBridgePrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
+			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider rows at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assert.Equal(t, aiBridgeProviderEnvPrefix, entries[0].Fields[0].Value)
+		assert.Equal(t, "Manage AI Providers from the Coder UI or HTTP API.", entries[0].Fields[1].Value)
+	})
 }
 
 func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
