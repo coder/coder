@@ -56,6 +56,16 @@ func parseChatShareActorRole(raw string) ([2]string, error) {
 	return [2]string{name, role}, nil
 }
 
+func parseChatShareActor(raw string) (string, error) {
+	if strings.Contains(raw, ":") {
+		return "", xerrors.New("roles are only accepted by chat share add")
+	}
+	if raw == "" || !codersdk.UsernameValidRegex.MatchString(raw) {
+		return "", xerrors.New("invalid name")
+	}
+	return raw, nil
+}
+
 func stringToChatRole(role string) (codersdk.ChatRole, error) {
 	switch role {
 	case string(codersdk.ChatRoleRead):
