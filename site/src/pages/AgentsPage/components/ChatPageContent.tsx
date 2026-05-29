@@ -106,7 +106,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			<div
 				data-testid="chat-timeline-wrapper"
 				className={cn(
-					"mx-auto flex w-full flex-col gap-2 py-6",
+					"mx-auto flex w-full flex-col py-6",
 					chatWidthClass(chatFullWidth),
 				)}
 			>
