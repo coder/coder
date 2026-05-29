@@ -1396,10 +1396,11 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	// Create the chat model config required for creating a chat.
 	_ = createChatModelConfigForMCP(t, expClient)
 
-	// Create an enabled MCP server config.
-	mcpConfig := createMCPServerConfig(t, client, "chat-mcp-server", true)
+	// Create enabled MCP server configs.
+	mcpConfigA := createMCPServerConfig(t, client, "chat-mcp-server-a", true)
+	mcpConfigB := createMCPServerConfig(t, client, "chat-mcp-server-b", true)
 
-	// Create a chat referencing the MCP server.
+	// Create a chat referencing the MCP servers.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{
@@ -1408,16 +1409,24 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 				Text: "hello with mcp server",
 			},
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
+		MCPServerIDs: []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID},
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, chat.ID)
-	require.Contains(t, chat.MCPServerIDs, mcpConfig.ID)
+	require.ElementsMatch(t, []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID}, chat.MCPServerIDs)
 
 	// Fetch the chat and verify the MCP server IDs persist.
 	fetched, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Contains(t, fetched.MCPServerIDs, mcpConfig.ID)
+	require.ElementsMatch(t, []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID}, fetched.MCPServerIDs)
+
+	err = client.DeleteMCPServerConfig(ctx, mcpConfigA.ID)
+	require.NoError(t, err)
+
+	fetched, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotContains(t, fetched.MCPServerIDs, mcpConfigA.ID)
+	require.Contains(t, fetched.MCPServerIDs, mcpConfigB.ID)
 }
 
 func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
