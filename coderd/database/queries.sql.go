@@ -2389,20 +2389,28 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = $1::timestamptz
+	SET ended_at = $1::timestamptz,
+		-- BYOK records its hint at the start of the interception.
+		-- Centralized uses key failover, so its hint is only known
+		-- at end-of-interception.
+		credential_hint = CASE
+			WHEN credential_kind = 'centralized' THEN $2::text
+			ELSE credential_hint
+		END
 WHERE
-	id = $2::uuid
+	id = $3::uuid
 	AND ended_at IS NULL
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt time.Time `db:"ended_at" json:"ended_at"`
-	ID      uuid.UUID `db:"id" json:"id"`
+	EndedAt        time.Time `db:"ended_at" json:"ended_at"`
+	CredentialHint string    `db:"credential_hint" json:"credential_hint"`
+	ID             uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.CredentialHint, arg.ID)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,

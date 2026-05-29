@@ -170,15 +170,10 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		authHeaderName = "Authorization"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
-			credSecret = key.Value()
-		}
 	}
-
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	var interceptor intercept.Interceptor
