@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type AIProviderType,
 	AIProviderTypes,
@@ -84,6 +85,7 @@ interface ProvidersSectionProps {
 		modelConfigId: string,
 		req: UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
+	allModelConfigs: readonly TypesGen.ChatModelConfig[];
 }
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
@@ -96,6 +98,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onUpdateProvider,
 	onDeleteProvider,
 	onDisableModel,
+	allModelConfigs,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const navigate = useNavigate();
@@ -205,6 +208,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				}}
 				onBack={clearProviderView}
 				onDisableModel={onDisableModel}
+				allModelConfigs={allModelConfigs}
 			/>
 		);
 	}

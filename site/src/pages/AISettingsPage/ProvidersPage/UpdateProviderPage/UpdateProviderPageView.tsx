@@ -306,10 +306,30 @@ const UpdateProviderPageView: React.FC = () => {
 									const deleteAll = async () => {
 										setIsCascadeDeleting(true);
 										try {
+											const hadDefault = associatedModels.some(
+												(mc) => mc.is_default,
+											);
+											const disabledIds = new Set(
+												associatedModels.map((mc) => mc.id),
+											);
 											for (const mc of associatedModels) {
 												await API.experimental.updateChatModelConfig(mc.id, {
 													enabled: false,
 												});
+											}
+											if (hadDefault) {
+												const allModels = modelConfigsQuery.data ?? [];
+												const newDefault = allModels.find(
+													(mc) => mc.enabled && !disabledIds.has(mc.id),
+												);
+												if (newDefault) {
+													await API.experimental.updateChatModelConfig(
+														newDefault.id,
+														{
+															is_default: true,
+														},
+													);
+												}
 											}
 											await invalidateChatConfigurationQueries(queryClient);
 											deleteMutation.mutate(undefined, {

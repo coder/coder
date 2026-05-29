@@ -51,6 +51,7 @@ interface ProviderFormProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
+	allModelConfigs: readonly TypesGen.ChatModelConfig[];
 	onBack: () => void;
 }
 
@@ -62,6 +63,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onUpdateProvider,
 	onDeleteProvider,
 	onDisableModel,
+	allModelConfigs,
 	onBack,
 }) => {
 	const navigate = useNavigate();
@@ -382,12 +384,28 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					description={deleteProviderDescription}
 					onConfirm={() => {
 						setIsCascadeDeleting(true);
+						const disabledIds = new Set(
+							providerState.modelConfigs.map((mc) => mc.id),
+						);
+						const hadDefault = providerState.modelConfigs.some(
+							(mc) => mc.is_default,
+						);
 						const chain = providerState.modelConfigs.reduce<Promise<unknown>>(
 							(prev, mc) =>
 								prev.then(() => onDisableModel(mc.id, { enabled: false })),
 							Promise.resolve(),
 						);
 						chain
+							.then(() => {
+								if (hadDefault) {
+									const newDefault = allModelConfigs.find(
+										(mc) => mc.enabled && !disabledIds.has(mc.id),
+									);
+									if (newDefault) {
+										return onDisableModel(newDefault.id, { is_default: true });
+									}
+								}
+							})
 							.then(() => onDeleteProvider(providerConfig.id))
 							.catch((error: unknown) => {
 								toast.error(

@@ -325,6 +325,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						onUpdateProvider={onUpdateProvider}
 						onDeleteProvider={onDeleteProvider}
 						onDisableModel={onUpdateModel}
+						allModelConfigs={modelConfigs}
 					/>
 				) : (
 					<ModelsSection
