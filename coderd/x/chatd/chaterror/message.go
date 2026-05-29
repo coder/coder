@@ -59,11 +59,11 @@ func terminalMessage(classified ClassifiedError) string {
 			" Send your message again to continue."
 	case codersdk.ChatErrorKindProviderDisabled:
 		displayName := providerDisplayName(classified.Provider)
-		return stringutil.Capitalize(fmt.Sprintf(
+		return fmt.Sprintf(
 			"The %s provider has been disabled."+
 				" Contact your Coder administrator.",
 			displayName,
-		))
+		)
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
