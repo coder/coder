@@ -540,6 +540,40 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Len(t, all, 1, "duplicate indexed entries with matching hash must produce a single row")
 	})
 
+	t.Run("IndexedDuplicateNameMatchingHashDedupesReorderedKeys", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Key order should not affect the canonical hash. Reordered
+		// duplicates under the same name should still dedupe.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-1", "sk-2"},
+				},
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-2", "sk-1"},
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, err)
+		require.Len(t, all, 1)
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, all[0].ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 2)
+		require.ElementsMatch(t, []string{"sk-1", "sk-2"}, []string{keys[0].APIKey, keys[1].APIKey})
+	})
+
 	t.Run("IndexedDuplicateNameMismatchingHashFails", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
