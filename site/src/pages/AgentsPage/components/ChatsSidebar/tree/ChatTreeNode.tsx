@@ -208,7 +208,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col">
+		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
 					<div
@@ -374,7 +374,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 flex flex-col gap-0.5 border-l border-border-default/60 pl-2.5">
+				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;
