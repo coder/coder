@@ -295,7 +295,7 @@ export const TerminalProviderDisabledError: Story = {
 		liveStatus: buildLiveStatus({
 			streamError: {
 				kind: "provider_disabled",
-				message: "The OpenAI provider has been disabled by an administrator.",
+				message: "The OpenAI provider has been disabled. Contact your Coder administrator.",
 				provider: "openai",
 				retryable: false,
 				statusCode: 503,
@@ -309,7 +309,7 @@ export const TerminalProviderDisabledError: Story = {
 		).toBeVisible();
 		expect(
 			canvas.getByText(
-				/the openai provider has been disabled by an administrator/i,
+				/the openai provider has been disabled.*contact your coder administrator/i,
 			),
 		).toBeVisible();
 		expect(canvas.getByText(/^HTTP 503$/)).toBeVisible();

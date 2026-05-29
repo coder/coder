@@ -220,7 +220,7 @@ func TestClassify(t *testing.T) {
 				StatusCode: 0,
 			},
 		},
-		// The next three cases model the error that fantasy produces
+		// The next cases model the error that fantasy produces
 		// when aibridge's disabledProviderHandler returns a 503
 		// plain-text sentinel. Fantasy sets Title from the HTTP
 		// status text and Message from the response body (including
