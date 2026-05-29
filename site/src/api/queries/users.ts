@@ -333,8 +333,6 @@ export const preferenceSettings =
 		};
 	};
 
-export const preferencesQueryKey = myPreferencesKey;
-
 export const updatePreferenceSettings = (
 	queryClient: QueryClient,
 ): UseMutationOptions<
@@ -345,11 +343,10 @@ export const updatePreferenceSettings = (
 > => {
 	return {
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
-		onSuccess: async (data) => {
-			queryClient.setQueryData<UserPreferenceSettings>(
-				myPreferencesKey,
-				data,
-			);
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: myPreferencesKey,
+			});
 		},
 	};
 };

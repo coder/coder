@@ -1,13 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "react-query";
-import type { FC } from "react";
+import { XIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	preferenceSettings,
-	preferencesQueryKey,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
-import type { UserPreferenceSettings } from "#/api/typesGenerated";
-import { XIcon } from "lucide-react";
 
 export const DataProtectionBanner: FC = () => {
 	const dpStatus = useQuery(dataProtectionStatus());
@@ -15,11 +13,19 @@ export const DataProtectionBanner: FC = () => {
 	const queryClient = useQueryClient();
 	const updatePrefs = useMutation(updatePreferenceSettings(queryClient));
 
+	const queryHidden = prefs.data?.dpm_banner_hidden ?? false;
+	const [localDismissed, setLocalDismissed] = useState(false);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset local state when the server value changes
+	useEffect(() => {
+		setLocalDismissed(false);
+	}, [queryHidden]);
+
 	if (!dpStatus.data?.enabled) {
 		return null;
 	}
 
-	if (prefs.data?.dpm_banner_hidden) {
+	if (localDismissed || queryHidden) {
 		return null;
 	}
 
@@ -28,14 +34,7 @@ export const DataProtectionBanner: FC = () => {
 	const infoURL = dpStatus.data.info_url;
 
 	const handleDismiss = () => {
-		const current =
-			queryClient.getQueryData<UserPreferenceSettings>(preferencesQueryKey);
-		if (current) {
-			queryClient.setQueryData<UserPreferenceSettings>(preferencesQueryKey, {
-				...current,
-				dpm_banner_hidden: true,
-			});
-		}
+		setLocalDismissed(true);
 		updatePrefs.mutate({ dpm_banner_hidden: true });
 	};
 

@@ -1,4 +1,4 @@
-import { type FC, Fragment, useEffect } from "react";
+import { type FC, Fragment, useEffect, useState } from "react";
 import {
 	type UseMutationResult,
 	type UseQueryResult,
@@ -22,7 +22,6 @@ import {
 } from "#/api/queries/notifications";
 import {
 	preferenceSettings,
-	preferencesQueryKey,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
 import type {
@@ -304,13 +303,20 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 	updatePreferencesMutation,
 }) => {
 	const dpStatus = useQuery(dataProtectionStatus());
-	const queryClient = useQueryClient();
+
+	const queryHidden = preferencesQuery.data?.dpm_banner_hidden ?? false;
+	const [localHidden, setLocalHidden] = useState<boolean | null>(null);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset local state when the server value changes
+	useEffect(() => {
+		setLocalHidden(null);
+	}, [queryHidden]);
 
 	if (!dpStatus.data?.enabled) {
 		return null;
 	}
 
-	const isHidden = preferencesQuery.data?.dpm_banner_hidden ?? false;
+	const isHidden = localHidden ?? queryHidden;
 	const switchId = "dpm-banner-toggle";
 
 	return (
@@ -322,16 +328,7 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 							id={switchId}
 							checked={!isHidden}
 							onCheckedChange={(checked) => {
-								const current =
-									queryClient.getQueryData<UserPreferenceSettings>(
-										preferencesQueryKey,
-									);
-								if (current) {
-									queryClient.setQueryData<UserPreferenceSettings>(
-										preferencesQueryKey,
-										{ ...current, dpm_banner_hidden: !checked },
-									);
-								}
+								setLocalHidden(!checked);
 								updatePreferencesMutation.mutate({
 									dpm_banner_hidden: !checked,
 								});
