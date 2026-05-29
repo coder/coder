@@ -39,7 +39,7 @@ func TestExpChatShareStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "exp", "chat", "share", "status", chat.ID.String())
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // Chat ACL status requires the chat owner to fetch the chat ACL.
 
 		out := new(bytes.Buffer)
 		inv.Stdout = out
