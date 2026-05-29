@@ -1,9 +1,16 @@
 import { type FC, Fragment, useEffect } from "react";
-import { type UseQueryResult, type UseMutationResult, useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import {
+	type UseMutationResult,
+	type UseQueryResult,
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
-import type { UserPreferenceSettings, UpdateUserPreferenceSettingsRequest } from "#/api/typesGenerated";
+import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -13,12 +20,15 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "#/api/queries/notifications";
-import { dataProtectionStatus } from "#/api/queries/deployment";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
 } from "#/api/queries/users";
-import type { NotificationTemplate } from "#/api/typesGenerated";
+import type {
+	NotificationTemplate,
+	UpdateUserPreferenceSettingsRequest,
+	UserPreferenceSettings,
+} from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -264,25 +274,28 @@ const NotificationsPage: FC = () => {
 							</article>
 						);
 					})}
+
+					<DPMBannerToggle
+						preferencesQuery={preferencesQuery}
+						updatePreferencesMutation={updatePreferencesMutation}
+					/>
 				</div>
 			) : (
 				<Loader />
 			)}
-
-			<DPMBannerToggle
-				preferencesQuery={preferencesQuery}
-				updatePreferencesMutation={updatePreferencesMutation}
-			/>
 		</>
 	);
 };
 
 export default NotificationsPage;
 
-
 interface DPMBannerToggleProps {
 	preferencesQuery: UseQueryResult<UserPreferenceSettings>;
-	updatePreferencesMutation: UseMutationResult<UserPreferenceSettings, unknown, UpdateUserPreferenceSettingsRequest>;
+	updatePreferencesMutation: UseMutationResult<
+		UserPreferenceSettings,
+		unknown,
+		UpdateUserPreferenceSettingsRequest
+	>;
 }
 
 const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
@@ -296,26 +309,34 @@ const DPMBannerToggle: FC<DPMBannerToggleProps> = ({
 	}
 
 	const isHidden = preferencesQuery.data?.dpm_banner_hidden ?? false;
+	const switchId = "dpm-banner-toggle";
 
 	return (
-		<div className="border-t border-solid border-border pt-8 mt-4">
-			<h2 className="text-lg font-semibold mb-2">Data Protection</h2>
-			<label className="flex items-center gap-3 cursor-pointer">
-				<input
-					type="checkbox"
-					checked={!isHidden}
-					onChange={(e) => {
-						updatePreferencesMutation.mutate({
-							dpm_banner_hidden: !e.target.checked,
-						});
-					}}
-					className="size-4"
-				/>
-				<span className="text-sm text-content-secondary">
-					Show Data Protection Mode banner
-				</span>
-			</label>
-		</div>
+		<article className="border border-solid rounded-lg overflow-hidden">
+			<div className="flex flex-col">
+				<header className="flex items-center justify-start gap-2 bg-surface-secondary border-0 border-b border-solid px-4 py-3">
+					<div className="flex items-center gap-2">
+						<Switch
+							id={switchId}
+							checked={!isHidden}
+							onCheckedChange={(checked) => {
+								updatePreferencesMutation.mutate({
+									dpm_banner_hidden: !checked,
+								});
+							}}
+						/>
+					</div>
+					<label htmlFor={switchId} className="font-medium text-sm">
+						Data Protection
+					</label>
+				</header>
+				<div className="flex items-center gap-3 px-4 py-3">
+					<span className="text-sm text-content-secondary">
+						Show the Data Protection Mode banner at the top of the page.
+					</span>
+				</div>
+			</div>
+		</article>
 	);
 };
 
