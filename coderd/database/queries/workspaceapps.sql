@@ -55,6 +55,35 @@ ON CONFLICT (id) DO UPDATE SET
     agent_id = EXCLUDED.agent_id,
     slug = EXCLUDED.slug,
     tooltip = EXCLUDED.tooltip
+WHERE
+    -- Prevent cross-tenant/cross-workspace agent rebinding (SEC-91).
+    -- App IDs persist across builds of the same workspace, but agent IDs are
+    -- regenerated every build, so compare by the workspace that owns the agent
+    -- rather than by agent_id. Block the update only when the existing app's
+    -- agent and the incoming agent both resolve to workspaces that differ; the
+    -- conflicting row is then left untouched and the :one query returns no
+    -- row, which the caller treats as a rejection. COALESCE(... = ..., TRUE)
+    -- permits the update when either side resolves to NULL (e.g.
+    -- template-import-job agents, which have no owning workspace and are not a
+    -- cross-tenant victim) and when both resolve to the same workspace
+    -- (same-workspace rebuilds, where agent IDs are regenerated but the owning
+    -- workspace is stable).
+    COALESCE(
+        (
+            SELECT wb.workspace_id
+            FROM workspace_agents AS wagt
+            JOIN workspace_resources AS wres ON wagt.resource_id = wres.id
+            JOIN workspace_builds AS wb ON wres.job_id = wb.job_id
+            WHERE wagt.id = workspace_apps.agent_id
+        ) = (
+            SELECT wb.workspace_id
+            FROM workspace_agents AS wagt
+            JOIN workspace_resources AS wres ON wagt.resource_id = wres.id
+            JOIN workspace_builds AS wb ON wres.job_id = wb.job_id
+            WHERE wagt.id = EXCLUDED.agent_id
+        ),
+        TRUE
+    )
 RETURNING *;
 
 -- name: UpdateWorkspaceAppHealthByID :exec

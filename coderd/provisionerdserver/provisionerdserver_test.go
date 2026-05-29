@@ -2348,6 +2348,142 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+	t.Run("WorkspaceBuild_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+
+		srv, db, ps, pd := setup(t, false, &overrides{})
+
+		// Given: a victim workspace whose agent owns an app with a known UUID.
+		// The build's JobID matches the resource's JobID so the app resolves to
+		// the victim workspace via agent -> resource -> workspace_builds.
+		victimUser := dbgen.User(t, db, database.User{})
+		victimTemplate := dbgen.Template(t, db, database.Template{
+			CreatedBy:      victimUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		victimVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      victimUser.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     uuid.NullUUID{UUID: victimTemplate.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		victimWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     victimTemplate.ID,
+			OwnerID:        victimUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		victimJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: pd.OrganizationID,
+			// Mark the victim's build job finished so it is not acquirable; only
+			// the attacker's pending job should be acquired below.
+			StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+			CompletedAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             victimJob.ID,
+			WorkspaceID:       victimWorkspace.ID,
+			TemplateVersionID: victimVersion.ID,
+			InitiatorID:       victimUser.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		victimResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: victimJob.ID,
+		})
+		victimAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: victimResource.ID,
+		})
+		victimAppID := uuid.New()
+		const victimSlug = "code-server"
+		dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+			ID:      victimAppID,
+			AgentID: victimAgent.ID,
+			Slug:    victimSlug,
+		})
+
+		// Given: an attacker workspace with a running build job acquired by the
+		// provisioner daemon.
+		attackerUser := dbgen.User(t, db, database.User{})
+		attackerTemplate := dbgen.Template(t, db, database.Template{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		attackerVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     uuid.NullUUID{UUID: attackerTemplate.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		attackerWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     attackerTemplate.ID,
+			OwnerID:        attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		file := dbgen.File(t, db, database.File{CreatedBy: attackerUser.ID})
+		attackerBuildID := uuid.New()
+		attackerJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: attackerUser.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: attackerBuildID,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                attackerBuildID,
+			JobID:             attackerJob.ID,
+			WorkspaceID:       attackerWorkspace.ID,
+			TemplateVersionID: attackerVersion.ID,
+			InitiatorID:       attackerUser.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+			ProvisionerTags: must(json.Marshal(attackerJob.Tags)),
+		})
+		require.NoError(t, err)
+
+		// When: the attacker's build completes with an app that reuses the
+		// victim's app UUID but points at the attacker's (new) agent.
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: attackerJob.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State: []byte{},
+					Resources: []*sdkproto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*sdkproto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "dev",
+							Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+							Apps: []*sdkproto.App{{
+								Id:   victimAppID.String(),
+								Slug: "attacker-app",
+							}},
+						}},
+					}},
+				},
+			},
+		})
+		// Then: the build is rejected with the cross-tenant rebind error.
+		require.Error(t, err)
+		require.ErrorContains(t, err, "owned by another workspace")
+
+		// And: the victim's app remains bound to the victim agent, unchanged.
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgent.ID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgent.ID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
+	})
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
