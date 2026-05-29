@@ -10,7 +10,7 @@ for specific providers. See [User API keys](#user-api-keys-byok) below.
 
 ## Providers
 
-Each LLM provider has a type, a credential configuration, and an optional base URL override.
+Each LLM provider has a type, a credential configuration, and an Endpoint/Base URL for the upstream provider or proxy.
 
 Coder supports the following provider types:
 
@@ -29,14 +29,19 @@ The **OpenAI Compatible** type is a catch-all for any service that exposes an
 OpenAI-compatible chat completions endpoint. Use it to connect to self-hosted
 models, internal gateways, or third-party proxies like LiteLLM.
 
+Coder Agents provider configuration is shared with the AI Gateway-routed Agents
+path. Configure the provider endpoint as the upstream provider or proxy URL, not
+Coder's public `/api/v2/aibridge/...` client route.
+
 ### Add a provider
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
 1. Click the provider you want to configure.
 1. Enter the **API key** for the provider, if required.
-1. Optionally set a **Base URL** to override the default endpoint. This is
-   useful for enterprise proxies, regional endpoints, or self-hosted models.
+1. Set **Endpoint** or **Base URL** to the upstream provider or proxy
+   endpoint. Use the default when it matches your provider, or override it for
+   enterprise proxies, regional endpoints, or self-hosted models.
 1. Click **Save**.
 
 <img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the Agents settings">
@@ -47,7 +52,40 @@ status.</small>
 <img src="../../images/guides/ai-agents/models-add-provider.png" alt="Screenshot of the add provider form">
 
 <small>Adding a provider usually requires an API key. AWS Bedrock can also use
-ambient AWS credentials. The base URL is optional.</small>
+ambient AWS credentials. The endpoint should point at the upstream provider or proxy.</small>
+
+## Endpoint/Base URL for OpenAI-compatible providers
+
+Provider configuration stores an absolute HTTP(S) Endpoint/Base URL. Syntax
+validation confirms that the value is a URL, but it does not prove the upstream
+implements the APIs Coder sends.
+
+For the default Agents path through AI Gateway, set the Endpoint/Base URL to the
+upstream provider or proxy endpoint. Do not set it to Coder's public AI Gateway
+client route, such as `https://<coder-host>/api/v2/aibridge/openai/v1`. Those
+`/api/v2/aibridge/...` routes are for external clients that call AI Gateway over
+HTTP.
+
+OpenAI-shaped provider types require the upstream OpenAI-compatible prefix in
+the Endpoint/Base URL because Coder appends request suffixes such as
+`/chat/completions`, `/responses`, and `/models`. This applies to **OpenAI**,
+**Azure OpenAI**, **Google**, **OpenAI Compatible**, **OpenRouter**, and
+**Vercel AI Gateway** provider types.
+
+Examples:
+
+| Provider type                       | Example Endpoint/Base URL                                  |
+|-------------------------------------|------------------------------------------------------------|
+| OpenAI                              | `https://api.openai.com/v1/`                               |
+| Azure OpenAI                        | `https://<resource-name>.openai.azure.com/openai/v1`       |
+| Google Gemini OpenAI-compatible API | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| OpenRouter                          | `https://openrouter.ai/api/v1`                             |
+| Vercel AI Gateway                   | `https://ai-gateway.vercel.sh/v1`                          |
+| Generic OpenAI-compatible proxy     | `https://provider.example.com/v1`                          |
+
+Confirm the exact endpoint in your provider or proxy documentation. For the
+canonical AI Gateway-routed Agents guidance, see
+[Coder Agents through AI Gateway](../ai-gateway/clients/coder-agents.md).
 
 ## Configuring AWS Bedrock
 
@@ -69,9 +107,9 @@ The **Base URL** field overrides the Bedrock runtime endpoint. Use it for
 custom endpoints or VPC endpoints.
 
 > [!NOTE]
-> Agents Bedrock provider configuration is separate from AI Gateway Bedrock
-> flags (`CODER_AI_GATEWAY_BEDROCK_*`). AI Gateway and Agents use independent
-> credential paths.
+> Dashboard provider settings are used by Coder Agents, including Agents
+> requests routed through AI Gateway. The `CODER_AI_GATEWAY_BEDROCK_*` flags
+> configure AI Gateway provider instances for external clients.
 
 ## Provider credentials and security
 
@@ -107,20 +145,25 @@ to a given developer:
 
 | Central key | User keys allowed | Fallback | Developer has key | Result               |
 |-------------|-------------------|----------|-------------------|----------------------|
-| On          | Off               | —        | —                 | Uses central key     |
-| Off         | On                | —        | Yes               | Uses developer's key |
-| Off         | On                | —        | No                | Unavailable          |
+| On          | Off               | N/A      | N/A               | Uses central key     |
+| Off         | On                | N/A      | Yes               | Uses developer's key |
+| Off         | On                | N/A      | No                | Unavailable          |
 | On          | On                | Off      | Yes               | Uses developer's key |
 | On          | On                | Off      | No                | Unavailable          |
 | On          | On                | On       | Yes               | Uses developer's key |
 | On          | On                | On       | No                | Uses central key     |
 
 When a developer's personal key is present, it always takes precedence over
-deployment-managed credentials. When user keys are required and fallback is
-disabled, the provider is unavailable to developers who have not saved a
-personal key, even if deployment-managed credentials exist. This is
-intentional: it enforces that each developer authenticates with their own
-credentials.
+deployment-managed credentials for direct provider calls. When user keys are
+required and fallback is disabled, the provider is unavailable to developers who
+have not saved a personal key, even if deployment-managed credentials exist.
+This is intentional: it enforces that each developer authenticates with their
+own credentials.
+
+> [!NOTE]
+> Coder Agents requests routed through AI Gateway have a current credential
+> selection limitation and do not exactly follow this direct-provider matrix.
+> See the [AI Gateway-routed Agents credential matrix](../ai-gateway/clients/coder-agents.md#credential-selection-and-byok).
 
 ## Models
 
@@ -131,11 +174,11 @@ generation parameters, and provider-specific options.
 
 1. Open **Settings** > **Manage Agents** and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
-1. Enter the **Model Identifier** — the exact model string your provider
+1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
    selector.
-1. Set the **Context Limit** — the maximum number of tokens in the model's
+1. Set the **Context Limit**, the maximum number of tokens in the model's
    context window (e.g., `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
 1. Click **Save**.
@@ -171,7 +214,7 @@ These options apply to all providers:
 | Model Identifier      | The API model string sent to the provider (e.g., `claude-opus-4-6`).                             |
 | Display Name          | The label shown to developers in the model selector.                                             |
 | Context Limit         | Maximum tokens in the context window. Used to determine when context compaction triggers.        |
-| Compression Threshold | Percentage (0–100) of context usage at which the agent compresses older messages into a summary. |
+| Compression Threshold | Percentage (0-100) of context usage at which the agent compresses older messages into a summary. |
 | Max Output Tokens     | Maximum tokens generated per model response.                                                     |
 | Temperature           | Controls randomness. Lower values produce more deterministic output.                             |
 | Top P                 | Nucleus sampling threshold.                                                                      |
@@ -238,9 +281,9 @@ are active.
 
 The model selector uses the following precedence to pre-select a model:
 
-1. **Last used model** — stored in the browser's local storage.
-1. **Admin-designated default** — the model marked with the star icon.
-1. **First available model** — if no default is set and no history exists.
+1. **Last used model**, stored in the browser's local storage.
+1. **Admin-designated default**, the model marked with the star icon.
+1. **First available model**, if no default is set and no history exists.
 
 Developers cannot add their own providers or models. If no models are
 configured, the chat interface displays a message directing developers to
@@ -292,10 +335,10 @@ developers can supply their own API key from the Agents settings page.
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** and select the **API Keys** tab.
 1. Each provider that allows user keys is listed with a status indicator:
-   - **Key saved** — your personal key is active and will be used for requests.
-   - **Using shared key** — no personal key set, but the central deployment
+   - **Key saved**, your personal key is active and will be used for requests.
+   - **Using shared key**, no personal key set, but the central deployment
      key is available as a fallback.
-   - **No key** — you must add a personal key before you can use this provider.
+   - **No key**, you must add a personal key before you can use this provider.
 1. Enter your API key and click **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption
@@ -323,18 +366,20 @@ unavailable until you add a new personal key.
 
 ## Using an LLM proxy
 
-Organizations that route LLM traffic through a centralized proxy — such as
-Coder's AI Gateway or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
+Organizations that route LLM traffic through a centralized proxy, such as
+LiteLLM or an internal gateway, can point a provider's **Endpoint** or **Base
+URL** at that upstream proxy endpoint. Enter the API key your proxy expects.
 
-For example, to route all OpenAI traffic through Coder's AI Gateway:
+Use the **OpenAI Compatible** provider type if your proxy serves multiple model
+families through a single OpenAI-compatible endpoint. Include the proxy
+provider's documented OpenAI-compatible path prefix, such as `/v1`, when
+required.
 
-1. Add or edit the **OpenAI** provider.
-1. Set the **Base URL** to your AI Gateway endpoint
-   (e.g., `https://example.coder.com/api/v2/aibridge/openai/v1`).
-1. Enter the API key your proxy expects.
-
-Alternatively, use the **OpenAI Compatible** provider type if your proxy serves
-multiple model families through a single OpenAI-compatible endpoint.
+For Coder's AI Gateway, do not point the shared Agents provider Endpoint/Base
+URL at `https://<coder-host>/api/v2/aibridge/...` for the default Agents path.
+Those public routes are for external clients. See
+[Coder Agents through AI Gateway](../ai-gateway/clients/coder-agents.md) for the
+current configuration model.
 
 This lets you keep existing proxy-level features like per-user budgets, rate
 limiting, and audit logging while using Coder Agents as the developer interface.

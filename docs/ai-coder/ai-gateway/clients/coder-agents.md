@@ -1,199 +1,151 @@
-# Coder Agents
+# Coder Agents through AI Gateway
 
-[Coder Agents](../../agents/index.md) is a chat interface and API for delegating
-development work to coding agents that run inside the Coder control plane. When
-AI Gateway is enabled on the same deployment, Coder Agents traffic can be
-routed through it for full audit and governance coverage.
+[Coder Agents](../../agents/index.md) routes model requests through AI Gateway by
+using the AI provider configuration stored in Coder. This gives Agents traffic
+AI Gateway observability and governance without requiring administrators to point
+Agents providers back at Coder's public AI Gateway routes.
 
 ## Prerequisites
 
 - AI Gateway is [enabled](../setup.md#activation) on your Coder deployment.
-- At least one [provider](../setup.md#configure-providers) is configured in
-  AI Gateway with a valid upstream key.
-- You are an administrator with permission to configure Coder Agents
-  [providers](../../agents/models.md#providers).
+- At least one Coder Agents [provider](../../agents/models.md#providers) is
+  configured with upstream credentials.
+- The provider has at least one enabled [model](../../agents/models.md#add-a-model).
 
-> [!NOTE]
-> AI Gateway and Coder Agents use independent provider configurations. Adding
-> a provider to AI Gateway does not enable it in Coder Agents, and vice versa.
-> Configure each separately.
+## URL concepts
 
-## Configuration
+There are two different URLs involved in AI Gateway routing:
 
-Point each Agents provider's **Base URL** at your local AI Gateway endpoint
-and set the **API Key** to a credential AI Gateway accepts. Because both
-services run in the same `coderd` process, the AI Gateway endpoint is just
-your deployment URL plus `/api/v2/aibridge/<provider>`.
+| URL type                         | Used by                                                                                       | Example                                               |
+|----------------------------------|-----------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| **Provider Endpoint/Base URL**   | The shared Coder provider configuration. Set this to the upstream provider or proxy endpoint. | `https://api.openai.com/v1/`                          |
+| **Public AI Gateway client URL** | External clients that call AI Gateway over HTTP.                                              | `https://coder.example.com/api/v2/aibridge/openai/v1` |
 
-The steps are the same regardless of provider type, only the Base URL
-changes:
+For the default Coder Agents path, configure the provider **Endpoint** or
+**Base URL** as the upstream provider or proxy URL. Do not set it to
+`https://<coder-host>/api/v2/aibridge/...`.
+
+External clients, such as IDE extensions and command line tools running outside
+Coder Agents, still use the public AI Gateway client URL. See the other
+[client setup guides](./index.md) for those tools.
+
+## Configure provider endpoints
+
+Coder Agents and AI Gateway share provider configuration. Update provider
+settings from the Coder dashboard:
 
 1. Open the Coder dashboard and navigate to the **Agents** page.
-1. Click **Admin**, then select the **Providers** tab.
-1. Click the provider you want to route through AI Gateway.
-1. Set the **Base URL** using the table below.
-1. Set the **API Key** to a Coder API token. See
-   [Authentication](#authentication) for which token to use.
+1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
+1. Select the provider you want to configure.
+1. Set **Endpoint** or **Base URL** to the upstream provider or proxy endpoint.
+1. Enter the provider credential that upstream endpoint expects.
 1. Click **Save**.
 
-| Agents provider                           | Base URL                                              |
-|-------------------------------------------|-------------------------------------------------------|
-| Anthropic                                 | `https://coder.example.com/api/v2/aibridge/anthropic` |
-| OpenAI                                    | `https://coder.example.com/api/v2/aibridge/openai/v1` |
-| OpenAI Compatible (named OpenAI instance) | `https://coder.example.com/api/v2/aibridge/<name>/v1` |
+For OpenAI-shaped providers, AI Gateway appends request suffixes such as
+`/chat/completions`, `/responses`, and `/models` to the configured provider
+Endpoint/Base URL. Include the upstream provider's OpenAI-compatible prefix in
+that value.
 
-Replace `coder.example.com` with your Coder deployment URL.
+| Provider type                       | Example Endpoint/Base URL                                  |
+|-------------------------------------|------------------------------------------------------------|
+| OpenAI                              | `https://api.openai.com/v1/`                               |
+| Azure OpenAI                        | `https://<resource-name>.openai.azure.com/openai/v1`       |
+| Google Gemini OpenAI-compatible API | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| OpenRouter                          | `https://openrouter.ai/api/v1`                             |
+| Vercel AI Gateway                   | `https://ai-gateway.vercel.sh/v1`                          |
+| Generic OpenAI-compatible proxy     | `https://provider.example.com/v1`                          |
 
-To target a [named AI Gateway instance](../setup.md#multiple-instances-of-the-same-provider)
-through the **Anthropic** or **OpenAI** providers, swap the provider segment
-of the Base URL for the instance name. For example, an Anthropic instance
-named `anthropic-corp` becomes
-`https://coder.example.com/api/v2/aibridge/anthropic-corp`, and an OpenAI
-instance named `azure-openai` becomes
-`https://coder.example.com/api/v2/aibridge/azure-openai/v1`.
+These examples show the expected shape. Confirm the exact endpoint in your
+provider or proxy documentation. A URL that passes syntax validation can still
+fail if the upstream does not support the APIs Coder sends.
 
-> [!NOTE]
-> The table above covers the Coder Agents provider types most commonly
-> routed through AI Gateway. Coder Agents also supports Azure OpenAI,
-> AWS Bedrock, Google, OpenRouter, and Vercel AI Gateway provider types,
-> but only providers that speak a wire protocol AI Gateway supports
-> (Anthropic, OpenAI, or Copilot today) can be routed through it. The
-> base URL pattern is the same for any compatible provider: point it at
-> `https://<your-coder-host>/api/v2/aibridge/<instance-name>`.
+Anthropic-shaped providers, such as Anthropic and Bedrock, use their own route
+shape and do not use the OpenAI `/v1/chat/completions` or `/v1/responses`
+suffixes.
 
-After saving, [add or update a model](../../agents/models.md#add-a-model) on
-each provider so developers can select it from the chat. Models from a
-provider only appear in the model selector once the provider has valid
-credentials.
+## Migrate old AI Gateway Base URLs
 
-## Authentication
+Older guidance instructed administrators to set an Agents provider Base URL to a
+Coder AI Gateway route such as
+`https://coder.example.com/api/v2/aibridge/openai/v1`. That is no longer the
+correct default configuration for Coder Agents.
 
-AI Gateway accepts Coder-issued tokens for client authentication and also
-supports [Bring Your Own Key
-(BYOK)](../auth.md#bring-your-own-key-byok) for other clients.
-Coder Agents only uses the centralized key mode today. The upstream
-provider keys you configured for AI Gateway (for example,
-`CODER_AI_GATEWAY_OPENAI_KEY`) are used by AI Gateway internally to call the
-upstream provider; they are not what Coder Agents sends.
+To migrate a provider that still points at `/api/v2/aibridge/...`:
 
-Coder Agents stores the **API Key** field on each provider as the bearer
-credential it forwards to AI Gateway on every request from any chat that
-uses that provider. AI Gateway resolves the bearer token to a Coder user
-and uses **that user** as the initiator on every interception.
+1. Replace the provider Endpoint/Base URL with the upstream provider or proxy
+   endpoint.
+1. Verify that OpenAI-compatible providers include the upstream compatibility
+   prefix, such as `/v1`, `/openai/v1`, or `/v1beta/openai`.
+1. Confirm the upstream supports the request paths Coder may call, especially
+   `/models`, `/chat/completions`, and `/responses` for OpenAI-shaped
+   providers.
+1. Save the provider.
+1. Start a new chat and send a short prompt to test the model.
 
-Because the Agents provider config is deployment-wide, every chat that
-uses this provider is logged in AI Gateway under the identity of whoever
-owns the API token configured here. Per-chat attribution to the developer
-who started a chat is **not** preserved when routing Agents traffic
-through AI Gateway today. See
-[Known limitations](#known-limitations) below.
+## Credential selection and BYOK
 
-For that reason, **use a long-lived API token for a dedicated
-[service account](../../../admin/users/headless-auth.md#create-a-service-account)**
-that is intended to represent Agents traffic in audit. Avoid using an
-admin's personal token: every chat would otherwise appear to have been
-initiated by that admin.
+Coder Agents routed through AI Gateway does not exactly follow the direct
+provider key policy matrix in [Models](../../agents/models.md#key-policy). For
+this path, BYOK behavior is governed by the global AI Gateway BYOK setting and
+whether the user has a saved provider key.
 
-> [!NOTE]
-> Coder Agents does not support Bring Your Own Key when routing through
-> AI Gateway today, but we plan to unify these authentication modes in a
-> future release. For now, the Agents [User API
-> keys](../../agents/models.md#user-api-keys-byok) feature is independent
-> of AI Gateway and applies to direct provider calls only.
+| Situation                                                                                       | Upstream credential behavior                                                                     |
+|-------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Centralized provider key is configured and the user has no saved key                            | AI Gateway uses the centralized provider credential.                                             |
+| Global AI Gateway BYOK is disabled                                                              | AI Gateway uses centralized provider credentials. Saved user keys are ignored for this route.    |
+| Global AI Gateway BYOK is enabled and the user has a saved OpenAI-compatible key                | The user key is delegated through AI Gateway and used for the upstream OpenAI-shaped request.    |
+| Global AI Gateway BYOK is enabled and the user has a saved Anthropic or Bedrock key             | The user key is delegated through AI Gateway and used for the upstream Anthropic-shaped request. |
+| Required provider metadata, provider row, active delegated key, or transport support is missing | The Agents model request fails before Coder sends an upstream provider request.                  |
 
-## Identity and correlation headers
+This is a current limitation of the AI Gateway-routed Agents path. The key
+policy matrix in [Models](../../agents/models.md#key-policy) describes a
+separate direct-provider credential policy and should not be read as the AI
+Gateway-routed behavior.
 
-When Coder Agents calls a provider, it attaches identity headers to every
-outgoing request. Today AI Gateway uses two of them:
+## Identity and audit
 
-| Header            | Used by AI Gateway today                                                                                                 |
-|-------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `User-Agent`      | Detects Coder Agents traffic and labels sessions with the `Coder Agents` client name.                                    |
-| `X-Coder-Chat-Id` | Acts as the AI Gateway session key, so every interception in a chat (and its sub-agents) appears under a single session. |
+You do not need to configure Coder API tokens in provider settings for Agents to
+use AI Gateway. Agents requests are routed inside the Coder control plane and are
+marked with the Coder Agents source for AI Gateway sessions.
 
-Coder Agents also sends `X-Coder-Owner-Id`, `X-Coder-Subchat-Id`, and
-`X-Coder-Workspace-Id`. These are emitted for forward compatibility but
-are not consumed by AI Gateway today, which is why per-developer
-attribution is not preserved. See
-[Known limitations](#known-limitations) for details.
+To verify routing:
 
-You don't need to configure these headers; they are set automatically.
-
-## Pre-configuring in templates
-
-You don't need to configure anything inside workspaces for Coder Agents
-itself to use AI Gateway. The agent loop runs in the control plane, so
-the Agents provider's Base URL is the only place AI Gateway needs to be
-wired up.
-
-If you also want IDE-based clients running inside Agents-provisioned
-workspaces (such as Claude Code or Codex CLI) to route through AI
-Gateway, configure them on the workspace template. See the
-[Configuring In-Workspace Tools](./index.md#configuring-in-workspace-tools)
-section for the general pattern, plus the per-client pages such as
-[Claude Code](./claude-code.md#pre-configuring-in-templates).
-
-## Verifying the integration
-
-After saving the provider, start a new chat from the Agents page and send
-a short prompt. Then:
-
+1. Start a new chat from the **Agents** page and send a short prompt.
 1. Open the AI Gateway sessions UI at
    `https://coder.example.com/aibridge/sessions`.
-1. The most recent session should show **Coder Agents** as the client and
-   the user that owns the API token configured on the Agents provider as
-   the initiator.
-1. Click into the session to see the chat's interceptions, token usage,
-   and any tool invocations.
-
-If the session does not appear, check that the Agents provider's Base URL
-points at your deployment's `/api/v2/aibridge/...` path and that the API
-key is a valid Coder token.
+1. Check that the recent session shows the Coder Agents client and includes the
+   prompt, token usage, and tool usage records.
 
 ## Troubleshooting
 
-- **`401 Unauthorized` from the chat.** The API key on the Agents provider
-  is not a valid Coder token, has been revoked, or belongs to a user that
-  cannot reach AI Gateway. Generate a new long-lived token and update the
-  provider.
-- **Sessions in audit show a generic client instead of Coder Agents.**
-  This usually means the request bypassed AI Gateway. Confirm the
-  provider's Base URL starts with your deployment's `/api/v2/aibridge/`
-  path and not the upstream provider URL.
-- **Provider does not appear in the Agents model selector.** Add at least
-  one [model](../../agents/models.md#add-a-model) to the provider after
-  saving the Base URL. Providers without an enabled model are hidden from
-  developers.
-- **"Chat interrupted" error when resuming a conversation.**
-  This occurs when the API key that was used to start a chat turn is no
-  longer available. Common causes: upgrading from a version before
-  `api_key_id` tracking was introduced, or deleting an API key while a
-  chat is active. The error is self-healing: send your message again and
-  the new message will use your current API key. If the error persists
-  after resending, this indicates a bug. Please report it.
-
-## Known limitations
-
-- **Per-developer attribution is not preserved.** AI Gateway attributes
-  every interception to the user that owns the bearer token configured
-  on the Agents provider, regardless of which developer started the
-  chat. The chat owner ID is sent by Coder Agents in `X-Coder-Owner-Id`
-  but is not consumed by AI Gateway today. Use a dedicated service
-  account for the Agents provider's API token so audit data is
-  attributed to a single, non-human identity.
-- **Bring Your Own Key (BYOK) is not supported through AI Gateway.**
-  Personal LLM credentials configured under
-  [User API keys](../../agents/models.md#user-api-keys-byok) are sent
-  directly to the provider; AI Gateway is not involved when BYOK is
-  active.
+- **Requests fail with upstream 404 errors.** Check the provider Endpoint/Base
+  URL. For OpenAI-compatible providers, the endpoint usually needs a provider
+  path prefix such as `/v1`, `/openai/v1`, or `/v1beta/openai`.
+- **Requests fail before reaching the upstream provider.** Confirm the provider
+  is enabled, has a configured model, has usable credentials, and uses a
+  provider type that AI Gateway can route.
+- **Provider does not appear in the Agents model selector.** Add at least one
+  [model](../../agents/models.md#add-a-model) to the provider. Providers
+  without an enabled model are hidden from developers.
+- **External clients work, but Coder Agents fails.** Do not copy an external
+  client URL from `/api/v2/aibridge/...` into the shared provider
+  Endpoint/Base URL. Use the upstream provider or proxy URL instead.
+- **A user key is not used.** Confirm global AI Gateway BYOK is enabled and the
+  user has saved a key for the selected provider.
+- **"Chat interrupted" error when resuming a conversation.** This occurs when
+  the API key that was used to start a chat turn is no longer available. Common
+  causes include upgrading from a version before `api_key_id` tracking was
+  introduced or deleting an API key while a chat is active. The error is
+  self-healing: send your message again and the new message will use your
+  current API key. If the error persists after resending, report it.
 
 ## Related documentation
 
-- [Coder Agents: Models and providers](../../agents/models.md) for the
-  full reference on configuring providers in Agents.
-- [Coder Agents: Using an LLM proxy](../../agents/models.md#using-an-llm-proxy)
-  for the short version of this same configuration.
-- [AI Gateway setup](../setup.md) for enabling AI Gateway and
-  configuring upstream provider credentials.
-- [Auditing AI sessions](../audit.md) for how AI Gateway groups Coder
-  Agents traffic into sessions.
+- [Coder Agents: Models and providers](../../agents/models.md) for provider,
+  model, and direct key policy settings.
+- [AI Gateway authentication](../auth.md) for centralized credentials and BYOK.
+- [AI Gateway setup](../setup.md) for enabling AI Gateway and configuring
+  upstream provider endpoints.
+- [AI Gateway supported APIs](../reference.md#supported-apis) for route coverage.
+- [Auditing AI sessions](../audit.md) for how AI Gateway groups Coder Agents
+  traffic into sessions.
