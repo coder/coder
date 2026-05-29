@@ -197,15 +197,31 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		const editingModel = view.mode === "edit" ? view.model : undefined;
 		const duplicateSourceModel =
 			view.mode === "duplicate" ? view.sourceModel : undefined;
-		const effectiveProvider =
+		const rawProvider =
 			selectedProviderOverride ??
 			(view.mode === "edit"
 				? modelConfigProviderKey(view.model, providerStates)
 				: view.mode === "duplicate"
 					? modelConfigProviderKey(view.sourceModel, providerStates)
 					: view.provider);
-		const effectiveProviderState =
-			providerStates.find((ps) => ps.key === effectiveProvider) ?? null;
+		const rawProviderState =
+			providerStates.find((ps) => ps.key === rawProvider) ?? null;
+
+		// If the resolved provider was deleted, fall back to the first
+		// same-type provider that still has a config.
+		let effectiveProvider = rawProvider;
+		let effectiveProviderState = rawProviderState;
+		if (rawProviderState && !rawProviderState.providerConfig) {
+			const modelType = normalizeProvider(rawProviderState.provider);
+			const fallback = providerStates.find(
+				(ps) =>
+					ps.providerConfig && normalizeProvider(ps.provider) === modelType,
+			);
+			if (fallback) {
+				effectiveProvider = fallback.key;
+				effectiveProviderState = fallback;
+			}
+		}
 		const formKey =
 			view.mode === "edit"
 				? `edit:${view.model.id}`
@@ -238,6 +254,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onUpdateModel={async (id, req) => {
 					await onUpdateModel(id, req);
 					clearModelView();
+				}}
+				onToggleEnabled={async (id, enabled) => {
+					await onUpdateModel(id, { enabled });
 				}}
 				onCancel={clearModelView}
 				onDeleteModel={

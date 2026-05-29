@@ -1,14 +1,12 @@
 import { useFormik } from "formik";
-import {
-	ChevronDownIcon,
-	ChevronRightIcon,
-	InfoIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { Link } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -31,10 +29,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
-import { readOptionalString } from "./helpers";
+import { normalizeProvider, readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
@@ -92,6 +91,10 @@ interface ModelFormProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
+	onToggleEnabled: (
+		modelConfigId: string,
+		enabled: boolean,
+	) => Promise<unknown>;
 	onCancel: () => void;
 	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 }
@@ -108,6 +111,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	isDeleting,
 	onCreateModel,
 	onUpdateModel,
+	onToggleEnabled,
 	onCancel,
 	onDeleteModel,
 }) => {
@@ -122,6 +126,20 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showPricing, setShowPricing] = useState(false);
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	// True when the model's original provider no longer exists but a
+	// same-type fallback was auto-selected. The alert stays visible
+	// until the admin dismisses it or saves the model.
+	const originalProviderDeleted =
+		isEditing &&
+		Boolean(
+			editingModel?.ai_provider_id &&
+				providerStates.find((ps) => ps.key === editingModel.ai_provider_id) &&
+				!providerStates.find((ps) => ps.key === editingModel.ai_provider_id)
+					?.providerConfig,
+		);
+	const [providerAlertDismissed, setProviderAlertDismissed] = useState(false);
+	const showProviderAlert = originalProviderDeleted && !providerAlertDismissed;
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
@@ -143,7 +161,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	})();
 
 	const selectedProviderType =
-		selectedProviderState?.provider ?? selectedProvider;
+		selectedProviderState?.provider ??
+		editingModel?.provider ??
+		selectedProvider;
+
+	const isProviderMissing =
+		isEditing &&
+		!selectedProviderState?.providerConfig &&
+		!modelConfigsUnavailable;
 
 	const form = useFormik<ModelFormValues>({
 		initialValues,
@@ -250,46 +275,104 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const defaultModelDisableGuard =
 		isEditing && form.values.isDefault && form.values.enabled;
 
+	// ── Provider helpers ──────────────────────────────────────
+
+	const sameTypeProviders = (() => {
+		const currentType = (() => {
+			if (selectedProviderState?.providerConfig) {
+				return normalizeProvider(selectedProviderState.provider);
+			}
+			if (editingModel) {
+				return normalizeProvider(editingModel.provider);
+			}
+			if (selectedProvider) {
+				const found = providerStates.find((ps) => ps.key === selectedProvider);
+				return found ? normalizeProvider(found.provider) : "";
+			}
+			return "";
+		})();
+		if (!currentType) return providerStates.filter((ps) => ps.providerConfig);
+		return providerStates.filter(
+			(ps) =>
+				ps.providerConfig && normalizeProvider(ps.provider) === currentType,
+		);
+	})();
+
+	const hasSingleProvider = sameTypeProviders.length <= 1;
 	// ── Provider select (shared across all form states) ───────
 
 	const providerSelect = (
 		<div className="grid gap-1.5">
 			<Label
-				htmlFor="providerSelect"
+				htmlFor={
+					hasSingleProvider && !isProviderMissing ? undefined : "providerSelect"
+				}
 				className="text-[13px] font-medium text-content-primary"
 			>
 				Provider
 			</Label>
-			<Select
-				value={selectedProvider ?? ""}
-				onValueChange={onSelectedProviderChange}
-				disabled={
-					((isEditing || isDuplicating) && selectedProviderState !== null) ||
-					providerStates.length === 0
-				}
-			>
-				<SelectTrigger
-					id="providerSelect"
-					className="h-10 max-w-[240px] text-[13px]"
+			{hasSingleProvider && !isProviderMissing ? (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="flex h-9 items-center gap-2 rounded-md border border-solid border-border px-3 text-[13px] text-content-secondary">
+							{selectedProviderState && (
+								<ProviderIcon
+									provider={selectedProviderState.provider}
+									className="size-5 bg-transparent [&>img]:size-full"
+								/>
+							)}
+							{selectedProviderState?.label ?? "No provider"}
+						</div>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" sideOffset={-20}>
+						You only have 1{" "}
+						{formatProviderLabel(selectedProviderState?.provider ?? "")}{" "}
+						provider
+					</TooltipContent>
+				</Tooltip>
+			) : sameTypeProviders.length === 0 ? (
+				<div className="flex h-9 items-center rounded-md border border-solid border-border-destructive px-3 text-[13px] text-content-secondary">
+					No {formatProviderLabel(editingModel?.provider ?? "")} providers
+					available
+				</div>
+			) : (
+				<Select
+					value={selectedProvider ?? ""}
+					onValueChange={onSelectedProviderChange}
+					disabled={providerStates.length === 0}
 				>
-					<SelectValue placeholder="Select provider" />
-				</SelectTrigger>
-				<SelectContent>
-					{providerStates.map((ps) => (
-						<SelectItem key={ps.key} value={ps.key}>
-							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="size-4" />
-								{ps.label}
-							</span>
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+					<SelectTrigger
+						id="providerSelect"
+						className={cn(
+							"h-9 text-[13px]",
+							isProviderMissing && "border-border-destructive",
+						)}
+					>
+						<SelectValue placeholder="Select provider" />
+					</SelectTrigger>
+					<SelectContent>
+						{sameTypeProviders.map((ps) => (
+							<SelectItem key={ps.key} value={ps.key}>
+								<span className="flex items-center gap-2">
+									<ProviderIcon
+										provider={ps.provider}
+										className="size-4 bg-transparent [&>img]:size-full"
+									/>
+									{ps.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			)}
 		</div>
 	);
 
-	// No provider selected or configs unavailable.
-	if (!selectedProviderState || modelConfigsUnavailable) {
+	// Skip this guard for orphaned models.
+	if (
+		(!selectedProviderState && !isProviderMissing) ||
+		modelConfigsUnavailable
+	) {
 		return (
 			<div>
 				<BackButton onClick={onCancel} />
@@ -314,7 +397,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="space-y-3">
 					{providerSelect}
 					<p className="text-sm text-content-secondary">
-						{!selectedProviderState.providerConfig
+						{!selectedProviderState?.providerConfig
 							? "Create a managed provider config on the Providers tab before managing models."
 							: "Set an API key for this provider on the Providers tab before managing models."}
 					</p>
@@ -333,67 +416,82 @@ export const ModelForm: FC<ModelFormProps> = ({
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
 			<BackButton onClick={onCancel} />
-			<div className="mb-4">
-				<h2 className="m-0 text-lg font-medium text-content-primary">
-					{formTitle}
-				</h2>
-				{formDescription && (
-					<p className="m-0 mt-1 text-sm text-content-secondary">
-						{formDescription}
-					</p>
-				)}
-			</div>
-			{/* Header - editable display name */}
-			<div className="flex items-center gap-3">
-				{selectedProviderState && (
-					<ProviderIcon
-						provider={selectedProviderState.provider}
-						className="size-8"
-					/>
-				)}
-				<div className="inline-flex items-center gap-1">
-					<div className="relative inline-grid">
-						<span
-							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
-							aria-hidden="true"
-						>
-							{form.values.displayName || initialModel?.model || "Model name"}
-						</span>
-						<input
-							type="text"
-							{...form.getFieldProps("displayName")}
-							disabled={isSaving}
-							spellCheck={false}
-							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-							placeholder={initialModel?.model ?? "Model name"}
-						/>
-					</div>
-					<PencilIcon className="size-3.5 shrink-0 text-content-secondary" />
-				</div>{" "}
+			<div className="mb-4 flex items-center justify-between">
+				<div>
+					<h2 className="m-0 text-lg font-medium text-content-primary">
+						{formTitle}
+					</h2>
+					{formDescription && (
+						<p className="m-0 mt-1 text-sm text-content-secondary">
+							{formDescription}
+						</p>
+					)}
+				</div>
 				{initialModel && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<span className="ml-auto inline-flex">
+							<span className="inline-flex">
 								<Switch
 									checked={form.values.enabled}
 									onCheckedChange={(v) => {
 										form.setFieldValue("enabled", v);
+										if (editingModel) {
+											void onToggleEnabled(editingModel.id, v);
+										}
+										if (v) {
+											setProviderAlertDismissed(true);
+										}
 									}}
 									aria-label="Enabled"
-									disabled={isSaving || defaultModelDisableGuard}
+									disabled={
+										isSaving ||
+										defaultModelDisableGuard ||
+										(sameTypeProviders.length === 0 && !form.values.enabled)
+									}
 								/>
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
 							{defaultModelDisableGuard
 								? "Default model cannot be disabled. Remove default status first."
-								: form.values.enabled
-									? "Disable this model. It will be hidden from users."
-									: "Enable this model. It will be visible to users."}
+								: sameTypeProviders.length === 0 && !form.values.enabled
+									? "No compatible providers available."
+									: form.values.enabled
+										? "Disable this model. It will be hidden from users."
+										: "Enable this model. It will be visible to users."}
 						</TooltipContent>
 					</Tooltip>
 				)}
 			</div>
+			{/* Provider-removed warning */}
+			{showProviderAlert && (
+				<Alert
+					severity="warning"
+					className="mb-4"
+					dismissible
+					onDismiss={() => setProviderAlertDismissed(true)}
+				>
+					<AlertDescription>
+						{sameTypeProviders.length > 0 ? (
+							<>
+								This model is using a fallback provider. Verify the provider
+								selection and re-enable to activate.
+							</>
+						) : (
+							<>
+								There are no {formatProviderLabel(editingModel?.provider ?? "")}{" "}
+								providers available.{" "}
+								<Link
+									to="/agents/settings/providers"
+									className="text-content-link no-underline hover:underline"
+								>
+									View providers
+								</Link>
+							</>
+						)}
+					</AlertDescription>
+				</Alert>
+			)}
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 			{/* Form body */}
 			<form
@@ -403,6 +501,26 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
+					{/* Model name + Provider */}
+					<div className="grid items-start gap-4 sm:grid-cols-2">
+						<div className="grid gap-1.5">
+							<Label
+								htmlFor="displayName"
+								className="text-[13px] font-medium text-content-primary"
+							>
+								Model name
+							</Label>
+							<Input
+								id="displayName"
+								{...form.getFieldProps("displayName")}
+								disabled={isSaving}
+								className="h-9 text-[13px]"
+								placeholder={initialModel?.model ?? "Model name"}
+							/>
+						</div>
+						{providerSelect}
+					</div>
+
 					{/* Model ID + Context Limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
@@ -489,7 +607,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showPricing && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-4">
 								<PricingModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={selectedProviderType ?? ""}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -523,7 +641,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showProviderConfig && (
 							<div className="pt-3">
 								<ModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={selectedProviderType ?? ""}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -557,7 +675,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						{showAdvanced && (
 							<div className="grid grid-cols-2 gap-3 pt-3 sm:grid-cols-3">
 								<GeneralModelConfigFields
-									provider={selectedProviderState.provider}
+									provider={selectedProviderType ?? ""}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
 									disabled={isSaving}
@@ -636,7 +754,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 						<Button
 							size="lg"
 							type="submit"
-							disabled={isSaving || !form.isValid || hasFieldErrors}
+							disabled={
+								isSaving || !form.isValid || hasFieldErrors || isProviderMissing
+							}
 						>
 							{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
 							{isEditing

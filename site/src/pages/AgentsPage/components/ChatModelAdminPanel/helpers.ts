@@ -8,9 +8,6 @@ export function readOptionalString(value: unknown): string | undefined {
 	return trimmed || undefined;
 }
 
-/**
- * Normalizes a provider name for case-insensitive comparison.
- */
 export function normalizeProvider(provider: string): string {
 	return provider.trim().toLowerCase();
 }

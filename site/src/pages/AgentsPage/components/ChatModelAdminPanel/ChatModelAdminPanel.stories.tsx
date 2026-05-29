@@ -1025,15 +1025,13 @@ export const UpdateModelEnabledToggle: Story = {
 		await userEvent.click(enabledSwitch);
 		await expect(enabledSwitch).not.toBeChecked();
 
-		await userEvent.click(body.getByRole("button", { name: "Save" }));
-
+		// Enable toggle fires instantly without navigating away.
 		await waitFor(() => {
 			expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
 		});
-		expect(args.onUpdateModel).toHaveBeenCalledWith(
-			"model-enabled",
-			expect.objectContaining({ enabled: false }),
-		);
+		expect(args.onUpdateModel).toHaveBeenCalledWith("model-enabled", {
+			enabled: false,
+		});
 	},
 };
 
@@ -2093,6 +2091,79 @@ export const ModelFormBedrock: Story = {
 	},
 };
 
+export const ModelFormMultipleSameTypeProviders: Story = {
+	name: "Model form multiple same-type providers",
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai-team-a",
+				provider: "openai",
+				display_name: "OpenAI Team A",
+				source: "database",
+				has_api_key: true,
+			}),
+			createProviderConfig({
+				id: "provider-openai-team-b",
+				provider: "openai",
+				display_name: "OpenAI Team B",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI Team A");
+
+		// The provider field should be a dropdown, not a static text field.
+		const providerSelect = await body.findByRole("combobox", {
+			name: /provider/i,
+		});
+		await expect(providerSelect).toBeVisible();
+		await expect(providerSelect).toHaveTextContent("OpenAI Team A");
+	},
+};
+
+export const ModelFormOrphanedProvider: Story = {
+	name: "Model form orphaned provider",
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-anthropic",
+				provider: "anthropic",
+				display_name: "Anthropic",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "orphaned-model",
+				provider: "anthropic",
+				ai_provider_id: "deleted-provider-id",
+				model: "claude-sonnet-4-20250514",
+				display_name: "Claude Sonnet 4",
+				enabled: false,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Click the orphaned model to open the edit form.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Open model: Claude Sonnet 4/i }),
+		);
+
+		// The orphaned provider alert should be visible.
+		await expect(
+			await body.findByText(/using a fallback provider/i),
+		).toBeVisible();
+	},
+};
+
 export const ModelPricingWarningInList: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,
@@ -2286,6 +2357,49 @@ export const ProviderDeleteConfirmation: Story = {
 		).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Cancel" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ProviderDeleteShowsModelCount: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-gpt4",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4.1",
+				display_name: "GPT-4.1",
+			}),
+			createModelConfig({
+				id: "model-gpt4o",
+				provider: "openai",
+				ai_provider_id: "provider-openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		const deleteButton = await body.findByRole("button", { name: "Delete" });
+		await userEvent.click(deleteButton);
+
+		// The dialog should mention the model count.
+		await expect(
+			await body.findByText(/also disable 2 models/i),
 		).toBeInTheDocument();
 	},
 };
