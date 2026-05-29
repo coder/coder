@@ -224,6 +224,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return "", false
 	}
 
+	// The API replica ID must match the replica manager ID because other
+	// replicas use this ID to relay work back to the owning API instance.
+	if options.ReplicaManager == nil {
+		return nil, xerrors.New("replica manager is required")
+	}
+	if options.Options.ID == uuid.Nil {
+		options.Options.ID = options.ReplicaManager.ID()
+	}
+
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -688,9 +697,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
-	if options.ReplicaManager == nil {
-		return nil, xerrors.New("replica manager is required")
-	}
 	api.replicaManager = options.ReplicaManager
 	replicaManagerPtr.Store(api.replicaManager)
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {

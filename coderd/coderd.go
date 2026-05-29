@@ -150,6 +150,8 @@ var expDERPOnce = sync.Once{}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
+	// ID is the unique API replica ID. Empty generates a new ID.
+	ID        uuid.UUID
 	AccessURL *url.URL
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
@@ -620,7 +622,7 @@ func New(options *Options) *API {
 		cancel:       cancel,
 		DeploymentID: depID,
 
-		ID:          uuid.New(),
+		ID:          apiID(options.ID),
 		Options:     options,
 		RootHandler: r,
 		HTTPAuth: &HTTPAuthorizer{
@@ -2345,6 +2347,13 @@ func (api *API) Close() error {
 	}
 
 	return nil
+}
+
+func apiID(id uuid.UUID) uuid.UUID {
+	if id != uuid.Nil {
+		return id
+	}
+	return uuid.New()
 }
 
 func compressHandler(h http.Handler) http.Handler {
