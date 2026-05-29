@@ -12,7 +12,7 @@ export const getProviderIcon = (provider: string): string | undefined => {
 		case "anthropic":
 			return "/icon/anthropic.svg";
 		case "bedrock":
-			return "/icon/aws.svg";
+			return "/icon/aws-bedrock.svg";
 		case "azure":
 			return "/icon/azure.svg";
 		case "google":
