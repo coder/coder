@@ -11,6 +11,7 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { withToaster } from "#/testHelpers/storybook";
 import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
@@ -229,6 +230,7 @@ const setupChatSpies = (state: {
 const meta: Meta<typeof ChatModelAdminPanel> = {
 	title: "pages/AgentsPage/ChatModelAdminPanel",
 	component: ChatModelAdminPanel,
+	decorators: [withToaster],
 	args: {
 		providerConfigsData: [],
 		modelConfigsData: [],
@@ -2417,50 +2419,52 @@ export const ProviderDeleteCancelled: Story = {
 	},
 };
 
+const providerDeleteCascadeArgs = {
+	section: "providers" as ChatModelAdminSection,
+	providerConfigsData: [
+		createProviderConfig({
+			id: "provider-openai",
+			provider: "openai",
+			display_name: "OpenAI",
+			source: "database",
+			has_api_key: true,
+		}),
+		createProviderConfig({
+			id: "provider-anthropic",
+			provider: "anthropic",
+			display_name: "Anthropic",
+			source: "database",
+			has_api_key: true,
+		}),
+	],
+	modelConfigsData: [
+		createModelConfig({
+			id: "model-openai-default",
+			provider: "openai",
+			ai_provider_id: "provider-openai",
+			model: "gpt-4o",
+			display_name: "GPT-4o",
+			is_default: true,
+		}),
+		createModelConfig({
+			id: "model-openai-secondary",
+			provider: "openai",
+			ai_provider_id: "provider-openai",
+			model: "gpt-4o-mini",
+			display_name: "GPT-4o Mini",
+		}),
+		createModelConfig({
+			id: "model-anthropic-fallback",
+			provider: "anthropic",
+			ai_provider_id: "provider-anthropic",
+			model: "claude-sonnet-4",
+			display_name: "Claude Sonnet 4",
+		}),
+	],
+};
+
 export const ProviderDeleteConfirmed: Story = {
-	args: {
-		section: "providers" as ChatModelAdminSection,
-		providerConfigsData: [
-			createProviderConfig({
-				id: "provider-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				source: "database",
-				has_api_key: true,
-			}),
-			createProviderConfig({
-				id: "provider-anthropic",
-				provider: "anthropic",
-				display_name: "Anthropic",
-				source: "database",
-				has_api_key: true,
-			}),
-		],
-		modelConfigsData: [
-			createModelConfig({
-				id: "model-openai-default",
-				provider: "openai",
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o",
-				is_default: true,
-			}),
-			createModelConfig({
-				id: "model-openai-secondary",
-				provider: "openai",
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o-mini",
-				display_name: "GPT-4o Mini",
-			}),
-			createModelConfig({
-				id: "model-anthropic-fallback",
-				provider: "anthropic",
-				ai_provider_id: "provider-anthropic",
-				model: "claude-sonnet-4",
-				display_name: "Claude Sonnet 4",
-			}),
-		],
-	},
+	args: providerDeleteCascadeArgs,
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
@@ -2493,6 +2497,43 @@ export const ProviderDeleteConfirmed: Story = {
 			expect(args.onDeleteProvider).toHaveBeenCalledTimes(1);
 		});
 		expect(args.onDeleteProvider).toHaveBeenCalledWith("provider-openai");
+	},
+};
+
+export const ProviderDeleteCascadeFailure: Story = {
+	args: {
+		...providerDeleteCascadeArgs,
+		onUpdateModel: fn(async (id: string) => {
+			if (id === "model-openai-default") {
+				throw new Error("Failed to disable model.");
+			}
+			return {};
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Delete provider" }),
+		);
+
+		await waitFor(() => {
+			expect(args.onUpdateModel).toHaveBeenCalledWith(
+				"model-anthropic-fallback",
+				{ is_default: true },
+			);
+			expect(args.onUpdateModel).toHaveBeenCalledWith("model-openai-default", {
+				enabled: false,
+			});
+		});
+		expect(args.onDeleteProvider).not.toHaveBeenCalled();
+		await expect(await body.findByRole("dialog")).toBeInTheDocument();
+		await expect(body.getByRole("button", { name: "Cancel" })).toBeEnabled();
+		await expect(
+			await body.findByText("Failed to disable model."),
+		).toBeInTheDocument();
 	},
 };
 

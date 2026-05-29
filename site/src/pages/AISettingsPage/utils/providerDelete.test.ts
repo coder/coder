@@ -99,6 +99,50 @@ describe("cascadeDisableProviderModels", () => {
 		});
 	});
 
+	it("rejects when default reassignment fails before disabling any models", async () => {
+		const error = new Error("failed to reassign default");
+		const updateModelConfig = vi.fn().mockRejectedValueOnce(error);
+
+		await expect(
+			cascadeDisableProviderModels({
+				associatedModels: [
+					model({
+						id: "model-associated-default",
+						provider: "openai",
+						model: "gpt-4o",
+						is_default: true,
+					}),
+					model({
+						id: "model-associated-secondary",
+						provider: "openai",
+						model: "gpt-4o-mini",
+					}),
+				],
+				allModels: [
+					model({
+						id: "model-next-default",
+						provider: "anthropic",
+						model: "claude-sonnet-4",
+					}),
+				],
+				updateModelConfig,
+			}),
+		).rejects.toThrow(error);
+
+		expect(updateModelConfig).toHaveBeenCalledTimes(1);
+		expect(updateModelConfig).toHaveBeenNthCalledWith(1, "model-next-default", {
+			is_default: true,
+		});
+		expect(updateModelConfig).not.toHaveBeenCalledWith(
+			"model-associated-default",
+			{ enabled: false },
+		);
+		expect(updateModelConfig).not.toHaveBeenCalledWith(
+			"model-associated-secondary",
+			{ enabled: false },
+		);
+	});
+
 	it("rejects when a model disable fails after reassigning the default", async () => {
 		const error = new Error("failed to disable model");
 		const updateModelConfig = vi
