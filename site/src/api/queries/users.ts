@@ -339,14 +339,32 @@ export const updatePreferenceSettings = (
 	UserPreferenceSettings,
 	unknown,
 	UpdateUserPreferenceSettingsRequest,
-	unknown
+	{ previous: UserPreferenceSettings | undefined }
 > => {
 	return {
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
-		onSuccess: async () =>
+		onMutate: async (req) => {
+			await queryClient.cancelQueries({ queryKey: myPreferencesKey });
+			const previous =
+				queryClient.getQueryData<UserPreferenceSettings>(myPreferencesKey);
+			if (previous) {
+				queryClient.setQueryData<UserPreferenceSettings>(
+					myPreferencesKey,
+					{ ...previous, ...req },
+				);
+			}
+			return { previous };
+		},
+		onError: (_err, _req, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(myPreferencesKey, context.previous);
+			}
+		},
+		onSettled: async () => {
 			await queryClient.invalidateQueries({
 				queryKey: myPreferencesKey,
-			}),
+			});
+		},
 	};
 };
 
