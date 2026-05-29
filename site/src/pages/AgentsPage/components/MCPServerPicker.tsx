@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -204,8 +205,11 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	const activeServers = enabledServers.filter(
 		(s) =>
 			(s.availability === "force_on" || selectedServerIds.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
+			!(s.auth_type === "oauth2" && !s.auth_connected) &&
+			!(s.auth_type === "custom_headers" && !s.auth_connected),
 	);
+
+	const navigate = useNavigate();
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
@@ -262,6 +266,11 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 		);
 	};
 
+	const handleConfigureHeaders = () => {
+		setOpen(false);
+		navigate("/agents/settings/user-mcp-servers");
+	};
+
 	if (enabledServers.length === 0) {
 		return null;
 	}
@@ -289,8 +298,10 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 							const isForceOn = server.availability === "force_on";
 							const isSelected =
 								isForceOn || selectedServerIds.includes(server.id);
-							const needsAuth =
+							const needsOAuth =
 								server.auth_type === "oauth2" && !server.auth_connected;
+							const needsHeaderConfig =
+								server.auth_type === "custom_headers" && !server.auth_connected;
 							const isConnecting = connectingServerId === server.id;
 
 							return (
@@ -308,7 +319,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											{isForceOn && (
 												<LockIcon className="size-3 shrink-0 text-content-secondary" />
 											)}
-											{needsAuth ? (
+											{needsOAuth ? (
 												<Button
 													variant="outline"
 													size="sm"
@@ -324,6 +335,20 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 														<Spinner loading className="h-2.5 w-2.5" />
 													) : null}
 													Auth
+												</Button>
+											) : needsHeaderConfig ? (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleConfigureHeaders();
+													}}
+													disabled={disabled}
+													aria-label={`Configure ${server.display_name}`}
+												>
+													Configure
 												</Button>
 											) : (
 												<Switch

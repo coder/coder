@@ -120,6 +120,29 @@ const datadogServer = createServerConfig({
 	auth_connected: false,
 });
 
+const honchoServer = createServerConfig({
+	id: "mcp-honcho",
+	display_name: "Honcho",
+	slug: "honcho",
+	description: "Persistent memory for agents",
+	url: "https://mcp.honcho.dev/v1",
+	transport: "streamable_http",
+	auth_type: "custom_headers",
+	has_custom_headers: true,
+	custom_headers_user_keys: ["X-Honcho-User-Token"],
+	custom_headers_user_key_descriptions: {
+		"X-Honcho-User-Token": "Your personal Honcho API token.",
+	},
+	availability: "default_on",
+	enabled: true,
+	auth_connected: false,
+});
+
+const honchoServerConnected = {
+	...honchoServer,
+	auth_connected: true,
+};
+
 const disabledServer = createServerConfig({
 	id: "mcp-disabled",
 	display_name: "Disabled Server",
@@ -212,6 +235,22 @@ export const OAuthConnected: Story = {
 	args: {
 		servers: [githubServerConnected],
 		selectedServerIds: [githubServerConnected.id],
+	},
+};
+
+/** Custom-headers server needing user-supplied values. Shows Configure button. */
+export const CustomHeadersNeedsConfig: Story = {
+	args: {
+		servers: [honchoServer],
+		selectedServerIds: [honchoServer.id],
+	},
+};
+
+/** Custom-headers server with all user values supplied. Shows toggle. */
+export const CustomHeadersConnected: Story = {
+	args: {
+		servers: [honchoServerConnected],
+		selectedServerIds: [honchoServerConnected.id],
 	},
 };
 
