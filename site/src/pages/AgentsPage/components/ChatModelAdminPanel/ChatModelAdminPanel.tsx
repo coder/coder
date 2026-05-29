@@ -303,6 +303,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 
 	const providerConfigsUnavailable = providerConfigsData === null;
 	const modelConfigsUnavailable = modelConfigsData === null;
+	const modelConfigsReady =
+		modelConfigsData !== undefined && modelConfigsData !== null;
 
 	return (
 		<div className={cn("flex min-h-full flex-col", className)}>
@@ -320,6 +322,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 						sectionDescription={sectionDescription}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
+						modelConfigsReady={modelConfigsReady}
 						isProviderMutationPending={isProviderMutationPending}
 						onCreateProvider={onCreateProvider}
 						onUpdateProvider={onUpdateProvider}

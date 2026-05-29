@@ -72,6 +72,7 @@ interface ProvidersSectionProps {
 	sectionDescription?: string;
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
+	modelConfigsReady: boolean;
 	isProviderMutationPending: boolean;
 	onCreateProvider: (
 		req: CreateChatProviderConfigRequest,
@@ -93,6 +94,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	sectionDescription,
 	providerStates,
 	providerConfigsUnavailable,
+	modelConfigsReady,
 	isProviderMutationPending,
 	onCreateProvider,
 	onUpdateProvider,
@@ -173,6 +175,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				key={providerFormKey}
 				providerState={detailProvider}
 				providerConfigsUnavailable={providerConfigsUnavailable}
+				modelConfigsReady={modelConfigsReady}
 				isProviderMutationPending={isProviderMutationPending}
 				onCreateProvider={async (req) => {
 					const createdProvider = await onCreateProvider(req);

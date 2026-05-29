@@ -18,19 +18,11 @@ import {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { ConfirmDeleteDialog } from "#/pages/AgentsPage/components/ConfirmDeleteDialog";
 import { cascadeDisableProviderModels } from "#/pages/AISettingsPage/utils/providerDelete";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
@@ -80,6 +72,17 @@ const UpdateProviderPageView: React.FC = () => {
 		(mc) => mc.ai_provider_id === provider?.id,
 	);
 	const associatedModelCount = associatedModels.length;
+	const associatedModelIds = new Set(associatedModels.map((model) => model.id));
+	const willReassignDefault = associatedModels.some(
+		(model) => model.is_default,
+	);
+	const hasDefaultReplacement = willReassignDefault
+		? (modelConfigsQuery.data ?? []).some(
+				(model) => model.enabled && !associatedModelIds.has(model.id),
+			)
+		: false;
+	const modelConfigsUnavailable =
+		modelConfigsQuery.isLoading || modelConfigsQuery.isError;
 
 	// Rendered into every non-redirect return so the document title reflects
 	// the provider as soon as we know it; falls back to a placeholder while
@@ -237,23 +240,11 @@ const UpdateProviderPageView: React.FC = () => {
 						}}
 					/>
 				</div>
-				<Dialog
-					open={deleteDialogOpen}
-					onOpenChange={(open) => {
-						if (!open && !isCascadeDeleting && !deleteMutation.isPending) {
-							setDeleteDialogOpen(false);
-							setDeleteConfirmText("");
-						}
-					}}
-				>
-					<DialogContent variant="destructive">
-						<DialogHeader>
-							<DialogTitle>Delete provider</DialogTitle>
-							<DialogDescription>
-								Deleting this provider is irreversible!
-							</DialogDescription>
-						</DialogHeader>
-						<div className="flex flex-col gap-3 text-sm text-content-secondary">
+				<ConfirmDeleteDialog
+					entity="provider"
+					description={
+						<div className="flex flex-col gap-3">
+							<p className="m-0">Deleting this provider is irreversible!</p>
 							{associatedModelCount > 0 && (
 								<ul className="m-0 pl-5">
 									<li>
@@ -264,97 +255,90 @@ const UpdateProviderPageView: React.FC = () => {
 										</strong>{" "}
 										from your settings.
 									</li>
+									{willReassignDefault && (
+										<li>
+											{hasDefaultReplacement
+												? "The default model will be reassigned."
+												: "No other model exists to become the default."}
+										</li>
+									)}
 								</ul>
 							)}
-							<p className="m-0">
-								Type{" "}
-								<strong className="text-content-primary">
-									{provider.name}
-								</strong>{" "}
-								to confirm.
-							</p>
-							<Input
-								id="delete-confirm"
-								aria-label={`Type ${provider.name} to confirm`}
-								autoFocus
-								autoComplete="off"
-								placeholder={provider.name}
-								value={deleteConfirmText}
-								onChange={(e) => setDeleteConfirmText(e.target.value)}
-							/>
 						</div>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => {
-									setDeleteDialogOpen(false);
-									setDeleteConfirmText("");
-								}}
-								disabled={isCascadeDeleting || deleteMutation.isPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								variant="destructive"
-								className="disabled:border-border"
-								disabled={
-									deleteConfirmText !== provider.name ||
-									isCascadeDeleting ||
-									deleteMutation.isPending ||
-									modelConfigsQuery.isLoading ||
-									modelConfigsQuery.isError
-								}
-								onClick={() => {
-									const deleteAll = async () => {
-										setIsCascadeDeleting(true);
-										try {
-											await cascadeDisableProviderModels({
-												associatedModels,
-												allModels: modelConfigsQuery.data ?? [],
-												updateModelConfig:
-													API.experimental.updateChatModelConfig,
-											});
-											await invalidateChatConfigurationQueries(queryClient);
-											deleteMutation.mutate(undefined, {
-												onSuccess: () => {
-													toast.success(
-														`Provider "${provider.display_name || provider.name}" deleted.`,
-													);
-													setDeleteDialogOpen(false);
-													setDeleteConfirmText("");
-													void navigate(BACK_HREF, { replace: true });
-												},
-												onError: (error) => {
-													toast.error(
-														getErrorMessage(
-															error,
-															`Failed to delete provider "${provider.display_name || provider.name}".`,
-														),
-													);
-												},
-												onSettled: () => {
-													setIsCascadeDeleting(false);
-												},
-											});
-										} catch (error) {
-											toast.error(
-												getErrorMessage(error, "Failed to delete provider."),
-											);
-											setIsCascadeDeleting(false);
-											await invalidateChatConfigurationQueries(queryClient);
-										}
-									};
-									void deleteAll();
-								}}
-							>
-								{(isCascadeDeleting || deleteMutation.isPending) && (
-									<Spinner className="h-4 w-4" loading />
-								)}
-								Delete provider
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+					}
+					confirmDisabled={
+						deleteConfirmText !== provider.name || modelConfigsUnavailable
+					}
+					isPending={isCascadeDeleting || deleteMutation.isPending}
+					open={deleteDialogOpen}
+					onOpenChange={(open) => {
+						if (!open && !isCascadeDeleting && !deleteMutation.isPending) {
+							setDeleteDialogOpen(false);
+							setDeleteConfirmText("");
+						}
+					}}
+					onConfirm={() => {
+						const deleteProvider = async () => {
+							setIsCascadeDeleting(true);
+							try {
+								await cascadeDisableProviderModels({
+									associatedModels,
+									allModels: modelConfigsQuery.data ?? [],
+									updateModelConfig: API.experimental.updateChatModelConfig,
+								});
+								await invalidateChatConfigurationQueries(queryClient);
+								deleteMutation.mutate(undefined, {
+									onSuccess: () => {
+										toast.success(
+											`Provider "${provider.display_name || provider.name}" deleted.`,
+										);
+										setDeleteDialogOpen(false);
+										setDeleteConfirmText("");
+										void navigate(BACK_HREF, { replace: true });
+									},
+									onError: (error) => {
+										toast.error(
+											getErrorMessage(
+												error,
+												`Failed to delete provider "${provider.display_name || provider.name}".`,
+											),
+										);
+									},
+									onSettled: () => {
+										setIsCascadeDeleting(false);
+									},
+								});
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										"Failed to disable models for provider deletion.",
+									),
+								);
+								setIsCascadeDeleting(false);
+								await invalidateChatConfigurationQueries(queryClient);
+							}
+						};
+						void deleteProvider();
+					}}
+				>
+					<div className="flex flex-col gap-3 text-sm text-content-secondary">
+						<p className="m-0">
+							Type{" "}
+							<strong className="text-content-primary">{provider.name}</strong>{" "}
+							to confirm.
+						</p>
+						<Input
+							id="delete-confirm"
+							aria-label={`Type ${provider.name} to confirm`}
+							autoFocus
+							autoComplete="off"
+							placeholder={provider.name}
+							value={deleteConfirmText}
+							onChange={(e) => setDeleteConfirmText(e.target.value)}
+						/>
+					</div>
+				</ConfirmDeleteDialog>
 			</div>
 		</>
 	);

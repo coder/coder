@@ -17,18 +17,16 @@ export const cascadeDisableProviderModels = async ({
 	const disabledIds = new Set(associatedModels.map((model) => model.id));
 	const hadDefault = associatedModels.some((model) => model.is_default);
 
+	if (hadDefault) {
+		const newDefault = allModels.find(
+			(model) => model.enabled && !disabledIds.has(model.id),
+		);
+		if (newDefault) {
+			await updateModelConfig(newDefault.id, { is_default: true });
+		}
+	}
+
 	for (const model of associatedModels) {
 		await updateModelConfig(model.id, { enabled: false });
-	}
-
-	if (!hadDefault) {
-		return;
-	}
-
-	const newDefault = allModels.find(
-		(model) => model.enabled && !disabledIds.has(model.id),
-	);
-	if (newDefault) {
-		await updateModelConfig(newDefault.id, { is_default: true });
 	}
 };

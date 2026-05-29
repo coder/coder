@@ -2252,6 +2252,46 @@ export const ModelDeleteConfirmed: Story = {
 	},
 };
 
+export const DeletedProviderModelWarning: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-anthropic",
+				provider: "anthropic",
+				display_name: "Anthropic",
+				source: "database",
+				has_api_key: true,
+				allow_user_api_key: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-orphaned",
+				provider: "openai",
+				ai_provider_id: "provider-deleted-openai",
+				model: "gpt-4o",
+				display_name: "Orphaned GPT-4o",
+				enabled: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByText("Orphaned GPT-4o"));
+		await expect(
+			await body.findByText(/This model's provider was deleted/i),
+		).toBeInTheDocument();
+		await expect(
+			body.getByText(/Create a replacement model with an active provider/i),
+		).toBeInTheDocument();
+		await expect(body.getByRole("switch", { name: "Enabled" })).toBeDisabled();
+		await expect(body.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(args.onUpdateModel).not.toHaveBeenCalled();
+	},
+};
+
 export const ProviderDeleteConfirmation: Story = {
 	args: {
 		section: "providers" as ChatModelAdminSection,
@@ -2298,6 +2338,9 @@ export const ProviderDeleteConfirmation: Story = {
 			await body.findByText(/Deleting this provider will also disable/i),
 		).toBeInTheDocument();
 		expect(body.getByText(/2 models/i)).toBeInTheDocument();
+		expect(
+			body.getByText("No other model exists to become the default."),
+		).toBeInTheDocument();
 		await expect(body.getByRole("dialog")).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),
@@ -2305,6 +2348,35 @@ export const ProviderDeleteConfirmation: Story = {
 		await expect(
 			body.getByRole("button", { name: "Cancel" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const ProviderDeleteWaitingForModels: Story = {
+	args: {
+		section: "providers" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-openai",
+				provider: "openai",
+				display_name: "OpenAI",
+				source: "database",
+				has_api_key: true,
+			}),
+		],
+		modelConfigsData: undefined,
+		isLoading: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+
+		await expect(
+			await body.findByRole("button", { name: "Delete provider" }),
+		).toBeDisabled();
+		expect(args.onDeleteProvider).not.toHaveBeenCalled();
+		expect(args.onUpdateModel).not.toHaveBeenCalled();
 	},
 };
 
@@ -2327,7 +2399,7 @@ export const ProviderDeleteCancelled: Story = {
 		// Navigate to provider detail, open delete dialog, then cancel.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
-		await body.findByText(/Are you sure/i);
+		await body.findByText(/Deleting this provider is irreversible/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
 		// The dialog should be closed and the form footer restored.
@@ -2402,20 +2474,18 @@ export const ProviderDeleteConfirmed: Story = {
 		});
 		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
 			1,
-			"model-openai-default",
-			{
-				enabled: false,
-			},
+			"model-anthropic-fallback",
+			{ is_default: true },
 		);
 		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
 			2,
-			"model-openai-secondary",
+			"model-openai-default",
 			{ enabled: false },
 		);
 		expect(args.onUpdateModel).toHaveBeenNthCalledWith(
 			3,
-			"model-anthropic-fallback",
-			{ is_default: true },
+			"model-openai-secondary",
+			{ enabled: false },
 		);
 		await waitFor(() => {
 			expect(args.onDeleteProvider).toHaveBeenCalledTimes(1);

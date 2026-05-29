@@ -278,6 +278,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			>
 				<SelectTrigger
 					id="providerSelect"
+					aria-label="Provider"
 					className="h-10 max-w-[240px] text-[13px]"
 				>
 					<SelectValue placeholder="Select provider" />
@@ -354,8 +355,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 			{isProviderDeleted && (
 				<Alert severity="warning" className="mb-4">
 					<AlertDescription>
-						This model's provider was deleted. Remove and re-add this model to
-						reconfigure it.
+						This model's provider was deleted. Create a replacement model with
+						an active provider to continue using it.
 					</AlertDescription>
 				</Alert>
 			)}
@@ -397,9 +398,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									}}
 									aria-label="Enabled"
 									disabled={
-										isSaving ||
-										defaultModelDisableGuard ||
-										(isProviderDeleted && !form.values.enabled)
+										isSaving || defaultModelDisableGuard || isProviderDeleted
 									}
 								/>
 							</span>
@@ -407,8 +406,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 						<TooltipContent side="bottom">
 							{defaultModelDisableGuard
 								? "Default model cannot be disabled. Remove default status first."
-								: isProviderDeleted && !form.values.enabled
-									? "This model's provider was deleted."
+								: isProviderDeleted
+									? "This model's provider was deleted. Create a replacement model first."
 									: form.values.enabled
 										? "Disable this model. It will be hidden from users."
 										: "Enable this model. It will be visible to users."}

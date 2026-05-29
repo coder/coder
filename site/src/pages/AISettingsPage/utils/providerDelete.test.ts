@@ -21,7 +21,7 @@ const model = (
 });
 
 describe("cascadeDisableProviderModels", () => {
-	it("disables associated models before reassigning the default", async () => {
+	it("reassigns the default before disabling associated models", async () => {
 		const associatedModels = [
 			model({
 				id: "model-associated-default",
@@ -51,19 +51,19 @@ describe("cascadeDisableProviderModels", () => {
 			updateModelConfig,
 		});
 
+		expect(updateModelConfig).toHaveBeenNthCalledWith(1, "model-next-default", {
+			is_default: true,
+		});
 		expect(updateModelConfig).toHaveBeenNthCalledWith(
-			1,
+			2,
 			"model-associated-default",
 			{ enabled: false },
 		);
 		expect(updateModelConfig).toHaveBeenNthCalledWith(
-			2,
+			3,
 			"model-associated-secondary",
 			{ enabled: false },
 		);
-		expect(updateModelConfig).toHaveBeenNthCalledWith(3, "model-next-default", {
-			is_default: true,
-		});
 	});
 
 	it("does not reassign the default when the deleted provider had no default", async () => {
@@ -99,10 +99,11 @@ describe("cascadeDisableProviderModels", () => {
 		});
 	});
 
-	it("stops before reassigning the default when a model disable fails", async () => {
+	it("rejects when a model disable fails after reassigning the default", async () => {
 		const error = new Error("failed to disable model");
 		const updateModelConfig = vi
 			.fn()
+			.mockResolvedValueOnce(undefined)
 			.mockResolvedValueOnce(undefined)
 			.mockRejectedValueOnce(error);
 
@@ -132,6 +133,47 @@ describe("cascadeDisableProviderModels", () => {
 			}),
 		).rejects.toThrow(error);
 
+		expect(updateModelConfig).toHaveBeenCalledTimes(3);
+		expect(updateModelConfig).toHaveBeenNthCalledWith(1, "model-next-default", {
+			is_default: true,
+		});
+	});
+
+	it("does not reassign the default when no eligible fallback exists", async () => {
+		const associatedModels = [
+			model({
+				id: "model-associated-default",
+				provider: "openai",
+				model: "gpt-4o",
+				is_default: true,
+			}),
+			model({
+				id: "model-associated-secondary",
+				provider: "openai",
+				model: "gpt-4o-mini",
+			}),
+		];
+		const updateModelConfig = vi.fn(async () => undefined);
+
+		await cascadeDisableProviderModels({
+			associatedModels,
+			allModels: associatedModels,
+			updateModelConfig,
+		});
+
 		expect(updateModelConfig).toHaveBeenCalledTimes(2);
+		expect(updateModelConfig).toHaveBeenNthCalledWith(
+			1,
+			"model-associated-default",
+			{ enabled: false },
+		);
+		expect(updateModelConfig).toHaveBeenNthCalledWith(
+			2,
+			"model-associated-secondary",
+			{ enabled: false },
+		);
+		expect(updateModelConfig).not.toHaveBeenCalledWith(expect.any(String), {
+			is_default: true,
+		});
 	});
 });

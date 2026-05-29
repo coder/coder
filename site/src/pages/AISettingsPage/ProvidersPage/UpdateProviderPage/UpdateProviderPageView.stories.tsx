@@ -152,6 +152,9 @@ export const DeleteDialogWithAssociatedModels: Story = {
 			await screen.findByText(/Deleting this provider will also disable/i),
 		).toBeInTheDocument();
 		await expect(screen.getByText("2 models")).toBeInTheDocument();
+		await expect(
+			screen.getByText("No other model exists to become the default."),
+		).toBeInTheDocument();
 	},
 };
 
@@ -189,18 +192,18 @@ export const DeleteDialogCascadeConfirmed: Story = {
 		});
 		expect(API.experimental.updateChatModelConfig).toHaveBeenNthCalledWith(
 			1,
+			"model-anthropic-fallback",
+			{ is_default: true },
+		);
+		expect(API.experimental.updateChatModelConfig).toHaveBeenNthCalledWith(
+			2,
 			"model-openai-default",
 			{ enabled: false },
 		);
 		expect(API.experimental.updateChatModelConfig).toHaveBeenNthCalledWith(
-			2,
+			3,
 			"model-openai-secondary",
 			{ enabled: false },
-		);
-		expect(API.experimental.updateChatModelConfig).toHaveBeenNthCalledWith(
-			3,
-			"model-anthropic-fallback",
-			{ is_default: true },
 		);
 		await waitFor(() => {
 			expect(API.deleteAIProvider).toHaveBeenCalledWith(
@@ -245,5 +248,8 @@ export const DeleteDialogCascadeFailure: Story = {
 		expect(API.deleteAIProvider).not.toHaveBeenCalled();
 		await expect(await screen.findByRole("dialog")).toBeInTheDocument();
 		await expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+		await expect(
+			await screen.findByText("Failed to disable model."),
+		).toBeInTheDocument();
 	},
 };

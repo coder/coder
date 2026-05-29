@@ -22,6 +22,7 @@ interface ConfirmDeleteDialogProps {
 	description?: ReactNode;
 	children?: ReactNode;
 	onConfirm: () => void;
+	confirmDisabled?: boolean;
 	isPending?: boolean;
 }
 
@@ -32,6 +33,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 	description,
 	children,
 	onConfirm,
+	confirmDisabled = false,
 	isPending = false,
 }) => (
 	<Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,7 +54,11 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 				>
 					Cancel
 				</Button>
-				<Button variant="destructive" onClick={onConfirm} disabled={isPending}>
+				<Button
+					variant="destructive"
+					onClick={onConfirm}
+					disabled={isPending || confirmDisabled}
+				>
 					{isPending && <Spinner className="h-4 w-4" loading />}
 					Delete {entity}
 				</Button>

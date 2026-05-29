@@ -41,6 +41,7 @@ const API_KEY_PLACEHOLDER = "••••••••••••••••";
 interface ProviderFormProps {
 	providerState: ProviderState;
 	providerConfigsUnavailable: boolean;
+	modelConfigsReady: boolean;
 	isProviderMutationPending: boolean;
 	onCreateProvider: (
 		req: TypesGen.CreateChatProviderConfigRequest,
@@ -61,6 +62,7 @@ interface ProviderFormProps {
 export const ProviderForm: FC<ProviderFormProps> = ({
 	providerState,
 	providerConfigsUnavailable,
+	modelConfigsReady,
 	isProviderMutationPending,
 	onCreateProvider,
 	onUpdateProvider,
@@ -121,10 +123,38 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		: "Endpoint used to call this provider.";
 	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
 	const associatedModelCount = providerState.modelConfigs.length;
-	const deleteProviderDescription =
-		associatedModelCount > 0
-			? `Deleting this provider will also disable ${associatedModelCount} ${associatedModelCount === 1 ? "model" : "models"} from your settings.`
-			: "Are you sure you want to delete this provider? This action is irreversible.";
+	const associatedModelIds = new Set(
+		providerState.modelConfigs.map((model) => model.id),
+	);
+	const willReassignDefault = providerState.modelConfigs.some(
+		(model) => model.is_default,
+	);
+	const hasDefaultReplacement = willReassignDefault
+		? allModelConfigs.some(
+				(model) => model.enabled && !associatedModelIds.has(model.id),
+			)
+		: false;
+	const deleteProviderDescription = (
+		<div className="flex flex-col gap-3">
+			<p className="m-0">Deleting this provider is irreversible!</p>
+			{associatedModelCount > 0 && (
+				<ul className="m-0 pl-5">
+					<li>
+						Deleting this provider will also disable {associatedModelCount}{" "}
+						{associatedModelCount === 1 ? "model" : "models"} from your
+						settings.
+					</li>
+					{willReassignDefault && (
+						<li>
+							{hasDefaultReplacement
+								? "The default model will be reassigned."
+								: "No other model exists to become the default."}
+						</li>
+					)}
+				</ul>
+			)}
+		</div>
+	);
 	const hasNewProviderConfiguration = !providerConfig;
 
 	const isDirty =
@@ -395,6 +425,19 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									allModels: allModelConfigs,
 									updateModelConfig: onUpdateModel,
 								});
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										"Failed to disable models for provider deletion.",
+									),
+								);
+								setIsCascadeDeleting(false);
+								await invalidateChatConfigurationQueries(queryClient);
+								return;
+							}
+
+							try {
 								await onDeleteProvider(providerConfig.id);
 								setIsCascadeDeleting(false);
 							} catch (error) {
@@ -407,6 +450,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						};
 						void deleteProvider();
 					}}
+					confirmDisabled={!modelConfigsReady}
 					isPending={isCascadeDeleting || isProviderMutationPending}
 					open={confirmingDelete}
 					onOpenChange={(open) => {
