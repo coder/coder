@@ -72,7 +72,7 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 }
 
 func filterSelfRoutes(routes []*url.URL, self *url.URL) []*url.URL {
-	filtered := routes[:0]
+	filtered := make([]*url.URL, 0, len(routes))
 	for _, route := range routes {
 		if route.String() == self.String() {
 			continue

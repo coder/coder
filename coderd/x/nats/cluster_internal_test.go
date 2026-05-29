@@ -1,4 +1,4 @@
-package nats //nolint:testpackage // Exercises internal cluster state.
+package nats
 
 import (
 	"errors"
