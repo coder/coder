@@ -405,7 +405,12 @@ func buildAuthHeaders(
 		if len(cfg.CustomHeadersUserKeys) > 0 {
 			row, ok := userHeaderValuesByConfigID[cfg.ID]
 			if !ok {
-				logger.Warn(ctx,
+				// Normal state: this user has never saved values for
+				// this server. The MCP call will proceed without the
+				// user-set headers and likely fail at the remote end,
+				// which is the expected signal for the UI to prompt
+				// the user. Debug-level keeps this off the noise floor.
+				logger.Debug(ctx,
 					"no user header values for MCP server",
 					slog.F("server_slug", cfg.Slug),
 				)
@@ -423,7 +428,10 @@ func buildAuthHeaders(
 				break
 			}
 			for _, k := range cfg.CustomHeadersUserKeys {
-				if v, ok := user[k]; ok && v != "" {
+				// Case-insensitive lookup so a case-only admin rename
+				// does not silently drop the user's stored value.
+				v, has := mcpHeaderValueForKey(user, k)
+				if has && v != "" {
 					headers[k] = v
 				}
 			}
@@ -467,6 +475,23 @@ func buildAuthHeaders(
 	}
 
 	return headers
+}
+
+// mcpHeaderValueForKey returns the stored value for key using a
+// case-insensitive match. The stored user-header map preserves the
+// admin's casing at write time, so a later case-only rename of a
+// user-set key would otherwise orphan the stored value until the
+// user re-saves it.
+func mcpHeaderValueForKey(stored map[string]string, key string) (string, bool) {
+	if v, ok := stored[key]; ok {
+		return v, true
+	}
+	for k, v := range stored {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 // isToolAllowed checks a tool name against the allow and deny

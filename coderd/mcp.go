@@ -196,7 +196,10 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	}
 	headerValuesByConfigID, err := decodeMCPUserHeaderValues(userHeaderValues)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to decode user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -219,9 +222,9 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	for _, config := range configs {
 		var sdkConfig codersdk.MCPServerConfig
 		if isAdmin {
-			sdkConfig = convertMCPServerConfig(config)
+			sdkConfig = convertMCPServerConfig(ctx, api.Logger, config)
 		} else {
-			sdkConfig = convertMCPServerConfigRedacted(config)
+			sdkConfig = convertMCPServerConfigRedacted(ctx, api.Logger, config)
 		}
 		switch config.AuthType {
 		case "oauth2":
@@ -442,7 +445,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(updated))
+			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(ctx, api.Logger, updated))
 			return
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
@@ -530,7 +533,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(ctx, api.Logger, inserted))
 }
 
 // @Summary Get MCP server config
@@ -575,9 +578,9 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var sdkConfig codersdk.MCPServerConfig
 	if isAdmin {
-		sdkConfig = convertMCPServerConfig(config)
+		sdkConfig = convertMCPServerConfig(ctx, api.Logger, config)
 	} else {
-		sdkConfig = convertMCPServerConfigRedacted(config)
+		sdkConfig = convertMCPServerConfigRedacted(ctx, api.Logger, config)
 	}
 
 	// Populate AuthConnected for the calling user. Attempt to
@@ -607,14 +610,22 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				UserID:            apiKey.UserID,
 			})
 			if hvErr != nil && !errors.Is(hvErr, sql.ErrNoRows) {
-				httpapi.InternalServerError(rw, hvErr)
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get user header values.",
+					Detail:  hvErr.Error(),
+				})
 				return
 			}
-			if hvErr == nil && strings.TrimSpace(row.HeaderValues) != "" {
-				if decErr := json.Unmarshal([]byte(row.HeaderValues), &stored); decErr != nil {
-					httpapi.InternalServerError(rw, xerrors.Errorf("decode header_values: %w", decErr))
+			if hvErr == nil {
+				decoded, decErr := decodeHeaderValuesJSON(row.HeaderValues)
+				if decErr != nil {
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Failed to decode stored user header values.",
+						Detail:  decErr.Error(),
+					})
 					return
 				}
+				stored = decoded
 			}
 		}
 		sdkConfig.AuthConnected = mcpCustomHeadersConnected(stored, config.CustomHeadersUserKeys)
@@ -916,6 +927,26 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Post-merge validation: when staying on or moving to
+		// custom_headers, at least one admin header or one
+		// user-set key is required. Mirrors the create handler.
+		if authType == "custom_headers" && len(finalAdminHeaders)+len(customHeadersUserKeys) == 0 {
+			return &mcpValidationError{msg: "Custom headers auth type requires at least one custom header or custom_headers_user_keys entry."}
+		}
+
+		// When auth_type changes away from custom_headers or the
+		// admin alters the user-set key list, clear every user's
+		// stored header values for this config so stale
+		// credentials do not silently reactivate if the previous
+		// key set is later restored. Equal slices (order-insensitive,
+		// case-sensitive) skip the delete so a no-op update keeps
+		// each user's values intact.
+		if !mcpUserKeySetsEqual(existing.CustomHeadersUserKeys, customHeadersUserKeys) {
+			if dErr := tx.DeleteMCPServerUserHeaderValuesByConfigID(ctx, existing.ID); dErr != nil {
+				return xerrors.Errorf("clear orphaned user header values: %w", dErr)
+			}
+		}
+
 		customHeadersUserKeyDescriptionsJSON, mErr := marshalCustomHeaderUserKeyDescriptions(customHeadersUserKeyDescriptions)
 		if mErr != nil {
 			return mErr
@@ -988,7 +1019,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(ctx, api.Logger, updated))
 }
 
 // @Summary Delete MCP server config
@@ -1356,7 +1387,14 @@ func (api *API) getMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.Req
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !cfg.Enabled {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if cfg.AuthType != "custom_headers" || len(cfg.CustomHeadersUserKeys) == 0 {
@@ -1374,19 +1412,28 @@ func (api *API) getMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.Req
 	})
 	stored := map[string]string{}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
-	if err == nil && strings.TrimSpace(row.HeaderValues) != "" {
-		if decErr := json.Unmarshal([]byte(row.HeaderValues), &stored); decErr != nil {
-			httpapi.InternalServerError(rw, xerrors.Errorf("decode header_values: %w", decErr))
+	if err == nil {
+		decoded, decErr := decodeHeaderValuesJSON(row.HeaderValues)
+		if decErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to decode stored user header values.",
+				Detail:  decErr.Error(),
+			})
 			return
 		}
+		stored = decoded
 	}
 
 	hasValues := make(map[string]bool, len(cfg.CustomHeadersUserKeys))
 	for _, key := range cfg.CustomHeadersUserKeys {
-		hasValues[key] = stored[key] != ""
+		v, _ := headerValueForKey(stored, key)
+		hasValues[key] = v != ""
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerUserHeaderValues{
 		MCPServerConfigID: cfg.ID,
@@ -1418,18 +1465,25 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !cfg.Enabled {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if cfg.AuthType != "custom_headers" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "MCP server does not use custom_headers auth.",
+			Message: "This MCP server does not support user-set headers. Contact your Coder administrator if you believe this is unexpected.",
 		})
 		return
 	}
 	if len(cfg.CustomHeadersUserKeys) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "MCP server has no user-set custom header keys.",
+			Message: "This MCP server has no user-set headers configured. Contact your Coder administrator to add one.",
 		})
 		return
 	}
@@ -1451,6 +1505,14 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 			})
 			return
 		}
+		// Reject control characters that would enable CRLF/null injection
+		// into the outgoing MCP request headers.
+		if strings.ContainsAny(reqVal, "\r\n\x00") {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Header %q value contains disallowed control characters (CR, LF, or NUL).", reqKey),
+			})
+			return
+		}
 		if strings.TrimSpace(reqVal) != "" {
 			normalized[canonical] = reqVal
 		}
@@ -1465,14 +1527,22 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 		UserID:            apiKey.UserID,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get existing user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
-	if err == nil && strings.TrimSpace(existing.HeaderValues) != "" {
-		if decErr := json.Unmarshal([]byte(existing.HeaderValues), &merged); decErr != nil {
-			httpapi.InternalServerError(rw, xerrors.Errorf("decode existing header_values: %w", decErr))
+	if err == nil {
+		decoded, decErr := decodeHeaderValuesJSON(existing.HeaderValues)
+		if decErr != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to decode existing user header values.",
+				Detail:  decErr.Error(),
+			})
 			return
 		}
+		merged = decoded
 	}
 	for _, k := range cfg.CustomHeadersUserKeys {
 		if _, sent := req.Values[k]; !sent {
@@ -1487,8 +1557,9 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 			if alreadyInRequest {
 				continue
 			}
-			// Preserve existing stored value if any.
-			if v, has := merged[k]; has && v != "" {
+			// Preserve existing stored value if any (case-insensitive lookup
+			// so a case-only admin rename does not silently drop the value).
+			if v, has := headerValueForKey(merged, k); has && v != "" {
 				normalized[k] = v
 			}
 		}
@@ -1496,7 +1567,10 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 
 	encoded, err := json.Marshal(normalized)
 	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("encode header_values: %w", err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to encode user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -1506,7 +1580,10 @@ func (api *API) updateMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 		HeaderValues:      string(encoded),
 		HeaderValuesKeyID: sql.NullString{},
 	}); err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to save user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -1537,7 +1614,10 @@ func (api *API) deleteMCPServerUserHeaderValues(rw http.ResponseWriter, r *http.
 		UserID:            apiKey.UserID,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete user header values.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -1621,8 +1701,19 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 // convertMCPServerConfig converts a database MCP server config to the
 // SDK type. Secrets are never returned; only has_* booleans are set.
 // Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
-func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
-	descriptions, _ := decodeCustomHeaderUserKeyDescriptions(config.CustomHeadersUserKeyDescriptions)
+// A malformed custom_headers_user_key_descriptions payload is logged
+// and defaulted to an empty map so a single corrupt row does not
+// break the entire list endpoint.
+func convertMCPServerConfig(ctx context.Context, logger slog.Logger, config database.MCPServerConfig) codersdk.MCPServerConfig {
+	descriptions, err := decodeCustomHeaderUserKeyDescriptions(config.CustomHeadersUserKeyDescriptions)
+	if err != nil {
+		logger.Warn(ctx,
+			"failed to decode mcp_server_configs.custom_headers_user_key_descriptions; defaulting to empty map",
+			slog.F("mcp_server_config_id", config.ID),
+			slog.Error(err),
+		)
+		descriptions = map[string]string{}
+	}
 	return codersdk.MCPServerConfig{
 		ID:          config.ID,
 		DisplayName: config.DisplayName,
@@ -1662,11 +1753,15 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 	}
 }
 
-// convertMCPServerConfigRedacted is the same as convertMCPServerConfig
-// but strips admin-only fields (OAuth2 details, API key header) for
-// non-admin callers.
-func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MCPServerConfig {
-	c := convertMCPServerConfig(config)
+// convertMCPServerConfigRedacted returns the same SDK config as
+// convertMCPServerConfig but strips admin-only fields (URL, transport,
+// OAuth2 client/auth/token URLs, scopes, API key header) so the
+// payload is safe to expose to non-admin callers. Non-secret
+// metadata such as auth_type, has_oauth2_secret, has_api_key,
+// has_custom_headers, and the user-set custom header key list is
+// retained because end users need it to wire up their own values.
+func convertMCPServerConfigRedacted(ctx context.Context, logger slog.Logger, config database.MCPServerConfig) codersdk.MCPServerConfig {
+	c := convertMCPServerConfig(ctx, logger, config)
 	c.URL = ""
 	c.Transport = ""
 	c.OAuth2ClientID = ""
@@ -1746,12 +1841,8 @@ func decodeCustomHeaders(headers string) (map[string]string, error) {
 func decodeMCPUserHeaderValues(rows []database.McpServerUserHeaderValue) (map[uuid.UUID]map[string]string, error) {
 	out := make(map[uuid.UUID]map[string]string, len(rows))
 	for _, row := range rows {
-		if strings.TrimSpace(row.HeaderValues) == "" {
-			out[row.MCPServerConfigID] = map[string]string{}
-			continue
-		}
-		var values map[string]string
-		if err := json.Unmarshal([]byte(row.HeaderValues), &values); err != nil {
+		values, err := decodeHeaderValuesJSON(row.HeaderValues)
+		if err != nil {
 			return nil, xerrors.Errorf("decode mcp_server_user_header_values for config %s: %w", row.MCPServerConfigID, err)
 		}
 		out[row.MCPServerConfigID] = values
@@ -1759,13 +1850,69 @@ func decodeMCPUserHeaderValues(rows []database.McpServerUserHeaderValue) (map[uu
 	return out, nil
 }
 
+// decodeHeaderValuesJSON decodes the header_values text column from
+// mcp_server_user_header_values into a map. An empty or whitespace-only
+// payload decodes to an empty map; malformed JSON returns an error.
+func decodeHeaderValuesJSON(raw string) (map[string]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]string{}, nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil, xerrors.Errorf("decode header_values: %w", err)
+	}
+	if out == nil {
+		return map[string]string{}, nil
+	}
+	return out, nil
+}
+
+// headerValueForKey returns the stored value for key using a
+// case-insensitive match. Admin-defined keys preserve their original
+// casing in storage, so a later case-only rename of a user-set key
+// would otherwise orphan the stored value until the user re-saves.
+func headerValueForKey(stored map[string]string, key string) (string, bool) {
+	if v, ok := stored[key]; ok {
+		return v, true
+	}
+	for k, v := range stored {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// mcpUserKeySetsEqual returns true when a and b contain the same
+// keys, ignoring order. Comparison is case-sensitive, so a case-only
+// admin rename of a user-set key is treated as a change and triggers
+// orphaned-value cleanup.
+func mcpUserKeySetsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(a))
+	for _, s := range a {
+		seen[s] = struct{}{}
+	}
+	for _, s := range b {
+		if _, ok := seen[s]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // mcpCustomHeadersConnected returns true when every key in
 // requiredKeys has a non-empty stored value. When requiredKeys is
 // empty the connection is considered fully configured (admin headers
-// alone are sufficient).
+// alone are sufficient). The stored lookup is case-insensitive so a
+// case-only admin rename does not flip a configured server back to
+// disconnected until the user re-saves.
 func mcpCustomHeadersConnected(stored map[string]string, requiredKeys []string) bool {
 	for _, k := range requiredKeys {
-		if strings.TrimSpace(stored[k]) == "" {
+		v, _ := headerValueForKey(stored, k)
+		if strings.TrimSpace(v) == "" {
 			return false
 		}
 	}
