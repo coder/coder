@@ -242,6 +242,22 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "ProviderDisabled503UnknownProvider",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", aibridge.ErrorCodeProviderDisabled, "mycustomprovider"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider has been disabled by an administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "mycustomprovider"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
 			name: "ProviderDisabledPlainErrorString",
 			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "anthropic")),
 			want: chaterror.ClassifiedError{
