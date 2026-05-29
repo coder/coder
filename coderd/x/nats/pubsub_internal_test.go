@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -342,15 +343,18 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		a := newTestPubsub(t, clusterTestOptions(t))
-		b := newTestPubsub(t, clusterTestOptions(t))
-		c := newTestPubsub(t, clusterTestOptions(t))
+		opts := clusterTestOptions(t)
+		a := newTestPubsub(t, opts)
+		b := newTestPubsub(t, opts)
+		c := newTestPubsub(t, opts)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
-		requireRoutesEqual(t, a.currentRoutes, addrB)
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+		)
 
 		globalEvent := "global"
 		bGlobal := make(chan []byte, 8)
@@ -383,7 +387,10 @@ func TestPubsubCluster(t *testing.T) {
 		// Add C to A's peer list. B and C should both receive global messages,
 		// while the C-only subject should route only to C.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
-		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		waitForRouteSubscription(t, a, globalEvent)
 		waitForRouteSubscription(t, a, cSubject)
@@ -397,7 +404,9 @@ func TestPubsubCluster(t *testing.T) {
 
 		// Remove B from A's peer list. Only C should receive the next messages.
 		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
-		requireRoutesEqual(t, a.currentRoutes, addrC)
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		publishAndFlush(t, a, globalEvent, "no-b-peer")
 		require.Equal(t, "no-b-peer", string(receiveMessage(t, cGlobal)))
@@ -440,7 +449,8 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("ClientAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
-		ps := newTestPubsub(t, clusterTestOptions(t))
+		opts := clusterTestOptions(t)
+		ps := newTestPubsub(t, opts)
 		clientURL := ps.ns.ClientURL()
 
 		_, err := natsgo.Connect(clientURL,
@@ -452,7 +462,7 @@ func TestPubsubCluster(t *testing.T) {
 			"unauthenticated client connect must be rejected")
 
 		nc, err := natsgo.Connect(clientURL,
-			natsgo.Token("shared-token"),
+			natsgo.Token(opts.ClusterAuthToken),
 			natsgo.Timeout(testutil.WaitShort),
 		)
 		require.NoError(t, err, "authenticated client connect with matching token must succeed")
@@ -467,9 +477,10 @@ func defaultTestOptions() Options {
 func clusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
-		ClusterHost:    "127.0.0.1",
-		ClusterPort:    natsserver.RANDOM_PORT,
-		disableCluster: false,
+		ClusterHost:      "127.0.0.1",
+		ClusterPort:      natsserver.RANDOM_PORT,
+		disableCluster:   false,
+		ClusterAuthToken: fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
 	}
 }
 
@@ -490,6 +501,14 @@ func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	addr := ps.ns.ClusterAddr()
 	require.NotNil(t, addr)
 	return "nats://" + addr.String()
+}
+
+func addrWithAuth(t *testing.T, addr string, authToken string) string {
+	t.Helper()
+	u, err := url.Parse(addr)
+	require.NoError(t, err)
+	u.User = url.UserPassword(defaultClusterTokenUsername, authToken)
+	return u.String()
 }
 
 func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
@@ -529,10 +548,13 @@ func receiveMessage(t *testing.T, got <-chan []byte) []byte {
 
 func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 	t.Helper()
-	want, err := parsePeerAddresses(addresses)
-	require.NoError(t, err)
-	want = sortRouteURLs(want)
-	require.True(t, sortedURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
+
+	rrs := routeStrings(routes)
+
+	slices.Sort(rrs)
+	slices.Sort(addresses)
+
+	require.True(t, slices.Equal(rrs, addresses), "want %v, got %v", rrs, addresses)
 }
 
 func routeStrings(routes []*url.URL) []string {

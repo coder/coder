@@ -93,17 +93,24 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		a := newTestPubsub(t, clusterTestOptions(t))
-		b := newTestPubsub(t, clusterTestOptions(t))
-		c := newTestPubsub(t, clusterTestOptions(t))
+		opts := clusterTestOptions(t)
+		a := newTestPubsub(t, opts)
+		b := newTestPubsub(t, opts)
+		c := newTestPubsub(t, opts)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
-		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
-		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		require.NoError(t, a.SetPeerAddresses(nil))
 		require.Empty(t, a.currentRoutes)
