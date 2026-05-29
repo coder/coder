@@ -90,7 +90,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again.", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?include_deleted=true' and trying again.", workspace.ID.String()),
 		})
 		return
 	}
