@@ -2002,8 +2002,9 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      interception.ID,
-			EndedAt: *endedAt,
+			ID:             interception.ID,
+			EndedAt:        *endedAt,
+			CredentialHint: takeFirst(seed.CredentialHint, ""),
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}

@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -114,6 +115,12 @@ func New(keys []string, clk quartz.Clock) (*Pool, error) {
 // Value returns the key string.
 func (k *Key) Value() string {
 	return k.value
+}
+
+// Hint returns a masked, identifiable fragment of the key, suitable
+// for logs and persisted records.
+func (k *Key) Hint() string {
+	return utils.MaskSecret(k.value)
 }
 
 // State returns the current state of the key, derived from its
