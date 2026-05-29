@@ -133,11 +133,29 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		},
 	);
 
-	const hasIncompatibleParameters = parameters.some((parameter) => {
-		if (!parameter.mutable && parameter.diagnostics.length > 0) {
-			return true;
+	// An immutable parameter whose current rendered value already matches the
+	// previous workspace build value is not blocking. The form only submits
+	// mutable values, and the backend resolver reuses the previous value when
+	// an immutable parameter is unchanged, so diagnostics raised by stricter
+	// validations or new conditional logic on the new template version should
+	// not prevent the user from editing unrelated mutable parameters.
+	const isUnchangedImmutable = (parameter: PreviewParameter) => {
+		if (parameter.mutable) {
+			return false;
 		}
-		return false;
+		const autofill = autofillParameters.find((p) => p.name === parameter.name);
+		if (!autofill) {
+			return false;
+		}
+		const currentValue = parameter.value.valid ? parameter.value.value : "";
+		return autofill.value === currentValue;
+	};
+
+	const hasIncompatibleParameters = parameters.some((parameter) => {
+		if (parameter.mutable || parameter.diagnostics.length === 0) {
+			return false;
+		}
+		return !isUnchangedImmutable(parameter);
 	});
 
 	return (
@@ -287,10 +305,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							diagnostics.some(
 								(diagnostic) => diagnostic.severity === "error",
 							) ||
-							parameters.some((parameter) =>
-								parameter.diagnostics.some(
-									(diagnostic) => diagnostic.severity === "error",
-								),
+							parameters.some(
+								(parameter) =>
+									!isUnchangedImmutable(parameter) &&
+									parameter.diagnostics.some(
+										(diagnostic) => diagnostic.severity === "error",
+									),
 							)
 						}
 					>
