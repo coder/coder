@@ -622,7 +622,7 @@ func New(options *Options) *API {
 		cancel:       cancel,
 		DeploymentID: depID,
 
-		ID:          apiID(options.ID),
+		ID:          ensureID(options.ID),
 		Options:     options,
 		RootHandler: r,
 		HTTPAuth: &HTTPAuthorizer{
@@ -2349,7 +2349,7 @@ func (api *API) Close() error {
 	return nil
 }
 
-func apiID(id uuid.UUID) uuid.UUID {
+func ensureID(id uuid.UUID) uuid.UUID {
 	if id != uuid.Nil {
 		return id
 	}
