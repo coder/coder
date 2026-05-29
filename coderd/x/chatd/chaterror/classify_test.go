@@ -233,7 +233,7 @@ func TestClassify(t *testing.T) {
 				StatusCode: http.StatusServiceUnavailable,
 			},
 			want: chaterror.ClassifiedError{
-				Message:    "The OpenAI provider has been disabled by an administrator.",
+				Message:    "The OpenAI provider has been disabled. Contact your Coder administrator.",
 				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "openai"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "openai",
@@ -249,7 +249,7 @@ func TestClassify(t *testing.T) {
 				StatusCode: http.StatusServiceUnavailable,
 			},
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider has been disabled by an administrator.",
+				Message:    "The AI provider has been disabled. Contact your Coder administrator.",
 				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "mycustomprovider"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "",
@@ -261,7 +261,7 @@ func TestClassify(t *testing.T) {
 			name: "ProviderDisabledPlainErrorString",
 			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "anthropic")),
 			want: chaterror.ClassifiedError{
-				Message:    "The Anthropic provider has been disabled by an administrator.",
+				Message:    "The Anthropic provider has been disabled. Contact your Coder administrator.",
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "anthropic",
 				Retryable:  false,
@@ -276,7 +276,7 @@ func TestClassify(t *testing.T) {
 				StatusCode: http.StatusServiceUnavailable,
 			},
 			want: chaterror.ClassifiedError{
-				Message:    "The Google provider has been disabled by an administrator.",
+				Message:    "The Google provider has been disabled. Contact your Coder administrator.",
 				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", aibridge.ErrorCodeProviderDisabled, "google"),
 				Kind:       codersdk.ChatErrorKindProviderDisabled,
 				Provider:   "google",

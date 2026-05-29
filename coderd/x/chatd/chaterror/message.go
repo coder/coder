@@ -70,7 +70,8 @@ func terminalMessage(classified ClassifiedError) string {
 			displayName = "AI"
 		}
 		return fmt.Sprintf(
-			"The %s provider has been disabled by an administrator.",
+			"The %s provider has been disabled."+
+				" Contact your Coder administrator.",
 			displayName,
 		)
 	default:
