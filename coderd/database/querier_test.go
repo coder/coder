@@ -7604,6 +7604,26 @@ func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
 	_, err = db.GetWorkspaceByAgentID(ctx, importAgent.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "import agent must not resolve to a workspace")
 
+	// An app that already belongs to a workspace cannot be rebound to a
+	// template-import agent. Otherwise a second update could move it from
+	// the import agent to a different workspace.
+	_, err = upsertApp(appID, importAgent.ID, "hijacked-by-import")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	appsA2, err = db.GetWorkspaceAppsByAgentID(ctx, agentA2.ID)
+	require.NoError(t, err)
+	require.Len(t, appsA2, 1)
+	require.Equal(t, appID, appsA2[0].ID)
+	require.Equal(t, agentA2.ID, appsA2[0].AgentID)
+	require.Equal(t, "code-server-v2", appsA2[0].Slug)
+
+	appsImport, err := db.GetWorkspaceAppsByAgentID(ctx, importAgent.ID)
+	require.NoError(t, err)
+	require.Empty(t, appsImport)
+
+	_, err = upsertApp(appID, agentB.ID, "hijacked-after-import")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
 	unownedAppID := uuid.New()
 	_, err = upsertApp(unownedAppID, importAgent.ID, "import-app")
 	require.NoError(t, err)

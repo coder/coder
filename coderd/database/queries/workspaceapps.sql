@@ -59,30 +59,37 @@ WHERE
     -- Prevent cross-tenant/cross-workspace agent rebinding (SEC-91).
     -- App IDs persist across builds of the same workspace, but agent IDs are
     -- regenerated every build, so compare by the workspace that owns the agent
-    -- rather than by agent_id. Block the update only when the existing app's
-    -- agent and the incoming agent both resolve to workspaces that differ; the
-    -- conflicting row is then left untouched and the :one query returns no
-    -- row, which the caller treats as a rejection. COALESCE(... = ..., TRUE)
-    -- permits the update when either side resolves to NULL (e.g.
-    -- template-import-job agents, which have no owning workspace and are not a
-    -- cross-tenant victim) and when both resolve to the same workspace
-    -- (same-workspace rebuilds, where agent IDs are regenerated but the owning
-    -- workspace is stable).
-    COALESCE(
-        (
-            SELECT wb.workspace_id
-            FROM workspace_agents AS wagt
-            JOIN workspace_resources AS wres ON wagt.resource_id = wres.id
-            JOIN workspace_builds AS wb ON wres.job_id = wb.job_id
-            WHERE wagt.id = workspace_apps.agent_id
-        ) = (
-            SELECT wb.workspace_id
-            FROM workspace_agents AS wagt
-            JOIN workspace_resources AS wres ON wagt.resource_id = wres.id
-            JOIN workspace_builds AS wb ON wres.job_id = wb.job_id
-            WHERE wagt.id = EXCLUDED.agent_id
-        ),
-        TRUE
+    -- rather than by agent_id. Permit unowned apps to be claimed and permit
+    -- same-workspace rebuilds. If an existing app belongs to a workspace, block
+    -- moves to both different workspaces and template import or dry-run agents
+    -- that resolve to no workspace. The conflicting row is then left untouched,
+    -- and the :one query returns no row, which the caller treats as a
+    -- rejection.
+    NOT EXISTS (
+        SELECT 1
+        FROM workspace_agents AS existing_agent
+        INNER JOIN workspace_resources AS existing_resource
+            ON existing_agent.resource_id = existing_resource.id
+        INNER JOIN workspace_builds AS existing_build
+            ON existing_resource.job_id = existing_build.job_id
+        WHERE existing_agent.id = workspace_apps.agent_id
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM workspace_agents AS existing_agent
+        INNER JOIN workspace_resources AS existing_resource
+            ON existing_agent.resource_id = existing_resource.id
+        INNER JOIN workspace_builds AS existing_build
+            ON existing_resource.job_id = existing_build.job_id
+        INNER JOIN workspace_agents AS incoming_agent
+            ON incoming_agent.id = EXCLUDED.agent_id
+        INNER JOIN workspace_resources AS incoming_resource
+            ON incoming_agent.resource_id = incoming_resource.id
+        INNER JOIN workspace_builds AS incoming_build
+            ON incoming_resource.job_id = incoming_build.job_id
+        WHERE
+            existing_agent.id = workspace_apps.agent_id
+            AND existing_build.workspace_id = incoming_build.workspace_id
     )
 RETURNING *;
 
