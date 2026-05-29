@@ -288,6 +288,40 @@ export const TerminalStartupTimeoutError: Story = {
 	},
 };
 
+/** Disabled provider errors render an admin-oriented message without retry. */
+export const TerminalProviderDisabledError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "provider_disabled",
+				message:
+					"The OpenAI provider has been disabled. Contact your Coder administrator.",
+				provider: "openai",
+				retryable: false,
+				statusCode: 503,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /provider disabled/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/the openai provider has been disabled.*contact your coder administrator/i,
+			),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 503$/)).toBeVisible();
+		// No retry or status link for administrative disablement.
+		expect(canvas.queryByText(/retrying/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Generic failures do not show usage or provider CTAs. */
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {

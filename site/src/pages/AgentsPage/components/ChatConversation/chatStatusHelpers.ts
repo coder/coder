@@ -44,6 +44,8 @@ export const getErrorTitle = (
 			return "Usage limit reached";
 		case "missing_key":
 			return "Chat interrupted";
+		case "provider_disabled":
+			return "Provider disabled";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}

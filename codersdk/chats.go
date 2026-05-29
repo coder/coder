@@ -1525,15 +1525,16 @@ type ChatStreamStatus struct {
 type ChatErrorKind string
 
 const (
-	ChatErrorKindGeneric        ChatErrorKind = "generic"
-	ChatErrorKindOverloaded     ChatErrorKind = "overloaded"
-	ChatErrorKindRateLimit      ChatErrorKind = "rate_limit"
-	ChatErrorKindTimeout        ChatErrorKind = "timeout"
-	ChatErrorKindStartupTimeout ChatErrorKind = "startup_timeout"
-	ChatErrorKindAuth           ChatErrorKind = "auth"
-	ChatErrorKindConfig         ChatErrorKind = "config"
-	ChatErrorKindUsageLimit     ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey     ChatErrorKind = "missing_key"
+	ChatErrorKindGeneric          ChatErrorKind = "generic"
+	ChatErrorKindOverloaded       ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit        ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout          ChatErrorKind = "timeout"
+	ChatErrorKindStartupTimeout   ChatErrorKind = "startup_timeout"
+	ChatErrorKindAuth             ChatErrorKind = "auth"
+	ChatErrorKindConfig           ChatErrorKind = "config"
+	ChatErrorKindUsageLimit       ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey       ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled ChatErrorKind = "provider_disabled"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1548,6 +1549,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindConfig,
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,
+	ChatErrorKindProviderDisabled,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the
