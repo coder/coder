@@ -10,6 +10,7 @@ import {
 	type AIProviderType,
 	AIProviderTypes,
 	type CreateChatProviderConfigRequest,
+	type UpdateChatModelConfigRequest,
 	type UpdateChatProviderConfigRequest,
 } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -79,6 +80,10 @@ interface ProvidersSectionProps {
 		req: UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	onDisableModel: (
+		modelConfigId: string,
+		req: UpdateChatModelConfigRequest,
+	) => Promise<unknown>;
 }
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
@@ -90,6 +95,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
+	onDisableModel,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const navigate = useNavigate();
@@ -198,6 +204,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 					}
 				}}
 				onBack={clearProviderView}
+				onDisableModel={onDisableModel}
 			/>
 		);
 	}

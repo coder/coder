@@ -303,7 +303,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("name")}
 								label="Name"
-								description="Unique identifier (used in urls, can't be changed)"
+								description="URL identifier. Cannot be changed."
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}
@@ -341,7 +341,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("name")}
 								label="Name"
-								description="Unique identifier (used in urls, can't be changed)"
+								description="URL identifier. Cannot be changed."
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}

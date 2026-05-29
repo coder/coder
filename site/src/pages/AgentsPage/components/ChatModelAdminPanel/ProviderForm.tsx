@@ -8,6 +8,8 @@ import {
 	useState,
 } from "react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -45,6 +47,10 @@ interface ProviderFormProps {
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	onDisableModel: (
+		modelConfigId: string,
+		req: TypesGen.UpdateChatModelConfigRequest,
+	) => Promise<unknown>;
 	onBack: () => void;
 }
 
@@ -55,6 +61,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onCreateProvider,
 	onUpdateProvider,
 	onDeleteProvider,
+	onDisableModel,
 	onBack,
 }) => {
 	const navigate = useNavigate();
@@ -80,6 +87,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const [apiKeyModified, setApiKeyModified] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [isCascadeDeleting, setIsCascadeDeleting] = useState(false);
 
 	const isBedrockProvider = provider === "bedrock";
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
@@ -106,10 +114,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		? "Bedrock runtime endpoint. Use the AWS region for the models this provider should call."
 		: "Endpoint used to call this provider.";
 	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
+	const associatedModelCount = providerState.modelConfigs.length;
 	const deleteProviderDescription =
-		"Are you sure you want to delete this provider? The provider will be " +
-		"disabled and hidden from new model configuration. Existing model " +
-		"configs that reference it remain saved but cannot run until updated.";
+		associatedModelCount > 0
+			? `Deleting this provider will also disable ${associatedModelCount} ${associatedModelCount === 1 ? "model" : "models"} from your settings.`
+			: "Are you sure you want to delete this provider? This action is irreversible.";
 	const hasNewProviderConfiguration = !providerConfig;
 
 	const isDirty =
@@ -371,10 +380,29 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				<ConfirmDeleteDialog
 					entity="provider"
 					description={deleteProviderDescription}
-					onConfirm={() => void onDeleteProvider(providerConfig.id)}
-					isPending={isProviderMutationPending}
+					onConfirm={() => {
+						setIsCascadeDeleting(true);
+						const chain = providerState.modelConfigs.reduce<Promise<unknown>>(
+							(prev, mc) =>
+								prev.then(() => onDisableModel(mc.id, { enabled: false })),
+							Promise.resolve(),
+						);
+						chain
+							.then(() => onDeleteProvider(providerConfig.id))
+							.catch((error: unknown) => {
+								toast.error(
+									getErrorMessage(error, "Failed to delete provider."),
+								);
+							})
+							.then(() => setIsCascadeDeleting(false));
+					}}
+					isPending={isCascadeDeleting || isProviderMutationPending}
 					open={confirmingDelete}
-					onOpenChange={(open) => !open && setConfirmingDelete(false)}
+					onOpenChange={(open) => {
+						if (!open && !isCascadeDeleting && !isProviderMutationPending) {
+							setConfirmingDelete(false);
+						}
+					}}
 				/>
 			)}
 		</div>

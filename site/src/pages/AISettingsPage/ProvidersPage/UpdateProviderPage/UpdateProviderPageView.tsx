@@ -4,18 +4,31 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
 	deleteAIProviderMutation,
 	updateAIProviderMutation,
 } from "#/api/queries/aiProviders";
+import {
+	chatModelConfigs,
+	invalidateChatConfigurationQueries,
+} from "#/api/queries/chats";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
@@ -36,6 +49,8 @@ const UpdateProviderPageView: React.FC = () => {
 	const navigate = useNavigate();
 
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [deleteConfirmText, setDeleteConfirmText] = useState("");
+	const [isCascadeDeleting, setIsCascadeDeleting] = useState(false);
 
 	const providerQuery = useQuery({
 		...aiProvider(providerId ?? ""),
@@ -53,6 +68,16 @@ const UpdateProviderPageView: React.FC = () => {
 	const deleteMutation = useMutation(
 		deleteAIProviderMutation(queryClient, providerId ?? ""),
 	);
+
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: Boolean(providerId),
+	});
+
+	const associatedModels = (modelConfigsQuery.data ?? []).filter(
+		(mc) => mc.ai_provider_id === provider?.id,
+	);
+	const associatedModelCount = associatedModels.length;
 
 	// Rendered into every non-redirect return so the document title reflects
 	// the provider as soon as we know it; falls back to a placeholder while
@@ -210,36 +235,123 @@ const UpdateProviderPageView: React.FC = () => {
 						}}
 					/>
 				</div>
-				<DeleteDialog
-					key={provider.name}
-					isOpen={deleteDialogOpen}
-					title="Delete provider"
-					entity="provider"
-					name={provider.name}
-					confirmLoading={deleteMutation.isPending}
-					onCancel={() => {
-						setDeleteDialogOpen(false);
+				<Dialog
+					open={deleteDialogOpen}
+					onOpenChange={(open) => {
+						if (!open && !isCascadeDeleting && !deleteMutation.isPending) {
+							setDeleteDialogOpen(false);
+							setDeleteConfirmText("");
+						}
 					}}
-					onConfirm={() => {
-						deleteMutation.mutate(undefined, {
-							onSuccess: () => {
-								toast.success(
-									`Provider "${provider.display_name || provider.name}" deleted.`,
-								);
-								setDeleteDialogOpen(false);
-								void navigate(BACK_HREF, { replace: true });
-							},
-							onError: (error) => {
-								toast.error(
-									getErrorMessage(
-										error,
-										`Failed to delete provider "${provider.display_name || provider.name}".`,
-									),
-								);
-							},
-						});
-					}}
-				/>
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Delete provider</DialogTitle>
+						</DialogHeader>
+						<div className="flex flex-col gap-3 text-sm text-content-secondary">
+							<p className="m-0 font-medium text-content-destructive">
+								Deleting this provider is irreversible!
+							</p>
+							{associatedModelCount > 0 && (
+								<ul className="m-0 pl-5">
+									<li>
+										Deleting this provider will also disable{" "}
+										<strong className="text-content-primary">
+											{associatedModelCount}{" "}
+											{associatedModelCount === 1 ? "model" : "models"}
+										</strong>{" "}
+										from your settings.
+									</li>
+								</ul>
+							)}
+							<p className="m-0">
+								Type{" "}
+								<strong className="text-content-primary">
+									{provider.name}
+								</strong>{" "}
+								to confirm.
+							</p>
+							<Input
+								id="delete-confirm"
+								aria-label={`Type ${provider.name} to confirm`}
+								autoFocus
+								autoComplete="off"
+								placeholder={provider.name}
+								value={deleteConfirmText}
+								onChange={(e) => setDeleteConfirmText(e.target.value)}
+							/>
+						</div>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => {
+									setDeleteDialogOpen(false);
+									setDeleteConfirmText("");
+								}}
+								disabled={isCascadeDeleting || deleteMutation.isPending}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								className="disabled:border-border"
+								disabled={
+									deleteConfirmText !== provider.name ||
+									isCascadeDeleting ||
+									deleteMutation.isPending ||
+									modelConfigsQuery.isLoading ||
+									modelConfigsQuery.isError
+								}
+								onClick={() => {
+									const deleteAll = async () => {
+										setIsCascadeDeleting(true);
+										try {
+											for (const mc of associatedModels) {
+												await API.experimental.updateChatModelConfig(mc.id, {
+													enabled: false,
+												});
+											}
+											await invalidateChatConfigurationQueries(queryClient);
+											deleteMutation.mutate(undefined, {
+												onSuccess: () => {
+													toast.success(
+														`Provider "${provider.display_name || provider.name}" deleted.`,
+													);
+													setDeleteDialogOpen(false);
+													setDeleteConfirmText("");
+													void navigate(BACK_HREF, { replace: true });
+												},
+												onError: (error) => {
+													toast.error(
+														getErrorMessage(
+															error,
+															`Failed to delete provider "${provider.display_name || provider.name}".`,
+														),
+													);
+												},
+												onSettled: () => {
+													setIsCascadeDeleting(false);
+												},
+											});
+										} catch (error) {
+											toast.error(
+												getErrorMessage(error, "Failed to delete provider."),
+											);
+											setIsCascadeDeleting(false);
+											await invalidateChatConfigurationQueries(queryClient);
+										}
+									};
+									void deleteAll();
+								}}
+							>
+								{(isCascadeDeleting || deleteMutation.isPending) && (
+									<Spinner className="h-4 w-4" loading />
+								)}
+								Delete provider
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</>
 	);

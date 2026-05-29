@@ -377,7 +377,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										)}
 									</div>
 									{modelConfig.enabled === false && (
-										<Badge size="xs" variant="warning">
+										<Badge size="xs" variant="default">
 											disabled
 										</Badge>
 									)}

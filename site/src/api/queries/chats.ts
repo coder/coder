@@ -1743,7 +1743,9 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	},
 });
 
-const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
+export const invalidateChatConfigurationQueries = async (
+	queryClient: QueryClient,
+) => {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
