@@ -1,127 +1,146 @@
 import { useTheme } from "@emotion/react";
 import type {
+	CodeViewHandle,
+	CodeViewItem,
 	DiffLineAnnotation,
 	FileDiffMetadata,
 	SelectedLineRange,
 	VirtualFileMetrics,
-} from "@pierre/diffs";
-import { Virtualizer } from "@pierre/diffs";
-import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
-import { ChevronRightIcon } from "lucide-react";
+} from "@pierre/diffs/react";
+import { CodeView } from "@pierre/diffs/react";
 import {
 	type ComponentProps,
+	type CSSProperties,
 	type FC,
-	memo,
+	Fragment,
 	type ReactNode,
-	useCallback,
 	useEffect,
 	useRef,
-	useState,
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { FileIcon } from "#/components/FileIcon/FileIcon";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import {
-	DIFFS_FONT_STYLE,
-	getDiffViewerOptions,
-} from "../ChatElements/tools/utils";
-import { useActiveFileTracking } from "./useActiveFileTracking";
-
-// -------------------------------------------------------------------
-// Public interface
-// -------------------------------------------------------------------
 
 interface DiffViewerProps {
-	/** Parsed file diffs to render. */
 	parsedFiles: readonly FileDiffMetadata[];
-	/** Cache key prefix for parsePatchFiles worker pool LRU cache. */
 	cacheKeyPrefix?: string;
-	/** Whether the panel is in expanded mode (affects file tree threshold). */
 	isExpanded?: boolean;
-	/** Loading state. */
 	isLoading?: boolean;
-	/** Error state. */
 	error?: unknown;
-	/** Empty state message. */
 	emptyMessage?: string;
-	/** Which diff rendering style to use. */
 	diffStyle: DiffStyle;
-	/**
-	 * Called when a line number gutter element is clicked.
-	 * Receives the file name and click metadata.
-	 */
 	onLineNumberClick?: (
 		fileName: string,
 		props: { lineNumber: number; annotationSide: "additions" | "deletions" },
 	) => void;
-	/**
-	 * Called when a range of lines is selected (e.g. shift-click).
-	 * Receives the file name and the selected range (or null on
-	 * deselection).
-	 */
-	onLineSelected?: (
+	onLineSelected?: (fileName: string, range: SelectedLineRange | null) => void;
+	onLineSelectionChange?: (
 		fileName: string,
-		range: {
-			start: number;
-			end: number;
-			side?: "additions" | "deletions";
-			endSide?: "additions" | "deletions";
-		} | null,
+		range: SelectedLineRange | null,
 	) => void;
-	/**
-	 * Returns line annotations for the given file. Used to render
-	 * inline widgets such as comment inputs.
-	 */
 	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
-	/**
-	 * Returns the selected line range for the given file, if any.
-	 * Used to visually highlight the lines being commented on.
-	 */
 	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
-	/**
-	 * Renderer for line annotations returned by `getLineAnnotations`.
-	 */
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
-	/**
-	 * When set to a file name, DiffViewer scrolls to that file and
-	 * highlights it in the tree. The parent should reset this to
-	 * null via `onScrollToFileComplete` after the scroll completes.
-	 */
 	scrollToFile?: string | null;
-	/** Called after scrollToFile has been processed. */
 	onScrollToFileComplete?: () => void;
 }
 
-// -------------------------------------------------------------------
-// Constants
-// -------------------------------------------------------------------
+export type DiffStyle = "unified" | "split";
+const DIFF_STYLE_KEY = "agents.diff-view-style";
 
-/**
- * Minimum container width (px) at which the file tree sidebar
- * is shown alongside the diff list.
- */
-const FILE_TREE_THRESHOLD = 1000;
+const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 
-/**
- * Extra CSS injected via the diff viewer's `unsafeCSS` option to make
- * file headers sticky with a solid background. The shared header
- * styling (font sizing, change-type badges, stat-count pills) lives
- * in `diffViewerCSS` from utils.ts and is already included in the
- * base options returned by `getDiffViewerOptions`.
- */
-const STICKY_HEADER_CSS = [
-	"[data-diffs-header] {",
-	"  position: sticky; top: 0; z-index: 10;",
-	"  background-color: hsl(var(--surface-secondary)) !important;",
-	"  padding-block: 0 !important;",
+const diffViewerStyle = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
+	"--diffs-font-size": "11px",
+	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+} satisfies CSSProperties;
+
+const diffViewerMetrics: Partial<VirtualFileMetrics> = {
+	diffHeaderHeight: 32,
+	hunkSeparatorHeight: 28,
+	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
+};
+
+const diffViewerSeparatorCSS = [
+	":host { --diffs-bg-separator-override: transparent; }",
+	"[data-separator='line-info'] { height: 28px !important; }",
+	"[data-separator-content] {",
+	"  display: flex !important;",
+	"  align-items: center !important;",
+	"  gap: 12px !important;",
+	"  overflow: visible !important;",
+	"  height: auto !important;",
+	"  border-radius: 0 !important;",
+	"  background-color: transparent !important;",
+	"  font-size: 11px !important;",
+	"  color: hsl(var(--content-secondary)) !important;",
+	"  opacity: 0.8;",
+	"}",
+	"[data-separator-wrapper] { border-radius: 0 !important; }",
+	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
+	"  padding-inline: 0 !important;",
+	"}",
+	"[data-separator-content]::before,",
+	"[data-separator-content]::after {",
+	"  content: '' !important;",
+	"  flex: 1 !important;",
+	"  height: 1px !important;",
+	"  background: hsl(var(--border-default)) !important;",
 	"}",
 ].join(" ");
 
-export type DiffStyle = "unified" | "split";
-const DIFF_STYLE_KEY = "agents.diff-view-style";
+function countChangedLines(fileDiff: FileDiffMetadata) {
+	let additions = 0;
+	let deletions = 0;
+	for (const hunk of fileDiff.hunks) {
+		additions += hunk.additionLines;
+		deletions += hunk.deletionLines;
+	}
+	return { additions, deletions };
+}
+
+function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
+	const { additions, deletions } = countChangedLines(fileDiff);
+	return (
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border-default bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
+			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
+				<span
+					className={cn(
+						"shrink-0 text-[11px] font-semibold leading-none",
+						changeColor(fileDiff.type),
+					)}
+				>
+					{changeLabel(fileDiff.type)}
+				</span>
+				{fileDiff.prevName && fileDiff.prevName !== fileDiff.name && (
+					<span className="truncate text-xs text-content-secondary">
+						{fileDiff.prevName}
+					</span>
+				)}
+				<span className="truncate text-xs font-medium text-content-primary">
+					{fileDiff.name}
+				</span>
+			</div>
+			{(additions > 0 || deletions > 0) && (
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border-default font-mono text-xs font-medium leading-5">
+					{deletions > 0 && (
+						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
+							&minus;{deletions}
+						</span>
+					)}
+					{additions > 0 && (
+						<span className="flex items-center bg-surface-git-added px-1 text-git-added-bright">
+							+{additions}
+						</span>
+					)}
+				</span>
+			)}
+		</div>
+	);
+}
 
 export function loadDiffStyle(): DiffStyle {
 	const stored = localStorage.getItem(DIFF_STYLE_KEY);
@@ -135,393 +154,86 @@ export function saveDiffStyle(style: DiffStyle): void {
 	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
-/** Width of the file tree sidebar in pixels. */
-const FILE_TREE_WIDTH = 300;
-
-// -------------------------------------------------------------------
-// Estimated diff height for lazy loading
-// -------------------------------------------------------------------
-
-/**
- * Estimated height per line in the diff viewer (px). The
- * library's shadow DOM applies box-sizing: border-box to all
- * elements, and code lines have no padding or border, so the
- * rendered height equals the CSS line-height: 11px × 1.5 = 16.5.
- */
-const LINE_HEIGHT_PX = 16.5;
-
-/** Height of the file header row rendered by @pierre/diffs. */
-const HEADER_HEIGHT_PX = 36;
-
-/**
- * Metrics that tell the @pierre/diffs virtualizer how tall each
- * element actually is after our CSS overrides. Without these the
- * library falls back to its built-in defaults (20 px lines,
- * 44 px headers, 32 px separators) which are larger than our
- * custom styling, causing visible blank buffers in the viewport.
- */
-const VIRTUALIZER_METRICS: VirtualFileMetrics = {
-	hunkLineCount: 50,
-	lineHeight: LINE_HEIGHT_PX,
-	diffHeaderHeight: 32, // 32 px min-height (border-box includes borders)
-	hunkSeparatorHeight: 28, // height: 28px !important in SEPARATOR_CSS
-	fileGap: 2, // padding-bottom: max(0, gap-block - 6px) = 2px
-};
-
-/**
- * Estimate the rendered pixel height of a file diff so the
- * placeholder occupies roughly the same space. This keeps the
- * scroll position stable as files are lazily mounted.
- */
-function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
-	return HEADER_HEIGHT_PX + fileDiff.unifiedLineCount * LINE_HEIGHT_PX;
-}
-
-// -------------------------------------------------------------------
-// File tree data model
-// -------------------------------------------------------------------
-
-interface FileTreeNode {
-	name: string;
-	fullPath: string;
-	type: "file" | "directory";
-	children: FileTreeNode[];
-	fileDiff?: FileDiffMetadata;
-}
-
-/**
- * Builds a nested tree from a flat list of file diffs. Directory
- * nodes are created for every intermediate path segment. The
- * result is sorted with directories first, then alphabetically.
- * Single-child directory chains are collapsed so that e.g.
- * `src/pages/AgentsPage` renders as one row.
- */
-function buildFileTree(files: readonly FileDiffMetadata[]): FileTreeNode[] {
-	const root: FileTreeNode[] = [];
-
-	for (const file of files) {
-		const segments = file.name.split("/");
-		let children = root;
-
-		// Walk / create intermediate directory nodes.
-		for (let i = 0; i < segments.length - 1; i++) {
-			const seg = segments[i];
-			let dir = children.find((n) => n.type === "directory" && n.name === seg);
-			if (!dir) {
-				dir = {
-					name: seg,
-					fullPath: segments.slice(0, i + 1).join("/"),
-					type: "directory",
-					children: [],
-				};
-				children.push(dir);
-			}
-			children = dir.children;
-		}
-
-		// Leaf file node.
-		const fileName = segments[segments.length - 1];
-		children.push({
-			name: fileName,
-			fullPath: file.name,
-			type: "file",
-			children: [],
-			fileDiff: file,
-		});
-	}
-
-	const sortNodes = (nodes: FileTreeNode[]): FileTreeNode[] => {
-		for (const node of nodes) {
-			if (node.children.length > 0) {
-				node.children = sortNodes(node.children);
-			}
-		}
-		return nodes.sort((a, b) => {
-			if (a.type !== b.type) {
-				return a.type === "directory" ? -1 : 1;
-			}
-			return a.name.localeCompare(b.name);
-		});
-	};
-
-	// Collapse single-child directory chains into one node whose
-	// name uses path separators, e.g. "src/pages/AgentsPage".
-	const collapse = (nodes: FileTreeNode[]): FileTreeNode[] => {
-		for (const node of nodes) {
-			if (node.type === "directory") {
-				node.children = collapse(node.children);
-				// If this directory has exactly one child and it is also
-				// a directory, merge them.
-				while (
-					node.children.length === 1 &&
-					node.children[0].type === "directory"
-				) {
-					const child = node.children[0];
-					node.name = `${node.name}/${child.name}`;
-					node.fullPath = child.fullPath;
-					node.children = child.children;
-				}
-			}
-		}
-		return nodes;
-	};
-
-	return collapse(sortNodes(root));
-}
-
-// -------------------------------------------------------------------
-// Tree node renderer
-// -------------------------------------------------------------------
-
-interface FileTreeNodeViewProps {
-	node: FileTreeNode;
-	depth: number;
-	activeFile: string | null;
-	onFileClick: (fullPath: string) => void;
-}
-
-function FileTreeNodeViewInner({
-	node,
-	depth,
-	activeFile,
-	onFileClick,
-}: FileTreeNodeViewProps) {
-	const [expanded, setExpanded] = useState(true);
-
-	if (node.type === "directory") {
-		return (
-			<div>
-				<button
-					type="button"
-					onClick={() => setExpanded((v) => !v)}
-					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-content-secondary hover:bg-surface-secondary cursor-pointer outline-none"
-					style={{ paddingLeft: 4 + depth * 8, fontSize: 13 }}
-					aria-expanded={expanded}
-				>
-					<ChevronRightIcon
-						className={cn(
-							"size-3 shrink-0 transition-transform",
-							expanded && "rotate-90",
-						)}
-					/>
-					<span className="truncate">{node.name}</span>
-				</button>
-				{expanded &&
-					node.children.map((child) => (
-						<FileTreeNodeView
-							key={child.fullPath}
-							node={child}
-							depth={depth + 1}
-							activeFile={activeFile}
-							onFileClick={onFileClick}
-						/>
-					))}
-			</div>
-		);
-	}
-
-	const isActive = activeFile === node.fullPath;
-
+// The loading state mirrors the real diff layout: flat, full-width
+// file headers with a change badge and stat pill, gutter-aligned code
+// lines, and centered hunk separators. Keeping the same shape avoids a
+// jarring swap when the parsed diff replaces the placeholder.
+function SkeletonLine({ width }: { width: string }) {
 	return (
-		<button
-			type="button"
-			aria-current={isActive ? "true" : undefined}
-			onClick={() => onFileClick(node.fullPath)}
-			className={cn(
-				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer outline-none border-0 border-r-2 border-solid border-transparent",
-				"hover:bg-surface-secondary",
-				isActive && "bg-surface-secondary border-content-link",
-			)}
-			style={{ paddingLeft: 4 + depth * 8 + 12, fontSize: 13 }}
-			title={node.fullPath}
+		<div
+			className="flex items-center gap-3 px-2.5"
+			style={{ height: DIFF_VIEWER_LINE_HEIGHT }}
 		>
-			<FileIcon fileName={node.name} className="shrink-0" />
-			<span
-				className={cn(
-					"truncate",
-					changeColor(node.fileDiff?.type) ??
-						(isActive ? "text-content-primary" : "text-content-secondary"),
-				)}
-			>
-				{node.name}
-			</span>
-			{node.fileDiff?.type && (
-				<span
-					className={cn(
-						"ml-auto shrink-0 pr-2 text-xs",
-						changeColor(node.fileDiff.type),
-					)}
-				>
-					{changeLabel(node.fileDiff.type)}
-				</span>
-			)}
-		</button>
+			<Skeleton className="h-2 w-4 shrink-0" />
+			<Skeleton className={cn("h-2", width)} />
+		</div>
 	);
 }
 
-// memo requires stable props; the React Compiler provides them here.
-const FileTreeNodeView = memo(FileTreeNodeViewInner);
-
-// -------------------------------------------------------------------
-// Virtualized scroll container
-// -------------------------------------------------------------------
-
-/**
- * Wraps the diff list in a Radix ScrollArea and wires up the
- * @pierre/diffs Virtualizer. Extracted into its own component so
- * that the useCallback for ref-callback stability lives here
- * instead of in DiffViewer. This lets the React Compiler skip
- * only this small wrapper (where it can't preserve useCallback)
- * while still optimizing the much larger parent.
- *
- * The ref callback is placed on a content div *inside* the
- * ScrollArea, then walks up with closest() to the Radix viewport.
- * React fires children's refs bottom-up during commit, so every
- * VirtualizedFileDiff instance has already connected to the
- * virtualizer by the time this ref fires and calls setup().
- */
-const DiffScrollContainer: FC<{
-	children: ReactNode;
-	className?: string;
-	diffViewportRef: React.RefObject<HTMLElement | null>;
-}> = ({ children, className, diffViewportRef }) => {
-	const [virtualizer] = useState(() => new Virtualizer());
-
-	// useCallback is required for correctness: in React 19 an
-	// unstable ref callback triggers old-cleanup → new-callback
-	// on every render, which calls virtualizer.cleanUp() and
-	// wipes the observer map. The compiler can't preserve this
-	// useCallback, but that only causes it to skip this small
-	// wrapper, not the entire DiffViewer.
-	const contentRef = useCallback(
-		(node: HTMLDivElement | null) => {
-			const viewport = node?.closest<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			);
-			if (!viewport) return;
-
-			diffViewportRef.current = viewport;
-			virtualizer.setup(viewport);
-
-			return () => {
-				virtualizer.cleanUp();
-				diffViewportRef.current = null;
-			};
-		},
-		[virtualizer, diffViewportRef],
-	);
-
+function SkeletonSeparator() {
 	return (
-		<ScrollArea
-			className={cn(className, "will-change-transform")}
-			scrollBarClassName="w-1.5"
-			viewportClassName="[&>div]:!block"
-		>
-			<VirtualizerContext value={virtualizer}>
-				<div ref={contentRef} className="min-w-0 text-xs">
-					{children}
+		<div className="flex items-center gap-3 px-2.5 py-2">
+			<div className="h-px flex-1 bg-border-default" />
+			<Skeleton className="h-2 w-24" />
+			<div className="h-px flex-1 bg-border-default" />
+		</div>
+	);
+}
+
+function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
+	return (
+		<div>
+			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border-default bg-surface-secondary py-2 pr-1.5 pl-2.5">
+				<div className="flex items-center gap-2">
+					<Skeleton className="size-3 rounded-[2px]" />
+					<Skeleton className="h-3 w-44" />
 				</div>
-			</VirtualizerContext>
-		</ScrollArea>
-	);
-};
-
-// -------------------------------------------------------------------
-// Lazy file diff wrapper
-// -------------------------------------------------------------------
-
-/**
- * Wraps a single `<FileDiff>` with an IntersectionObserver so the
- * heavy component (Shadow DOM + shiki highlighting) is only mounted
- * once the placeholder scrolls into or near the viewport.
- *
- * Once mounted the component stays mounted. We never unmount a
- * FileDiff that the user has already scrolled past, which avoids
- * layout shifts and repeated highlighting work.
- */
-interface LazyFileDiffProps {
-	fileDiff: FileDiffMetadata;
-	options: ComponentProps<typeof FileDiff>["options"];
-	lineAnnotations?: DiffLineAnnotation<string>[];
-	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
-	selectedLines?: SelectedLineRange | null;
-}
-
-function LazyFileDiffInner({
-	fileDiff,
-	options,
-	lineAnnotations,
-	renderAnnotation: renderAnnotationProp,
-	selectedLines,
-}: LazyFileDiffProps) {
-	const placeholderRef = useRef<HTMLDivElement>(null);
-	const [visible, setVisible] = useState(false);
-
-	useEffect(() => {
-		const el = placeholderRef.current;
-		if (!el || visible) {
-			return;
-		}
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting) {
-					setVisible(true);
-					observer.disconnect();
-				}
-			},
-			// Pre-load files that are within one viewport-height of
-			// the visible area so they are ready before the user
-			// scrolls to them.
-			{ rootMargin: "100% 0px" },
-		);
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, [visible]);
-
-	if (!visible) {
-		return (
-			<div
-				ref={placeholderRef}
-				style={{ height: estimateDiffHeight(fileDiff) }}
-				className="p-4 space-y-2"
-			>
-				<Skeleton className="h-4 w-48" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-3/4" />
+				<Skeleton className="h-5 w-14 rounded-[3px]" />
 			</div>
-		);
-	}
-
-	return (
-		<FileDiff
-			fileDiff={fileDiff}
-			options={options}
-			metrics={VIRTUALIZER_METRICS}
-			style={DIFFS_FONT_STYLE}
-			lineAnnotations={lineAnnotations}
-			renderAnnotation={renderAnnotationProp}
-			selectedLines={selectedLines}
-		/>
+			<div className="py-1">
+				{groups.map((lines, groupIndex) => (
+					<Fragment key={groupIndex}>
+						{groupIndex > 0 && <SkeletonSeparator />}
+						{lines.map((width, lineIndex) => (
+							<SkeletonLine key={lineIndex} width={width} />
+						))}
+					</Fragment>
+				))}
+			</div>
+		</div>
 	);
 }
 
-// memo requires stable props; the React Compiler provides them here.
-const LazyFileDiff = memo(LazyFileDiffInner);
+const DIFF_SKELETON_FILES = [
+	[
+		["w-3/4", "w-1/2", "w-5/6"],
+		["w-2/3", "w-2/5", "w-3/4", "w-1/3"],
+	],
+	[
+		["w-1/2", "w-5/6"],
+		["w-2/3", "w-1/3"],
+	],
+] as const;
 
-// -------------------------------------------------------------------
-// Main component
-// -------------------------------------------------------------------
+function DiffViewerSkeleton() {
+	return (
+		<div role="status" aria-label="Loading diff" aria-busy>
+			{DIFF_SKELETON_FILES.map((groups, fileIndex) => (
+				<SkeletonFile key={fileIndex} groups={groups} />
+			))}
+		</div>
+	);
+}
 
 export const DiffViewer: FC<DiffViewerProps> = ({
 	parsedFiles,
-	isExpanded,
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
 	diffStyle,
 	onLineNumberClick,
 	onLineSelected,
+	onLineSelectionChange,
 	getLineAnnotations,
 	getSelectedLines,
 	renderAnnotation,
@@ -529,260 +241,101 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
+	const codeViewRef = useRef<CodeViewHandle<string>>(null);
 	const isDark = theme.palette.mode === "dark";
 
-	const base = getDiffViewerOptions(isDark);
-	const diffOptions = {
-		...base,
+	const options: ComponentProps<typeof CodeView<string>>["options"] = {
 		diffStyle,
-		// Extend the base CSS to make file headers sticky so they
-		// remain visible while scrolling through long diffs.
-		unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
-	};
-
-	const fileOptions = {
-		...diffOptions,
-		overflow: "wrap" as const,
+		diffIndicators: "bars",
+		overflow: "scroll",
+		stickyHeaders: true,
+		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
+		hunkSeparators: "line-info",
+		itemMetrics: diffViewerMetrics,
+		unsafeCSS: diffViewerSeparatorCSS,
+		themeType: isDark ? "dark" : "light",
+		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
-		enableHoverUtility: true,
-		onLineSelected() {
-			// TODO: Make this add context to the input so the
-			// user can type.
+		enableGutterUtility: true,
+		onLineNumberClick: (props, item) => {
+			if (item.type === "diff" && props.type === "diff-line") {
+				onLineNumberClick?.(item.item.id, props);
+			}
+		},
+		onLineSelected: (range, item) => {
+			if (item.type === "diff") {
+				onLineSelected?.(item.item.id, range);
+			}
+		},
+		onLineSelectionChange: (range, item) => {
+			if (item.type === "diff") {
+				onLineSelectionChange?.(item.item.id, range);
+			}
+		},
+		onGutterUtilityClick: (range, item) => {
+			if (item.type === "diff") {
+				onLineSelected?.(item.item.id, range);
+			}
 		},
 	};
 
-	// When the parent provides per-file callbacks (e.g. line click
-	// handlers for comment inputs), build options per file. Otherwise
-	// share a single stable object to avoid unnecessary re-highlights.
-	const hasPerFileCallbacks = Boolean(onLineNumberClick || onLineSelected);
-
-	const getOptionsForFile = (fileName: string) => ({
-		...diffOptions,
-		overflow: "wrap" as const,
-		enableLineSelection: true,
-		enableHoverUtility: true,
-		...(onLineNumberClick && {
-			onLineNumberClick: (props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			}) => onLineNumberClick(fileName, props),
-		}),
-		onLineSelected: onLineSelected
-			? (
-					range: {
-						start: number;
-						end: number;
-						side?: "additions" | "deletions";
-						endSide?: "additions" | "deletions";
-					} | null,
-				) => onLineSelected(fileName, range)
-			: () => {
-					// TODO: Make this add context to the input.
-				},
+	const items: CodeViewItem<string>[] = parsedFiles.map((fileDiff) => {
+		const annotations = getLineAnnotations?.(fileDiff.name);
+		return {
+			id: fileDiff.name,
+			type: "diff",
+			fileDiff,
+			annotations,
+			version: annotations?.length ?? 0,
+		};
 	});
 
-	const fileTree = buildFileTree(parsedFiles);
-
-	// Sort diff blocks in the same order the file tree displays them
-	// (directories first, then alphabetical) so the rendering is
-	// consistent regardless of whether the sidebar is visible.
-	const sortedFiles = (() => {
-		const order = new Map<string, number>();
-		const walk = (nodes: FileTreeNode[]) => {
-			for (const node of nodes) {
-				if (node.type === "file") {
-					order.set(node.fullPath, order.size);
-				} else {
-					walk(node.children);
-				}
-			}
-		};
-		walk(fileTree);
-		return [...parsedFiles].sort(
-			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
-		);
-	})();
-
-	// Pre-compute per-file options so each LazyFileDiff receives a
-	// stable reference and avoids re-highlighting on parent re-render.
-	const perFileOptions = (() => {
-		if (!hasPerFileCallbacks) return null;
-		const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
-		for (const file of sortedFiles) {
-			map.set(file.name, getOptionsForFile(file.name));
+	const selectedLines = (() => {
+		if (!getSelectedLines) return undefined;
+		for (const fileDiff of parsedFiles) {
+			const range = getSelectedLines(fileDiff.name);
+			if (range) return { id: fileDiff.name, range };
 		}
-		return map;
+		return null;
 	})();
-
-	// Pre-compute per-file line annotations for the same reason.
-	const perFileAnnotations = (() => {
-		if (!getLineAnnotations) return null;
-		return new Map(
-			sortedFiles
-				.map((f) => [f.name, getLineAnnotations(f.name)] as const)
-				.filter(
-					(entry): entry is [string, DiffLineAnnotation<string>[]] =>
-						entry[1].length > 0,
-				),
-		);
-	})();
-
-	// Pre-compute per-file selected lines so each LazyFileDiff
-	// receives a stable reference. Without this, calling
-	// getSelectedLines during render returns a new object every
-	// time, which busts the memo comparator and forces an
-	// expensive Shadow DOM + shiki re-highlight.
-	const perFileSelectedLines = (() => {
-		if (!getSelectedLines) return null;
-		return new Map(
-			sortedFiles
-				.map((f) => [f.name, getSelectedLines(f.name)] as const)
-				.filter(
-					(entry): entry is [string, SelectedLineRange] => entry[1] != null,
-				),
-		);
-	})();
-
-	// ---------------------------------------------------------------
-	// Container width measurement via ResizeObserver so we can decide
-	// whether to show the file tree sidebar without a prop from the
-	// parent.
-	// ---------------------------------------------------------------
-	const [containerWidth, setContainerWidth] = useState(0);
-	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
 
 	useEffect(() => {
-		if (!containerEl) return;
-		setContainerWidth(containerEl.getBoundingClientRect().width);
-		const ro = new ResizeObserver(([entry]) => {
-			setContainerWidth(entry.contentRect.width);
+		if (!scrollToFile) return;
+		codeViewRef.current?.scrollTo({
+			type: "item",
+			id: scrollToFile,
+			align: "start",
+			behavior: "instant",
 		});
-		ro.observe(containerEl);
-		return () => ro.disconnect();
-	}, [containerEl]);
+		onScrollToFileComplete?.();
+	}, [scrollToFile, onScrollToFileComplete]);
 
-	const showTree =
-		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
-		sortedFiles.length > 0;
-
-	const diffViewportRef = useRef<HTMLElement | null>(null);
-	const { treeActiveFile, setFileRef, handleFileClick } = useActiveFileTracking(
-		{
-			viewportRef: diffViewportRef,
-			sortedFiles,
-			enabled: showTree,
-			scrollToFile,
-			onScrollToFileComplete,
-		},
-	);
-
-	// ---------------------------------------------------------------
-	// Loading state
-	// ---------------------------------------------------------------
 	if (isLoading) {
-		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden">
-				<div className="space-y-4 p-4">
-					{Array.from({ length: 3 }, (_, i) => (
-						<div key={i} className="space-y-2">
-							<Skeleton className="h-4 w-48" />
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-3/4" />
-						</div>
-					))}
-				</div>
-			</div>
-		);
+		return <DiffViewerSkeleton />;
 	}
 
-	// ---------------------------------------------------------------
-	// Error state
-	// ---------------------------------------------------------------
 	if (error) {
-		return (
-			<div className="p-3">
-				<ErrorAlert error={error} />
-			</div>
-		);
+		return <ErrorAlert error={error} />;
 	}
 
-	// ---------------------------------------------------------------
-	// Main render
-	// ---------------------------------------------------------------
+	if (items.length === 0) {
+		return <div>{emptyMessage}</div>;
+	}
+
 	return (
-		<div
-			ref={setContainerEl}
-			className="flex h-full min-w-0 flex-col overflow-hidden"
-		>
-			{/* Diff contents */}
-			{sortedFiles.length === 0 ? (
-				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
-					{emptyMessage}
-				</div>
-			) : (
-				<div className="flex min-w-0 flex-1 flex-row overflow-hidden">
-					{/* File tree sidebar */}
-					{showTree && (
-						<ScrollArea
-							className="shrink-0 border-r border-border"
-							style={{ width: FILE_TREE_WIDTH }}
-							scrollBarClassName="w-1"
-						>
-							<nav className="flex flex-col py-1">
-								{fileTree.map((node) => (
-									<FileTreeNodeView
-										key={node.fullPath}
-										node={node}
-										depth={1}
-										activeFile={treeActiveFile}
-										onFileClick={handleFileClick}
-									/>
-								))}
-							</nav>
-						</ScrollArea>
-					)}
-					<DiffScrollContainer
-						diffViewportRef={diffViewportRef}
-						className={cn(
-							"min-w-0 flex-1",
-							showTree &&
-								"border-0 border-l border-t border-solid border-border-default rounded-tl-md",
-						)}
-					>
-						{sortedFiles.map((fileDiff, i) => {
-							const isLast = i === sortedFiles.length - 1;
-							return (
-								<div
-									key={fileDiff.name}
-									data-file-name={fileDiff.name}
-									ref={(el) => setFileRef(fileDiff.name, el)}
-									className={cn(
-										"[contain:layout_style]",
-										i > 0 &&
-											"border-0 border-t border-solid border-border-default",
-									)}
-								>
-									<LazyFileDiff
-										fileDiff={fileDiff}
-										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
-										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-										renderAnnotation={renderAnnotation}
-										selectedLines={
-											perFileSelectedLines?.get(fileDiff.name) ?? null
-										}
-									/>
-									{isLast && (
-										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
-											{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
-										</div>
-									)}
-								</div>
-							);
-						})}
-					</DiffScrollContainer>
-				</div>
-			)}
-		</div>
+		<CodeView
+			ref={codeViewRef}
+			items={items}
+			options={options}
+			selectedLines={selectedLines}
+			className="h-full min-h-0 min-w-0 overflow-auto"
+			style={diffViewerStyle}
+			renderCustomHeader={(item) =>
+				item.type === "diff" ? <HeaderContent fileDiff={item.fileDiff} /> : null
+			}
+			renderAnnotation={(annotation) =>
+				"side" in annotation ? renderAnnotation?.(annotation) : null
+			}
+		/>
 	);
 };

@@ -445,43 +445,4 @@ export const LargeDiff: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		// Wait for the file tree sidebar to render, proving that
-		// isExpanded activates the tree + observer code path.
-		await waitFor(() => {
-			const nav = canvasElement.querySelector("nav");
-			expect(nav).not.toBeNull();
-		});
-
-		// Find the diff content viewport (the one containing file
-		// sections) rather than the file-tree sidebar viewport.
-		const fileSection = canvasElement.querySelector("[data-file-name]");
-		const viewport = fileSection?.closest<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (!viewport) throw new Error("diff viewport not found");
-
-		// Capture the initial active file (whichever the observer picked
-		// up at mount), then scroll and verify it changed.
-		let initialFile: string | undefined;
-		await waitFor(() => {
-			const btn = canvasElement.querySelector<HTMLElement>(
-				'nav button[aria-current="true"]',
-			);
-			expect(btn).not.toBeNull();
-			initialFile = btn!.title;
-		});
-
-		// Scroll to roughly the middle of the diff content.
-		viewport.scrollTop = viewport.scrollHeight / 2;
-
-		// The observer should fire and highlight a different file.
-		await waitFor(() => {
-			const btn = canvasElement.querySelector<HTMLElement>(
-				'nav button[aria-current="true"]',
-			);
-			expect(btn).not.toBeNull();
-			expect(btn!.title).not.toBe(initialFile);
-		});
-	},
 };

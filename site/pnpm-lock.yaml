@@ -96,8 +96,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0
       '@pierre/diffs':
-        specifier: 1.1.19
-        version: 1.1.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 1.2.4
+        version: 1.2.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@tanstack/react-query-devtools':
         specifier: 5.77.0
         version: 5.77.0(@tanstack/react-query@5.77.0(react@19.2.6))(react@19.2.6)
@@ -1414,14 +1414,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pierre/diffs@1.1.19':
-    resolution: {integrity: sha512-eYyDW69heXd7i9zdkWogGYosHzoYF2dstV6uDcmnQAf72uRChs3hrpf/7ym/ayTiwD8a+TQ7oZ5vNNb0tstJvA==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.1.19.tgz}
+  '@pierre/diffs@1.2.4':
+    resolution: {integrity: sha512-SEuYxGpSCHVvfoLly/Q/OYpJSBLWaVLV3M3wI/VBW7aZmzYenNe4aXjOf5sIKJMWW5gbZe9WdLvtKUt6cQ1k1A==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.2.4.tgz}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
 
-  '@pierre/theme@0.0.28':
-    resolution: {integrity: sha512-1j/H/fECBuc9dEvntdWI+l435HZapw+RCJTlqCA6BboQ5TjlnE005j/ROWutXIs8aq5OAc82JI2Kwk4A1WWBgw==, tarball: https://registry.npmjs.org/@pierre/theme/-/theme-0.0.28.tgz}
+  '@pierre/theme@1.0.3':
+    resolution: {integrity: sha512-sWHv11TMoqKxKDgTIk5VbhQjdPhs8DCcBxbjh3mRlS3YOM/OcrWoGX6MM8eBGn9cUu3M46Py0JnxsG2nJaFTuA==, tarball: https://registry.npmjs.org/@pierre/theme/-/theme-1.0.3.tgz}
     engines: {vscode: ^1.0.0}
 
   '@pkgjs/parseargs@0.11.0':
@@ -7491,9 +7491,9 @@ snapshots:
   '@oxc-resolver/binding-win32-x64-msvc@11.14.0':
     optional: true
 
-  '@pierre/diffs@1.1.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+  '@pierre/diffs@1.2.4(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
-      '@pierre/theme': 0.0.28
+      '@pierre/theme': 1.0.3
       '@shikijs/transformers': 3.23.0
       diff: 8.0.3
       hast-util-to-html: 9.0.5
@@ -7502,7 +7502,7 @@ snapshots:
       react-dom: 19.2.6(react@19.2.6)
       shiki: 3.23.0
 
-  '@pierre/theme@0.0.28': {}
+  '@pierre/theme@1.0.3': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

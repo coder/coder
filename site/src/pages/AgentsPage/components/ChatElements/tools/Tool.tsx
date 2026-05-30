@@ -12,6 +12,7 @@ import {
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
+import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
@@ -828,7 +829,16 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 			scrollBarClassName="w-1.5"
 			horizontalScrollBarClassName="h-1.5"
 		>
-			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
+			<FileViewer
+				file={file}
+				options={options}
+				style={DIFFS_FONT_STYLE}
+				renderCustomHeader={
+					options?.disableFileHeader
+						? undefined
+						: (file) => <DiffFileHeader file={file} />
+				}
+			/>
 		</ScrollArea>
 	</>
 );
