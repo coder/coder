@@ -2307,6 +2307,11 @@
 							"path": "reference/cli/users_list.md"
 						},
 						{
+							"title": "users oidc-claims",
+							"description": "Display the OIDC claims for the authenticated user.",
+							"path": "reference/cli/users_oidc-claims.md"
+						},
+						{
 							"title": "users show",
 							"description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
 							"path": "reference/cli/users_show.md"
