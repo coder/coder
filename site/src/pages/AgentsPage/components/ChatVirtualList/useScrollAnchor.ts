@@ -7,26 +7,50 @@ import {
 } from "react";
 import { correctedScrollTop, isAtBottom } from "./anchorMath";
 
-type Anchor = { el: HTMLElement; offset: number };
+// The anchor is keyed by a stable item id so it survives windowing remounts.
+// The element ref is a fast path; if it has been unmounted we re-find by id.
+type Anchor = { id: string | null; el: HTMLElement; offset: number };
 
-// findTopAnchor returns the first child intersecting the viewport top, together
-// with its current offset from the scroller top. That child is what we keep
-// fixed when content above it changes height.
+const ITEM_SELECTOR = "[data-chat-item]";
+
+// findTopAnchor returns the first rendered item intersecting the viewport top.
+// Spacers and other non-item children are ignored so the anchor is always a
+// real element whose offset we can preserve.
 function findTopAnchor(
 	scroller: HTMLElement,
 	content: HTMLElement,
 ): Anchor | null {
 	const scrollerTop = scroller.getBoundingClientRect().top;
-	for (const child of content.children) {
+	for (const child of content.querySelectorAll(ITEM_SELECTOR)) {
 		if (!(child instanceof HTMLElement)) {
 			continue;
 		}
 		const rect = child.getBoundingClientRect();
 		if (rect.bottom > scrollerTop) {
-			return { el: child, offset: rect.top - scrollerTop };
+			return {
+				id: child.getAttribute("data-chat-item-id"),
+				el: child,
+				offset: rect.top - scrollerTop,
+			};
 		}
 	}
 	return null;
+}
+
+function resolveAnchorElement(
+	content: HTMLElement,
+	anchor: Anchor,
+): HTMLElement | null {
+	if (anchor.el.isConnected) {
+		return anchor.el;
+	}
+	if (anchor.id == null) {
+		return null;
+	}
+	const found = content.querySelector(
+		`[data-chat-item-id="${CSS.escape(anchor.id)}"]`,
+	);
+	return found instanceof HTMLElement ? found : null;
 }
 
 type ScrollAnchor = {
@@ -34,7 +58,14 @@ type ScrollAnchor = {
 	contentRef: RefObject<HTMLDivElement | null>;
 	atBottom: boolean;
 	scrollToBottom: () => void;
-	maintainPin: () => void;
+	// captureAnchor records the item currently at the viewport top. Callers run
+	// it after every committed render so the anchor always reflects the latest
+	// settled layout.
+	captureAnchor: () => void;
+	// restoreAnchor re-pins to the bottom when sticky, otherwise moves the
+	// captured anchor element back to its recorded viewport offset. It is the
+	// single owner of scrollTop correction and is idempotent.
+	restoreAnchor: () => void;
 };
 
 export function useScrollAnchor(): ScrollAnchor {
@@ -55,14 +86,42 @@ export function useScrollAnchor(): ScrollAnchor {
 		setAtBottom(true);
 	}, []);
 
-	// maintainPin keeps the viewport pinned to the bottom while the user has not
-	// scrolled away. Callers run this in a layout effect on content changes so
-	// new messages pin synchronously, independent of ResizeObserver timing.
-	const maintainPin = useCallback(() => {
+	const captureAnchor = useCallback(() => {
 		const scroller = scrollerRef.current;
-		if (scroller && stickRef.current) {
-			scroller.scrollTop = scroller.scrollHeight;
+		const content = contentRef.current;
+		if (!scroller || !content) {
+			return;
 		}
+		anchorRef.current = stickRef.current
+			? null
+			: findTopAnchor(scroller, content);
+	}, []);
+
+	const restoreAnchor = useCallback(() => {
+		const scroller = scrollerRef.current;
+		const content = contentRef.current;
+		if (!scroller || !content) {
+			return;
+		}
+		if (stickRef.current) {
+			scroller.scrollTop = scroller.scrollHeight;
+			return;
+		}
+		const anchor = anchorRef.current;
+		if (!anchor) {
+			return;
+		}
+		const el = resolveAnchorElement(content, anchor);
+		if (!el) {
+			return;
+		}
+		const offset =
+			el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+		scroller.scrollTop = correctedScrollTop(
+			scroller.scrollTop,
+			anchor.offset,
+			offset,
+		);
 	}, []);
 
 	useEffect(() => {
@@ -76,10 +135,8 @@ export function useScrollAnchor(): ScrollAnchor {
 		const onScroll = () => {
 			const scrollTop = scroller.scrollTop;
 			// A real user scroll always moves scrollTop. Layout-induced scroll
-			// events keep the same scrollTop, so processing them would recapture
-			// the anchor against an already-mutated layout and make the resize
-			// correction a no-op. Our own correction does move scrollTop, so it
-			// still re-establishes a fresh anchor afterward.
+			// events keep the same scrollTop; ignoring them avoids flipping the
+			// stick state when our own correction nudges the position.
 			if (scrollTop === lastScrollTopRef.current) {
 				return;
 			}
@@ -90,7 +147,6 @@ export function useScrollAnchor(): ScrollAnchor {
 				scroller.clientHeight,
 			);
 			stickRef.current = bottom;
-			anchorRef.current = bottom ? null : findTopAnchor(scroller, content);
 			if (frame) {
 				return;
 			}
@@ -100,26 +156,12 @@ export function useScrollAnchor(): ScrollAnchor {
 			});
 		};
 
-		// ResizeObserver notifications run between layout and paint, so correcting
-		// scrollTop here keeps the viewport stable without a visible jump. Safari
-		// has no native scroll anchoring, which is why we must do this ourselves.
+		// The ResizeObserver is a fallback trigger for async intrinsic growth
+		// (streaming markdown, image load, late highlight) that happens without a
+		// React render. Windowing, measurement, and prepend are driven explicitly
+		// by the container's layout effect instead.
 		const resize = new ResizeObserver(() => {
-			if (stickRef.current) {
-				scroller.scrollTop = scroller.scrollHeight;
-				return;
-			}
-			const anchor = anchorRef.current;
-			if (!anchor) {
-				return;
-			}
-			const offset =
-				anchor.el.getBoundingClientRect().top -
-				scroller.getBoundingClientRect().top;
-			scroller.scrollTop = correctedScrollTop(
-				scroller.scrollTop,
-				anchor.offset,
-				offset,
-			);
+			restoreAnchor();
 		});
 
 		scroller.addEventListener("scroll", onScroll, { passive: true });
@@ -131,7 +173,14 @@ export function useScrollAnchor(): ScrollAnchor {
 				cancelAnimationFrame(frame);
 			}
 		};
-	}, []);
+	}, [restoreAnchor]);
 
-	return { scrollerRef, contentRef, atBottom, scrollToBottom, maintainPin };
+	return {
+		scrollerRef,
+		contentRef,
+		atBottom,
+		scrollToBottom,
+		captureAnchor,
+		restoreAnchor,
+	};
 }
