@@ -5,12 +5,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "eb1fa705-34c6-405b-a2ec-70e4efd1614e",
+          "id": "a3b1ca42-32a5-4b73-ba55-22c7fc224994",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "e8663cf8-6991-40ca-b534-b9d48575cc4e"
+            "Token": "8fc50b2d-7dbd-4d13-8a4b-8530e69a3ae7"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -24,15 +24,15 @@
             {
               "workspace_folder": "/workspace1",
               "name": "dev1",
-              "id": "eb9b7f18-c277-48af-af7c-2a8e5fb42bab",
-              "subagent_id": "56eb6c04-83bf-4daa-85d0-dd4ad3983632"
+              "id": "57082e55-29e5-4a97-aef7-ca1889f4d8e0",
+              "subagent_id": "7982c963-c045-4cd3-9d56-e73e0c695832"
             },
             {
               "workspace_folder": "/workspace2",
               "config_path": "/workspace2/.devcontainer/devcontainer.json",
               "name": "dev2",
-              "id": "964430ff-f0d9-4fcb-b645-6333cf6ba9f2",
-              "subagent_id": "19f7ba01-87bd-46f3-99dd-bb9ff5448e3d"
+              "id": "eb653ee6-d974-40be-941b-311e4e778e3e",
+              "subagent_id": "63d6aa70-da0a-402a-85d3-fb99576138fd"
             }
           ],
           "api_key_scope": "all"

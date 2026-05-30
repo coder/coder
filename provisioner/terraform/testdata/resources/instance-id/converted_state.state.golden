@@ -5,7 +5,7 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "8e130bb7-437f-4892-a2e4-ae892f95d824",
+          "id": "c97d61f2-e74a-463e-9e98-3f7602d4e5ea",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",

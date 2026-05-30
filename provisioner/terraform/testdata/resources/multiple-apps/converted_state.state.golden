@@ -5,7 +5,7 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "947c273b-8ec8-4d7e-9f5f-82d777dd7233",
+          "id": "5bd8c310-1580-44a4-8fc8-7919a1d48cb4",
           "name": "dev1",
           "operating_system": "linux",
           "architecture": "amd64",
@@ -36,7 +36,7 @@
             }
           ],
           "Auth": {
-            "Token": "fcb257f7-62fe-48c9-a8fd-b0b80c9fb3c8"
+            "Token": "2b18e324-0a8b-49b7-bd21-5b43599c52fb"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

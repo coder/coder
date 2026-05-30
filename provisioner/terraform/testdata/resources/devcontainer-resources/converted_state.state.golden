@@ -9,12 +9,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "c9ada5fd-2d18-4942-b903-8c95ac337529",
+          "id": "0c601bfc-f762-48fc-ba1f-8c249c7ebca0",
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "723b283e-7b61-4f42-b0af-eb86560343f5"
+            "Token": "2c4308e1-2dc5-4ac7-88b2-183ff3d10276"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -28,8 +28,8 @@
             {
               "workspace_folder": "/workspace",
               "name": "dev",
-              "id": "829a2bfb-3af9-4451-bfd9-04f1c5940bd2",
-              "subagent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+              "id": "2cc8a3e6-3a5f-4555-a948-c6331ed270d6",
+              "subagent_id": "96fbbf67-da12-4ddb-bbc5-6bc9df3ad777",
               "apps": [
                 {
                   "slug": "devcontainer-app",

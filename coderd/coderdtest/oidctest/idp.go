@@ -1414,8 +1414,23 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.NotFound(func(_ http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
-		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
+		// When the IDP runs as a real HTTP server (WithServing), OS
+		// port reuse can route stale connections from other tests to
+		// this server. Only fail the test for paths that look like
+		// legitimate IDP requests (OIDC protocol paths). Non-IDP
+		// paths (e.g. /api/v2/.../provisionerdaemons/serve, /derp)
+		// are cross-test contamination; log but do not fail.
+		idpPath := strings.HasPrefix(r.URL.Path, "/oauth2/") ||
+			strings.HasPrefix(r.URL.Path, "/.well-known/") ||
+			strings.HasPrefix(r.URL.Path, "/login/") ||
+			strings.HasPrefix(r.URL.Path, "/external-auth-validate/")
+		if idpPath {
+			f.logger.Error(r.Context(), "unexpected IDP request at unhandled path", slogRequestFields(r)...)
+			t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
+		} else {
+			f.logger.Warn(r.Context(), "non-IDP request received, likely cross-test port reuse", slogRequestFields(r)...)
+			t.Logf("ignoring non-IDP request at path %q (likely cross-test port reuse)", r.URL.Path)
+		}
 	})
 
 	return mux
