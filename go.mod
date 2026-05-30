@@ -502,7 +502,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.19.0
+	github.com/go-git/go-git/v5 v5.19.1
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/smallstep/pkcs7 v0.2.1
