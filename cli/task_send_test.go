@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func Test_TaskSend(t *testing.T) {
@@ -244,8 +245,15 @@ func Test_TaskSend(t *testing.T) {
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 		resumeTask(setupCtx, t, setup.userClient, setup.task)
 
+		// Set up mock clock and traps before starting the command.
+		// Without a mock clock the poll can race with the stop build
+		// and see a transient 'unknown' status instead of 'paused'.
+		mClock := quartz.NewMock(t)
+		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
+		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
+
 		// When: We attempt to send input to the initializing task.
-		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
+		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -255,13 +263,31 @@ func Test_TaskSend(t *testing.T) {
 		w := clitest.StartWithWaiter(t, inv)
 
 		// Wait for the command to enter the build-watching phase
-		// of waitForTaskReady.
-		pty.ExpectMatchContext(ctx, "Queued")
+		// of waitForTaskIdle.
+		pty.ExpectMatchContext(ctx, "Waiting for task to become idle")
 
-		// Pause the task while waitForTaskReady is polling. Since
+		// Wait for ticker creation and release it.
+		tickCall := tickTrap.MustWait(ctx)
+		tickCall.MustRelease(ctx)
+		tickTrap.Close()
+
+		// Fire the immediate first poll (time.Nanosecond initial interval).
+		// This poll sees 'initializing' because no agent is connected.
+		mClock.Advance(time.Nanosecond).MustWait(ctx)
+
+		// Wait for Reset (confirms first poll completed).
+		resetCall := resetTrap.MustWait(ctx)
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
+
+		// Pause the task while waitForTaskIdle is polling. Since
 		// no agent is connected, the task stays initializing until
 		// we pause it, at which point the status becomes paused.
 		pauseTask(ctx, t, setup.userClient, setup.task)
+
+		// Fire second poll at the regular 5s interval. The stop
+		// build has completed, so the poll sees 'paused'.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
 
 		// Then: The command should fail because the task was paused.
 		err := w.Wait()
@@ -284,13 +310,31 @@ func Test_TaskSend(t *testing.T) {
 			Message: "busy",
 		}))
 
+		// Set up mock clock and traps before starting the command.
+		mClock := quartz.NewMock(t)
+		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
+		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
+
 		// When: We send input while the app is working.
-		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
+		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
+
+		// Wait for ticker creation and release it.
+		tickCall := tickTrap.MustWait(ctx)
+		tickCall.MustRelease(ctx)
+		tickTrap.Close()
+
+		// Fire the immediate first poll (time.Nanosecond initial interval).
+		mClock.Advance(time.Nanosecond).MustWait(ctx)
+
+		// Wait for Reset (confirms first poll completed and saw "working").
+		resetCall := resetTrap.MustWait(ctx)
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
 
 		// Transition the app back to idle so waitForTaskIdle proceeds.
 		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
@@ -298,6 +342,9 @@ func Test_TaskSend(t *testing.T) {
 			State:   codersdk.WorkspaceAppStatusStateIdle,
 			Message: "ready",
 		}))
+
+		// Fire second poll at the regular 5s interval.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
 
 		// Then: The command should complete successfully.
 		require.NoError(t, w.Wait())

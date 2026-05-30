@@ -2498,6 +2498,24 @@ class ApiMethods {
 		}));
 	};
 
+	/**
+	 * Stops a workspace if it is currently running and waits for the stop
+	 * to complete. Throws if the stop build is canceled.
+	 */
+	private stopWorkspaceIfRunning = async (
+		workspace: TypesGen.Workspace,
+	): Promise<void> => {
+		// Workspace is already in a state where it's "stopped".
+		if (workspace.latest_build.status !== "running") return;
+
+		const stopBuild = await this.stopWorkspace(workspace.id);
+		const awaitedStopBuild = await this.waitForBuild(stopBuild);
+
+		if (awaitedStopBuild?.status === "canceled") {
+			throw new Error("Workspace stop was canceled.");
+		}
+	};
+
 	/** Steps to change the workspace version
 	 * - Get the latest template to access the latest active version
 	 * - Get the current build parameters
@@ -2505,6 +2523,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the new version
 	 *   - If there are missing parameters raise an error
+	 * - Stop the workspace if it is already running
 	 * - Create a build with the version and updated build parameters
 	 */
 	changeWorkspaceVersion = async (
@@ -2539,6 +2558,8 @@ class ApiMethods {
 			throw new MissingBuildParameters(missingParameters, templateVersionId);
 		}
 
+		await this.stopWorkspaceIfRunning(workspace);
+
 		return this.postWorkspaceBuild(workspace.id, {
 			transition: "start",
 			template_version_id: templateVersionId,
@@ -2553,7 +2574,7 @@ class ApiMethods {
 	 * - Update the build parameters and check if there are missed parameters for
 	 *   the newest version
 	 *   - If there are missing parameters raise an error
-	 * - Stop the workspace with the current template version if it is already running
+	 * - Stop the workspace if it is already running
 	 * - Create a build with the latest version and updated build parameters
 	 */
 	updateWorkspace = async (
@@ -2585,18 +2606,7 @@ class ApiMethods {
 			}
 		}
 
-		// Stop the workspace if it is already running.
-		if (workspace.latest_build.status === "running") {
-			const stopBuild = await this.stopWorkspace(workspace.id);
-			const awaitedStopBuild = await this.waitForBuild(stopBuild);
-			// If the stop is canceled halfway through, we bail.
-			// This is the same behaviour as restartWorkspace.
-			if (awaitedStopBuild?.status === "canceled") {
-				return Promise.reject(
-					new Error("Workspace stop was canceled, not proceeding with update."),
-				);
-			}
-		}
+		await this.stopWorkspaceIfRunning(workspace);
 
 		try {
 			return await this.postWorkspaceBuild(workspace.id, {
@@ -3080,6 +3090,47 @@ class ApiMethods {
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
+
+	getAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
+		const response = await this.axios.get<TypesGen.AIProvider[]>(
+			"/api/v2/ai/providers",
+		);
+		return response.data;
+	};
+
+	getAIProvider = async (idOrName: string): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.get<TypesGen.AIProvider>(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+		);
+		return response.data;
+	};
+
+	createAIProvider = async (
+		req: TypesGen.CreateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.post<TypesGen.AIProvider>(
+			"/api/v2/ai/providers",
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIProvider = async (
+		idOrName: string,
+		req: TypesGen.UpdateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.patch<TypesGen.AIProvider>(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIProvider = async (idOrName: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+		);
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
@@ -3152,6 +3203,20 @@ class ExperimentalApiMethods {
 	};
 
 	// Chat API methods
+	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`/api/experimental/chats/${chatId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatACL = async (
+		chatId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
+	};
+
 	getChats = async (req?: {
 		after_id?: string;
 		limit?: number;
@@ -3169,20 +3234,6 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
-		const response = await this.axios.get<TypesGen.ChatACL>(
-			`/api/experimental/chats/${chatId}/acl`,
-		);
-		return response.data;
-	};
-
-	updateChatACL = async (
-		chatId: string,
-		req: TypesGen.UpdateChatACL,
-	): Promise<void> => {
-		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
-	};
-
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },

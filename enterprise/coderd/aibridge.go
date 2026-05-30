@@ -43,6 +43,11 @@ const (
 // reference a valid resource in the expected scope.
 var errInvalidCursor = xerrors.New("invalid pagination cursor")
 
+// This name is raised by a trigger function with USING CONSTRAINT.
+// It is not a table CHECK constraint, so dbgen does not emit it in
+// check_constraint.go.
+const userAIBudgetOverridesMustBeGroupMemberConstraint database.CheckConstraint = "user_ai_budget_overrides_must_be_group_member"
+
 // aibridgeHandler handles all aibridged-related endpoints.
 func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	// Build the overload protection middleware chain for the aibridged handler.
@@ -86,7 +91,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				http.StripPrefix("/api/v2/aibridge", api.AGPL.GetAIBridgedHandler()).ServeHTTP(rw, r)
+				api.AGPL.GetAIBridgedHandler().ServeHTTP(rw, r)
 			})
 		})
 	}
@@ -103,7 +108,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
@@ -164,6 +169,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 			StartedBefore: filter.StartedBefore,
 			InitiatorID:   filter.InitiatorID,
 			Provider:      filter.Provider,
+			ProviderName:  filter.ProviderName,
 			Model:         filter.Model,
 			Client:        filter.Client,
 		})
@@ -217,7 +223,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, session_id, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
@@ -296,6 +302,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 			StartedBefore: filter.StartedBefore,
 			InitiatorID:   filter.InitiatorID,
 			Provider:      filter.Provider,
+			ProviderName:  filter.ProviderName,
 			Model:         filter.Model,
 			Client:        filter.Client,
 			SessionID:     filter.SessionID,
@@ -816,6 +823,119 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.Old = deleted.Auditable(group.Name)
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Get user AI budget override
+// @ID get-user-ai-budget-override
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.UserAIBudgetOverride
+// @Router /api/v2/users/{user}/ai/budget [get]
+func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	override, err := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "get user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserAIBudgetOverride(override))
+}
+
+// @Summary Upsert user AI budget override
+// @ID upsert-user-ai-budget-override
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
+// @Success 200 {object} codersdk.UserAIBudgetOverride
+// @Router /api/v2/users/{user}/ai/budget [put]
+func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var req codersdk.UpsertUserAIBudgetOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Look up the group first so a missing or forbidden group_id returns
+	// 404, distinct from the 400 "not a member" case handled below.
+	if _, err := api.Database.GetGroupByID(ctx, req.GroupID); err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		api.Logger.Error(ctx, "get group for user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	override, err := api.Database.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+		UserID:           user.ID,
+		GroupID:          req.GroupID,
+		SpendLimitMicros: req.SpendLimitMicros,
+	})
+	// A trigger enforces that the user must be a member of the attributed
+	// group; it raises check_violation with this constraint name. Map
+	// the violation to a structured 400.
+	if database.IsCheckViolation(err, userAIBudgetOverridesMustBeGroupMemberConstraint) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not a member of the referenced group.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "group_id",
+				Detail: "user must be a member of this group",
+			}},
+		})
+		return
+	}
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "upsert user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserAIBudgetOverride(override))
+}
+
+// @Summary Delete user AI budget override
+// @ID delete-user-ai-budget-override
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 204
+// @Router /api/v2/users/{user}/ai/budget [delete]
+func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	_, err := api.Database.DeleteUserAIBudgetOverride(ctx, user.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "delete user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }

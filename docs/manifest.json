@@ -372,7 +372,7 @@
 					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				}
 			]
 		},
@@ -2387,6 +2387,11 @@
 							"title": "users list",
 							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
+						},
+						{
+							"title": "users oidc-claims",
+							"description": "Display the OIDC claims for the authenticated user.",
+							"path": "reference/cli/users_oidc-claims.md"
 						},
 						{
 							"title": "users show",

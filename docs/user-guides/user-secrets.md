@@ -1,11 +1,11 @@
-# User secrets (Early Access)
+# User secrets (Beta)
 
 User secrets let you store secret values in Coder and make them available in
 every workspace you own.
 
 > [!NOTE]
-> User secrets are in Early Access and may change. For more information, see
-> [feature stages](../install/releases/feature-stages.md#early-access-features).
+> User secrets are in Beta and may change. For more information, see
+> [feature stages](../install/releases/feature-stages.md#beta).
 
 ## How user secrets work
 
@@ -77,7 +77,39 @@ example `~/config` and `/home/coder/config`), only one of them ends up on
 disk; the workspace agent logs a warning to help spot this. Use
 distinct paths to avoid the collision.
 
+## Limits
+
+User secrets are subject to the following limits. Coder enforces these when you
+create or update a secret and rejects the request with an explanatory 400 when
+you exceed one. Delete or shrink an existing secret to make room.
+
+| Cap                                      | Value     |
+|------------------------------------------|-----------|
+| Total secrets per user                   | 50        |
+| Combined stored value bytes per user     | 200 KiB   |
+| Combined stored env-injected value bytes | 24 KiB    |
+| Per-secret value bytes                   | 24 KiB    |
+| Env var name length                      | 256 bytes |
+
+Only secrets created with `--env` count against the env-injected budget. Coder
+injects these into the workspace agent's process environment, which on Windows
+has a ~32 KiB total budget. The 24 KiB ceiling leaves room for Coder's own
+variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env. To
+inject a value larger than this budget, use `--file` instead; file secrets do
+not count against the env budget.
+
+The per-secret cap matches the env aggregate cap because a value larger than
+the env aggregate could never be injected successfully as an environment
+variable.
+
+These caps measure stored bytes, which is what Coder writes to the database.
+In deployments with secret encryption enabled, stored bytes exceed the raw
+value.
+
 ## Create a secret
+
+You can create, edit, and delete user secrets in the Coder dashboard. Click your
+avatar, select **Account**, then select **Secrets**.
 
 Use `coder secret create <name>` to create a user secret. For sensitive values,
 provide the value through non-interactive stdin with a pipe or redirect. This

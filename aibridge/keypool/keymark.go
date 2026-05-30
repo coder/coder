@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // MarkKeyOnStatus marks key based on a key-specific HTTP
@@ -32,7 +31,7 @@ func MarkKeyOnStatus(
 		if key.MarkTemporary(cooldown) {
 			logger.Info(ctx, "key marked temporary",
 				slog.F("provider", providerName),
-				slog.F("api_key_hint", utils.MaskSecret(key.Value())),
+				slog.F("api_key_hint", key.Hint()),
 				slog.F("status", statusCode),
 				slog.F("cooldown", cooldown))
 		}
@@ -41,7 +40,7 @@ func MarkKeyOnStatus(
 		if key.MarkPermanent() {
 			logger.Warn(ctx, "key marked permanent",
 				slog.F("provider", providerName),
-				slog.F("api_key_hint", utils.MaskSecret(key.Value())),
+				slog.F("api_key_hint", key.Hint()),
 				slog.F("status", statusCode))
 		}
 		return true

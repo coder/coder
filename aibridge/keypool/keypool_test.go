@@ -1,7 +1,6 @@
 package keypool_test
 
 import (
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -43,16 +42,15 @@ func TestNewKeyPool(t *testing.T) {
 			// Verify all keys are returned in order and valid.
 			walker := pool.Walker()
 			for _, expected := range tc.expectedKeys {
-				key, err := walker.Next()
-				require.NoError(t, err)
+				key, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				assert.Equal(t, expected, key.Value())
 				assert.Equal(t, keypool.KeyStateValid, key.State())
 			}
 
 			// No more keys available.
-			_, err = walker.Next()
-			var transient *keypool.TransientKeyPoolError
-			require.ErrorAs(t, err, &transient, "expected transient exhaustion: walker returned all valid keys, none marked permanent")
+			_, keyPoolErr := walker.Next()
+			require.Equal(t, &keypool.Error{Kind: keypool.ErrorKindRateLimited}, keyPoolErr, "expected rate-limited exhaustion: walker returned all valid keys, none marked permanent")
 		})
 	}
 }
@@ -69,8 +67,8 @@ func TestState(t *testing.T) {
 			// Fresh key is valid.
 			name: "fresh_key_is_valid",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				return key
 			},
 			expectedState: keypool.KeyStateValid,
@@ -79,8 +77,8 @@ func TestState(t *testing.T) {
 			// Active cooldown makes the key temporary.
 			name: "active_cooldown_is_temporary",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				return key
 			},
@@ -90,8 +88,8 @@ func TestState(t *testing.T) {
 			// Expired cooldown returns the key to valid.
 			name: "expired_cooldown_is_valid",
 			setup: func(t *testing.T, pool *keypool.Pool, clk *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(30 * time.Second)
 				clk.Advance(35 * time.Second)
 				return key
@@ -102,8 +100,8 @@ func TestState(t *testing.T) {
 			// Permanent key is permanent.
 			name: "permanent_key",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkPermanent()
 				return key
 			},
@@ -113,8 +111,8 @@ func TestState(t *testing.T) {
 			// Permanent takes precedence over active cooldown.
 			name: "permanent_with_cooldown_is_permanent",
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				key.MarkPermanent()
 				return key
@@ -152,8 +150,8 @@ func TestMarkTemporary(t *testing.T) {
 			name:     "valid_to_temporary",
 			cooldown: 60 * time.Second,
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				return key
 			},
 			expectedState:      keypool.KeyStateTemporary,
@@ -165,8 +163,8 @@ func TestMarkTemporary(t *testing.T) {
 			name:     "temporary_to_temporary_extends_cooldown",
 			cooldown: 60 * time.Second,
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(10 * time.Second)
 				return key
 			},
@@ -179,8 +177,8 @@ func TestMarkTemporary(t *testing.T) {
 			name:     "temporary_to_temporary_keeps_longer_cooldown",
 			cooldown: 10 * time.Second,
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				return key
 			},
@@ -192,8 +190,8 @@ func TestMarkTemporary(t *testing.T) {
 			name:     "permanent_to_temporary_is_no_op",
 			cooldown: 60 * time.Second,
 			setup: func(t *testing.T, pool *keypool.Pool, _ *quartz.Mock) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkPermanent()
 				return key
 			},
@@ -231,8 +229,8 @@ func TestMarkPermanent(t *testing.T) {
 			// valid -> permanent: key becomes permanently unavailable.
 			name: "valid_to_permanent",
 			setup: func(t *testing.T, pool *keypool.Pool) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				return key
 			},
 			expectedState:      keypool.KeyStatePermanent,
@@ -243,8 +241,8 @@ func TestMarkPermanent(t *testing.T) {
 			// to auth failure.
 			name: "temporary_to_permanent",
 			setup: func(t *testing.T, pool *keypool.Pool) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				return key
 			},
@@ -255,8 +253,8 @@ func TestMarkPermanent(t *testing.T) {
 			// permanent -> permanent: no-op, already permanent.
 			name: "permanent_to_permanent",
 			setup: func(t *testing.T, pool *keypool.Pool) *keypool.Key {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkPermanent()
 				return key
 			},
@@ -290,7 +288,7 @@ func TestWalkerNext(t *testing.T) {
 		setup         func(t *testing.T, pool *keypool.Pool)
 		advance       time.Duration
 		expectedValid []string
-		expectedErr   error
+		expectedErr   *keypool.Error
 	}{
 		{
 			// Given: key-0: valid, key-1: valid, key-2: valid.
@@ -299,7 +297,7 @@ func TestWalkerNext(t *testing.T) {
 			keys:          []string{"key-0", "key-1", "key-2"},
 			setup:         func(_ *testing.T, _ *keypool.Pool) {},
 			expectedValid: []string{"key-0", "key-1", "key-2"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary, key-1: valid, key-2: valid.
@@ -307,12 +305,12 @@ func TestWalkerNext(t *testing.T) {
 			name: "skips_temporary_keys",
 			keys: []string{"key-0", "key-1", "key-2"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 			},
 			expectedValid: []string{"key-1", "key-2"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: permanent, key-1: permanent, key-2: valid.
@@ -321,15 +319,15 @@ func TestWalkerNext(t *testing.T) {
 			keys: []string{"key-0", "key-1", "key-2"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
 				walker := pool.Walker()
-				key0, err := walker.Next()
-				require.NoError(t, err)
+				key0, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key0.MarkPermanent()
-				key1, err := walker.Next()
-				require.NoError(t, err)
+				key1, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key1.MarkPermanent()
 			},
 			expectedValid: []string{"key-2"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (30s), key-1: valid.
@@ -338,13 +336,13 @@ func TestWalkerNext(t *testing.T) {
 			name: "expired_temporary_is_available",
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(30 * time.Second)
 			},
 			advance:       35 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (zero, default 60s), key-1: valid.
@@ -353,13 +351,13 @@ func TestWalkerNext(t *testing.T) {
 			name: "default_cooldown_not_expired",
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(0)
 			},
 			advance:       50 * time.Second,
 			expectedValid: []string{"key-1"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (zero, default 60s), key-1: valid.
@@ -368,13 +366,13 @@ func TestWalkerNext(t *testing.T) {
 			name: "default_cooldown_expired",
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(0)
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (negative, default 60s), key-1: valid.
@@ -383,13 +381,13 @@ func TestWalkerNext(t *testing.T) {
 			name: "negative_cooldown_uses_default",
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(-10 * time.Second)
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0", "key-1"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (60s), then marked again with shorter cooldown (10s).
@@ -398,14 +396,14 @@ func TestWalkerNext(t *testing.T) {
 			name: "shorter_cooldown_preserves_longer_not_expired",
 			keys: []string{"key-0"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				key.MarkTemporary(10 * time.Second)
 			},
 			advance:       15 * time.Second,
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 45 * time.Second},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 45 * time.Second},
 		},
 		{
 			// Given: key-0: temporary (60s), then marked again with shorter cooldown (10s).
@@ -414,14 +412,14 @@ func TestWalkerNext(t *testing.T) {
 			name: "shorter_cooldown_preserves_longer_expired",
 			keys: []string{"key-0"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
-				key, err := pool.Walker().Next()
-				require.NoError(t, err)
+				key, keyPoolErr := pool.Walker().Next()
+				require.Nil(t, keyPoolErr)
 				key.MarkTemporary(60 * time.Second)
 				key.MarkTemporary(10 * time.Second)
 			},
 			advance:       65 * time.Second,
 			expectedValid: []string{"key-0"},
-			expectedErr:   &keypool.TransientKeyPoolError{},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 		},
 		{
 			// Given: key-0: temporary (60s), key-1: temporary (10s), key-2: temporary (30s).
@@ -431,18 +429,18 @@ func TestWalkerNext(t *testing.T) {
 			keys: []string{"key-0", "key-1", "key-2"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
 				walker := pool.Walker()
-				key0, err := walker.Next()
-				require.NoError(t, err)
+				key0, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key0.MarkTemporary(60 * time.Second)
-				key1, err := walker.Next()
-				require.NoError(t, err)
+				key1, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key1.MarkTemporary(10 * time.Second)
-				key2, err := walker.Next()
-				require.NoError(t, err)
+				key2, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key2.MarkTemporary(30 * time.Second)
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 10 * time.Second},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 10 * time.Second},
 		},
 		{
 			// Given: key-0: temporary, key-1: temporary.
@@ -451,15 +449,15 @@ func TestWalkerNext(t *testing.T) {
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
 				walker := pool.Walker()
-				key0, err := walker.Next()
-				require.NoError(t, err)
+				key0, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key0.MarkTemporary(60 * time.Second)
-				key1, err := walker.Next()
-				require.NoError(t, err)
+				key1, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key1.MarkTemporary(60 * time.Second)
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 60 * time.Second},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 60 * time.Second},
 		},
 		{
 			// Given: key-0: permanent, key-1: permanent.
@@ -468,15 +466,15 @@ func TestWalkerNext(t *testing.T) {
 			keys: []string{"key-0", "key-1"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
 				walker := pool.Walker()
-				key0, err := walker.Next()
-				require.NoError(t, err)
+				key0, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key0.MarkPermanent()
-				key1, err := walker.Next()
-				require.NoError(t, err)
+				key1, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key1.MarkPermanent()
 			},
 			expectedValid: []string{},
-			expectedErr:   keypool.ErrPermanentKeyPool,
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindPermanent},
 		},
 		{
 			// Given: key-0: permanent, key-1: temporary, key-2: permanent.
@@ -485,18 +483,18 @@ func TestWalkerNext(t *testing.T) {
 			keys: []string{"key-0", "key-1", "key-2"},
 			setup: func(t *testing.T, pool *keypool.Pool) {
 				walker := pool.Walker()
-				key0, err := walker.Next()
-				require.NoError(t, err)
+				key0, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key0.MarkPermanent()
-				key1, err := walker.Next()
-				require.NoError(t, err)
+				key1, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key1.MarkTemporary(60 * time.Second)
-				key2, err := walker.Next()
-				require.NoError(t, err)
+				key2, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				key2.MarkPermanent()
 			},
 			expectedValid: []string{},
-			expectedErr:   &keypool.TransientKeyPoolError{RetryAfter: 60 * time.Second},
+			expectedErr:   &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 60 * time.Second},
 		},
 	}
 
@@ -516,21 +514,14 @@ func TestWalkerNext(t *testing.T) {
 
 			walker := pool.Walker()
 			for _, expectedKey := range tc.expectedValid {
-				key, err := walker.Next()
-				require.NoError(t, err)
+				key, keyPoolErr := walker.Next()
+				require.Nil(t, keyPoolErr)
 				assert.Equal(t, expectedKey, key.Value())
 			}
 
 			// After all expected keys, the walker should be exhausted.
-			_, err = walker.Next()
-			var wantTransient *keypool.TransientKeyPoolError
-			if errors.As(tc.expectedErr, &wantTransient) {
-				var got *keypool.TransientKeyPoolError
-				require.ErrorAs(t, err, &got)
-				assert.Equal(t, wantTransient.RetryAfter, got.RetryAfter)
-			} else {
-				require.ErrorIs(t, err, tc.expectedErr)
-			}
+			_, keyPoolErr := walker.Next()
+			require.Equal(t, tc.expectedErr, keyPoolErr)
 		})
 	}
 }
@@ -595,8 +586,8 @@ func TestKeyConcurrent(t *testing.T) {
 			clk := quartz.NewMock(t)
 			pool, err := keypool.New([]string{"key-0"}, clk)
 			require.NoError(t, err)
-			key, err := pool.Walker().Next()
-			require.NoError(t, err)
+			key, keyPoolErr := pool.Walker().Next()
+			require.Nil(t, keyPoolErr)
 
 			const numGoroutines = 10
 			var wg sync.WaitGroup
@@ -628,29 +619,29 @@ func TestWalkerIndependence(t *testing.T) {
 	walker := pool.Walker()
 
 	// First attempt: get key-0.
-	key, err := walker.Next()
-	require.NoError(t, err)
+	key, keyPoolErr := walker.Next()
+	require.Nil(t, keyPoolErr)
 	assert.Equal(t, "key-0", key.Value())
 
 	// Simulate 429: mark key-0 temporary.
 	key.MarkTemporary(60 * time.Second)
 
 	// Second attempt: walker advances to key-1.
-	key, err = walker.Next()
-	require.NoError(t, err)
+	key, keyPoolErr = walker.Next()
+	require.Nil(t, keyPoolErr)
 	assert.Equal(t, "key-1", key.Value())
 
 	// Simulate 401: mark key-1 permanent.
 	key.MarkPermanent()
 
 	// Third attempt: walker advances to key-2.
-	key, err = walker.Next()
-	require.NoError(t, err)
+	key, keyPoolErr = walker.Next()
+	require.Nil(t, keyPoolErr)
 	assert.Equal(t, "key-2", key.Value())
 
 	// A new walker should skip key-0 (temporary) and key-1
 	// (permanent), and return key-2.
-	key2, err := pool.Walker().Next()
-	require.NoError(t, err)
+	key2, keyPoolErr := pool.Walker().Next()
+	require.Nil(t, keyPoolErr)
 	assert.Equal(t, "key-2", key2.Value())
 }

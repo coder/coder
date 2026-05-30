@@ -1336,7 +1336,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:           sanitizeAgentDisplayMode(shellToolMode),
+		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
 		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
@@ -1446,13 +1446,13 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating shell tool display mode.", err)
 			}
-			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(updated)
+			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(updated)
 		} else {
 			stored, err := tx.GetUserShellToolDisplayMode(ctx, user.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return newUserPreferenceSettingsAPIError("Error reading shell tool display mode.", err)
 			}
-			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(stored)
+			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(stored)
 		}
 
 		if params.CodeDiffDisplayMode != "" {
@@ -1545,12 +1545,20 @@ func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
 	return codersdk.ThinkingDisplayModeAuto
 }
 
+func sanitizeShellToolDisplayMode(raw string) codersdk.AgentDisplayMode {
+	mode := sanitizeAgentDisplayMode(raw)
+	if mode == "" {
+		return codersdk.AgentDisplayModeAlwaysCollapsed
+	}
+	return mode
+}
+
 func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
 	mode := codersdk.AgentDisplayMode(raw)
 	if slices.Contains(codersdk.ValidAgentDisplayModes, mode) {
 		return mode
 	}
-	return codersdk.AgentDisplayModeAuto
+	return ""
 }
 
 func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
