@@ -25,6 +25,10 @@ if [[ "$branch_name" == "main" ]]; then
 	log "VERDICT: DEPLOY"
 	echo "DEPLOY" # stdout
 	exit 0
+else
+	log "VERDICT: NOOP"
+	echo "NOOP" # stdout
+	exit 0
 fi
 
 if [[ "$branch_name" != "main" && ! "$branch_name" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
