@@ -26,6 +26,14 @@ const AnchorHarness: FC = () => {
 		setVersion((value) => value + 1);
 	};
 
+	// growNoCapture changes heights and triggers a restore without capturing
+	// first, so a test can capture, scroll, then mutate and prove the restore
+	// honors the post-scroll position instead of the capture position.
+	const growNoCapture = (changes: Record<number, number>) => {
+		setHeights((prev) => ({ ...prev, ...changes }));
+		setVersion((value) => value + 1);
+	};
+
 	// biome-ignore lint/correctness/useExhaustiveDependencies(version): version is the layout-mutation trigger; restore reads the DOM and must run after each mutation commits.
 	useLayoutEffect(() => {
 		restoreAnchor();
@@ -47,6 +55,20 @@ const AnchorHarness: FC = () => {
 					onClick={() => mutate({ 5: 200, 35: 0 })}
 				>
 					zero-net
+				</button>
+				<button
+					type="button"
+					data-testid="capture"
+					onClick={() => captureAnchor()}
+				>
+					capture
+				</button>
+				<button
+					type="button"
+					data-testid="grow-no-capture"
+					onClick={() => growNoCapture({ 5: 300 })}
+				>
+					grow-no-capture
 				</button>
 			</div>
 			<div
@@ -118,6 +140,37 @@ export const AnchorSurvivesZeroNetMutation: Story = {
 		// amount: total height is unchanged, so a content ResizeObserver never
 		// fires, yet the anchor moved. Only capture/restore corrects this.
 		await userEvent.click(canvas.getByTestId("zero-net"));
+		await waitFor(() =>
+			expect(
+				Math.abs(
+					offsetFromTop(scroller, canvas.getByTestId("row-20")) - before,
+				),
+			).toBeLessThanOrEqual(2),
+		);
+	},
+};
+
+// Reproduces the Safari instability: the anchor is captured at one scroll
+// position, the user scrolls, then content above changes. The restore must
+// compensate only the content growth and leave the viewport where the scroll
+// put it. The earlier offset-delta formula snapped back to the capture point.
+export const AnchorSurvivesScrollBetweenCaptureAndMutation: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scroller = canvas.getByTestId("scroll-container");
+		scroller.scrollTop = SCROLL_TO_ROW_20;
+		scroller.dispatchEvent(new Event("scroll"));
+		await waitFor(() => expect(scroller.scrollTop).toBe(SCROLL_TO_ROW_20));
+		// Capture row 20 at the top, then scroll up 200px without re-capturing,
+		// mimicking a continuous scroll where capture ran a frame earlier.
+		await userEvent.click(canvas.getByTestId("capture"));
+		scroller.scrollTop = SCROLL_TO_ROW_20 - 200;
+		scroller.dispatchEvent(new Event("scroll"));
+		await waitFor(() =>
+			expect(scroller.scrollTop).toBe(SCROLL_TO_ROW_20 - 200),
+		);
+		const before = offsetFromTop(scroller, canvas.getByTestId("row-20"));
+		await userEvent.click(canvas.getByTestId("grow-no-capture"));
 		await waitFor(() =>
 			expect(
 				Math.abs(

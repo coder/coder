@@ -11,12 +11,15 @@ export function isAtBottom(
 	return scrollHeight - scrollTop - clientHeight <= threshold;
 }
 
-// correctedScrollTop returns the scrollTop that keeps an anchor element at its
-// previous viewport offset after content above it changed height.
+// correctedScrollTop returns the scrollTop that keeps an anchor element visually
+// fixed after content above it changed height. It works from the anchor's
+// content position (scrollTop + viewport offset) at capture versus now, so a
+// scroll that happened between capture and restore is not mistaken for a content
+// shift and never snaps the viewport back to the capture position.
 export function correctedScrollTop(
-	scrollTop: number,
-	previousOffset: number,
-	currentOffset: number,
+	currentScrollTop: number,
+	savedContentTop: number,
+	currentContentTop: number,
 ): number {
-	return scrollTop + (currentOffset - previousOffset);
+	return currentScrollTop + (currentContentTop - savedContentTop);
 }

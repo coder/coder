@@ -9,7 +9,10 @@ import { correctedScrollTop, isAtBottom } from "./anchorMath";
 
 // The anchor is keyed by a stable item id so it survives windowing remounts.
 // The element ref is a fast path; if it has been unmounted we re-find by id.
-type Anchor = { id: string | null; el: HTMLElement; offset: number };
+// contentTop is the anchor's position in scroll content coordinates
+// (scrollTop + viewport offset) at capture; comparing it to the current content
+// position isolates content-height changes from any scroll that happened since.
+type Anchor = { id: string | null; el: HTMLElement; contentTop: number };
 
 const ITEM_SELECTOR = "[data-chat-item]";
 
@@ -30,7 +33,7 @@ function findTopAnchor(
 			return {
 				id: child.getAttribute("data-chat-item-id"),
 				el: child,
-				offset: rect.top - scrollerTop,
+				contentTop: scroller.scrollTop + (rect.top - scrollerTop),
 			};
 		}
 	}
@@ -115,13 +118,20 @@ export function useScrollAnchor(): ScrollAnchor {
 		if (!el) {
 			return;
 		}
-		const offset =
-			el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+		const currentContentTop =
+			scroller.scrollTop +
+			(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
 		scroller.scrollTop = correctedScrollTop(
 			scroller.scrollTop,
-			anchor.offset,
-			offset,
+			anchor.contentTop,
+			currentContentTop,
 		);
+		// Re-baseline to the anchor's current content position so a second restore
+		// for the same change (the content ResizeObserver, a repeated effect, a
+		// StrictMode double invoke) computes a zero delta and stays a no-op.
+		// Scrolling does not move an element's content position, so this never
+		// suppresses a later correction.
+		anchor.contentTop = currentContentTop;
 	}, []);
 
 	useEffect(() => {
