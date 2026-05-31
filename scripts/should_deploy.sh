@@ -17,6 +17,16 @@ deploy_branch=main
 # branch names.
 branch_name=$(git branch --show-current)
 
+# Short circuit: we no longer deploy release branches to dogfood, and instead
+# test them on the stable deployment.
+# TODO: once we're happy with the new deployment process, we can remove this
+# script and the related github workflow stuff.
+if [[ "$branch_name" == "main" ]]; then
+	log "VERDICT: DEPLOY"
+	echo "DEPLOY" # stdout
+	exit 0
+fi
+
 if [[ "$branch_name" != "main" && ! "$branch_name" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
 	error "Current branch '$branch_name' is not a supported branch name for dogfood, must be 'main' or 'release/x.y'"
 fi
