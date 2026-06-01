@@ -295,8 +295,8 @@ export const KeyboardNavigation: Story = {
 		}
 
 		await expect(resultsViewport).toHaveAttribute("tabindex", "-1");
-		await expect(firstResult).toHaveAttribute("tabindex", "-1");
-		await expect(secondResult).toHaveAttribute("tabindex", "-1");
+		await expect(firstResult).toHaveAttribute("tabindex", "0");
+		await expect(secondResult).toHaveAttribute("tabindex", "0");
 
 		await userEvent.keyboard("{ArrowUp}");
 		await expect(secondResult).toHaveAttribute("aria-selected", "true");
@@ -429,6 +429,30 @@ export const BooleanFilterPill: Story = {
 				q: "has_unread:true",
 			});
 		});
+	},
+};
+
+export const SearchResultsAreTabbable: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.type(searchInput, "Fix");
+		const firstResult = await body.findByRole("option", {
+			name: /Fix race condition in auth middleware/,
+		});
+		const secondResult = await body.findByRole("option", {
+			name: /Fix flaky workspace search story/,
+		});
+		await expect(firstResult).toHaveAttribute("tabindex", "0");
+		await expect(secondResult).toHaveAttribute("tabindex", "0");
+
+		await userEvent.tab();
+		await userEvent.tab();
+		await expect(firstResult).toHaveFocus();
+
+		await userEvent.tab();
+		await expect(secondResult).toHaveFocus();
 	},
 };
 

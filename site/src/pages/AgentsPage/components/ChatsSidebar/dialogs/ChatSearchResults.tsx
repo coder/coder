@@ -263,11 +263,11 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 			id={id}
 			role="option"
 			aria-selected={isSelected}
-			tabIndex={-1}
+			tabIndex={0}
 			to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 			onClick={onSelect}
 			className={cn(
-				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
+				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-content-link",
 				isSelected && "bg-surface-tertiary/40 text-content-primary",
 			)}
 		>
