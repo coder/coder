@@ -1008,6 +1008,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Chat Sharing",
+							"description": "Share Coder Agents conversations with users and groups",
+							"path": "./ai-coder/agents/chat-sharing.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Models",
 							"description": "Configure LLM providers and models for Coder Agents",
 							"path": "./ai-coder/agents/models.md",
