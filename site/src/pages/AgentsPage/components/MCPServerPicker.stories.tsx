@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
@@ -27,11 +27,11 @@ const createServerConfig = (
 	api_key_header: overrides.api_key_header,
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
 	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
 	custom_headers_user_key_descriptions:
 		overrides.custom_headers_user_key_descriptions ?? {},
+	tool_allow_list: overrides.tool_allow_list ?? [],
+	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
@@ -119,6 +119,29 @@ const datadogServer = createServerConfig({
 	enabled: true,
 	auth_connected: false,
 });
+
+const honchoServer = createServerConfig({
+	id: "mcp-honcho",
+	display_name: "Honcho",
+	slug: "honcho",
+	description: "Persistent memory for agents",
+	url: "https://mcp.honcho.dev/v1",
+	transport: "streamable_http",
+	auth_type: "custom_headers",
+	has_custom_headers: true,
+	custom_headers_user_keys: ["X-Honcho-User-Token"],
+	custom_headers_user_key_descriptions: {
+		"X-Honcho-User-Token": "Your personal Honcho API token.",
+	},
+	availability: "default_on",
+	enabled: true,
+	auth_connected: false,
+});
+
+const honchoServerConnected = {
+	...honchoServer,
+	auth_connected: true,
+};
 
 const disabledServer = createServerConfig({
 	id: "mcp-disabled",
@@ -212,6 +235,34 @@ export const OAuthConnected: Story = {
 	args: {
 		servers: [githubServerConnected],
 		selectedServerIds: [githubServerConnected.id],
+	},
+};
+
+/** Custom-headers server needing user-supplied values. Shows Configure button. */
+export const CustomHeadersNeedsConfig: Story = {
+	args: {
+		servers: [honchoServer],
+		selectedServerIds: [honchoServer.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", { name: /MCP servers/i });
+		await userEvent.click(trigger);
+		// The popover content renders into a portal outside the canvas,
+		// so use the document-scoped screen helper to find the Configure
+		// button rendered against the honchoServer row.
+		const configure = await screen.findByRole("button", {
+			name: /Configure/i,
+		});
+		expect(configure).toBeInTheDocument();
+	},
+};
+
+/** Custom-headers server with all user values supplied. Shows toggle. */
+export const CustomHeadersConnected: Story = {
+	args: {
+		servers: [honchoServerConnected],
+		selectedServerIds: [honchoServerConnected.id],
 	},
 };
 

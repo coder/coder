@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -91,6 +92,21 @@ export const getDefaultMCPSelection = (
 	return ids;
 };
 
+/**
+ * Returns true when the server cannot be used yet because the calling
+ * user still has authentication work to do: OAuth2 sign-in for
+ * `oauth2` servers, or user-supplied header values for
+ * `custom_headers` servers with admin-marked user keys. Used both to
+ * decide which control to render in the picker and to exclude
+ * unconnected servers from the trigger icon stack.
+ */
+export const mcpServerNeedsAuth = (server: TypesGen.MCPServerConfig): boolean =>
+	(server.auth_type === "oauth2" || server.auth_type === "custom_headers") &&
+	!server.auth_connected;
+
+/** Route that hosts the user MCP settings page with the Configure dialog. */
+export const userMCPServersSettingsPath = "/agents/settings/user-mcp-servers";
+
 /** localStorage key for persisting the user's MCP server selection. */
 export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 
@@ -181,6 +197,105 @@ const TriggerIconStack: FC<{
 	);
 };
 
+// ── Per-server auth/toggle control ─────────────────────────────
+
+interface MCPServerAuthControlProps {
+	server: TypesGen.MCPServerConfig;
+	isSelected: boolean;
+	isConnecting: boolean;
+	disabled: boolean;
+	/** Disable the OAuth2 Auth button while another connect flow is in progress. */
+	connectingDisabled: boolean;
+	forceOn: boolean;
+	onConnect: (server: TypesGen.MCPServerConfig) => void;
+	onConfigure: () => void;
+	onToggle: (id: string, checked: boolean) => void;
+	/** Extra classes for the Auth/Configure button. */
+	buttonClassName?: string;
+	switchSize?: "sm";
+}
+
+/**
+ * Renders the right-hand control for a single MCP server row:
+ * - an `Auth` button when an OAuth2 server still needs sign-in,
+ * - a `Configure` button when a `custom_headers` server still needs
+ *   per-user header values supplied,
+ * - otherwise a Switch toggle for inclusion in the conversation.
+ *
+ * Shared between `MCPServerPicker` (used in `AgentCreateForm`) and
+ * the inline MCP picker inside `AgentChatInput`'s plus menu.
+ */
+export const MCPServerAuthControl: FC<MCPServerAuthControlProps> = ({
+	server,
+	isSelected,
+	isConnecting,
+	disabled,
+	connectingDisabled,
+	forceOn,
+	onConnect,
+	onConfigure,
+	onToggle,
+	buttonClassName,
+	switchSize,
+}) => {
+	const needsOAuth = server.auth_type === "oauth2" && !server.auth_connected;
+	const needsHeaderConfig =
+		server.auth_type === "custom_headers" && !server.auth_connected;
+
+	if (needsOAuth) {
+		return (
+			<Button
+				variant="outline"
+				size="sm"
+				className={cn(
+					"h-6 shrink-0 px-2 text-[10px] leading-none",
+					buttonClassName,
+				)}
+				onClick={(e) => {
+					e.stopPropagation();
+					onConnect(server);
+				}}
+				disabled={disabled || connectingDisabled}
+				aria-label={`Authenticate with ${server.display_name}`}
+			>
+				{isConnecting ? <Spinner loading className="h-2.5 w-2.5" /> : null}
+				Auth
+			</Button>
+		);
+	}
+
+	if (needsHeaderConfig) {
+		return (
+			<Button
+				variant="outline"
+				size="sm"
+				className={cn(
+					"h-6 shrink-0 px-2 text-[10px] leading-none",
+					buttonClassName,
+				)}
+				onClick={(e) => {
+					e.stopPropagation();
+					onConfigure();
+				}}
+				disabled={disabled}
+				aria-label={`Configure ${server.display_name}`}
+			>
+				Configure
+			</Button>
+		);
+	}
+
+	return (
+		<Switch
+			size={switchSize}
+			checked={isSelected}
+			onCheckedChange={(checked) => onToggle(server.id, checked)}
+			disabled={disabled || forceOn}
+			aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+		/>
+	);
+};
+
 // ── Component ──────────────────────────────────────────────────
 
 export const MCPServerPicker: FC<MCPServerPickerProps> = ({
@@ -204,8 +319,10 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	const activeServers = enabledServers.filter(
 		(s) =>
 			(s.availability === "force_on" || selectedServerIds.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
+			!mcpServerNeedsAuth(s),
 	);
+
+	const navigate = useNavigate();
 
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
@@ -262,6 +379,11 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 		);
 	};
 
+	const handleConfigureHeaders = () => {
+		setOpen(false);
+		navigate(userMCPServersSettingsPath);
+	};
+
 	if (enabledServers.length === 0) {
 		return null;
 	}
@@ -289,8 +411,6 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 							const isForceOn = server.availability === "force_on";
 							const isSelected =
 								isForceOn || selectedServerIds.includes(server.id);
-							const needsAuth =
-								server.auth_type === "oauth2" && !server.auth_connected;
 							const isConnecting = connectingServerId === server.id;
 
 							return (
@@ -308,33 +428,18 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											{isForceOn && (
 												<LockIcon className="size-3 shrink-0 text-content-secondary" />
 											)}
-											{needsAuth ? (
-												<Button
-													variant="outline"
-													size="sm"
-													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
-													onClick={(e) => {
-														e.stopPropagation();
-														handleConnect(server);
-													}}
-													disabled={disabled || connectingServerId !== null}
-													aria-label={`Authenticate with ${server.display_name}`}
-												>
-													{isConnecting ? (
-														<Spinner loading className="h-2.5 w-2.5" />
-													) : null}
-													Auth
-												</Button>
-											) : (
-												<Switch
-													checked={isSelected}
-													onCheckedChange={(checked) =>
-														handleToggle(server.id, checked)
-													}
-													disabled={disabled || isForceOn}
-													aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-												/>
-											)}
+											<MCPServerAuthControl
+												server={server}
+												isSelected={isSelected}
+												isConnecting={isConnecting}
+												disabled={disabled}
+												connectingDisabled={connectingServerId !== null}
+												forceOn={isForceOn}
+												onConnect={handleConnect}
+												onConfigure={handleConfigureHeaders}
+												onToggle={handleToggle}
+												buttonClassName="w-fit min-w-0 gap-0 border-border/50"
+											/>
 										</div>
 									</TooltipTrigger>
 									<TooltipContent

@@ -28,11 +28,11 @@ const createServerConfig = (
 	api_key_header: overrides.api_key_header,
 	has_api_key: overrides.has_api_key ?? false,
 	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
 	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
 	custom_headers_user_key_descriptions:
 		overrides.custom_headers_user_key_descriptions ?? {},
+	tool_allow_list: overrides.tool_allow_list ?? [],
+	tool_deny_list: overrides.tool_deny_list ?? [],
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
@@ -752,5 +752,136 @@ export const CreateServerUserOIDC: Story = {
 		expect(call).not.toHaveProperty("oauth2_client_id");
 		expect(call).not.toHaveProperty("api_key_value");
 		expect(call).not.toHaveProperty("custom_headers");
+	},
+};
+
+/**
+ * Create a server with mixed admin and user-set custom headers.
+ * Verifies the submission splits the rows into `custom_headers` and
+ * `custom_headers_user_keys`.
+ */
+export const CreateServerCustomHeadersWithUserSet: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		await userEvent.type(await body.findByLabelText(/Display Name/i), "Honcho");
+		await userEvent.type(
+			body.getByLabelText(/Server URL/i),
+			"https://api.honcho.dev/mcp",
+		);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+		await userEvent.click(body.getByLabelText(/Authentication/i));
+		await userEvent.click(
+			await body.findByRole("option", { name: /Custom Headers/i }),
+		);
+
+		// Row 1: admin-set header.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add header/i }),
+		);
+		await userEvent.type(body.getByLabelText(/Header 1 name/i), "X-Honcho-App");
+		await userEvent.type(
+			body.getByLabelText(/Header 1 value/i),
+			"shared-app-id",
+		);
+
+		// Row 2: user-set header.
+		await userEvent.click(body.getByRole("button", { name: /Add header/i }));
+		await userEvent.type(
+			body.getByLabelText(/Header 2 name/i),
+			"X-Honcho-User",
+		);
+		await userEvent.click(body.getByLabelText(/Header 2 user-set/i));
+
+		// Row 2 should now show the placeholder instead of a value input.
+		expect(
+			body.getByLabelText(/Header 2 value \(set by user\)/i),
+		).toHaveTextContent(/Set by each user/i);
+
+		// Fill in an optional description for the user-set row.
+		await userEvent.type(
+			body.getByLabelText(/Description \(optional\)/i),
+			"Your Honcho user ID.",
+		);
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth_type: "custom_headers",
+				custom_headers: { "X-Honcho-App": "shared-app-id" },
+				custom_headers_user_keys: ["X-Honcho-User"],
+				custom_headers_user_key_descriptions: {
+					"X-Honcho-User": "Your Honcho user ID.",
+				},
+			}),
+		);
+	},
+};
+
+/**
+ * Editing a server that already has user-set keys pre-populates the rows
+ * in `User-set` mode (value hidden behind a placeholder).
+ */
+export const EditServerWithCustomHeadersUserKeys: Story = {
+	args: {
+		serversData: [
+			createServerConfig({
+				id: "mcp-honcho",
+				display_name: "Honcho",
+				slug: "honcho",
+				url: "https://api.honcho.dev/mcp",
+				auth_type: "custom_headers",
+				has_custom_headers: true,
+				custom_headers_user_keys: ["X-Honcho-User"],
+				custom_headers_user_key_descriptions: {
+					"X-Honcho-User": "Your Honcho user ID.",
+				},
+				availability: "default_on",
+				enabled: true,
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(await body.findByRole("button", { name: /Honcho/ }));
+
+		// Open the Authentication section.
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+
+		// Pre-populated user-set row should be visible with the key.
+		await waitFor(() => {
+			expect(body.getByLabelText(/Header 1 name/i)).toHaveValue(
+				"X-Honcho-User",
+			);
+		});
+
+		// User-set checkbox should be checked and the value field hidden.
+		expect(body.getByLabelText(/Header 1 user-set/i)).toBeChecked();
+		expect(
+			body.getByLabelText(/Header 1 value \(set by user\)/i),
+		).toBeInTheDocument();
+		expect(body.queryByLabelText(/^Header 1 value$/i)).not.toBeInTheDocument();
+
+		// Description for the pre-populated key should be displayed.
+		expect(body.getByLabelText(/Description \(optional\)/i)).toHaveValue(
+			"Your Honcho user ID.",
+		);
 	},
 };

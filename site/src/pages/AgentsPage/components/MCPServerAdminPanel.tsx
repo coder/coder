@@ -16,6 +16,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -350,7 +351,12 @@ interface MCPServerFormValues {
 	forwardCoderHeaders: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
-	customHeaders: Array<{ key: string; value: string }>;
+	customHeaders: Array<{
+		key: string;
+		value: string;
+		userSet: boolean;
+		description: string;
+	}>;
 	customHeadersTouched: boolean;
 }
 
@@ -381,7 +387,12 @@ const buildInitialValues = (
 	forwardCoderHeaders: server?.forward_coder_headers ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
-	customHeaders: [],
+	customHeaders: (server?.custom_headers_user_keys ?? []).map((k) => ({
+		key: k,
+		value: "",
+		userSet: true,
+		description: server?.custom_headers_user_key_descriptions?.[k] ?? "",
+	})),
 	customHeadersTouched: false,
 });
 
@@ -453,8 +464,21 @@ const ServerForm: FC<ServerFormProps> = ({
 					values.customHeadersTouched && {
 						custom_headers: Object.fromEntries(
 							values.customHeaders
-								.filter((h) => h.key.trim() !== "")
+								.filter((h) => !h.userSet && h.key.trim() !== "")
 								.map((h) => [h.key.trim(), h.value]),
+						),
+						custom_headers_user_keys: values.customHeaders
+							.filter((h) => h.userSet && h.key.trim() !== "")
+							.map((h) => h.key.trim()),
+						custom_headers_user_key_descriptions: Object.fromEntries(
+							values.customHeaders
+								.filter(
+									(h) =>
+										h.userSet &&
+										h.key.trim() !== "" &&
+										h.description.trim() !== "",
+								)
+								.map((h) => [h.key.trim(), h.description.trim()]),
 						),
 					}),
 				tool_allow_list: splitList(values.toolAllowList),
@@ -819,73 +843,180 @@ const ServerForm: FC<ServerFormProps> = ({
 										{server?.has_custom_headers &&
 											!form.values.customHeadersTouched && (
 												<p className="m-0 text-xs text-content-secondary">
-													This server has custom headers configured. Add headers
-													below to replace them.
+													This server has custom headers configured. Editing
+													replaces all of them (admin and user-set).
 												</p>
 											)}
-										{form.values.customHeaders.map((header, index) => (
-											<div key={index} className="flex items-start gap-2">
-												<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
-													<Input
-														className="h-9 text-[13px]"
-														value={header.key}
-														onChange={(e) => {
-															form.setFieldValue("customHeadersTouched", true);
-															const updated = [...form.values.customHeaders];
-															updated[index] = {
-																...updated[index],
-																key: e.target.value,
-															};
-															form.setFieldValue("customHeaders", updated);
-														}}
-														placeholder="Header name"
-														disabled={isDisabled}
-														aria-label={`Header ${index + 1} name`}
-													/>
-													<Input
-														className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
-														type="text"
-														autoComplete="off"
-														data-1p-ignore
-														data-lpignore="true"
-														data-form-type="other"
-														data-bwignore
-														value={header.value}
-														onChange={(e) => {
-															form.setFieldValue("customHeadersTouched", true);
-															const updated = [...form.values.customHeaders];
-															updated[index] = {
-																...updated[index],
-																value: e.target.value,
-															};
-															form.setFieldValue("customHeaders", updated);
-														}}
-														placeholder="Header value"
-														disabled={isDisabled}
-														aria-label={`Header ${index + 1} value`}
-													/>
-												</div>
-												<Button
-													variant="outline"
-													size="icon"
-													type="button"
-													className="mt-0 size-9 shrink-0"
-													onClick={() => {
-														form.setFieldValue("customHeadersTouched", true);
-														form.setFieldValue(
-															"customHeaders",
-															form.values.customHeaders.filter(
-																(_, i) => i !== index,
-															),
-														);
-													}}
-													disabled={isDisabled}
-													aria-label={`Remove header ${index + 1}`}
+										<p className="m-0 text-xs text-content-secondary">
+											Mark a row as <strong>User-set</strong> to let each user
+											supply the value in their MCP server settings. Admin
+											values are shared across all users.
+										</p>
+										{form.values.customHeaders.map((header, index) => {
+											const userSetId = `${formId}-userset-${index}`;
+											const descriptionId = `${formId}-userset-desc-${index}`;
+											return (
+												<div
+													key={index}
+													className="flex flex-col gap-2 rounded-md border border-solid border-border/50 bg-surface-primary/40 p-2"
 												>
-													<XIcon className="size-4" />
-												</Button>
-											</div>
-										))}
+													<div className="flex items-start gap-2">
+														<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
+															<Input
+																className="h-9 text-[13px]"
+																value={header.key}
+																onChange={(e) => {
+																	form.setFieldValue(
+																		"customHeadersTouched",
+																		true,
+																	);
+																	const updated = [
+																		...form.values.customHeaders,
+																	];
+																	updated[index] = {
+																		...updated[index],
+																		key: e.target.value,
+																	};
+																	form.setFieldValue("customHeaders", updated);
+																}}
+																placeholder="Header name"
+																disabled={isDisabled}
+																aria-label={`Header ${index + 1} name`}
+															/>
+															{header.userSet ? (
+																<div
+																	className="flex h-9 items-center rounded-md border border-dashed border-border/70 bg-surface-secondary/40 px-3 text-[13px] italic text-content-secondary"
+																	role="textbox"
+																	tabIndex={0}
+																	aria-readonly="true"
+																	aria-label={`Header ${index + 1} value (set by user)`}
+																>
+																	Set by each user
+																</div>
+															) : (
+																<Input
+																	className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
+																	type="text"
+																	autoComplete="off"
+																	data-1p-ignore
+																	data-lpignore="true"
+																	data-form-type="other"
+																	data-bwignore
+																	value={header.value}
+																	onChange={(e) => {
+																		form.setFieldValue(
+																			"customHeadersTouched",
+																			true,
+																		);
+																		const updated = [
+																			...form.values.customHeaders,
+																		];
+																		updated[index] = {
+																			...updated[index],
+																			value: e.target.value,
+																		};
+																		form.setFieldValue(
+																			"customHeaders",
+																			updated,
+																		);
+																	}}
+																	placeholder="Header value"
+																	disabled={isDisabled}
+																	aria-label={`Header ${index + 1} value`}
+																/>
+															)}
+														</div>
+														<label
+															htmlFor={userSetId}
+															className="flex h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap text-xs text-content-secondary"
+														>
+															<Checkbox
+																id={userSetId}
+																checked={header.userSet}
+																onCheckedChange={(checked) => {
+																	form.setFieldValue(
+																		"customHeadersTouched",
+																		true,
+																	);
+																	const updated = [
+																		...form.values.customHeaders,
+																	];
+																	const nextUserSet = checked === true;
+																	updated[index] = {
+																		...updated[index],
+																		userSet: nextUserSet,
+																		value: nextUserSet
+																			? ""
+																			: updated[index].value,
+																		description: nextUserSet
+																			? updated[index].description
+																			: "",
+																	};
+																	form.setFieldValue("customHeaders", updated);
+																}}
+																disabled={isDisabled}
+																aria-label={`Header ${index + 1} user-set`}
+															/>
+															<span>User-set</span>
+														</label>
+														<Button
+															variant="outline"
+															size="icon"
+															type="button"
+															className="mt-0 size-9 shrink-0"
+															onClick={() => {
+																form.setFieldValue(
+																	"customHeadersTouched",
+																	true,
+																);
+																form.setFieldValue(
+																	"customHeaders",
+																	form.values.customHeaders.filter(
+																		(_, i) => i !== index,
+																	),
+																);
+															}}
+															disabled={isDisabled}
+															aria-label={`Remove header ${index + 1}`}
+														>
+															<XIcon className="size-4" />
+														</Button>
+													</div>
+													{header.userSet && (
+														<div className="flex flex-col gap-1">
+															<label
+																htmlFor={descriptionId}
+																className="text-xs text-content-secondary"
+															>
+																Description (optional) shown to users when they
+																fill in this header.
+															</label>
+															<Input
+																id={descriptionId}
+																className="h-9 text-[13px]"
+																value={header.description}
+																onChange={(e) => {
+																	form.setFieldValue(
+																		"customHeadersTouched",
+																		true,
+																	);
+																	const updated = [
+																		...form.values.customHeaders,
+																	];
+																	updated[index] = {
+																		...updated[index],
+																		description: e.target.value,
+																	};
+																	form.setFieldValue("customHeaders", updated);
+																}}
+																placeholder="e.g. Personal access token for upstream MCP server"
+																disabled={isDisabled}
+															/>
+														</div>
+													)}
+												</div>
+											);
+										})}
 										<Button
 											variant="outline"
 											size="sm"
@@ -894,7 +1025,12 @@ const ServerForm: FC<ServerFormProps> = ({
 												form.setFieldValue("customHeadersTouched", true);
 												form.setFieldValue("customHeaders", [
 													...form.values.customHeaders,
-													{ key: "", value: "" },
+													{
+														key: "",
+														value: "",
+														userSet: false,
+														description: "",
+													},
 												]);
 											}}
 											disabled={isDisabled}
@@ -1213,6 +1349,10 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				custom_headers_user_keys: req.custom_headers_user_keys
 					? [...req.custom_headers_user_keys]
 					: undefined,
+				custom_headers_user_key_descriptions:
+					req.custom_headers_user_key_descriptions
+						? { ...req.custom_headers_user_key_descriptions }
+						: undefined,
 			};
 			try {
 				await onUpdateServer({ id, req: updateReq });
