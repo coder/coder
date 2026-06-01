@@ -16,22 +16,23 @@ const DummyThoughtSignature = "skip_thought_signature_validator"
 // ShouldPatchOpenAICompatRequest reports whether a client-side
 // OpenAI-compatible request should carry Gemini thought signatures.
 func ShouldPatchOpenAICompatRequest(baseURL string, modelID string) bool {
-	if IsDirectGeminiOpenAIEndpoint(baseURL) {
+	// Direct Google endpoints are already provider-scoped. Patch them even when
+	// the configured model ID is an alias without a Gemini prefix.
+	if isDirectGeminiOpenAIEndpoint(baseURL) {
 		return true
 	}
-	return IsCoderAIBridgeEndpoint(baseURL) && IsGeminiModelID(modelID)
+	return isCoderAIBridgeEndpoint(baseURL) && isGeminiModelID(modelID)
 }
 
 // ShouldPatchGoogleUpstreamRequest reports whether an AI Bridge upstream
 // OpenAI-compatible request should carry Gemini thought signatures.
 func ShouldPatchGoogleUpstreamRequest(baseURL string, modelID string) bool {
-	return IsDirectGeminiOpenAIEndpoint(baseURL) && IsGeminiModelID(modelID)
+	return isDirectGeminiOpenAIEndpoint(baseURL) && isGeminiModelID(modelID)
 }
 
-// IsDirectGeminiOpenAIEndpoint matches Gemini API's OpenAI-compatible endpoint.
 // Vertex AI has different hosts and paths. Add it here only with a fixture that
 // confirms it accepts the same thought-signature fallback shape.
-func IsDirectGeminiOpenAIEndpoint(baseURL string) bool {
+func isDirectGeminiOpenAIEndpoint(baseURL string) bool {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return false
@@ -41,8 +42,7 @@ func IsDirectGeminiOpenAIEndpoint(baseURL string) bool {
 	return host == "generativelanguage.googleapis.com" && strings.Contains(path, "/openai")
 }
 
-// IsCoderAIBridgeEndpoint matches chatd's local AI Bridge base URL.
-func IsCoderAIBridgeEndpoint(baseURL string) bool {
+func isCoderAIBridgeEndpoint(baseURL string) bool {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
 		return false
@@ -50,8 +50,7 @@ func IsCoderAIBridgeEndpoint(baseURL string) bool {
 	return strings.ToLower(parsed.Hostname()) == "coder-aibridge"
 }
 
-// IsGeminiModelID reports whether modelID names a Gemini model.
-func IsGeminiModelID(modelID string) bool {
+func isGeminiModelID(modelID string) bool {
 	modelID = strings.ToLower(strings.TrimSpace(modelID))
 	return strings.HasPrefix(modelID, "gemini-") || strings.Contains(modelID, "/gemini-")
 }
@@ -73,10 +72,9 @@ func PatchThoughtSignatures(body []byte) ([]byte, bool, error) {
 	return patched, true, nil
 }
 
-// AddThoughtSignaturesToLatestTurn adds fallback thought signatures to every
-// assistant tool call after the latest user message. Only the current turn needs
-// patching because completed tool-call/result pairs from earlier turns are not
-// validated by Google as active function calls.
+// AddThoughtSignaturesToLatestTurn patches only the current turn because
+// completed tool-call/result pairs from earlier turns are not validated by
+// Google as active function calls.
 func AddThoughtSignaturesToLatestTurn(payload map[string]any) bool {
 	messages, ok := payload["messages"].([]any)
 	if !ok {
@@ -100,7 +98,7 @@ func AddThoughtSignaturesToLatestTurn(payload map[string]any) bool {
 	changed := false
 	for _, raw := range messages[currentTurnStart+1:] {
 		message, ok := raw.(map[string]any)
-		if !ok || !IsAssistantRole(message["role"]) {
+		if !ok || !isAssistantRole(message["role"]) {
 			continue
 		}
 		toolCalls, ok := message["tool_calls"].([]any)
@@ -112,7 +110,7 @@ func AddThoughtSignaturesToLatestTurn(payload map[string]any) bool {
 			if !ok {
 				continue
 			}
-			if EnsureThoughtSignature(toolCall) {
+			if ensureThoughtSignature(toolCall) {
 				changed = true
 			}
 		}
@@ -120,16 +118,14 @@ func AddThoughtSignaturesToLatestTurn(payload map[string]any) bool {
 	return changed
 }
 
-// IsAssistantRole accepts both OpenAI's "assistant" and Gemini's internal
-// "model" role name for assistant messages.
-func IsAssistantRole(role any) bool {
+// Gemini can serialize assistant messages with its native "model" role.
+func isAssistantRole(role any) bool {
 	roleValue, _ := role.(string)
 	return roleValue == "assistant" || roleValue == "model"
 }
 
-// EnsureThoughtSignature adds a fallback thought signature to toolCall when it
-// does not already carry a Google thought signature.
-func EnsureThoughtSignature(toolCall map[string]any) bool {
+// Real provider signatures are preserved when present.
+func ensureThoughtSignature(toolCall map[string]any) bool {
 	extraContent, _ := toolCall["extra_content"].(map[string]any)
 	google, _ := extraContent["google"].(map[string]any)
 	if signature, _ := google["thought_signature"].(string); signature != "" {

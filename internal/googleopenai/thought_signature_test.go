@@ -9,6 +9,54 @@ import (
 	"github.com/coder/coder/v2/internal/googleopenai"
 )
 
+func TestShouldPatchOpenAICompatRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		modelID string
+		want    bool
+	}{
+		{
+			name:    "direct endpoint with gemini model",
+			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+			modelID: "gemini-3.5-flash",
+			want:    true,
+		},
+		{
+			name:    "direct endpoint does not require gemini model name",
+			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+			modelID: "gpt-4o",
+			want:    true,
+		},
+		{
+			name:    "coder aibridge gemini route",
+			baseURL: "http://coder-aibridge/v1",
+			modelID: "gemini-3.5-flash",
+			want:    true,
+		},
+		{
+			name:    "aibridge endpoint requires gemini model",
+			baseURL: "http://coder-aibridge/v1",
+			modelID: "gpt-4o",
+		},
+		{
+			name:    "other gateway unchanged",
+			baseURL: "https://gateway.vercel.ai/v1",
+			modelID: "google/gemini-3.5-flash",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, googleopenai.ShouldPatchOpenAICompatRequest(tt.baseURL, tt.modelID))
+		})
+	}
+}
+
 func TestShouldPatchGoogleUpstreamRequest(t *testing.T) {
 	t.Parallel()
 

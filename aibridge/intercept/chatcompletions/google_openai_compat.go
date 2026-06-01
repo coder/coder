@@ -2,6 +2,7 @@ package chatcompletions
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/openai/openai-go/v3/option"
 
@@ -31,6 +32,6 @@ func (i *interceptionBase) chatCompletionRequestOptions(opts []option.RequestOpt
 	if err != nil {
 		return nil, false, err
 	}
-	updated := append([]option.RequestOption{}, opts...)
+	updated := slices.Clone(opts)
 	return append(updated, option.WithRequestBody("application/json", body)), true, nil
 }
