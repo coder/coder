@@ -192,4 +192,14 @@ runs:
         where printf
         printf test-ok
         echo.
-        echo EXIT_CODE=%ERRORLEVEL%
+        printf X-Process-Testing=very-wow-http://127.0.0.1:54020
+        echo.
+        echo SINGLE=%ERRORLEVEL%
+        printf X-H=v'\r\n'X-H2=v2
+        echo.
+        echo MULTI=%ERRORLEVEL%
+        set "MSYS2_ARG_CONV_EXCL=*"
+        set "MSYS_NO_PATHCONV=1"
+        printf X-Process-Testing=very-wow-http://127.0.0.1:54020'\r\n'X-Process-Testing2=more-wow
+        echo.
+        echo NOCONV=%ERRORLEVEL%
