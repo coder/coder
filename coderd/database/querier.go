@@ -1246,6 +1246,12 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	// Updates only the encrypted columns (oauth2_client_secret,
+	// api_key_value, custom_headers) and their per-row key_id pointers,
+	// plus the updated_at timestamp. Used by the dbcrypt key rotation
+	// utility to re-encrypt or decrypt rows in place so old ciphers can
+	// be revoked without orphaning MCP secrets.
+	UpdateEncryptedMCPServerConfig(ctx context.Context, arg UpdateEncryptedMCPServerConfigParams) (MCPServerConfig, error)
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAiProviderKey, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	// Optimistic lock: only update the row if the refresh token in the database
