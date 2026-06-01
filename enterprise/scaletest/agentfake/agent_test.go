@@ -30,7 +30,7 @@ func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 	}).WithAgent().Do()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	a := agentfake.NewAgent(client.URL, r.AgentToken, logger, nil)
+	a := agentfake.NewAgent(logger, client.URL, r.AgentToken, nil)
 	t.Cleanup(func() { a.Close() })
 
 	runCtx, cancel := context.WithCancel(ctx)

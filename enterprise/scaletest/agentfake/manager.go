@@ -108,8 +108,9 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	agents := make([]*Agent, 0, len(tokens))
 	for i, ti := range tokens {
-		agents = append(agents, NewAgent(m.client.URL, ti.Token,
-			m.logger.Named("agent-"+strconv.Itoa(i)), m.opts.Metrics))
+		agents = append(agents, NewAgent(
+			m.logger.Named("agent-"+strconv.Itoa(i)),
+			m.client.URL, ti.Token, m.opts.Metrics))
 	}
 	m.mu.Lock()
 	m.agents = agents

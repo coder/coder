@@ -32,7 +32,7 @@ type Agent struct {
 }
 
 // NewAgent constructs a fake agent. metrics may be nil.
-func NewAgent(coderURL *url.URL, token string, logger slog.Logger, metrics *Metrics) *Agent {
+func NewAgent(logger slog.Logger, coderURL *url.URL, token string, metrics *Metrics) *Agent {
 	return &Agent{
 		coderURL:             coderURL,
 		token:                token,
