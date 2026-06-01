@@ -159,7 +159,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--log-dir", logDir,
 			"--agent-header", "X-Testing=agent",
 			"--agent-header", "Cool-Header=Ethan was Here!",
-			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+			"--agent-header-command", "echo X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
 			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		clitest.Start(t, agentInv)
