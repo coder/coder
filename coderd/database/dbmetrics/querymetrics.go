@@ -1825,11 +1825,11 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.GetExternalAgentTokensByWorkspaceIDsRow, error) {
+func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetExternalAgentTokensByWorkspaceIDs(ctx, workspaceIds)
-	m.queryLatencies.WithLabelValues("GetExternalAgentTokensByWorkspaceIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExternalAgentTokensByWorkspaceIDs").Inc()
+	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExternalAgentTokensByTemplateID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExternalAgentTokensByTemplateID").Inc()
 	return r0, r1
 }
 

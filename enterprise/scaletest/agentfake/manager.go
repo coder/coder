@@ -66,6 +66,12 @@ type Manager struct {
 	logger slog.Logger
 	opts   ManagerOptions
 
+	// templateID + ownerID are resolved once during Run from opts.Template /
+	// opts.Owner (names). ownerID stays uuid.Nil when opts.Owner is empty, which
+	// the GetExternalAgentTokensByTemplateID query treats as "match any owner".
+	templateID uuid.UUID
+	ownerID    uuid.UUID
+
 	mu     sync.Mutex
 	agents []*Agent
 }
@@ -99,6 +105,10 @@ func (m *Manager) Run(ctx context.Context) error {
 		if err := m.waitForWorkspaceCount(ctx); err != nil {
 			return xerrors.Errorf("waiting for workspaces: %w", err)
 		}
+	}
+
+	if err := m.ResolveTemplateAndOwner(ctx); err != nil {
+		return xerrors.Errorf("resolve template/owner: %w", err)
 	}
 
 	tokens, err := m.enumerateWithRetry(ctx)
@@ -188,38 +198,27 @@ func (m *Manager) enumerateWithRetry(ctx context.Context) ([]TokenInfo, error) {
 	return tokens, nil
 }
 
-// EnumerateExternalAgents asks coderd for the list of workspaces matching the configured template, walks each
-// workspace's latest build for agents on builds with HasExternalAgent=true, and returns the auth tokens for every
-// external agent. Per-agent credential failures are logged and skipped; a non-nil error is returned only if the
-// workspace listing itself fails.
+// EnumerateExternalAgents bulk-fetches the auth tokens for every external agent on a running workspace of the
+// configured template (optionally filtered by owner) via a single direct Postgres query. resolveTemplateAndOwner
+// must have been called once before any invocation; Run handles that, but tests that call this method directly
+// must do the same.
 func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, error) {
 	start := time.Now()
 	m.logger.Info(ctx, "enumerating external-agent workspaces",
 		slog.F("template", m.opts.Template),
+		slog.F("template_id", m.templateID),
 		slog.F("owner", m.opts.Owner))
 
-	page, err := m.client.Workspaces(ctx, codersdk.WorkspaceFilter{
-		Template: m.opts.Template,
-		Owner:    m.opts.Owner,
-		Limit:    0,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("list workspaces: %w", err)
-	}
-	workspaces := page.Workspaces
-
-	wsIDs := make([]uuid.UUID, 0, len(workspaces))
-	for _, ws := range workspaces {
-		wsIDs = append(wsIDs, ws.ID)
-	}
-
-	// AsSystemRestricted is required because GetExternalAgentTokensByWorkspaceIDs
+	// AsSystemRestricted is required because GetExternalAgentTokensByTemplateID
 	// is gated by dbauthz on ResourceSystem read. This code path runs in the
 	// agentfake scaletest manager pod, which holds a direct Postgres connection
 	// and acts as a trusted system caller; the security boundary here is Postgres
 	// authn (the coder-db-url secret), not a coder session token.
 	// nolint:gocritic
-	rows, err := m.db.GetExternalAgentTokensByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), wsIDs)
+	rows, err := m.db.GetExternalAgentTokensByTemplateID(dbauthz.AsSystemRestricted(ctx), database.GetExternalAgentTokensByTemplateIDParams{
+		TemplateID: m.templateID,
+		OwnerID:    m.ownerID,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("fetch external-agent tokens: %w", err)
 	}
@@ -235,11 +234,75 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 	}
 	m.logger.Info(ctx, "enumerated external-agent workspaces",
 		slog.F("template", m.opts.Template),
+		slog.F("template_id", m.templateID),
 		slog.F("owner", m.opts.Owner),
-		slog.F("workspaces", len(workspaces)),
 		slog.F("tokens", len(tokens)),
 		slog.F("duration", time.Since(start)))
 	return tokens, nil
+}
+
+// ResolveTemplateAndOwner looks up the configured template name (and, when set,
+// owner username) once and caches the resulting UUIDs on the Manager so that
+// EnumerateExternalAgents can issue a single by-ID DB query per cycle.
+// Run calls this automatically; tests that exercise EnumerateExternalAgents
+// directly must call it themselves first.
+//
+// Template resolution walks every organization the calling user belongs to,
+// matching scaletest convention (see cli.parseTemplate). Owner resolution is
+// skipped when opts.Owner is empty; the cached uuid.Nil is interpreted by the
+// underlying query as "match workspaces of any owner".
+func (m *Manager) ResolveTemplateAndOwner(ctx context.Context) error {
+	me, err := m.client.User(ctx, codersdk.Me)
+	if err != nil {
+		return xerrors.Errorf("get current user: %w", err)
+	}
+	tpl, err := parseTemplate(ctx, m.client, me.OrganizationIDs, m.opts.Template)
+	if err != nil {
+		return xerrors.Errorf("resolve template %q: %w", m.opts.Template, err)
+	}
+	m.templateID = tpl.ID
+
+	if m.opts.Owner != "" {
+		owner, err := m.client.User(ctx, m.opts.Owner)
+		if err != nil {
+			return xerrors.Errorf("resolve owner %q: %w", m.opts.Owner, err)
+		}
+		m.ownerID = owner.ID
+	}
+	return nil
+}
+
+// parseTemplate is duplicated from cli/exp_scaletest.go (AGPL) to avoid
+// exporting an internal helper as part of that package's public API for the
+// sole benefit of this enterprise consumer. Keep behavior in sync with the
+// original: accept either a UUID or a template name, search all of the user's
+// organizations for a name match.
+func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
+	if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
+		tpl, err = client.Template(ctx, id)
+		if err != nil {
+			return tpl, xerrors.Errorf("get template by ID %q: %w", template, err)
+		}
+	} else {
+		// List templates in all orgs until we find a match.
+	orgLoop:
+		for _, orgID := range organizationIDs {
+			tpls, err := client.TemplatesByOrganization(ctx, orgID)
+			if err != nil {
+				return tpl, xerrors.Errorf("list templates in org %q: %w", orgID, err)
+			}
+			for _, t := range tpls {
+				if t.Name == template {
+					tpl = t
+					break orgLoop
+				}
+			}
+		}
+	}
+	if tpl.ID == uuid.Nil {
+		return tpl, xerrors.Errorf("could not find template %q in any organization", template)
+	}
+	return tpl, nil
 }
 
 // waitForWorkspaceCount polls until the workspace count for the configured

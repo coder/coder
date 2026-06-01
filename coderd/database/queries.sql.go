@@ -30078,24 +30078,29 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 	return i, err
 }
 
-const getExternalAgentTokensByWorkspaceIDs = `-- name: GetExternalAgentTokensByWorkspaceIDs :many
+const getExternalAgentTokensByTemplateID = `-- name: GetExternalAgentTokensByTemplateID :many
 SELECT
-	latest_builds.workspace_id,
+	workspaces.id               AS workspace_id,
 	workspace_agents.id         AS agent_id,
 	workspace_agents.name       AS agent_name,
 	workspace_agents.auth_token AS agent_token
-FROM (
+FROM
+	workspaces
+JOIN (
 	-- latest build per workspace
 	SELECT DISTINCT ON (workspace_id)
-		id, workspace_id, job_id
+		id, workspace_id, job_id, transition, has_external_agent
 	FROM
 		workspace_builds
-	WHERE
-		workspace_id = ANY($1 :: uuid[])
-		AND has_external_agent = TRUE
 	ORDER BY
 		workspace_id, build_number DESC
 ) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
 JOIN
 	workspace_resources
 ON
@@ -30105,29 +30110,48 @@ JOIN
 ON
 	workspace_agents.resource_id = workspace_resources.id
 WHERE
-	workspace_agents.deleted = FALSE
+	workspaces.template_id = $1
+	AND (
+		$2 :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = $2
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
 	AND workspace_agents.auth_instance_id IS NULL
 `
 
-type GetExternalAgentTokensByWorkspaceIDsRow struct {
+type GetExternalAgentTokensByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetExternalAgentTokensByTemplateIDRow struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	AgentName   string    `db:"agent_name" json:"agent_name"`
 	AgentToken  uuid.UUID `db:"agent_token" json:"agent_token"`
 }
 
-// GetExternalAgentTokensByWorkspaceIDs returns the auth tokens for all
-// non-deleted external agents on the latest build of each supplied workspace.
-// Only workspaces whose latest build has has_external_agent=true are included.
-func (q *sqlQuerier) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]GetExternalAgentTokensByWorkspaceIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByWorkspaceIDs, pq.Array(workspaceIds))
+// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+// non-deleted external agents on the latest build of every running workspace
+// of the given template. "Running" means the latest build has
+// transition=start and job_status=succeeded (matches the workspace-status
+// definition used by coderd/database/queries/workspaces.sql).
+// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+// "all owners"; any other value restricts results to workspaces owned by
+// that user.
+func (q *sqlQuerier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByTemplateID, arg.TemplateID, arg.OwnerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetExternalAgentTokensByWorkspaceIDsRow
+	var items []GetExternalAgentTokensByTemplateIDRow
 	for rows.Next() {
-		var i GetExternalAgentTokensByWorkspaceIDsRow
+		var i GetExternalAgentTokensByTemplateIDRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.AgentID,

@@ -1570,6 +1570,20 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+// GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
+// scaletest agentfake path calls this query directly via a connection to the
+// database. There is no production code path that uses this method, and it is
+// deliberately not exposed over HTTP. The query filters for running
+// workspaces only (latest build has transition=start and job_status=succeeded).
+func (q *querier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
+	// ResourceSystem is used because the query spans multiple workspaces
+	// with no single RBAC object to check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetExternalAgentTokensByTemplateID(ctx, arg)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -3393,20 +3407,6 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 		return nil, err
 	}
 	return q.db.GetEnabledMCPServerConfigs(ctx)
-}
-
-// GetExternalAgentTokensByWorkspaceIDs is used for scaletesting purposes; the
-// scaletest agentfake path calls this query directly via a connection to the
-// database. There is no production code path that uses this method, and it is
-// deliberately not exposed over HTTP.
-func (q *querier) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetExternalAgentTokensByWorkspaceIDsRow, error) {
-	// ResourceSystem is used because the query spans multiple workspaces
-	// with no single RBAC object to check. The HTTP handler enforces
-	// FeatureWorkspaceExternalAgent and API key auth before this is called.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetExternalAgentTokensByWorkspaceIDs(ctx, workspaceIDs)
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {

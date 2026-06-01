@@ -3390,19 +3390,19 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
 }
 
-// GetExternalAgentTokensByWorkspaceIDs mocks base method.
-func (m *MockStore) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.GetExternalAgentTokensByWorkspaceIDsRow, error) {
+// GetExternalAgentTokensByTemplateID mocks base method.
+func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExternalAgentTokensByWorkspaceIDs", ctx, workspaceIds)
-	ret0, _ := ret[0].([]database.GetExternalAgentTokensByWorkspaceIDsRow)
+	ret := m.ctrl.Call(m, "GetExternalAgentTokensByTemplateID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetExternalAgentTokensByTemplateIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetExternalAgentTokensByWorkspaceIDs indicates an expected call of GetExternalAgentTokensByWorkspaceIDs.
-func (mr *MockStoreMockRecorder) GetExternalAgentTokensByWorkspaceIDs(ctx, workspaceIds any) *gomock.Call {
+// GetExternalAgentTokensByTemplateID indicates an expected call of GetExternalAgentTokensByTemplateID.
+func (mr *MockStoreMockRecorder) GetExternalAgentTokensByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAgentTokensByWorkspaceIDs", reflect.TypeOf((*MockStore)(nil).GetExternalAgentTokensByWorkspaceIDs), ctx, workspaceIds)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAgentTokensByTemplateID", reflect.TypeOf((*MockStore)(nil).GetExternalAgentTokensByTemplateID), ctx, arg)
 }
 
 // GetExternalAuthLink mocks base method.
