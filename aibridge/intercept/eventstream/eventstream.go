@@ -121,6 +121,7 @@ func (s *EventStream) Start(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			time.Sleep(100 * time.Millisecond)
 			// Initiate the stream on first event (if not already initiated).
 			s.InitiateStream(w)
 		case <-s.tick.C:

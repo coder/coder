@@ -483,6 +483,14 @@ newStream:
 
 					// Causes a new stream to be run with updated messages.
 					isFirst = false
+					// Commit to SSE format before the next iteration: if
+					// it fails (e.g. all keys exhausted), the error must
+					// be relayed as an SSE event since we already streamed
+					// the first iteration's events. Setting initiated here
+					// closes the race window in EventStream.IsStreaming()
+					// where Start may not yet have processed buffered
+					// events from this iteration.
+					events.InitiateStream(w)
 					continue newStream
 				}
 
