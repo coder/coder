@@ -72,6 +72,7 @@ func ConnectAll(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
+	userHeaderValues []database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
@@ -83,6 +84,14 @@ func ConnectAll(
 	)
 	for _, tok := range tokens {
 		tokensByConfigID[tok.MCPServerConfigID] = tok
+	}
+
+	// Same indexing for the calling user's custom_headers values.
+	userHeaderValuesByConfigID := make(
+		map[uuid.UUID]database.McpServerUserHeaderValue, len(userHeaderValues),
+	)
+	for _, hv := range userHeaderValues {
+		userHeaderValuesByConfigID[hv.MCPServerConfigID] = hv
 	}
 
 	var (
@@ -110,7 +119,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				ctx, logger, cfg, tokensByConfigID, userHeaderValuesByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -174,11 +183,12 @@ func connectOne(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userHeaderValuesByConfigID map[uuid.UUID]database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userHeaderValuesByConfigID, userID, oidcSrc)
 
 	// When opted-in, merge Coder identity headers BEFORE the
 	// transport is created so any auth header already set above
@@ -285,24 +295,31 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (transport.Interface, error) {
-	httpClient := mcpHTTPClient()
+	// Each connection gets its own HTTP client with a dedicated
+	// transport so that httptest.Server.Close() (which calls
+	// CloseIdleConnections on http.DefaultTransport) does not
+	// disrupt unrelated connections during parallel tests.
+	var httpClient *http.Client
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		httpClient = &http.Client{Transport: dt.Clone()}
+	} else {
+		httpClient = &http.Client{}
+	}
 
 	switch cfg.Transport {
 	case "sse":
-		var opts []transport.ClientOption
-		opts = append(opts, transport.WithHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPClient(httpClient))
-		}
-		return transport.NewSSE(cfg.Url, opts...)
+		return transport.NewSSE(
+			cfg.Url,
+			transport.WithHeaders(headers),
+			transport.WithHTTPClient(httpClient),
+		)
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
-		var opts []transport.StreamableHTTPCOption
-		opts = append(opts, transport.WithHTTPHeaders(headers))
-		if httpClient != nil {
-			opts = append(opts, transport.WithHTTPBasicClient(httpClient))
-		}
-		return transport.NewStreamableHTTP(cfg.Url, opts...)
+		return transport.NewStreamableHTTP(
+			cfg.Url,
+			transport.WithHTTPHeaders(headers),
+			transport.WithHTTPBasicClient(httpClient),
+		)
 	default:
 		return nil, xerrors.Errorf(
 			"unsupported transport %q", cfg.Transport,
@@ -317,6 +334,7 @@ func buildAuthHeaders(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userHeaderValuesByConfigID map[uuid.UUID]database.McpServerUserHeaderValue,
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
@@ -381,6 +399,43 @@ func buildAuthHeaders(
 				}
 			}
 		}
+		// Overlay user-supplied values for keys the admin marked as
+		// user-set. Validation guarantees these are disjoint from
+		// CustomHeaders, but the overlay is well-defined either way.
+		if len(cfg.CustomHeadersUserKeys) > 0 {
+			row, ok := userHeaderValuesByConfigID[cfg.ID]
+			if !ok {
+				// Normal state: this user has never saved values for
+				// this server. The MCP call will proceed without the
+				// user-set headers and likely fail at the remote end,
+				// which is the expected signal for the UI to prompt
+				// the user. Debug-level keeps this off the noise floor.
+				logger.Debug(ctx,
+					"no user header values for MCP server",
+					slog.F("server_slug", cfg.Slug),
+				)
+				break
+			}
+			var user map[string]string
+			if err := json.Unmarshal(
+				[]byte(row.HeaderValues), &user,
+			); err != nil {
+				logger.Warn(ctx,
+					"failed to parse user header values JSON",
+					slog.F("server_slug", cfg.Slug),
+					slog.Error(err),
+				)
+				break
+			}
+			for _, k := range cfg.CustomHeadersUserKeys {
+				// Case-insensitive lookup so a case-only admin rename
+				// does not silently drop the user's stored value.
+				v, has := mcpHeaderValueForKey(user, k)
+				if has && v != "" {
+					headers[k] = v
+				}
+			}
+		}
 	case "user_oidc":
 		// Forward the calling user's OIDC access token from
 		// user_links as Authorization: Bearer <token>. The token
@@ -420,6 +475,23 @@ func buildAuthHeaders(
 	}
 
 	return headers
+}
+
+// mcpHeaderValueForKey returns the stored value for key using a
+// case-insensitive match. The stored user-header map preserves the
+// admin's casing at write time, so a later case-only rename of a
+// user-set key would otherwise orphan the stored value until the
+// user re-saves it.
+func mcpHeaderValueForKey(stored map[string]string, key string) (string, bool) {
+	if v, ok := stored[key]; ok {
+		return v, true
+	}
+	for k, v := range stored {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 // isToolAllowed checks a tool name against the allow and deny
