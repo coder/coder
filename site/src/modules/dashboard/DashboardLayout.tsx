@@ -6,6 +6,7 @@ import { Outlet } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { AIProviderEnvDriftBanner } from "#/modules/dashboard/AIProviderEnvDriftBanner/AIProviderEnvDriftBanner";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";
@@ -22,6 +23,7 @@ export const DashboardLayout: FC = () => {
 	return (
 		<>
 			{canViewDeployment && <LicenseBanner />}
+			{canViewDeployment && <AIProviderEnvDriftBanner />}
 			<AnnouncementBanners />
 
 			<div className="flex flex-col min-h-screen justify-between">
