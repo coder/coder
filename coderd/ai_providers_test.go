@@ -44,6 +44,39 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Empty(t, got)
 	})
 
+	t.Run("CreatePreservesPresetProviderTypes", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tests := []struct {
+			providerType codersdk.AIProviderType
+			baseURL      string
+		}{
+			{providerType: codersdk.AIProviderTypeAzure, baseURL: "https://example.openai.azure.com/openai/v1"},
+			{providerType: codersdk.AIProviderTypeGoogle, baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+			{providerType: codersdk.AIProviderTypeOpenAICompat, baseURL: "https://compat.example.com/v1"},
+			{providerType: codersdk.AIProviderTypeOpenrouter, baseURL: "https://openrouter.ai/api/v1"},
+			{providerType: codersdk.AIProviderTypeVercel, baseURL: "https://ai-gateway.vercel.sh/v1"},
+		}
+		for _, tt := range tests {
+			created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:    tt.providerType,
+				Name:    "type-preserve-" + string(tt.providerType),
+				Enabled: true,
+				BaseURL: tt.baseURL,
+				APIKeys: []string{"sk-test"},
+			})
+			require.NoError(t, err, tt.providerType)
+			require.Equal(t, tt.providerType, created.Type)
+
+			got, err := client.AIProvider(ctx, created.ID.String())
+			require.NoError(t, err, tt.providerType)
+			require.Equal(t, tt.providerType, got.Type)
+		}
+	})
+
 	t.Run("CreateGetUpdateDelete", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
