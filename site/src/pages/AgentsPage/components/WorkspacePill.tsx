@@ -14,7 +14,7 @@ import {
 	SquareTerminalIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -108,21 +108,28 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 		hasTerminal ||
 		portForwardingEnabled;
 
-	// On viewports below the `md` Tailwind breakpoint, the parent dropdown
-	// content takes the full width via the `mobile-full-width-dropdown`
-	// CSS class, so a flyout sub-menu has nowhere to open into and clips
-	// off the right edge of the viewport. On mobile we instead swap the
-	// dropdown's contents to an inline ports panel with a back button,
-	// mirroring the workspace picker pattern in the agent chat input
-	// plus menu.
+	// Flyout sub-menus clip on mobile, so swap to an inline panel instead.
 	const [view, setView] = useState<"main" | "ports">("main");
+	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
+	const isMobile = useIsBelowMdViewport();
+	const showPortsView = view === "ports" && isMobile;
+
+	useEffect(() => {
+		if (!isMobile && view === "ports") {
+			setView("main");
+			setFocusPortsOnMain(false);
+		}
+	}, [isMobile, view]);
 
 	return (
 		<DropdownMenu
 			open={open}
 			onOpenChange={(next) => {
 				setOpen(next);
-				if (!next) setView("main");
+				if (!next) {
+					setView("main");
+					setFocusPortsOnMain(false);
+				}
 			}}
 		>
 			<Tooltip
@@ -166,13 +173,16 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				align="start"
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{view === "ports" ? (
+				{showPortsView ? (
 					<MobilePortsPanel
 						workspace={workspace}
 						agent={agent}
 						host={host}
 						isOpen={open}
-						onBack={() => setView("main")}
+						onBack={() => {
+							setFocusPortsOnMain(true);
+							setView("main");
+						}}
 					/>
 				) : (
 					<>
@@ -225,7 +235,13 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								host={host}
 								isOpen={open}
 								isRunning={isRunning}
-								onSelectInline={() => setView("ports")}
+								isMobile={isMobile}
+								focusOnMount={focusPortsOnMain}
+								onFocusApplied={() => setFocusPortsOnMain(false)}
+								onSelectInline={() => {
+									setFocusPortsOnMain(false);
+									setView("ports");
+								}}
 							/>
 						)}
 						{hasItemsAboveSeparator && (
@@ -246,25 +262,15 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	);
 };
 
-// Reactive viewport check so the menu trigger swaps between flyout and
-// inline panel modes if the viewport crosses the `md` breakpoint while
-// the dropdown is mounted.
+// Reactive wrapper so callers re-render when the viewport crosses `md`.
+const subscribeBelowMdViewport = (onStoreChange: () => void) => {
+	const mediaQuery = matchMedia("(max-width: 767px)");
+	mediaQuery.addEventListener("change", onStoreChange);
+	return () => mediaQuery.removeEventListener("change", onStoreChange);
+};
+
 const useIsBelowMdViewport = (): boolean => {
-	const [matches, setMatches] = useState<boolean>(() =>
-		typeof window !== "undefined" ? isBelowMdViewport() : false,
-	);
-	useEffect(() => {
-		const mediaQuery = window.matchMedia("(max-width: 767px)");
-		const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
-		setMatches(mediaQuery.matches);
-		if (typeof mediaQuery.addEventListener === "function") {
-			mediaQuery.addEventListener("change", onChange);
-			return () => mediaQuery.removeEventListener("change", onChange);
-		}
-		mediaQuery.addListener(onChange);
-		return () => mediaQuery.removeListener(onChange);
-	}, []);
-	return matches;
+	return useSyncExternalStore(subscribeBelowMdViewport, isBelowMdViewport);
 };
 
 interface PortsData {
@@ -323,11 +329,24 @@ const PortsMenuItem: FC<{
 	host: string;
 	isOpen: boolean;
 	isRunning: boolean;
+	isMobile: boolean;
+	focusOnMount: boolean;
+	onFocusApplied: () => void;
 	onSelectInline: () => void;
-}> = ({ workspace, agent, host, isOpen, isRunning, onSelectInline }) => {
+}> = ({
+	workspace,
+	agent,
+	host,
+	isOpen,
+	isRunning,
+	isMobile,
+	focusOnMount,
+	onFocusApplied,
+	onSelectInline,
+}) => {
 	const isConnected = agent.status === "connected";
 	const enabled = isOpen && isConnected;
-	const isMobile = useIsBelowMdViewport();
+	const itemRef = useRef<HTMLDivElement>(null);
 
 	const portsData = usePortsData(workspace, agent, enabled);
 
@@ -336,12 +355,18 @@ const PortsMenuItem: FC<{
 			? `Ports (${portsData.totalCount})`
 			: "Ports";
 
+	useEffect(() => {
+		if (!focusOnMount || !isMobile) {
+			return;
+		}
+		itemRef.current?.focus();
+		onFocusApplied();
+	}, [focusOnMount, isMobile, onFocusApplied]);
+
 	if (isMobile) {
-		// Use a regular menu item that swaps the parent dropdown's content
-		// instead of opening a flyout sub-menu, since on mobile the parent
-		// dropdown is full-width and a flyout would clip off-screen.
 		return (
 			<DropdownMenuItem
+				ref={itemRef}
 				disabled={!isRunning}
 				onSelect={(event) => {
 					event.preventDefault();
@@ -382,11 +407,17 @@ const MobilePortsPanel: FC<{
 }> = ({ workspace, agent, host, isOpen, onBack }) => {
 	const isConnected = agent.status === "connected";
 	const enabled = isOpen && isConnected;
+	const backRef = useRef<HTMLDivElement>(null);
 	const portsData = usePortsData(workspace, agent, enabled);
+
+	useEffect(() => {
+		backRef.current?.focus();
+	}, []);
 
 	return (
 		<>
 			<DropdownMenuItem
+				ref={backRef}
 				onSelect={(event) => {
 					event.preventDefault();
 					onBack();
@@ -417,7 +448,6 @@ const PortsList: FC<{
 
 	return (
 		<>
-			{/* Listening Ports header: only render when there are ports to list. */}
 			{privateListeningPorts.length > 0 && (
 				<div className="px-2 pb-1.5 pt-1">
 					<span className="text-xs font-semibold text-content-secondary">
@@ -447,7 +477,6 @@ const PortsList: FC<{
 					</p>
 				)}
 
-			{/* Shared Ports */}
 			{(sharedPorts ?? []).length > 0 && (
 				<>
 					<DropdownMenuSeparator className="my-1" />
