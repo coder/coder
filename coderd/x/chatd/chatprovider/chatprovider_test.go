@@ -1564,6 +1564,8 @@ func TestMergeMissingProviderOptions_OpenAICompat(t *testing.T) {
 		require.Equal(t, map[string]any{
 			"default_field": "default-value",
 		}, options.OpenAICompat.ExtraBody)
+		options.OpenAICompat.ExtraBody["default_field"] = "changed"
+		require.Equal(t, "default-value", defaults.OpenAICompat.ExtraBody["default_field"])
 		require.Equal(t, "default-cache-key", *options.OpenAICompat.PromptCacheKey)
 	})
 
