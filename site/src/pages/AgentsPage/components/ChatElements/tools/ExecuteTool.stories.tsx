@@ -105,11 +105,11 @@ export const WithOutput: Story = {
 					"coder-provisioner    Up 3 hours",
 					"redis-cache          Up 3 hours          0.0.0.0:6379->6379/tcp",
 					"nginx-proxy          Up 2 hours          0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp",
-					"prometheus           Up 2 hours          0.0.0.0:9090/tcp",
+					"prometheus           Up 2 hours          0.0.0.0:9090->9090/tcp",
 					"grafana              Up 2 hours          0.0.0.0:3001->3001/tcp",
 					"jaeger               Up 1 hour           0.0.0.0:16686->16686/tcp",
 					"otel-collector       Up 1 hour           0.0.0.0:4317->4317/tcp",
-					"loki                 Up 1 hour           0.0.0.0:3100/tcp",
+					"loki                 Up 1 hour           0.0.0.0:3100->3100/tcp",
 				].join("\n"),
 			},
 		],
@@ -167,15 +167,22 @@ export const ConnectionError: Story = {
 	},
 };
 
-/** Command output and a separate tool error both remain visible. */
+/** A timed-out command can return partial output plus an execute error. */
 export const OutputWithError: Story = {
 	args: {
-		command: "make build",
-		status: "error",
-		isError: true,
+		command: "go test ./...",
+		status: "completed",
+		isBackgrounded: true,
 		transcriptBlocks: [
-			{ kind: "output", text: "compiling coderd" },
-			{ kind: "error", text: "workspace agent disconnected" },
+			{
+				kind: "output",
+				text: [
+					"=== RUN   TestWorkspaceAgent",
+					"--- PASS: TestWorkspaceAgent (0.42s)",
+					"=== RUN   TestWorkspaceBuild",
+				].join("\n"),
+			},
+			{ kind: "error", text: "command timed out after 10s" },
 		],
 	},
 };
