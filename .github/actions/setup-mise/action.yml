@@ -170,12 +170,13 @@ runs:
     - name: Ensure Git usr/bin is in PATH (Windows)
       if: runner.os == 'Windows'
       shell: bash
-      # Git for Windows ships GNU coreutils (printf, etc.) in
-      # usr/bin. After mise rewrites the Path variable, cmd.exe may
-      # no longer resolve these utilities. Prepend the directory so
-      # tests that run commands via "cmd.exe /c" can find them.
-      run: |
-        gitdir="/c/Program Files/Git/usr/bin"
-        if [[ -d "$gitdir" ]]; then
-          cygpath -w "$gitdir" >> "$GITHUB_PATH"
-        fi
+      # jdx/mise-action exports a complete "Path" via GITHUB_ENV
+      # which can shadow or collide with the "PATH" that bash and
+      # Go inherit. Normalize by writing a single "PATH" entry to
+      # GITHUB_ENV with Git for Windows' usr/bin prepended. This
+      # ensures cmd.exe subprocesses can resolve GNU coreutils
+      # (printf, etc.) that tests depend on.
+      run: | # zizmor: ignore[github-env]
+        gitdir="C:\\Program Files\\Git\\usr\\bin"
+        current="${Path:-$PATH}"
+        printf 'PATH=%s;%s\n' "$gitdir" "$current" >> "$GITHUB_ENV"
