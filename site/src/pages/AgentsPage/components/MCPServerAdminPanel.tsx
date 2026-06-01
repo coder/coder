@@ -248,7 +248,7 @@ const ServerList: FC<ServerListProps> = ({
 	return (
 		<>
 			<SectionHeader
-				label={sectionLabel ?? "MCP Servers"}
+				label={sectionLabel ?? "MCP servers"}
 				description={
 					sectionDescription ??
 					"Configure external MCP servers that provide additional tools for Coder Agents."
