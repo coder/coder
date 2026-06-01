@@ -4,6 +4,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -50,7 +52,11 @@ func sshConfigMatchExecEscape(path string) (string, error) {
 
 	if strings.ContainsAny(path, " ") {
 		// c.f. function comment for how this works.
-		path = fmt.Sprintf("for /f %%%%a in ('powershell.exe -Command [char]34') do @cmd.exe /c %%%%a%s%%%%a", path) //nolint:gocritic // We don't want %q here.
+		// Use the absolute path to powershell.exe to avoid
+		// issues with PATH resolution when both Path and
+		// PATH (MSYS) exist in the environment.
+		pwsh := filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+		path = fmt.Sprintf("for /f %%%%a in ('%s -Command [char]34') do @cmd.exe /c %%%%a%s%%%%a", pwsh, path) //nolint:gocritic // We don't want %q here.
 	}
 	return path, nil
 }
