@@ -45,12 +45,10 @@ being used across the organization. AI Gateway provides audit trails of prompts,
 token usage, and tool invocations, giving administrators insight into AI
 adoption patterns and potential issues.
 
-### Restricting agent network and command access
+### Restricting agent network access
 
-AI agents can make arbitrary network requests, potentially accessing
-unauthorized services or exfiltrating data. They can also execute destructive
-commands within a workspace. Agent Firewall enforces process-level policies
-that restrict which domains agents can reach and what actions they can perform,
+AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data.
+Agent Firewall enforces process-level policies that restrict which domains agents can reach and what actions they can perform,
 preventing unintended data exposure and destructive operations like `rm -rf`.
 
 ### Centralizing API key management
