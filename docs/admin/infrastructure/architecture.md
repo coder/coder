@@ -8,7 +8,7 @@ page describes possible deployments, challenges, and risks associated with them.
 
 ## Community and Premium editions
 
-![Single Region Architecture Diagram](../../images/single-region-architecture.svg)
+![Single Region Architecture Diagram](../../images/single-region-architecture.png)
 
 ## Multi-Region Premium edition
 
