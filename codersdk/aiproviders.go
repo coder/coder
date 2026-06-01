@@ -209,6 +209,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeAnthropic,
 		AIProviderTypeAzure,
 		AIProviderTypeBedrock,
+		AIProviderTypeCopilot,
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
@@ -242,6 +243,14 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, ValidationError{
 			Field:  "api_keys",
 			Detail: "type=bedrock does not accept api_keys",
+		})
+	}
+	// Copilot authenticates with each user's request-time GitHub OAuth
+	// token, so there is no pre-shared key to register.
+	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=copilot does not accept api_keys",
 		})
 	}
 	return validations

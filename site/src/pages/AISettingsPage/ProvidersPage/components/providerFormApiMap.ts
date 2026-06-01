@@ -148,6 +148,18 @@ export const providerFormValuesToCreate = (
 		};
 	}
 
+	// Copilot is a distinct wire type with no stored credential; the
+	// runtime authenticates each request with the user's GitHub token.
+	if (values.type === "copilot") {
+		return {
+			type: "copilot",
+			name,
+			...(displayName ? { display_name: displayName } : {}),
+			base_url: baseUrl,
+			enabled: values.enabled,
+		};
+	}
+
 	const apiKey = sanitizeCredential(values.apiKey);
 	// `""` is unreachable here (Yup blocks it, Bedrock branched out), but the
 	// union still includes it; narrow so TS stays honest.
@@ -181,6 +193,12 @@ export const providerFormValuesToUpdate = (
 		enabled: values.enabled,
 		base_url: values.baseUrl.trim(),
 	};
+
+	// Copilot carries no stored credential, so a patch only touches the
+	// base fields; the backend rejects api_keys on copilot providers.
+	if (values.type === "copilot") {
+		return base;
+	}
 
 	if (values.type !== "bedrock") {
 		// If the user didn't touch the input, the form still holds the seeded
@@ -240,8 +258,21 @@ export const aiProviderToFormValues = (
 		};
 	}
 
-	// Wire `type` is only `openai` or `anthropic`; the dropdown's richer
-	// labels apply only on create.
+	// Copilot is a distinct wire type whose form omits the credential
+	// field, so it must be recovered exactly rather than collapsing to
+	// openai.
+	if (provider.type === "copilot") {
+		return {
+			type: "copilot",
+			name: provider.name,
+			displayName,
+			baseUrl: provider.base_url,
+			enabled: provider.enabled,
+		};
+	}
+
+	// Wire `type` is otherwise only `openai` or `anthropic`; the dropdown's
+	// richer labels apply only on create.
 	return {
 		type: provider.type === "anthropic" ? "anthropic" : "openai",
 		name: provider.name,

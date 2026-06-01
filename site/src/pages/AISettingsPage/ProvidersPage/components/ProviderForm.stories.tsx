@@ -64,6 +64,25 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
+// Copilot authenticates per-request with the user's GitHub OAuth token,
+// so the form renders no API key field.
+export const AddCopilot: Story = {
+	args: {
+		initialValues: {
+			type: "copilot",
+			name: "copilot",
+			displayName: "GitHub Copilot",
+			baseUrl: "https://api.business.githubcopilot.com",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText(/endpoint/i);
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	},
+};
+
 export const EditProvider: Story = {
 	args: {
 		editing: true,

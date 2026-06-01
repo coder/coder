@@ -39,3 +39,9 @@ export const AddBedrock: Story = {
 		provider: addableProviders.find((p) => p.value === "bedrock")!,
 	},
 };
+
+export const AddCopilot: Story = {
+	args: {
+		provider: addableProviders.find((p) => p.value === "copilot")!,
+	},
+};

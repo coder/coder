@@ -889,6 +889,77 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
 	})
 
+	t.Run("CopilotCreateWithoutKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Copilot authenticates with each user's request-time GitHub
+		// OAuth token, so it carries no stored keys.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeCopilot, provider.Type)
+		require.Empty(t, provider.APIKeys)
+	})
+
+	t.Run("CopilotRejectsCreateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot-create",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+			APIKeys: []string{"sk-should-be-rejected"}, //nolint:gosec // test fixture, not a real credential
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "type=copilot does not accept api_keys")
+	})
+
+	t.Run("CopilotRejectsUpdateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot-update",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+		})
+		require.NoError(t, err)
+
+		rejected := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &rejected,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Copilot providers do not accept api_keys")
+	})
+
 	t.Run("EmptyKeyRejected", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
