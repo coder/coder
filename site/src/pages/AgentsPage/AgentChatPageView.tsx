@@ -451,8 +451,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				>
 					{titleElement}
 					<div
+						data-testid="agents-chat-panel"
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:min-w-[360px]",
 							visualExpanded && "hidden",
 							shouldShowSidebar && "max-lg:hidden",
 						)}
@@ -677,7 +678,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 			)}
 		>
 			{titleElement}
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col lg:min-w-[360px]">
 				<ChatTopBar
 					panel={{
 						showSidebarPanel: false,

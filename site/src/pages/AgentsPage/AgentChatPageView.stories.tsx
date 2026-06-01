@@ -400,6 +400,33 @@ index abc1234..def5678 100644
 	},
 };
 
+export const NarrowWithSidebarPanel: Story = {
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	decorators: [
+		(Story) => (
+			<div style={{ height: "100vh", overflow: "hidden", width: 720 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(360);
+			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+		});
+	},
+};
+
 /**
  * Clicking the refresh button in the git panel invalidates the
  * cached PR diff contents so that React Query re-fetches from
