@@ -6,29 +6,21 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
-const (
-	executeToolName        = "execute"
-	defaultToolCallCommand = "echo scaletest"
-)
+const executeToolName = "execute"
 
-func (s *Server) buildOpenAIChoice(req llmRequest) (openAIResponseChoice, error) {
-	if !s.needsOpenAIToolCall(req) {
+func (s *Server) buildOpenAIChoice(req llmRequest) openAIResponseChoice {
+	if !s.needsOpenAIToolCall(req) || !slices.ContainsFunc(req.Tools, func(tool openAITool) bool {
+		return tool.Function.Name == executeToolName
+	}) {
 		return openAIResponseChoice{
 			Message: openAIMessage{
 				Role:    "assistant",
 				Content: s.responseText(openAIDefaultResponseText),
 			},
 			FinishReason: openAIStopFinishReason,
-		}, nil
-	}
-
-	if !slices.ContainsFunc(req.Tools, func(tool openAITool) bool {
-		return tool.Function.Name == executeToolName
-	}) {
-		return openAIResponseChoice{}, xerrors.Errorf("requested tool %q not present in tools list", executeToolName)
+		}
 	}
 
 	return openAIResponseChoice{
@@ -37,7 +29,7 @@ func (s *Server) buildOpenAIChoice(req llmRequest) (openAIResponseChoice, error)
 			ToolCalls: []openAIToolCall{executeToolCall(s.toolCallCommand)},
 		},
 		FinishReason: openAIToolCallFinishReason,
-	}, nil
+	}
 }
 
 func (s *Server) needsOpenAIToolCall(req llmRequest) bool {
@@ -46,8 +38,8 @@ func (s *Server) needsOpenAIToolCall(req llmRequest) bool {
 	}
 
 	completedToolCalls := 0
-	for i := len(req.Messages) - 1; i >= 0; i-- {
-		switch req.Messages[i].Role {
+	for _, msg := range slices.Backward(req.Messages) {
+		switch msg.Role {
 		case "tool":
 			completedToolCalls++
 		case "user":

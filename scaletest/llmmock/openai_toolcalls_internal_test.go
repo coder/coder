@@ -12,6 +12,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const testToolCallCommand = "echo scaletest"
+
 func TestBuildOpenAIChoice(t *testing.T) {
 	t.Parallel()
 
@@ -21,8 +23,7 @@ func TestBuildOpenAIChoice(t *testing.T) {
 		srv := &Server{toolCallsPerTurn: 0}
 		req := openAIExecuteRequest(0)
 		req.Tools = nil
-		choice, err := srv.buildOpenAIChoice(req)
-		require.NoError(t, err)
+		choice := srv.buildOpenAIChoice(req)
 		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
 		require.Empty(t, choice.Message.ToolCalls)
 		require.Equal(t, openAIDefaultResponseText, choice.Message.Content)
@@ -31,12 +32,11 @@ func TestBuildOpenAIChoice(t *testing.T) {
 	t.Run("NoUserMessageReturnsText", func(t *testing.T) {
 		t.Parallel()
 
-		srv := &Server{toolCallsPerTurn: 1, toolCallCommand: defaultToolCallCommand}
-		choice, err := srv.buildOpenAIChoice(llmRequest{
+		srv := &Server{toolCallsPerTurn: 1, toolCallCommand: testToolCallCommand}
+		choice := srv.buildOpenAIChoice(llmRequest{
 			Model:    "scaletest-model",
 			Messages: []openAIMessage{{Role: "system", Content: "Reply with one short sentence."}},
 		})
-		require.NoError(t, err)
 		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
 		require.Empty(t, choice.Message.ToolCalls)
 		require.Equal(t, openAIDefaultResponseText, choice.Message.Content)
@@ -45,13 +45,12 @@ func TestBuildOpenAIChoice(t *testing.T) {
 	t.Run("EmitsToolCallNoneCompleted", func(t *testing.T) {
 		t.Parallel()
 
-		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: defaultToolCallCommand}
-		choice, err := srv.buildOpenAIChoice(openAIExecuteRequest(0))
-		require.NoError(t, err)
+		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: testToolCallCommand}
+		choice := srv.buildOpenAIChoice(openAIExecuteRequest(0))
 		require.Equal(t, openAIToolCallFinishReason, choice.FinishReason)
 		require.Len(t, choice.Message.ToolCalls, 1)
 		toolCall := choice.Message.ToolCalls[0]
-		requireExecuteToolCall(t, toolCall, defaultToolCallCommand)
+		requireExecuteToolCall(t, toolCall, testToolCallCommand)
 
 		toolCallJSON, err := json.Marshal(toolCall)
 		require.NoError(t, err)
@@ -63,40 +62,40 @@ func TestBuildOpenAIChoice(t *testing.T) {
 	t.Run("EmitsToolCallOneCompleted", func(t *testing.T) {
 		t.Parallel()
 
-		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: defaultToolCallCommand}
-		choice, err := srv.buildOpenAIChoice(openAIExecuteRequest(1))
-		require.NoError(t, err)
+		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: testToolCallCommand}
+		choice := srv.buildOpenAIChoice(openAIExecuteRequest(1))
 		require.Equal(t, openAIToolCallFinishReason, choice.FinishReason)
 		require.Len(t, choice.Message.ToolCalls, 1)
-		requireExecuteToolCall(t, choice.Message.ToolCalls[0], defaultToolCallCommand)
+		requireExecuteToolCall(t, choice.Message.ToolCalls[0], testToolCallCommand)
 	})
 
 	t.Run("StopsAfterAllToolCallsCompleted", func(t *testing.T) {
 		t.Parallel()
 
-		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: defaultToolCallCommand}
-		choice, err := srv.buildOpenAIChoice(openAIExecuteRequest(2))
-		require.NoError(t, err)
+		srv := &Server{toolCallsPerTurn: 2, toolCallCommand: testToolCallCommand}
+		choice := srv.buildOpenAIChoice(openAIExecuteRequest(2))
 		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
 		require.Empty(t, choice.Message.ToolCalls)
 		require.Equal(t, openAIDefaultResponseText, choice.Message.Content)
 	})
 
-	t.Run("RequiresExecuteToolWhenToolCallNeeded", func(t *testing.T) {
+	t.Run("FallsBackToTextWhenExecuteToolMissing", func(t *testing.T) {
 		t.Parallel()
 
-		srv := &Server{toolCallsPerTurn: 1, toolCallCommand: defaultToolCallCommand}
+		srv := &Server{toolCallsPerTurn: 1, toolCallCommand: testToolCallCommand}
 		req := openAIExecuteRequest(0)
 		req.Tools = nil
-		_, err := srv.buildOpenAIChoice(req)
-		require.ErrorContains(t, err, "requested tool \"execute\" not present")
+		choice := srv.buildOpenAIChoice(req)
+		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
+		require.Empty(t, choice.Message.ToolCalls)
+		require.Equal(t, openAIDefaultResponseText, choice.Message.Content)
 	})
 }
 
 func TestSendOpenAIStreamIncludesToolCalls(t *testing.T) {
 	t.Parallel()
 
-	toolCall := executeToolCall(defaultToolCallCommand)
+	toolCall := executeToolCall(testToolCallCommand)
 
 	srv := &Server{}
 	writer := httptest.NewRecorder()
@@ -116,14 +115,14 @@ func TestSendOpenAIStreamIncludesToolCalls(t *testing.T) {
 	events := sseDataEvents(t, writer.Body.String())
 	require.Len(t, events, 3)
 
-	first := decodeOpenAIStreamEvent(t, events[0])
+	first := decodeStreamChunk(t, events[0])
 	require.Len(t, first.Choices, 1)
 	require.Nil(t, first.Choices[0].FinishReason)
 	require.Equal(t, "assistant", first.Choices[0].Delta.Role)
 	require.Len(t, first.Choices[0].Delta.ToolCalls, 1)
-	requireExecuteStreamToolCall(t, first.Choices[0].Delta.ToolCalls[0], defaultToolCallCommand)
+	requireExecuteStreamToolCall(t, events[0], first.Choices[0].Delta.ToolCalls[0], testToolCallCommand)
 
-	second := decodeOpenAIStreamEvent(t, events[1])
+	second := decodeStreamChunk(t, events[1])
 	require.Len(t, second.Choices, 1)
 	require.NotNil(t, second.Choices[0].FinishReason)
 	require.Equal(t, openAIToolCallFinishReason, *second.Choices[0].FinishReason)
@@ -132,29 +131,12 @@ func TestSendOpenAIStreamIncludesToolCalls(t *testing.T) {
 	require.Equal(t, "[DONE]", events[2])
 }
 
-type openAIStreamEvent struct {
-	Choices []struct {
-		Delta struct {
-			Role      string                 `json:"role"`
-			ToolCalls []openAIStreamToolCall `json:"tool_calls"`
-		} `json:"delta"`
-		FinishReason *string `json:"finish_reason"`
-	} `json:"choices"`
-}
-
-type openAIStreamToolCall struct {
-	Index    *int                   `json:"index"`
-	ID       string                 `json:"id"`
-	Type     string                 `json:"type"`
-	Function openAIToolCallFunction `json:"function"`
-}
-
-func decodeOpenAIStreamEvent(t *testing.T, data string) openAIStreamEvent {
+func decodeStreamChunk(t *testing.T, data string) openAIStreamChunk {
 	t.Helper()
 
-	var event openAIStreamEvent
-	require.NoError(t, json.Unmarshal([]byte(data), &event))
-	return event
+	var chunk openAIStreamChunk
+	require.NoError(t, json.Unmarshal([]byte(data), &chunk))
+	return chunk
 }
 
 func sseDataEvents(t *testing.T, body string) []string {
@@ -180,11 +162,27 @@ func sseDataEvents(t *testing.T, body string) []string {
 	return events
 }
 
-func requireExecuteStreamToolCall(t *testing.T, toolCall openAIStreamToolCall, command string) {
+// requireExecuteStreamToolCall asserts the streamed tool-call delta and that
+// its JSON payload includes the index field, which the production type marks
+// as non-omitempty but is otherwise indistinguishable from a zero default in
+// the decoded struct.
+func requireExecuteStreamToolCall(t *testing.T, rawEvent string, toolCall openAIToolCallDelta, command string) {
 	t.Helper()
 
-	require.NotNil(t, toolCall.Index)
-	require.Zero(t, *toolCall.Index)
+	require.Zero(t, toolCall.Index)
+
+	var rawChunk struct {
+		Choices []struct {
+			Delta struct {
+				ToolCalls []map[string]json.RawMessage `json:"tool_calls"`
+			} `json:"delta"`
+		} `json:"choices"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(rawEvent), &rawChunk))
+	require.Len(t, rawChunk.Choices, 1)
+	require.Len(t, rawChunk.Choices[0].Delta.ToolCalls, 1)
+	require.Contains(t, rawChunk.Choices[0].Delta.ToolCalls[0], "index")
+
 	requireExecuteToolCall(t, openAIToolCall{
 		ID:       toolCall.ID,
 		Type:     toolCall.Type,
@@ -210,7 +208,7 @@ func openAIExecuteRequest(completedToolCalls int) llmRequest {
 		Tools:    []openAITool{{Type: "function", Function: openAIToolFunction{Name: executeToolName}}},
 	}
 	for i := range completedToolCalls {
-		toolCall := executeToolCall(defaultToolCallCommand)
+		toolCall := executeToolCall(testToolCallCommand)
 		toolCall.ID = fmt.Sprintf("call_done_%d", i)
 		req.Messages = append(req.Messages,
 			openAIMessage{Role: "assistant", ToolCalls: []openAIToolCall{toolCall}},
