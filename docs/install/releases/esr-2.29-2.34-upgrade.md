@@ -15,44 +15,32 @@ supports it.
 
 ### Coder Agents
 
-[Coder Agents](../../ai-coder/agents/index.md) is the long-term replacement for
-Coder Tasks. Agents run the agent loop in the Coder control plane, store
-conversation state in Coder, and can provision or attach to workspaces as needed.
-This gives administrators stronger control over model access, credentials,
-workspace selection, and auditability.
+[Coder Agents](../../ai-coder/agents/index.md) was introduced in v2.32, and is the long-term replacement for
+Coder Tasks. Coder Agents is a native AI coding agent that runs entirely within the Coder control plane, managing the agent loop, conversation state, and workspace provisioning in one place. This gives administrators centralized control over model access, credentials, and audit trails across every agent session. Coder Agents was made Beta in v2.33. 
 
-Between 2.29 and 2.34, Coder Agents gained the following functionality:
+Coder Agents includes the following high-level functionality: 
 
+- Supports all major LLM providers
 - Multi-turn chat
-- File and image attachments
-- Workspace-aware prompts
-- MCP server integration
-- Provider-native web search
-- Plan mode
-- Subagent exploration
-- Chat labels
-- Pinned chats
-- Unread state indicators
+- Automatic workspace provisioning 
+- MCP server integration, personal skills, and administrator-managed skills
+- Plan and subagent explore modes
 - Chat debugging
-- Workspace terminal integration
+- Virtual desktop
 
-Administrators also now have platform controls for the following functionality:
+Administrators have the following elvers to configure appropriate access to various parts of Coder Agents: 
 
-- Template allowlists
-- Spend limits
-- Model settings
-- MCP servers
-- Git providers
-- Chat retention
+- Template allow lists for agents
+- Cost controls
+- Configurable chat retention
 - Automatic chat archiving
-
-Coder Tasks remains available, but new development happens in Coder Agents.
+- Configurable system instructions
+- Observability via AI Gateway, part of Coder's AI Governance Add-On
 
 > [!CAUTION]
-> Tasks is deprecated. It remains supported through the 2.34 ESR window
-> (into 2026) but receives no new features. Start planning the migration
-> to Coder Agents and the Chats API now. See the
-> [Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
+> Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR window
+> (into 2026) but receives no new features. Coder recommends migrating to Coder Agents 
+> and the Chats API now. See the [Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
 > for API migration details.
 
 ### AI Gateway and AI Governance
