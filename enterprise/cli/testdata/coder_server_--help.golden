@@ -126,47 +126,47 @@ AI GATEWAY OPTIONS:
 
       --ai-gateway-anthropic-base-url string, $CODER_AI_GATEWAY_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The base URL of the Anthropic API.
 
       --ai-gateway-anthropic-key string, $CODER_AI_GATEWAY_ANTHROPIC_KEY
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The key to authenticate against the Anthropic API.
 
       --ai-gateway-bedrock-access-key string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The access key to authenticate against the AWS Bedrock API.
 
       --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The access key secret to use with the access key to authenticate
           against the AWS Bedrock API.
 
       --ai-gateway-bedrock-base-url string, $CODER_AI_GATEWAY_BEDROCK_BASE_URL
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The base URL to use for the AWS Bedrock API. Use this setting to
           specify an exact URL to use. Takes precedence over
           CODER_AI_GATEWAY_BEDROCK_REGION.
 
       --ai-gateway-bedrock-model string, $CODER_AI_GATEWAY_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The model to use when making requests to the AWS Bedrock API.
 
       --ai-gateway-bedrock-region string, $CODER_AI_GATEWAY_BEDROCK_REGION
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The AWS Bedrock API region to use. Constructs a base URL to use for
           the AWS Bedrock API in the form of
           'https://bedrock-runtime.<region>.amazonaws.com'.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The small fast model to use when making requests to the AWS Bedrock
           API. Claude Code uses Haiku-class models to perform background tasks.
           See
@@ -189,12 +189,12 @@ AI GATEWAY OPTIONS:
 
       --ai-gateway-openai-base-url string, $CODER_AI_GATEWAY_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The base URL of the OpenAI API.
 
       --ai-gateway-openai-key string, $CODER_AI_GATEWAY_OPENAI_KEY
           Deprecated: manage AI Providers from the Coder UI or HTTP API. This
-          option only seeds provider configuration at startup one-off, if set.
+          option only seeds provider configuration at startup once-off, if set.
           The key to authenticate against the OpenAI API.
 
       --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)

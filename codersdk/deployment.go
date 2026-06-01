@@ -1700,7 +1700,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 
 	// AI Gateway options
-	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. "
+	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if set. "
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
 		Description: "Whether to start an in-memory AI Gateway instance.",
