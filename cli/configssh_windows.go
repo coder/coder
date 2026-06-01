@@ -4,6 +4,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -27,13 +29,15 @@ import (
 // %%aC:\Program Files\Coder\bin\coder.exe%%a.
 //
 // How do we generate a single " character without actually using that character? I couldn't find any command in cmd.exe
-// to do it, but powershell.exe can convert ASCII to characters like this: `[char]34` (where 34 is the code point for ").
+// to do it, but PowerShell can convert ASCII to characters like this: `[char]34` (where 34 is the code point for ").
+// We resolve PowerShell to an absolute path because minimal CI PATHs do not always include it.
 //
 // Other notes:
 //   - @ in `@cmd.exe` suppresses echoing it, so you don't get this command printed
 //   - we need another invocation of cmd.exe (e.g. `do @cmd.exe /c %%aC:\Program Files\Coder\bin\coder.exe%%a`). Without
 //     it the double-quote gets interpreted as part of the path, and you get: '"C:\Program' is not recognized.
-//     Constructing the string and then passing it to another instance of cmd.exe does this trick here.
+//     Constructing the string and then passing it to another instance of cmd.exe does this trick here. We resolve
+//     cmd.exe to an absolute path for the same minimal PATH reason as PowerShell.
 //   - OpenSSH passes the `Match exec` command to cmd.exe regardless of whether the user has a unix-like shell like
 //     git bash, so we don't have a `forceUnixPath` option like for the ProxyCommand which does respect the user's
 //     configured shell on Windows.
@@ -50,7 +54,15 @@ func sshConfigMatchExecEscape(path string) (string, error) {
 
 	if strings.ContainsAny(path, " ") {
 		// c.f. function comment for how this works.
-		path = fmt.Sprintf("for /f %%%%a in ('powershell.exe -Command [char]34') do @cmd.exe /c %%%%a%s%%%%a", path) //nolint:gocritic // We don't want %q here.
+		cmd := "cmd.exe"
+		if comspec := os.Getenv("ComSpec"); comspec != "" {
+			cmd = comspec
+		}
+		powershell := "powershell.exe"
+		if systemRoot := os.Getenv("SystemRoot"); systemRoot != "" {
+			powershell = filepath.Join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+		}
+		path = fmt.Sprintf("for /f %%%%a in ('%s -NoProfile -Command [char]34') do @%s /c %%%%a%s%%%%a", powershell, cmd, path) //nolint:gocritic // We don't want %q here.
 	}
 	return path, nil
 }
