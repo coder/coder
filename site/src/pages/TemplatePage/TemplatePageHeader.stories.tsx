@@ -7,6 +7,7 @@ import {
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 import { workspacesKey } from "#/api/queries/workspaces";
+import { userEvent, within } from "storybook/test";
 
 const meta: Meta<typeof TemplatePageHeader> = {
 	title: "pages/TemplatePage/TemplatePageHeader",
@@ -63,6 +64,13 @@ export const HasWorkspaces: Story = {
 				},
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const templateMenu = canvas.getByLabelText("Open menu");
+		await userEvent.click(templateMenu);
+		const deleteOption = within(document.body).getByText("Delete…");
+		await userEvent.click(deleteOption);
 	},
 };
 
