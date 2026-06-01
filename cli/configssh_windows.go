@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,7 +22,9 @@ import (
 //
 // So, we can't actually include " directly, but here is a horrible workaround:
 //
-// "for /f %%a in ('powershell.exe -Command [char]34') do @cmd.exe /c %%aC:\Program Files\Coder\bin\coder.exe%%a connect exists %h"
+// Simplified, the actual command resolves PowerShell and cmd.exe to absolute paths:
+//
+// "for /f %%a in ('C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command [char]34') do @C:\Windows\System32\cmd.exe /c %%aC:\Program Files\Coder\bin\coder.exe%%a connect exists %h"
 //
 // The key insight here is to store the character " in a variable (%a in this case, but the % itself needs to be
 // escaped, so it becomes %%a), and then use that variable to construct the double-quoted path:
@@ -38,6 +41,7 @@ import (
 //     it the double-quote gets interpreted as part of the path, and you get: '"C:\Program' is not recognized.
 //     Constructing the string and then passing it to another instance of cmd.exe does this trick here. We resolve
 //     cmd.exe to an absolute path for the same minimal PATH reason as PowerShell.
+//   - -NoProfile prevents profile script stdout from corrupting the `for /f` capture.
 //   - OpenSSH passes the `Match exec` command to cmd.exe regardless of whether the user has a unix-like shell like
 //     git bash, so we don't have a `forceUnixPath` option like for the ProxyCommand which does respect the user's
 //     configured shell on Windows.
@@ -54,15 +58,25 @@ func sshConfigMatchExecEscape(path string) (string, error) {
 
 	if strings.ContainsAny(path, " ") {
 		// c.f. function comment for how this works.
-		cmd := "cmd.exe"
-		if comspec := os.Getenv("ComSpec"); comspec != "" {
-			cmd = comspec
+		cmd := cmp.Or(os.Getenv("ComSpec"), "cmd.exe")
+		if err := validateMatchExecHelperPath("cmd.exe", cmd); err != nil {
+			return "", err
 		}
 		powershell := "powershell.exe"
 		if systemRoot := os.Getenv("SystemRoot"); systemRoot != "" {
 			powershell = filepath.Join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 		}
+		if err := validateMatchExecHelperPath("powershell.exe", powershell); err != nil {
+			return "", err
+		}
 		path = fmt.Sprintf("for /f %%%%a in ('%s -NoProfile -Command [char]34') do @%s /c %%%%a%s%%%%a", powershell, cmd, path) //nolint:gocritic // We don't want %q here.
 	}
 	return path, nil
+}
+
+func validateMatchExecHelperPath(name, path string) error {
+	if strings.ContainsAny(path, " \"\t\r\n") {
+		return xerrors.Errorf("resolved %s path must not contain spaces, quotes, tabs, or newlines: %q", name, path)
+	}
+	return nil
 }

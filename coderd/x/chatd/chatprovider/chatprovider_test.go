@@ -313,6 +313,24 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortMedium)),
 		},
 		{
+			name:     "OpenRouterNoneEffort",
+			provider: "openrouter",
+			input:    ptr.Ref("none"),
+			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortNone)),
+		},
+		{
+			name:     "OpenRouterMinimalEffort",
+			provider: "openrouter",
+			input:    ptr.Ref("minimal"),
+			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortMinimal)),
+		},
+		{
+			name:     "OpenRouterXHighEffort",
+			provider: "openrouter",
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortXHigh)),
+		},
+		{
 			name:     "VercelEffort",
 			provider: "vercel",
 			input:    ptr.Ref("xhigh"),
@@ -1514,36 +1532,79 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 func TestMergeMissingProviderOptions_OpenAICompat(t *testing.T) {
 	t.Parallel()
 
-	options := &codersdk.ChatModelProviderOptions{
-		OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
-			ReasoningEffort: ptr.Ref("low"),
-		},
-	}
-	defaults := &codersdk.ChatModelProviderOptions{
-		OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
-			User:                ptr.Ref("default-user"),
-			ParallelToolCalls:   ptr.Ref(true),
-			ReasoningEffort:     ptr.Ref("high"),
-			MaxCompletionTokens: ptr.Ref[int64](4096),
-			PromptCacheKey:      ptr.Ref("default-cache-key"),
-			ExtraBody: map[string]any{
-				"default_field": "default-value",
+	t.Run("FillsUnsetFields", func(t *testing.T) {
+		t.Parallel()
+
+		options := &codersdk.ChatModelProviderOptions{
+			OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
+				ReasoningEffort: ptr.Ref("low"),
 			},
-		},
-	}
+		}
+		defaults := &codersdk.ChatModelProviderOptions{
+			OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
+				User:                ptr.Ref("default-user"),
+				ParallelToolCalls:   ptr.Ref(true),
+				ReasoningEffort:     ptr.Ref("high"),
+				MaxCompletionTokens: ptr.Ref[int64](4096),
+				PromptCacheKey:      ptr.Ref("default-cache-key"),
+				ExtraBody: map[string]any{
+					"default_field": "default-value",
+				},
+			},
+		}
 
-	chatprovider.MergeMissingProviderOptions(&options, defaults)
+		chatprovider.MergeMissingProviderOptions(&options, defaults)
 
-	require.NotNil(t, options)
-	require.NotNil(t, options.OpenAICompat)
-	require.Equal(t, "default-user", *options.OpenAICompat.User)
-	require.True(t, *options.OpenAICompat.ParallelToolCalls)
-	require.Equal(t, "low", *options.OpenAICompat.ReasoningEffort)
-	require.EqualValues(t, 4096, *options.OpenAICompat.MaxCompletionTokens)
-	require.Equal(t, map[string]any{
-		"default_field": "default-value",
-	}, options.OpenAICompat.ExtraBody)
-	require.Equal(t, "default-cache-key", *options.OpenAICompat.PromptCacheKey)
+		require.NotNil(t, options)
+		require.NotNil(t, options.OpenAICompat)
+		require.Equal(t, "default-user", *options.OpenAICompat.User)
+		require.True(t, *options.OpenAICompat.ParallelToolCalls)
+		require.Equal(t, "low", *options.OpenAICompat.ReasoningEffort)
+		require.EqualValues(t, 4096, *options.OpenAICompat.MaxCompletionTokens)
+		require.Equal(t, map[string]any{
+			"default_field": "default-value",
+		}, options.OpenAICompat.ExtraBody)
+		require.Equal(t, "default-cache-key", *options.OpenAICompat.PromptCacheKey)
+	})
+
+	t.Run("PreservesExplicitFalseParallelToolCalls", func(t *testing.T) {
+		t.Parallel()
+
+		options := &codersdk.ChatModelProviderOptions{
+			OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
+				ParallelToolCalls: ptr.Ref(false),
+			},
+		}
+		defaults := &codersdk.ChatModelProviderOptions{
+			OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
+				ParallelToolCalls: ptr.Ref(true),
+			},
+		}
+
+		chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+		require.NotNil(t, options.OpenAICompat.ParallelToolCalls)
+		require.False(t, *options.OpenAICompat.ParallelToolCalls)
+	})
+
+	t.Run("ClonesDefaultExtraBody", func(t *testing.T) {
+		t.Parallel()
+
+		options := &codersdk.ChatModelProviderOptions{}
+		defaults := &codersdk.ChatModelProviderOptions{
+			OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
+				ExtraBody: map[string]any{
+					"default_field": "default-value",
+				},
+			},
+		}
+
+		chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+		require.NotNil(t, options.OpenAICompat)
+		options.OpenAICompat.ExtraBody["default_field"] = "changed"
+		require.Equal(t, "default-value", defaults.OpenAICompat.ExtraBody["default_field"])
+	})
 }
 
 func TestProviderOptionsFromChatModelConfig_OpenAICompat(t *testing.T) {
@@ -1557,10 +1618,10 @@ func TestProviderOptionsFromChatModelConfig_OpenAICompat(t *testing.T) {
 			&codersdk.ChatModelProviderOptions{
 				OpenAICompat: &codersdk.ChatModelOpenAICompatProviderOptions{
 					User:                ptr.Ref("compat-user"),
-					ParallelToolCalls:   ptr.Ref(true),
+					ParallelToolCalls:   ptr.Ref(false),
 					ReasoningEffort:     ptr.Ref("medium"),
 					MaxCompletionTokens: ptr.Ref[int64](2048),
-					PromptCacheKey:      ptr.Ref("cache-key"),
+					PromptCacheKey:      ptr.Ref(" cache-key "),
 					ExtraBody: map[string]any{
 						"custom_field": "custom-value",
 					},
@@ -1573,7 +1634,7 @@ func TestProviderOptionsFromChatModelConfig_OpenAICompat(t *testing.T) {
 		options, ok := raw.(*fantasyopenaicompat.ProviderOptions)
 		require.True(t, ok)
 		require.Equal(t, "compat-user", *options.User)
-		require.True(t, *options.ParallelToolCalls)
+		require.False(t, *options.ParallelToolCalls)
 		require.NotNil(t, options.ReasoningEffort)
 		require.Equal(t, fantasyopenai.ReasoningEffortMedium, *options.ReasoningEffort)
 		require.EqualValues(t, 2048, *options.MaxCompletionTokens)

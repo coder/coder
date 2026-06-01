@@ -229,10 +229,8 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 
 			var b []byte
 			if runtime.GOOS == "windows" {
-				// OpenSSH does not invoke Match exec through Go's Windows
-				// command-line quoting. Run the command from a batch file so the
-				// generated %% escape sequences are interpreted like they are in
-				// the SSH config path.
+				// OpenSSH passes Match exec to cmd.exe, not through Go's quoting.
+				// %% escapes must be expanded the same way as in the SSH config.
 				script := filepath.Join(t.TempDir(), "match-exec.cmd")
 				err = os.WriteFile(script, []byte("@echo off\r\n"+escaped+"\r\n"), 0o755) //nolint:gosec
 				require.NoError(t, err)

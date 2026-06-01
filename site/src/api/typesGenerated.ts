@@ -2356,11 +2356,8 @@ export interface ChatModelGoogleThinkingConfig {
 /**
  * ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
  *
- * Every field on this struct must be a nilable type (pointer, slice, or map)
- * so JSON omitempty can distinguish an unset field from an explicit zero
- * value. Adding a bare bool, int, or string field would silently lose user
- * intent because false, 0, and "" would be indistinguishable from unset at the
- * SDK boundary and on the wire.
+ * Every field must be nilable so omitempty distinguishes unset from zero.
+ * A bare bool, int, or string silently equates false, 0, or "" with unset.
  */
 export interface ChatModelOpenAICompatProviderOptions {
 	readonly user?: string;

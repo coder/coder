@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"sort"
 	"strings"
@@ -727,9 +728,12 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	case fantasyopenrouter.Name:
 		return chatutil.NormalizedEnumValue(
 			normalized,
+			string(fantasyopenrouter.ReasoningEffortNone),
+			string(fantasyopenrouter.ReasoningEffortMinimal),
 			string(fantasyopenrouter.ReasoningEffortLow),
 			string(fantasyopenrouter.ReasoningEffortMedium),
 			string(fantasyopenrouter.ReasoningEffortHigh),
+			string(fantasyopenrouter.ReasoningEffortXHigh),
 		)
 	case fantasyvercel.Name:
 		return chatutil.NormalizedEnumValue(
@@ -935,6 +939,7 @@ func MergeMissingProviderOptions(
 			}
 			if current.OpenAICompat == nil {
 				copied := *defaults.OpenAICompat
+				copied.ExtraBody = maps.Clone(defaults.OpenAICompat.ExtraBody)
 				current.OpenAICompat = &copied
 				continue
 			}
@@ -956,7 +961,7 @@ func MergeMissingProviderOptions(
 				dstCompat.PromptCacheKey = defaultCompat.PromptCacheKey
 			}
 			if dstCompat.ExtraBody == nil {
-				dstCompat.ExtraBody = defaultCompat.ExtraBody
+				dstCompat.ExtraBody = maps.Clone(defaultCompat.ExtraBody)
 			}
 
 		case fantasyopenrouter.Name:
@@ -965,6 +970,7 @@ func MergeMissingProviderOptions(
 			}
 			if current.OpenRouter == nil {
 				copied := *defaults.OpenRouter
+				copied.ExtraBody = maps.Clone(defaults.OpenRouter.ExtraBody)
 				current.OpenRouter = &copied
 				continue
 			}
@@ -987,7 +993,7 @@ func MergeMissingProviderOptions(
 				}
 			}
 			if dstRouter.ExtraBody == nil {
-				dstRouter.ExtraBody = defaultRouter.ExtraBody
+				dstRouter.ExtraBody = maps.Clone(defaultRouter.ExtraBody)
 			}
 			if dstRouter.IncludeUsage == nil {
 				dstRouter.IncludeUsage = defaultRouter.IncludeUsage
@@ -1039,6 +1045,7 @@ func MergeMissingProviderOptions(
 			}
 			if current.Vercel == nil {
 				copied := *defaults.Vercel
+				copied.ExtraBody = maps.Clone(defaults.Vercel.ExtraBody)
 				current.Vercel = &copied
 				continue
 			}
@@ -1086,7 +1093,7 @@ func MergeMissingProviderOptions(
 				dstVercel.ParallelToolCalls = defaultVercel.ParallelToolCalls
 			}
 			if dstVercel.ExtraBody == nil {
-				dstVercel.ExtraBody = defaultVercel.ExtraBody
+				dstVercel.ExtraBody = maps.Clone(defaultVercel.ExtraBody)
 			}
 		}
 	}
@@ -1442,7 +1449,7 @@ func openAICompatProviderOptionsFromChatConfig(
 		ParallelToolCalls:   options.ParallelToolCalls,
 		ReasoningEffort:     chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
 		MaxCompletionTokens: options.MaxCompletionTokens,
-		PromptCacheKey:      options.PromptCacheKey,
+		PromptCacheKey:      chatutil.NormalizedStringPointer(options.PromptCacheKey),
 		ExtraBody:           options.ExtraBody,
 	}
 }

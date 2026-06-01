@@ -931,6 +931,26 @@ describe("buildModelConfigFromForm", () => {
 			});
 		});
 
+		it("reports error when extra body is invalid JSON", () => {
+			const result = buildModelConfigFromForm(
+				"openaicompat",
+				formWith({ openaicompat: { extraBody: "not-json" } }),
+			);
+			expect(result.fieldErrors["openaicompat.extraBody"]).toContain(
+				"must be valid JSON",
+			);
+		});
+
+		it("reports error when extra body JSON is not an object", () => {
+			const result = buildModelConfigFromForm(
+				"openaicompat",
+				formWith({ openaicompat: { extraBody: "[1,2]" } }),
+			);
+			expect(result.fieldErrors["openaicompat.extraBody"]).toContain(
+				"must be a JSON object",
+			);
+		});
+
 		it("reports error for invalid reasoning effort", () => {
 			const result = buildModelConfigFromForm(
 				"openaicompat",
