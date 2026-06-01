@@ -531,7 +531,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						>
 							<div className="px-4">
 								<ChatPageTimeline
-									chatID={agentId}
 									store={store}
 									persistedError={persistedError}
 									onEditUserMessage={

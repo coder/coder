@@ -46,7 +46,6 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface ChatPageTimelineProps {
-	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -62,7 +61,6 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
-	chatID,
 	store,
 	persistedError,
 	onEditUserMessage,
@@ -133,7 +131,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<LiveStreamTail
 					store={store}
 					persistedError={persistedError}
-					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}

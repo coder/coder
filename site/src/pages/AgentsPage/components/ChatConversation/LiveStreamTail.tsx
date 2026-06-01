@@ -35,7 +35,6 @@ interface LiveStreamTailContentProps {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
@@ -48,7 +47,6 @@ export const LiveStreamTailContent = ({
 	streamState,
 	streamTools,
 	liveStatus,
-	startingResetKey,
 	subagentTitles,
 	subagentVariants,
 	subagentStatusOverrides,
@@ -88,7 +86,6 @@ export const LiveStreamTailContent = ({
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
-					startingResetKey={startingResetKey}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					subagentStatusOverrides={subagentStatusOverrides}
@@ -118,7 +115,6 @@ interface LiveStreamTailProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
-	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
@@ -129,7 +125,6 @@ export const LiveStreamTail = ({
 	store,
 	persistedError,
 	isTranscriptEmpty,
-	startingResetKey,
 	subagentTitles,
 	subagentVariants,
 	urlTransform,
@@ -166,7 +161,6 @@ export const LiveStreamTail = ({
 			streamState={streamState}
 			streamTools={streamTools}
 			liveStatus={liveStatus}
-			startingResetKey={startingResetKey}
 			subagentTitles={subagentTitles}
 			subagentVariants={subagentVariants}
 			subagentStatusOverrides={subagentStatusOverrides}
