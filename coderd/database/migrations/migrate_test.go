@@ -4,11 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -111,6 +115,64 @@ func testSQLDB(t testing.TB) *sql.DB {
 	require.NoError(t, err)
 
 	return db
+}
+
+func migrationFSUpTo(t testing.TB, targetVersion uint64) fs.FS {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	migFS := fstest.MapFS{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+
+		version := migrationVersionFromFilename(t, entry.Name())
+		if version > targetVersion {
+			continue
+		}
+
+		data, err := os.ReadFile(entry.Name())
+		require.NoError(t, err)
+		migFS[entry.Name()] = &fstest.MapFile{
+			Data: data,
+		}
+	}
+
+	return migFS
+}
+
+func latestMigrationVersion(t testing.TB) uint64 {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	var latest uint64
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
+			continue
+		}
+
+		latest = max(latest, migrationVersionFromFilename(t, entry.Name()))
+	}
+	require.NotZero(t, latest)
+
+	return latest
+}
+
+func migrationVersionFromFilename(t testing.TB, name string) uint64 {
+	t.Helper()
+
+	versionString, _, ok := strings.Cut(name, "_")
+	require.True(t, ok, "migration filename should start with a version: %s", name)
+
+	version, err := strconv.ParseUint(versionString, 10, 64)
+	require.NoError(t, err)
+
+	return version
 }
 
 // paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
@@ -1410,6 +1472,89 @@ func TestMigration000504AIProvidersBackfill(t *testing.T) {
 	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
 	require.NoError(t, err)
 	require.Equal(t, 2, legacyProviderCount, "down migration should leave the legacy source rows intact")
+}
+
+func TestMigrationFrom483WithOpenAICompatProvider(t *testing.T) {
+	t.Parallel()
+
+	const legacyVersion uint64 = 483
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.UpWithFS(sqlDB, migrationFSUpTo(t, legacyVersion)))
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	providerID := uuid.New()
+	userKeyID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "openai-compat-backfill", "openai-compat-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai-compat', 'OpenAI Compatible', 'sk-provider-openai-compat', TRUE, 'https://openai-compatible.example.com/v1', $2, $2)
+	`, providerID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO user_chat_provider_keys (id, user_id, chat_provider_id, api_key, created_at, updated_at)
+		VALUES ($1, $2, $3, 'sk-user-openai-compat', $4, $4)
+	`, userKeyID, userID, providerID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	require.NoError(t, migrations.Up(sqlDB))
+
+	var provider struct {
+		Type        string
+		Name        string
+		DisplayName sql.NullString
+		Enabled     bool
+		BaseURL     string
+	}
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT type, name, display_name, enabled, base_url
+		FROM ai_providers
+		WHERE id = $1
+	`, providerID).Scan(&provider.Type, &provider.Name, &provider.DisplayName, &provider.Enabled, &provider.BaseURL)
+	require.NoError(t, err)
+	require.Equal(t, "openai-compat", provider.Type)
+	require.Equal(t, "agents-openai-compat", provider.Name)
+	require.Equal(t, sql.NullString{String: "OpenAI Compatible", Valid: true}, provider.DisplayName)
+	require.True(t, provider.Enabled)
+	require.Equal(t, "https://openai-compatible.example.com/v1", provider.BaseURL)
+
+	var providerKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1 AND api_key = 'sk-provider-openai-compat'
+	`, providerID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, providerKeyCount)
+
+	var userKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM user_ai_provider_keys
+		WHERE id = $1 AND user_id = $2 AND ai_provider_id = $3 AND api_key = 'sk-user-openai-compat'
+	`, userKeyID, userID, providerID).Scan(&userKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, userKeyCount)
+
+	var version uint64
+	var dirty bool
+	err = sqlDB.QueryRowContext(ctx, `SELECT version, dirty FROM schema_migrations LIMIT 1`).Scan(&version, &dirty)
+	require.NoError(t, err)
+	require.Equal(t, latestMigrationVersion(t), version)
+	require.False(t, dirty)
 }
 
 // TestMigration000504AIProvidersBackfillOverridesNameConflict verifies that a

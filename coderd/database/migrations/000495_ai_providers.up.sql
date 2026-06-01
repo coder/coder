@@ -1,6 +1,13 @@
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
-    'anthropic'
+    'anthropic',
+    'azure',
+    'bedrock',
+    'google',
+    'openai-compat',
+    'openrouter',
+    'vercel',
+    'copilot'
 );
 
 CREATE TABLE ai_providers (
