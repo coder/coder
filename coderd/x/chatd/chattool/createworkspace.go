@@ -96,6 +96,10 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"context, provider tools, or external MCP tools. Requires a "+
 			"template_id from list_templates. Use recommended_template_id "+
 			"or rank 1 when list_templates reports a confident choice. "+
+			"If list_templates returned user_selection_required true, "+
+			"or selection_hint no_confident_match or ambiguous_top_matches, "+
+			"do not call create_workspace. Ask the user to choose a "+
+			"template unless the user already explicitly selected one. "+
 			"Optionally provide a name and parameter values from "+
 			"read_template. If no name is given, one will be generated. "+
 			"Provide a preset_id from read_template to apply "+

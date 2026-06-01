@@ -103,6 +103,10 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			"display name, or description. Use recommended_template_id "+
 			"or rank 1 as the default choice when selection_hint is "+
 			"only_available_template or high_confidence_recommendation. "+
+			"If user_selection_required is true, or selection_hint is "+
+			"no_confident_match or ambiguous_top_matches, do not call "+
+			"create_workspace. Ask the user to choose a template unless "+
+			"the user already explicitly selected one. "+
 			"Do not paginate unless the returned templates do not fit the "+
 			"request, selection_hint reports ambiguity or no confident match, "+
 			"or the user asked to browse templates. Returns 10 per page.",
@@ -210,6 +214,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				"available_template_count": visibleTemplateCount,
 				"selection_hint":           selectionHint,
 				"recommendation_reason":    recommendationReason,
+				"user_selection_required":  userSelectionRequired(selectionHint),
 			}
 			if recommendedID != uuid.Nil {
 				result["recommended_template_id"] = recommendedID.String()
@@ -372,6 +377,10 @@ func selectTemplateRecommendation(
 		return listTemplatesHintNoConfidence, uuid.Nil, "weak_ranking_signal"
 	}
 	return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
+}
+
+func userSelectionRequired(selectionHint string) bool {
+	return selectionHint == listTemplatesHintAmbiguous || selectionHint == listTemplatesHintNoConfidence
 }
 
 func templatesAreAmbiguous(a, b rankedTemplate) bool {

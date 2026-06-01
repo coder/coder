@@ -167,6 +167,7 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	require.Len(t, templates, 1)
 	require.Equal(t, displayTemplate.ID.String(), templates[0]["id"])
 	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, false, result["user_selection_required"])
 	require.Equal(t, displayTemplate.ID.String(), result["recommended_template_id"])
 	require.Equal(t, "matches_query", templates[0]["relevance_signals"])
 
@@ -183,6 +184,7 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	require.Equal(t, float64(0), result["total_count"])
 	require.Equal(t, float64(3), result["available_template_count"])
 	require.Equal(t, "no_confident_match", result["selection_hint"])
+	require.Equal(t, true, result["user_selection_required"])
 	require.Equal(t, "no_matching_templates", result["recommendation_reason"])
 
 	result = runListTemplates(ctx, t, tool, `{"query":"does-not-exist"}`)
@@ -191,6 +193,7 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	require.Equal(t, float64(0), result["total_count"])
 	require.Equal(t, float64(3), result["available_template_count"])
 	require.Equal(t, "no_confident_match", result["selection_hint"])
+	require.Equal(t, true, result["user_selection_required"])
 	require.Equal(t, "no_matching_templates", result["recommendation_reason"])
 }
 
