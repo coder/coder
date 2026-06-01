@@ -265,8 +265,13 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 // Reactive wrapper so callers re-render when the viewport crosses `md`.
 const subscribeBelowMdViewport = (onStoreChange: () => void) => {
 	const mediaQuery = matchMedia(belowMdViewportMediaQuery);
-	mediaQuery.addEventListener("change", onStoreChange);
-	return () => mediaQuery.removeEventListener("change", onStoreChange);
+	const notify = () => onStoreChange();
+	if (typeof mediaQuery.addEventListener === "function") {
+		mediaQuery.addEventListener("change", notify);
+		return () => mediaQuery.removeEventListener("change", notify);
+	}
+	mediaQuery.addListener(notify);
+	return () => mediaQuery.removeListener(notify);
 };
 
 const useIsBelowMdViewport = (): boolean => {
