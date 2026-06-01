@@ -340,8 +340,6 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errBedrockRejectsAPIKeys
 		}
 
-		// Copilot authenticates with each user's request-time GitHub
-		// OAuth token, so there is no pre-shared key to register.
 		if req.APIKeys != nil && old.Type == database.AiProviderTypeCopilot && len(*req.APIKeys) > 0 {
 			return errCopilotRejectsAPIKeys
 		}

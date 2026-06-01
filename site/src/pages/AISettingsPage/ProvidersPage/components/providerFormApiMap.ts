@@ -98,6 +98,9 @@ export const getProviderDisplayType = (
 	if (provider.type === "anthropic") {
 		return "anthropic";
 	}
+	if (provider.type === "copilot") {
+		return "copilot";
+	}
 	const host = parseProviderHost(provider.base_url ?? "");
 	const match = displayTypeHosts.find(([h]) => matchesHost(host, h));
 	return match?.[1] ?? provider.type;
@@ -125,12 +128,16 @@ const buildBedrockSettings = (
 export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
-	const name = values.name.trim();
 	const displayName = values.displayName.trim();
-	const baseUrl = values.baseUrl.trim();
+	const base: Omit<CreateAIProviderRequest, "type"> = {
+		name: values.name.trim(),
+		...(displayName ? { display_name: displayName } : {}),
+		base_url: values.baseUrl.trim(),
+		enabled: values.enabled,
+	};
 
 	if (values.type === "bedrock") {
-		const region = parseBedrockRegionFromBaseUrl(baseUrl);
+		const region = parseBedrockRegionFromBaseUrl(base.base_url);
 		const settings = buildBedrockSettings(
 			region,
 			values.model.trim(),
@@ -140,29 +147,18 @@ export const providerFormValuesToCreate = (
 		);
 		return {
 			type: "anthropic",
-			name,
-			...(displayName ? { display_name: displayName } : {}),
-			base_url: baseUrl,
-			enabled: values.enabled,
+			...base,
 			settings: settings as AIProviderSettings,
 		};
 	}
 
-	// Copilot is a distinct wire type with no stored credential; the
-	// runtime authenticates each request with the user's GitHub token.
 	if (values.type === "copilot") {
-		return {
-			type: "copilot",
-			name,
-			...(displayName ? { display_name: displayName } : {}),
-			base_url: baseUrl,
-			enabled: values.enabled,
-		};
+		return { type: "copilot", ...base };
 	}
 
 	const apiKey = sanitizeCredential(values.apiKey);
-	// `""` is unreachable here (Yup blocks it, Bedrock branched out), but the
-	// union still includes it; narrow so TS stays honest.
+	// `""` is unreachable here (Yup blocks it, Bedrock and Copilot branched
+	// out), but the union still includes it; narrow so TS stays honest.
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
@@ -172,10 +168,7 @@ export const providerFormValuesToCreate = (
 		values.type === "anthropic" ? "anthropic" : "openai";
 	return {
 		type: wireType,
-		name,
-		...(displayName ? { display_name: displayName } : {}),
-		base_url: baseUrl,
-		enabled: values.enabled,
+		...base,
 		...(apiKey ? { api_keys: [apiKey] } : {}),
 	};
 };
@@ -194,8 +187,6 @@ export const providerFormValuesToUpdate = (
 		base_url: values.baseUrl.trim(),
 	};
 
-	// Copilot carries no stored credential, so a patch only touches the
-	// base fields; the backend rejects api_keys on copilot providers.
 	if (values.type === "copilot") {
 		return base;
 	}
@@ -258,9 +249,6 @@ export const aiProviderToFormValues = (
 		};
 	}
 
-	// Copilot is a distinct wire type whose form omits the credential
-	// field, so it must be recovered exactly rather than collapsing to
-	// openai.
 	if (provider.type === "copilot") {
 		return {
 			type: "copilot",

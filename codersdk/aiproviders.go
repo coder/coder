@@ -188,8 +188,9 @@ type AIProviderKey struct {
 
 // CreateAIProviderRequest is the payload for creating a new AI
 // provider. Name and Type are required. APIKeys carries the plaintext
-// keys for OpenAI/Anthropic providers; Bedrock providers authenticate
-// via Settings and must omit APIKeys.
+// keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+// must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+// request-time GitHub OAuth tokens).
 type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
@@ -245,8 +246,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "type=bedrock does not accept api_keys",
 		})
 	}
-	// Copilot authenticates with each user's request-time GitHub OAuth
-	// token, so there is no pre-shared key to register.
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
 			Field:  "api_keys",

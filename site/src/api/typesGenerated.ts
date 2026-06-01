@@ -3240,8 +3240,9 @@ export interface ConvertLoginRequest {
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
  * provider. Name and Type are required. APIKeys carries the plaintext
- * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
- * via Settings and must omit APIKeys.
+ * keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+ * must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+ * request-time GitHub OAuth tokens).
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;

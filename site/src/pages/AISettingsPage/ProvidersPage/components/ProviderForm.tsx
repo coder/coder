@@ -83,7 +83,7 @@ const providerDefaults: Partial<
 	},
 	copilot: {
 		name: "copilot",
-		baseUrl: "https://api.business.githubcopilot.com",
+		baseUrl: "https://api.individual.githubcopilot.com",
 	},
 	google: {
 		name: "google",
@@ -168,8 +168,6 @@ const makeBedrockSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-// Copilot authenticates with each user's request-time GitHub OAuth
-// token, so the form collects no credential field.
 const makeCopilotSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -342,14 +340,27 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							required
 							field={getFieldHelpers("baseUrl")}
 							label="Endpoint"
-							description="The base URL where the provider's API is hosted."
+							description={
+								typeSelectValue === "copilot" ? (
+									<>
+										The base URL for your Copilot tier:{" "}
+										<code>https://api.individual.githubcopilot.com</code>,{" "}
+										<code>https://api.business.githubcopilot.com</code>, or{" "}
+										<code>https://api.enterprise.githubcopilot.com</code>.
+									</>
+								) : (
+									"The base URL where the provider's API is hosted."
+								)
+							}
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
 						{typeSelectValue === "copilot" ? (
 							<p className="text-sm text-content-secondary m-0">
 								Copilot authenticates with each user's GitHub OAuth token at
-								request time, so there is no API key to configure here.
+								request time, so there is no API key to configure here. This
+								requires a GitHub external authentication provider to be
+								configured.
 							</p>
 						) : (
 							<CredentialField
@@ -439,7 +450,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</Button>
 					</Link>
 					<Button
-						disabled={isLoading || !form.dirty || !form.isValid}
+						disabled={isLoading || !form.isValid || (editing && !form.dirty)}
 						type="submit"
 					>
 						<Spinner loading={isLoading} />

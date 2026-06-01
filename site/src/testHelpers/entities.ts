@@ -5574,11 +5574,6 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-/**
- * Copilot providers carry their own wire `type` and never hold stored
- * keys; the runtime authenticates each request with the user's GitHub
- * OAuth token.
- */
 export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
 	type: "copilot",

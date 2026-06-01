@@ -895,8 +895,6 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Copilot authenticates with each user's request-time GitHub
-		// OAuth token, so it carries no stored keys.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeCopilot,
