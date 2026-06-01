@@ -8,9 +8,14 @@ import {
 	toProviderLabel,
 } from "./utils";
 
+export type ExecuteTranscriptBlock = {
+	kind: "output" | "error";
+	text: string;
+};
+
 type ExecuteRenderData = {
 	command: string;
-	output: string;
+	transcriptBlocks: ExecuteTranscriptBlock[];
 	durationMs?: number;
 	isBackgrounded: boolean;
 	authenticateURL: string;
@@ -29,6 +34,16 @@ export const getExecuteRenderData = (
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const error = rec ? asString(rec.error).trim() : "";
+	const fallbackMessage = rec && !error ? asString(rec.message).trim() : "";
+	const errorText = error || fallbackMessage;
+	const transcriptBlocks: ExecuteTranscriptBlock[] = [];
+	if (output) {
+		transcriptBlocks.push({ kind: "output", text: output });
+	}
+	if (errorText) {
+		transcriptBlocks.push({ kind: "error", text: errorText });
+	}
 	const durationMs = rec
 		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
 			asNumber(rec.duration_ms, { parseString: true }))
@@ -47,7 +62,7 @@ export const getExecuteRenderData = (
 
 	return {
 		command,
-		output,
+		transcriptBlocks,
 		durationMs,
 		isBackgrounded,
 		authenticateURL,
