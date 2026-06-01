@@ -51,6 +51,14 @@ message RecordInterceptionRequest {
   string provider_name = 12;
   string credential_kind = 13;
   string credential_hint = 14;
+  // Boundary session UUID linking this interception to a Boundary
+  // confinement session. Populated only when the request passed through
+  // a Boundary proxy.
+  optional string boundary_session_id = 15;
+  // Monotonically increasing sequence number assigned by Boundary,
+  // used to order network requests relative to Boundary audit events.
+  // Absent when the request did not pass through Boundary.
+  optional int64 boundary_sequence_number = 16;
 }
 
 message RecordInterceptionResponse {}
