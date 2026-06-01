@@ -8210,6 +8210,56 @@ export interface TemplateBuilderConfig {
 	readonly registry_url?: string;
 }
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModule is the API response type returned by
+ * GET /api/v2/templatebuilder/modules. The Version field is
+ * populated from the catalog's PinnedVersion at serving time.
+ */
+export interface TemplateBuilderModule {
+	readonly id: string;
+	readonly display_name: string;
+	readonly description: string;
+	readonly icon: string;
+	readonly category: string;
+	readonly version: string;
+	readonly compatible_os: readonly string[];
+	readonly conflicts_with: readonly string[];
+	readonly variables: readonly TemplateBuilderModuleVariable[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModuleVariable represents a variable within a template builder module.
+ */
+export interface TemplateBuilderModuleVariable {
+	readonly name: string;
+	readonly type: TemplateBuilderVariableType;
+	readonly description: string;
+	readonly default?: string;
+	readonly required: boolean;
+	readonly sensitive: boolean;
+	readonly builder_managed: boolean;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModulesResponse is the response body for listing
+ * template builder modules.
+ */
+export interface TemplateBuilderModulesResponse {
+	readonly modules: readonly TemplateBuilderModule[];
+}
+
+// From codersdk/templatebuilder.go
+export type TemplateBuilderVariableType = "bool" | "number" | "string";
+
+export const TemplateBuilderVariableTypes: TemplateBuilderVariableType[] = [
+	"bool",
+	"number",
+	"string",
+];
+
 // From codersdk/insights.go
 /**
  * Enums define the display name of the builtin app reported.

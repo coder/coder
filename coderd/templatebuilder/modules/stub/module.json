@@ -1,0 +1,29 @@
+{
+  "id": "stub",
+  "display_name": "Stub Module",
+  "description": "Stub module for testing the catalog system.",
+  "icon": "",
+  "category": "Utility",
+  "tags": ["test"],
+  "compatible_os": ["linux"],
+  "conflicts_with": [],
+  "pinned_version": "0.0.0",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of the Coder agent.",
+      "required": true,
+      "sensitive": false,
+      "builder_managed": true
+    },
+    {
+      "name": "example_secret",
+      "type": "string",
+      "description": "An example sensitive variable.",
+      "required": false,
+      "sensitive": true,
+      "builder_managed": false
+    }
+  ]
+}
