@@ -1058,6 +1058,12 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Enumerate the per-member resources explicitly so new resources do
 	// not auto-grant to org members. Adding a resource to the codebase
 	// requires an explicit decision to expose it here.
+	//
+	// Member-level grants only fire when input.object.owner ==
+	// input.subject.id (see the org_member rule in
+	// coderd/rbac/policy.rego). Only resources whose RBACObject() calls
+	// WithOwner(...) at production call sites belong here; see the
+	// "Intentionally omitted" block at the bottom.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Workspace lifecycle on resources owned by this member.
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
@@ -1075,48 +1081,58 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionUpdateAgent,
 		},
 
-		// Workspace runtime support: proxies, agent monitors,
-		// devcontainer setup, and tailnet coordination.
-		ResourceWorkspaceProxy.Type:                {policy.ActionRead},
-		ResourceWorkspaceAgentResourceMonitor.Type: ResourceWorkspaceAgentResourceMonitor.AvailableActions(),
-		ResourceWorkspaceAgentDevcontainers.Type:   ResourceWorkspaceAgentDevcontainers.AvailableActions(),
-		ResourceTailnetCoordinator.Type:            ResourceTailnetCoordinator.AvailableActions(),
-
-		// Apply templates; full template lifecycle is restricted to
-		// template-admin.
-		ResourceTemplate.Type: {policy.ActionRead, policy.ActionUse},
-
-		// Upload and read template files used during workspace build.
+		// Upload and read template files the member created during
+		// workspace build (File.RBACObject sets WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
 
-		// Provisioner jobs back workspace builds.
-		ResourceProvisionerJobs.Type: ResourceProvisionerJobs.AvailableActions(),
-
-		// Tasks ride along with workspaces.
+		// Tasks ride along with workspaces and are owner-scoped.
 		ResourceTask.Type: ResourceTask.AvailableActions(),
 
-		// Read groups and group memberships for ACL evaluation.
-		ResourceGroup.Type:       {policy.ActionRead},
+		// Read-self group-membership record. GroupMember.RBACObject
+		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
-		// Members can create and update AI Bridge interceptions but
-		// cannot read them back. Chat access requires the agents-access
-		// role and is intentionally not granted here.
+		// Members can create and update AI Bridge interceptions they
+		// initiate (dbauthz layer sets WithOwner(InitiatorID)) but
+		// cannot read them back. Chat access requires the
+		// agents-access role and is intentionally not granted here.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
 
-		// User-scoped notification surfaces.
+		// User-scoped notification surfaces. All three resources are
+		// addressed by WithOwner(user_id) at the call sites.
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 
-		// Replica metadata (read-only is the only defined action).
-		ResourceReplicas.Type: {policy.ActionRead},
+		// Intentionally omitted at Member scope (resources without an
+		// Owner field on their RBACObject; Member-level grants never
+		// fire for them). Listed here so a future maintainer who sees
+		// these dropped relative to the legacy allPermsExcept(...)
+		// wildcard does not "restore" them:
+		//
+		//   - ResourceTemplate: templates have no owner. Org-member
+		//     template.use is authorized via the ACL path
+		//     (acl_group_list[org_owner] "Everyone" group, populated
+		//     on each template's GroupACL).
+		//   - ResourceGroup: groups have no owner. "Groups I'm a
+		//     member of can read themselves" is granted via the
+		//     per-group GroupACL.
+		//   - ResourceWorkspaceProxy, ResourceProvisionerJobs,
+		//     ResourceWorkspaceAgentResourceMonitor,
+		//     ResourceWorkspaceAgentDevcontainers,
+		//     ResourceTailnetCoordinator, ResourceReplicas: these
+		//     resources have no DB model that sets Owner; all
+		//     production call sites use the bare resource or
+		//     .InOrg(...) only. Access for these flows through Org
+		//     perms on the appropriate role (e.g. ProvisionerDaemon
+		//     above), or through system / agent / template-admin
+		//     roles defined elsewhere.
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
@@ -1167,6 +1183,12 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 	// service account-scoped permissions (resources owned by the
 	// service account). Enumerated explicitly so new resources do not
 	// auto-grant to service accounts.
+	//
+	// Member-level grants only fire when input.object.owner ==
+	// input.subject.id (see the org_member rule in
+	// coderd/rbac/policy.rego). Only resources whose RBACObject() calls
+	// WithOwner(...) at production call sites belong here; see the
+	// "Intentionally omitted" block at the bottom.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Workspace lifecycle on resources owned by this service account.
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
@@ -1184,47 +1206,40 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionUpdateAgent,
 		},
 
-		// Workspace runtime support.
-		ResourceWorkspaceProxy.Type:                {policy.ActionRead},
-		ResourceWorkspaceAgentResourceMonitor.Type: ResourceWorkspaceAgentResourceMonitor.AvailableActions(),
-		ResourceWorkspaceAgentDevcontainers.Type:   ResourceWorkspaceAgentDevcontainers.AvailableActions(),
-		ResourceTailnetCoordinator.Type:            ResourceTailnetCoordinator.AvailableActions(),
-
-		// Apply templates; full template lifecycle is restricted to
-		// template-admin.
-		ResourceTemplate.Type: {policy.ActionRead, policy.ActionUse},
-
-		// Upload and read template files used during workspace build.
+		// Upload and read template files the service account created
+		// during workspace build (File.RBACObject sets
+		// WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
 
-		// Provisioner jobs back workspace builds.
-		ResourceProvisionerJobs.Type: ResourceProvisionerJobs.AvailableActions(),
-
-		// Tasks ride along with workspaces.
+		// Tasks ride along with workspaces and are owner-scoped.
 		ResourceTask.Type: ResourceTask.AvailableActions(),
 
-		// Read groups and group memberships for ACL evaluation.
-		ResourceGroup.Type:       {policy.ActionRead},
+		// Read-self group-membership record. GroupMember.RBACObject
+		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
 
-		// Service accounts can create and update AI Bridge interceptions
-		// but cannot read them back. Chat access requires the
-		// agents-access role and is intentionally not granted here.
+		// Service accounts can create and update AI Bridge
+		// interceptions they initiate (dbauthz layer sets
+		// WithOwner(InitiatorID)) but cannot read them back. Chat
+		// access requires the agents-access role and is intentionally
+		// not granted here.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
 
-		// User-scoped notification surfaces.
+		// User-scoped notification surfaces. All three resources are
+		// addressed by WithOwner(user_id) at the call sites.
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 
-		// Replica metadata (read-only is the only defined action).
-		ResourceReplicas.Type: {policy.ActionRead},
+		// Intentionally omitted at Member scope. See
+		// OrgMemberPermissions above for the rationale; the service
+		// account role mirrors the same partition.
 	})
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
