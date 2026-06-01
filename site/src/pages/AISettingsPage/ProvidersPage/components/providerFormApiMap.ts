@@ -44,9 +44,9 @@ type SettingsWire = AIProviderSettings &
 		_version?: number;
 	};
 
-// Bedrock providers carry a `settings._type === "bedrock"` discriminator.
-// `settings` is non-null in the generated type but Go serializes zero
-// settings as JSON `null`, so we null-check before reading the discriminator.
+// Bedrock providers are identified by the settings discriminator. The
+// generated type marks settings as non-null, but Go serializes zero settings
+// as JSON `null`.
 export const isBedrockProvider = (provider: AIProvider): boolean => {
 	if (provider.type !== "anthropic" && provider.type !== "bedrock") {
 		return false;
@@ -72,8 +72,9 @@ const parseProviderHost = (url: string): string => {
 	}
 };
 
-// Preset types can be recovered from a saved provider's base_url when the
-// stored `type` is generic. Matches the bare domain or any subdomain.
+// Preset types can be recovered from a saved generic OpenAI provider's
+// base_url. Matches the bare domain or any subdomain. Azure assigns
+// per-resource subdomains such as my-resource.openai.azure.com.
 const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 	["openai.azure.com", "azure"],
 	["generativelanguage.googleapis.com", "google"],
@@ -84,22 +85,16 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-// Bedrock comes through the settings discriminator. Generic OpenAI providers
-// can still display as presets when their host matches a known preset host.
+// Determines which UI provider type to show for a saved provider. Bedrock is
+// detected via settings. Explicit stored types are authoritative. Generic
+// `openai` rows fall back to host inference from known preset endpoints;
+// unrecognized hosts stay as `openai`.
 export const getProviderDisplayType = (
 	provider: AIProvider,
 ): AIProviderType => {
 	if (isBedrockProvider(provider)) {
 		return "bedrock";
 	}
-	if (provider.type === "anthropic") {
-		return "anthropic";
-	}
-	if (provider.type === "copilot") {
-		return "copilot";
-	}
-	// Explicit stored types are authoritative. Host inference is only for
-	// generic OpenAI rows that use a known preset endpoint.
 	if (provider.type !== "openai") {
 		return provider.type;
 	}

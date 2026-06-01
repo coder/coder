@@ -140,6 +140,14 @@ describe("isBedrockProvider", () => {
 		expect(isBedrockProvider(MockAIProviderBedrock)).toBe(true);
 	});
 
+	it("recognises a provider with explicit bedrock type", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "bedrock",
+		};
+		expect(isBedrockProvider(provider)).toBe(true);
+	});
+
 	it("rejects an OpenAI provider", () => {
 		expect(isBedrockProvider(MockAIProviderOpenAI)).toBe(false);
 	});

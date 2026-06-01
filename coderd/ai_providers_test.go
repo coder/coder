@@ -61,19 +61,21 @@ func TestAIProvidersCRUD(t *testing.T) {
 			{providerType: codersdk.AIProviderTypeVercel, baseURL: "https://ai-gateway.vercel.sh/v1"},
 		}
 		for _, tt := range tests {
-			created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-				Type:    tt.providerType,
-				Name:    "type-preserve-" + string(tt.providerType),
-				Enabled: true,
-				BaseURL: tt.baseURL,
-				APIKeys: []string{"sk-test"},
-			})
-			require.NoError(t, err, tt.providerType)
-			require.Equal(t, tt.providerType, created.Type)
+			t.Run(string(tt.providerType), func(t *testing.T) {
+				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    tt.providerType,
+					Name:    "type-preserve-" + string(tt.providerType),
+					Enabled: true,
+					BaseURL: tt.baseURL,
+					APIKeys: []string{"sk-test"},
+				})
+				require.NoError(t, err, tt.providerType)
+				require.Equal(t, tt.providerType, created.Type)
 
-			got, err := client.AIProvider(ctx, created.ID.String())
-			require.NoError(t, err, tt.providerType)
-			require.Equal(t, tt.providerType, got.Type)
+				got, err := client.AIProvider(ctx, created.ID.String())
+				require.NoError(t, err, tt.providerType)
+				require.Equal(t, tt.providerType, got.Type)
+			})
 		}
 	})
 
