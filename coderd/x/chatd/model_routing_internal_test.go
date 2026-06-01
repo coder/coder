@@ -446,6 +446,16 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 			wantOK:  true,
 		},
 		{
+			name: "LatestCompressedSummaryWins",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 3, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
 			name: "VisibleUserWinsOverCompressedSummary",
 			messages: []database.ChatMessage{
 				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
@@ -538,7 +548,7 @@ func TestActiveTurnAPIKeyIDUsesPromptMessages(t *testing.T) {
 	require.Equal(t, currentKey.ID, gotKey)
 }
 
-func TestPromptActiveTurnAPIKeyUsesCompressedSummary(t *testing.T) {
+func TestActiveTurnAPIKeyIDFromPromptMessagesUsesCompressedSummary(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)

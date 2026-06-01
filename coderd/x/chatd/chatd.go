@@ -6482,9 +6482,9 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 	return "", false
 }
 
-// activeTurnAPIKeyIDFromPromptMessages falls back to the compressed
-// summary boundary because prompt queries omit the original visible user
-// turn after compaction.
+// activeTurnAPIKeyIDFromPromptMessages returns the API key ID from the most
+// recent user-role message. It prefers visible user turns. If none exist, it
+// falls back to compressed model-only summaries left by prompt compaction.
 func activeTurnAPIKeyIDFromPromptMessages(messages []database.ChatMessage) (string, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
@@ -8482,8 +8482,9 @@ func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.P
 	return tools
 }
 
-// persistChatContextSummary persists a chat context summary to the database.
-// This is invoked via the chat loop's compaction callback.
+// persistChatContextSummary is called from the chat loop's compaction
+// callback. activeAPIKeyID is stamped onto the summary user message. When
+// empty, it falls back to the delegated key in ctx.
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
