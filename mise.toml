@@ -71,6 +71,9 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
+# action-linkspector without resolving mutable npm metadata at runtime.
+"npm:@puppeteer/browsers" = "2.13.0"
 
 # sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
 # needs CGO_ENABLED=1. Scope it with `install_env` so it only applies
