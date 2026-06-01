@@ -60,16 +60,18 @@ Coder Tasks remains available, but new development happens in Coder Agents.
 AI Gateway, previously AI Bridge, matured into a broader governance and
 observability layer for AI usage. It now supports:
 
-- Proxy mode.
+- [AI Gateway Proxy](../../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 - OpenAI Responses API interception.
 - Expanded Copilot and ChatGPT support.
 - Custom Bedrock endpoints.
 - Structured logs and client/session views.
 - Model filtering.
 - Multiple providers of the same type.
-- BYOK and provider key policies.
+- [BYOK](../../ai-coder/ai-gateway/auth.md#bring-your-own-key-byok) and
+  [key failover](../../ai-coder/ai-gateway/providers.md#key-failover).
 
-AI Governance adds administrative controls around AI usage:
+[AI Governance](../../ai-coder/ai-governance.md) adds administrative controls
+around AI usage:
 
 - License and seat visibility.
 - AI session auditing.
@@ -88,8 +90,8 @@ For more information, visit the
 Agent Firewall, previously Agent Boundaries, moved from an early capability into
 a stronger governance primitive for AI agents. It can audit and restrict network
 access from agent processes, forward machine-readable logs to the control plane,
-track usage, and use landjail mode for environments where changing Linux
-capabilities is not practical.
+track usage, and use [landjail mode](../../ai-coder/agent-firewall/landjail.md)
+for environments where changing Linux capabilities is not practical.
 
 For more information, visit the
 [Agent Firewall documentation](../../ai-coder/agent-firewall/index.md).
@@ -105,12 +107,15 @@ assignment.
 
 Template and workspace operations received several improvements:
 
-- Terraform modules are cached per template version to reduce repeated downloads
-  and make workspace starts more deterministic.
-- Prebuild claiming is more durable and idempotent.
+- Terraform modules are [cached per template version](../../tutorials/best-practices/speed-up-templates.md)
+  to reduce repeated downloads and make workspace starts more deterministic.
+- [Prebuild](../../admin/templates/extending-templates/prebuilt-workspaces.md)
+  claiming is more durable and idempotent.
 - Prebuild presets are validated with dynamic parameter validation.
-- `coder_env` supports `merge_strategy`.
-- User secrets can be created, encrypted, audited, and injected into workspaces.
+- [`coder_env`](../../admin/templates/extending-templates/environment-variables.md)
+  supports `merge_strategy`.
+- [User secrets](../../user-guides/user-secrets.md) can be created, encrypted,
+  audited, and injected into workspaces.
 - The dashboard warns about active prebuilds when duplicating templates.
 
 These changes reduce operational surprises for template authors, but templates
@@ -141,8 +146,8 @@ Large deployments should now have improvements in database, logging, and
 observability behavior. Coder added the following:
 
 - Configurable PostgreSQL connection pool settings.
-- Retention configuration for audit logs, connection logs, API keys, and
-  workspace agent logs.
+- [Retention configuration](../../admin/setup/data-retention.md) for audit logs,
+  connection logs, API keys, and workspace agent logs.
 - `dbpurge` metrics.
 - Support bundle improvements.
 - `chatd` metrics.
