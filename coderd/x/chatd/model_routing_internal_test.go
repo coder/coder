@@ -429,6 +429,70 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 	}
 }
 
+func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
+	t.Parallel()
+
+	oldKeyID := uuid.NewString()
+	currentKeyID := uuid.NewString()
+	tests := []struct {
+		name     string
+		messages []database.ChatMessage
+		wantKey  string
+		wantOK   bool
+	}{
+		{
+			name: "CompressedSummaryFallback",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "VisibleUserWinsOverCompressedSummary",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(currentKeyID)},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "MissingVisibleUserKeyDoesNotFallBack",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+			},
+		},
+		{
+			name: "UncompressedModelOnlyUserIgnored",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
+			},
+		},
+		{
+			name: "CompressedSummaryMissingKeyFails",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotKey, gotOK := activeTurnAPIKeyIDFromPromptMessages(tt.messages)
+			require.Equal(t, tt.wantOK, gotOK)
+			require.Equal(t, tt.wantKey, gotKey)
+			ctx := contextWithPromptActiveTurnAPIKeyID(t.Context(), tt.messages)
+			ctxKey, ctxOK := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+			require.Equal(t, tt.wantOK, ctxOK)
+			require.Equal(t, tt.wantKey, ctxKey)
+		})
+	}
+}
+
 func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
 	t.Parallel()
 
@@ -477,10 +541,69 @@ func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+	ctx = contextWithPromptActiveTurnAPIKeyID(ctx, messages)
 	gotKey, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 	require.True(t, ok)
 	require.Equal(t, currentKey.ID, gotKey)
+}
+
+func TestPromptActiveTurnAPIKeyUsesCompressedSummary(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := t.Context()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	visibleUser := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+	compressedSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityModel,
+		Compressed:    true,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	afterSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	ids := make(map[int64]struct{}, len(messages))
+	for _, message := range messages {
+		ids[message.ID] = struct{}{}
+	}
+	_, hasVisibleUser := ids[visibleUser.ID]
+	require.False(t, hasVisibleUser)
+	_, hasSummary := ids[compressedSummary.ID]
+	require.True(t, hasSummary)
+	_, hasAfterSummary := ids[afterSummary.ID]
+	require.True(t, hasAfterSummary)
+
+	gotKey, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
+	require.True(t, ok)
+	require.Equal(t, key.ID, gotKey)
 }
 
 func sqlNullString(value string) sql.NullString {

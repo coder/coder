@@ -6651,14 +6651,13 @@ func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
 		UserID: user.ID,
 	})
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
-
 	server := &Server{db: db}
 
 	err := server.persistChatContextSummary(
 		ctx,
 		chat.ID,
 		modelConfig.ID,
+		apiKey.ID,
 		"tool-call-id-1",
 		chatloop.CompactionResult{
 			SystemSummary:    "summarized context",

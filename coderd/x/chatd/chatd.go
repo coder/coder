@@ -6476,22 +6476,57 @@ func contextWithActiveTurnAPIKeyID(ctx context.Context, messages []database.Chat
 	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
 }
 
+func contextWithPromptActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
+	apiKeyID, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
+	if !ok {
+		return ctx
+	}
+	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
+}
+
 func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
 		if message.Role != database.ChatMessageRoleUser {
 			continue
 		}
-		if message.Visibility != database.ChatMessageVisibilityBoth &&
-			message.Visibility != database.ChatMessageVisibilityUser {
+		if !isUserVisibleChatMessage(message) {
 			continue
 		}
-		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
-			return "", false
-		}
-		return message.APIKeyID.String, true
+		return chatMessageAPIKeyID(message)
 	}
 	return "", false
+}
+
+// activeTurnAPIKeyIDFromPromptMessages falls back to the compressed
+// summary boundary because prompt queries omit the original visible user
+// turn after compaction.
+func activeTurnAPIKeyIDFromPromptMessages(messages []database.ChatMessage) (string, bool) {
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if isUserVisibleChatMessage(message) {
+			return chatMessageAPIKeyID(message)
+		}
+		if message.Visibility == database.ChatMessageVisibilityModel && message.Compressed {
+			return chatMessageAPIKeyID(message)
+		}
+	}
+	return "", false
+}
+
+func isUserVisibleChatMessage(message database.ChatMessage) bool {
+	return message.Visibility == database.ChatMessageVisibilityBoth ||
+		message.Visibility == database.ChatMessageVisibilityUser
+}
+
+func chatMessageAPIKeyID(message database.ChatMessage) (string, bool) {
+	if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
+		return "", false
+	}
+	return message.APIKeyID.String, true
 }
 
 func allToolNames(allTools []fantasy.AgentTool) []string {
@@ -7123,8 +7158,10 @@ func (p *Server) runChat(
 	if err != nil {
 		return result, xerrors.Errorf("get chat messages: %w", err)
 	}
-	modelOpts := modelBuildOptionsFromMessages(messages)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+	modelOpts := modelBuildOptionsFromPromptMessages(messages)
+	if modelOpts.ActiveAPIKeyID != "" {
+		ctx = aibridge.WithDelegatedAPIKeyID(ctx, modelOpts.ActiveAPIKeyID)
+	}
 
 	// Load MCP server configs and user tokens in parallel with model
 	// resolution. These queries have no dependencies on each other and all
@@ -7831,6 +7868,7 @@ func (p *Server) runChat(
 				persistCtx,
 				chat.ID,
 				modelConfig.ID,
+				modelOpts.ActiveAPIKeyID,
 				compactionToolCallID,
 				result,
 			); err != nil {
@@ -8466,6 +8504,7 @@ func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
 	modelConfigID uuid.UUID,
+	activeAPIKeyID string,
 	toolCallID string,
 	result chatloop.CompactionResult,
 ) error {
@@ -8522,9 +8561,11 @@ func (p *Server) persistChatContextSummary(
 		}
 
 		// Hidden summary user message (not published to subscribers).
-		summaryAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		if activeAPIKeyID == "" {
+			activeAPIKeyID, _ = aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		}
 		summaryUserMsg := newUserChatMessage(
-			summaryAPIKeyID,
+			activeAPIKeyID,
 			systemContent,
 			database.ChatMessageVisibilityModel,
 			modelConfigID,
