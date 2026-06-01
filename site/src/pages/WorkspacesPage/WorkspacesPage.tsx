@@ -245,7 +245,7 @@ const useWorkspacesFilter = ({
 	onFilterChange,
 }: UseWorkspacesFilterOptions) => {
 	const filter = useFilter({
-		fallbackFilter: "owner:me",
+		fallbackFilter: "",
 		searchParams,
 		onSearchParamsChange,
 		onUpdate: onFilterChange,

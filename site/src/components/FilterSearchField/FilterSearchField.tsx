@@ -76,6 +76,8 @@ export type SearchResult = {
 	startIcon?: React.ReactNode;
 	/** Optional secondary text rendered below the label. */
 	subtitle?: string;
+	/** Optional URL to navigate to when this result is selected. */
+	url?: string;
 };
 
 export type FilterSearchFieldProps = {
@@ -91,6 +93,12 @@ export type FilterSearchFieldProps = {
 	 * a dedicated section so the user can see what their query will match.
 	 */
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
+	/**
+	 * Called when a search result is selected. Use this to navigate
+	 * to the result (e.g. a workspace page). If not provided, the
+	 * result value is placed into the freeform text.
+	 */
+	onSelectResult?: (result: SearchResult) => void;
 	placeholder?: string;
 	className?: string;
 	autoFocus?: boolean;
@@ -432,6 +440,7 @@ export const FilterSearchField: React.FC<FilterSearchFieldProps> = ({
 	onChange,
 	categories,
 	getSearchResults,
+	onSelectResult,
 	placeholder = "Search...",
 	className,
 	autoFocus = false,
@@ -687,6 +696,14 @@ export const FilterSearchField: React.FC<FilterSearchFieldProps> = ({
 	// ---- Select a search result (e.g. a workspace) ----
 	const selectSearchResult = useCallback(
 		(result: SearchResult) => {
+			if (onSelectResult) {
+				// Close dropdown and let the consumer handle navigation.
+				setIsOpen(false);
+				setDropdownMode({ type: "categories" });
+				setHighlightedIndex(-1);
+				onSelectResult(result);
+				return;
+			}
 			const completeChips = chips.filter((c) => c.value !== "");
 			setChips(completeChips);
 			setFreeformText(result.value);
@@ -700,7 +717,7 @@ export const FilterSearchField: React.FC<FilterSearchFieldProps> = ({
 			setSearchResults([]);
 			emitChange(completeChips, result.value);
 		},
-		[chips, emitChange],
+		[chips, emitChange, onSelectResult],
 	);
 
 	// ---- Category selection (from default dropdown) ----
@@ -1075,6 +1092,12 @@ export const FilterSearchField: React.FC<FilterSearchFieldProps> = ({
 			} else if (e.key === "Enter") {
 				e.preventDefault();
 				if (highlightedIndex < 0) {
+					// In options mode, select the first visible option
+					// instead of discarding the incomplete chip.
+					if (dropdownMode.type === "options" && categoryOptions.length > 0) {
+						selectOption(categoryOptions[0]);
+						return;
+					}
 					// No item highlighted — submit the current search.
 					closeDropdown();
 					internalRef.current?.blur();
@@ -1099,6 +1122,7 @@ export const FilterSearchField: React.FC<FilterSearchFieldProps> = ({
 			freeformText,
 			chips,
 			categorySearchText,
+			categoryOptions,
 			highlightedIndex,
 			typeaheadMatches,
 			closeDropdown,

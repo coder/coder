@@ -43,6 +43,7 @@ import {
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import { type FC, useCallback, useMemo } from "react";
 import type { UseQueryResult } from "react-query";
+import { useNavigate } from "react-router";
 import {
 	getDisplayWorkspaceStatus,
 	mustUpdateWorkspace,
@@ -112,6 +113,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	const pageNumberIsInvalid = page !== 1 && workspaces?.length === 0;
 
 	const { user: me } = useAuthenticated();
+	const navigate = useNavigate();
 
 	const categories = useMemo<FilterCategory[]>(() => {
 		const cats: FilterCategory[] = [];
@@ -231,6 +233,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				return {
 					label: ws.name,
 					value: ws.name,
+					url: `/@${ws.owner_name}/${ws.name}`,
 					startIcon: (
 						<Avatar
 							size="sm"
@@ -274,6 +277,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					onChange={filterState.filter.update}
 					categories={categories}
 					getSearchResults={getSearchResults}
+					onSelectResult={(result) => {
+						if (result.url) {
+							navigate(result.url);
+						}
+					}}
 					placeholder="Search workspaces..."
 					aria-label="Filter workspaces"
 					className="w-fit min-w-[min(550px,100%)] max-w-full"
