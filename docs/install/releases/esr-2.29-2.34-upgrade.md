@@ -3,12 +3,13 @@
 ## Guide Overview
 
 Coder provides Extended Support Releases (ESR) biannually. This guide walks
-through upgrading from Coder 2.29 ESR to the planned Coder 2.34 ESR. It
+through upgrading from Coder 2.29 ESR to Coder 2.34 ESR. It
 summarizes key changes, highlights breaking updates, and provides a recommended
 upgrade process.
 
-Read more about the ESR release process
-[here](./index.md#extended-support-release), and how Coder supports it.
+Read more about the
+[ESR release process](./index.md#extended-support-release) and how Coder
+supports it.
 
 ## What's New in Coder 2.34
 
@@ -57,16 +58,30 @@ Coder Tasks remains available, but new development happens in Coder Agents.
 ### AI Gateway and AI Governance
 
 AI Gateway, previously AI Bridge, matured into a broader governance and
-observability layer for AI usage. It now supports proxy mode, OpenAI Responses
-API interception, expanded Copilot support, ChatGPT support, custom Bedrock
-endpoints, structured logs, client/session views, model filtering, multiple
-providers of the same type, BYOK, and provider key policies.
+observability layer for AI usage. It now supports:
 
-AI Governance adds administrative controls around AI usage, including license and
-seat visibility, AI session auditing, usage limits, group AI budgets, spend views,
-model price tracking, and user or model-level controls. These features help
-administrators understand who is using AI tools, which providers are being used,
-and how spend changes over time.
+- Proxy mode.
+- OpenAI Responses API interception.
+- Expanded Copilot and ChatGPT support.
+- Custom Bedrock endpoints.
+- Structured logs and client/session views.
+- Model filtering.
+- Multiple providers of the same type.
+- BYOK and provider key policies.
+
+AI Governance adds administrative controls around AI usage:
+
+- License and seat visibility.
+- AI session auditing.
+- Usage limits and group AI budgets.
+- Spend views and model price tracking.
+- User or model-level controls.
+
+These features help administrators understand who is using AI tools, which
+providers are being used, and how spend changes over time.
+
+For more information, visit the
+[AI Gateway documentation](../../ai-coder/ai-gateway/index.md).
 
 ### Agent Firewall
 
@@ -157,7 +172,7 @@ The CLI and dashboard gained smaller but meaningful workflow improvements:
 - `coder groups list -o json` now returns a flat JSON structure.
 - The dashboard includes user editing, service account management, group member
   filtering, role selection during user creation, improved accessibility, and
-  clearer confirmation flows for destructive or risky actions.
+  clearer confirmation flows for destructive actions.
 
 ## Changes to be Aware of
 
