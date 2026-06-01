@@ -1014,10 +1014,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					api.DeploymentValues.Support.Links.Value,
 					api.DeploymentValues.DocsURL.String(),
 					buildinfo.Version(),
+					&api.AGPL.AIProvidersEnvDrift,
 				)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			} else {
-				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String(), &api.AGPL.AIProvidersEnvDrift)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			}
 		}

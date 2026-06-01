@@ -666,7 +666,7 @@ func New(options *Options) *API {
 		options.AppSigningKeyCache,
 	)
 
-	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String(), &api.AIProvidersEnvDrift)
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)

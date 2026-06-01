@@ -88,7 +88,7 @@ type Options struct {
 func New(opts *Options) (*Handler, error) {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
-		f := appearance.NewDefaultFetcher(opts.DocsURL)
+		f := appearance.NewDefaultFetcher(opts.DocsURL, nil)
 		daf.Store(&f)
 		opts.AppearanceFetcher = &daf
 	}

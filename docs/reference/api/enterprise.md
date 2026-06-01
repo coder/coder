@@ -103,6 +103,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
+  "ai_providers_env_drift_detected": true,
   "announcement_banners": [
     {
       "background_color": "string",

@@ -4882,6 +4882,11 @@ type AppearanceConfig struct {
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
+	// AIProvidersEnvDriftDetected is true when deprecated CODER_AIBRIDGE_*
+	// env configuration differs from the AI provider rows already stored in
+	// the database, meaning those env changes are ineffective. It is
+	// output-only and is not part of UpdateAppearanceConfig.
+	AIProvidersEnvDriftDetected bool `json:"ai_providers_env_drift_detected"`
 }
 
 type UpdateAppearanceConfig struct {

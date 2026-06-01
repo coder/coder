@@ -15840,6 +15840,10 @@ const docTemplate = `{
         "codersdk.AppearanceConfig": {
             "type": "object",
             "properties": {
+                "ai_providers_env_drift_detected": {
+                    "description": "AIProvidersEnvDriftDetected is true when deprecated CODER_AIBRIDGE_*\nenv configuration differs from the AI provider rows already stored in\nthe database, meaning those env changes are ineffective. It is\noutput-only and is not part of UpdateAppearanceConfig.",
+                    "type": "boolean"
+                },
                 "announcement_banners": {
                     "type": "array",
                     "items": {

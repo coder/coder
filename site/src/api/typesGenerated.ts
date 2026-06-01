@@ -1132,6 +1132,13 @@ export interface AppearanceConfig {
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
 	readonly support_links?: readonly LinkConfig[];
+	/**
+	 * AIProvidersEnvDriftDetected is true when deprecated CODER_AIBRIDGE_*
+	 * env configuration differs from the AI provider rows already stored in
+	 * the database, meaning those env changes are ineffective. It is
+	 * output-only and is not part of UpdateAppearanceConfig.
+	 */
+	readonly ai_providers_env_drift_detected: boolean;
 }
 
 // From codersdk/templates.go

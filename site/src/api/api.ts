@@ -2393,6 +2393,7 @@ class ApiMethods {
 					service_banner: {
 						enabled: false,
 					},
+					ai_providers_env_drift_detected: false,
 				};
 			}
 

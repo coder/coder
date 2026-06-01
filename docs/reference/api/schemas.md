@@ -1572,6 +1572,7 @@ None
 
 ```json
 {
+  "ai_providers_env_drift_detected": true,
   "announcement_banners": [
     {
       "background_color": "string",
@@ -1600,14 +1601,15 @@ None
 
 ### Properties
 
-| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
-|------------------------|---------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
-| `application_name`     | string                                                  | false    |              |                                                                     |
-| `docs_url`             | string                                                  | false    |              |                                                                     |
-| `logo_url`             | string                                                  | false    |              |                                                                     |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
-| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
+| Name                              | Type                                                    | Required | Restrictions | Description                                                                                                                                                                                                                                                          |
+|-----------------------------------|---------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_providers_env_drift_detected` | boolean                                                 | false    |              | Ai providers env drift detected is true when deprecated CODER_AIBRIDGE_* env configuration differs from the AI provider rows already stored in the database, meaning those env changes are ineffective. It is output-only and is not part of UpdateAppearanceConfig. |
+| `announcement_banners`            | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                                                                                                                                                                                                                      |
+| `application_name`                | string                                                  | false    |              |                                                                                                                                                                                                                                                                      |
+| `docs_url`                        | string                                                  | false    |              |                                                                                                                                                                                                                                                                      |
+| `logo_url`                        | string                                                  | false    |              |                                                                                                                                                                                                                                                                      |
+| `service_banner`                  | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners.                                                                                                                                                                                                  |
+| `support_links`                   | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                                                                                                                                                                                                                      |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 

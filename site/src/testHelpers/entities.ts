@@ -3392,6 +3392,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
 	},
 	announcement_banners: [],
 	docs_url: "https://coder.com/docs/@main/",
+	ai_providers_env_drift_detected: false,
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
