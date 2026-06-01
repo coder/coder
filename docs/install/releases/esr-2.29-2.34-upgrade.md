@@ -16,19 +16,19 @@ supports it.
 ### Coder Agents
 
 [Coder Agents](../../ai-coder/agents/index.md) was introduced in v2.32, and is the long-term replacement for
-Coder Tasks. Coder Agents is a native AI coding agent that runs entirely within the Coder control plane, managing the agent loop, conversation state, and workspace provisioning in one place. This gives administrators centralized control over model access, credentials, and audit trails across every agent session. Coder Agents was made Beta in v2.33. 
+Coder Tasks. Coder Agents is a native AI coding agent that runs entirely within the Coder control plane, managing the agent loop, conversation state, and workspace provisioning in one place. This gives administrators centralized control over model access, credentials, and audit trails across every agent session. Coder Agents was made Beta in v2.33.
 
-Coder Agents includes the following high-level functionality: 
+Coder Agents includes the following high-level functionality:
 
 - Supports all major LLM providers
 - Multi-turn chat
-- Automatic workspace provisioning 
+- Automatic workspace provisioning
 - MCP server integration, personal skills, and administrator-managed skills
 - Plan and subagent explore modes
 - Chat debugging
 - Virtual desktop
 
-Administrators have the following elvers to configure appropriate access to various parts of Coder Agents: 
+Administrators have the following elvers to configure appropriate access to various parts of Coder Agents:
 
 - Template allow lists for agents
 - BYOK for users
@@ -40,7 +40,7 @@ Administrators have the following elvers to configure appropriate access to vari
 
 > [!CAUTION]
 > Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR window
-> (into 2026) but receives no new features. Coder recommends migrating to Coder Agents 
+> (into 2026) but receives no new features. Coder recommends migrating to Coder Agents
 > and the Chats API now. See the [Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
 > for API migration details.
 
