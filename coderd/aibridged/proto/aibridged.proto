@@ -58,6 +58,7 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
+  string credential_hint = 3;
 }
 
 message RecordInterceptionEndedResponse {}
@@ -134,7 +135,16 @@ message GetMCPServerAccessTokensBatchResponse{
 }
 
 message IsAuthorizedRequest {
+  // key is the full "<id>-<secret>" API token presented over HTTP.
+  // Mutually exclusive with key_id.
   string key = 1;
+  // key_id authenticates a request without the secret. Used for delegated
+  // calls from in-process callers (e.g., chatd) that have already
+  // established the user's identity out-of-band and have only the API key
+  // ID, not the secret. When set, the server validates only that the key
+  // exists, has not expired, and belongs to a non-deleted non-system user.
+  // Mutually exclusive with key.
+  string key_id = 2;
 }
 
 message IsAuthorizedResponse {

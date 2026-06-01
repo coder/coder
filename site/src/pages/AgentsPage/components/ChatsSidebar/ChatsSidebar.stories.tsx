@@ -13,6 +13,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
+import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -113,9 +114,9 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
-		archivedFilter: "active" as const,
+		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
-		onArchivedFilterChange: fn(),
+		onSidebarFiltersChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -732,6 +733,39 @@ export const SectionHeadersCollapse: Story = {
 	},
 };
 
+export const MobileHeaderActions: Story = {
+	render: ChatsSidebarWithKeybindings,
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const searchButton = canvas.getByRole("button", { name: "Search chats" });
+		const filterButton = canvas.getByRole("button", { name: "Filter agents" });
+		const searchRect = searchButton.getBoundingClientRect();
+		const filterRect = filterButton.getBoundingClientRect();
+
+		await expect(searchButton).not.toHaveTextContent("Search");
+		expect(Math.round(searchRect.width)).toBeGreaterThanOrEqual(28);
+		expect(Math.round(filterRect.width)).toBeGreaterThanOrEqual(28);
+		expect(searchRect.right).toBeLessThan(filterRect.left);
+	},
+};
+
 export const SidebarFilterMenu: Story = {
 	args: {
 		chats: sectionHeaderChats,
@@ -750,12 +784,12 @@ export const SidebarFilterMenu: Story = {
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
 		await expect(
-			await body.findByRole("menuitem", { name: /Archived/i }),
+			await body.findByRole("radio", { name: /Archived/i }),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 		await waitFor(() => {
 			expect(
-				body.queryByRole("menuitem", { name: /Archived/i }),
+				body.queryByRole("radio", { name: /Archived/i }),
 			).not.toBeInTheDocument();
 		});
 	},
@@ -777,11 +811,23 @@ export const SearchDialogKeyboardShortcut: Story = {
 		const body = within(document.body);
 		const searchButton = canvas.getByRole("button", { name: "Search chats" });
 
-		await userEvent.hover(searchButton);
-		const tooltip = await body.findByRole("tooltip");
-		await expect(tooltip).toHaveTextContent("Search chats");
-		await expect(tooltip).toHaveTextContent("Ctrl");
-		await expect(tooltip).toHaveTextContent("K");
+		await expect(searchButton).toHaveTextContent("Search");
+		await expect(searchButton).toHaveTextContent("Ctrl");
+		await expect(searchButton).toHaveTextContent("K");
+
+		await userEvent.click(searchButton);
+		const clickedSearchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		await waitFor(() => {
+			expect(clickedSearchInput).toHaveFocus();
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("combobox", { name: "Search chats" }),
+			).not.toBeInTheDocument();
+		});
 
 		await userEvent.keyboard("{Control>}k{/Control}");
 
@@ -1349,7 +1395,7 @@ export const ActiveFilterShowsActiveAgents: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		archivedFilter: "active",
+		sidebarFilters: defaultSidebarFilters,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1383,7 +1429,7 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		archivedFilter: "archived",
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1411,7 +1457,7 @@ export const PreservesArchivedFilterOnChatNavigation: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		archivedFilter: "archived",
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1829,7 +1875,7 @@ export const ArchivedAgentUnarchiveOption: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		archivedFilter: "archived",
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2180,7 +2226,7 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		archivedFilter: "archived",
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

@@ -59,7 +59,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, and diff_url:\u003curl\u003e (quote URLs). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+						"description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
 						"name": "q",
 						"in": "query"
 					},
@@ -1265,7 +1265,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before.",
+						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, started_after, started_before.",
 						"name": "q",
 						"in": "query"
 					},
@@ -1336,7 +1336,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, session_id, started_after, started_before.",
+						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
 						"name": "q",
 						"in": "query"
 					},
@@ -8132,6 +8132,98 @@
 				]
 			}
 		},
+		"/api/v2/users/{user}/ai/budget": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get user AI budget override",
+				"operationId": "get-user-ai-budget-override",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, username, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"put": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Upsert user AI budget override",
+				"operationId": "upsert-user-ai-budget-override",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, username, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Upsert user AI budget override request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpsertUserAIBudgetOverrideRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"delete": {
+				"tags": ["Enterprise"],
+				"summary": "Delete user AI budget override",
+				"operationId": "delete-user-ai-budget-override",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, username, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/users/{user}/appearance": {
 			"get": {
 				"produces": ["application/json"],
@@ -12389,7 +12481,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/coderd.SCIMUser"
+							"$ref": "#/definitions/legacyscim.SCIMUser"
 						}
 					}
 				],
@@ -12397,7 +12489,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/coderd.SCIMUser"
+							"$ref": "#/definitions/legacyscim.SCIMUser"
 						}
 					}
 				},
@@ -12455,7 +12547,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/coderd.SCIMUser"
+							"$ref": "#/definitions/legacyscim.SCIMUser"
 						}
 					}
 				],
@@ -12493,7 +12585,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/coderd.SCIMUser"
+							"$ref": "#/definitions/legacyscim.SCIMUser"
 						}
 					}
 				],
@@ -12692,71 +12784,6 @@
 			"enum": ["prebuild_claimed"],
 			"x-enum-varnames": ["ReinitializeReasonPrebuildClaimed"]
 		},
-		"coderd.SCIMUser": {
-			"type": "object",
-			"properties": {
-				"active": {
-					"description": "Active is a ptr to prevent the empty value from being interpreted as false.",
-					"type": "boolean"
-				},
-				"emails": {
-					"type": "array",
-					"items": {
-						"type": "object",
-						"properties": {
-							"display": {
-								"type": "string"
-							},
-							"primary": {
-								"type": "boolean"
-							},
-							"type": {
-								"type": "string"
-							},
-							"value": {
-								"type": "string",
-								"format": "email"
-							}
-						}
-					}
-				},
-				"groups": {
-					"type": "array",
-					"items": {}
-				},
-				"id": {
-					"type": "string"
-				},
-				"meta": {
-					"type": "object",
-					"properties": {
-						"resourceType": {
-							"type": "string"
-						}
-					}
-				},
-				"name": {
-					"type": "object",
-					"properties": {
-						"familyName": {
-							"type": "string"
-						},
-						"givenName": {
-							"type": "string"
-						}
-					}
-				},
-				"schemas": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					}
-				},
-				"userName": {
-					"type": "string"
-				}
-			}
-		},
 		"coderd.cspViolation": {
 			"type": "object",
 			"properties": {
@@ -12853,6 +12880,10 @@
 							"$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
 						}
 					]
+				},
+				"api_dump_dir": {
+					"description": "APIDumpDir is the base directory under which each provider's\nrequest/response dumps are written, in a subdirectory named after\nthe provider. Empty disables dumping.",
+					"type": "string"
 				},
 				"bedrock": {
 					"description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
@@ -13466,16 +13497,12 @@
 				"bedrock_small_fast_model": {
 					"type": "string"
 				},
-				"dump_dir": {
-					"description": "DumpDir is the directory path for dumping API requests and responses.",
-					"type": "string"
-				},
 				"name": {
 					"description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
 					"type": "string"
 				},
 				"type": {
-					"description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+					"description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
 					"type": "string"
 				}
 			}
@@ -13521,7 +13548,8 @@
 				"openai-compat",
 				"openrouter",
 				"vercel",
-				"bedrock"
+				"bedrock",
+				"copilot"
 			],
 			"x-enum-varnames": [
 				"AIProviderTypeOpenAI",
@@ -13531,7 +13559,8 @@
 				"AIProviderTypeOpenAICompat",
 				"AIProviderTypeOpenrouter",
 				"AIProviderTypeVercel",
-				"AIProviderTypeBedrock"
+				"AIProviderTypeBedrock",
+				"AIProviderTypeCopilot"
 			]
 		},
 		"codersdk.APIAllowListTarget": {
@@ -13658,6 +13687,10 @@
 				"audit_log:*",
 				"audit_log:create",
 				"audit_log:read",
+				"boundary_log:*",
+				"boundary_log:create",
+				"boundary_log:delete",
+				"boundary_log:read",
 				"boundary_usage:*",
 				"boundary_usage:delete",
 				"boundary_usage:read",
@@ -13884,6 +13917,10 @@
 				"APIKeyScopeAuditLogAll",
 				"APIKeyScopeAuditLogCreate",
 				"APIKeyScopeAuditLogRead",
+				"APIKeyScopeBoundaryLogAll",
+				"APIKeyScopeBoundaryLogCreate",
+				"APIKeyScopeBoundaryLogDelete",
+				"APIKeyScopeBoundaryLogRead",
 				"APIKeyScopeBoundaryUsageAll",
 				"APIKeyScopeBoundaryUsageDelete",
 				"APIKeyScopeBoundaryUsageRead",
@@ -14902,7 +14939,9 @@
 				"startup_timeout",
 				"auth",
 				"config",
-				"usage_limit"
+				"usage_limit",
+				"missing_key",
+				"provider_disabled"
 			],
 			"x-enum-varnames": [
 				"ChatErrorKindGeneric",
@@ -14912,7 +14951,9 @@
 				"ChatErrorKindStartupTimeout",
 				"ChatErrorKindAuth",
 				"ChatErrorKindConfig",
-				"ChatErrorKindUsageLimit"
+				"ChatErrorKindUsageLimit",
+				"ChatErrorKindMissingKey",
+				"ChatErrorKindProviderDisabled"
 			]
 		},
 		"codersdk.ChatFileMetadata": {
@@ -17057,6 +17098,9 @@
 				},
 				"scim_api_key": {
 					"type": "string"
+				},
+				"scim_use_legacy": {
+					"type": "boolean"
 				},
 				"session_lifetime": {
 					"$ref": "#/definitions/codersdk.SessionLifetime"
@@ -20424,6 +20468,7 @@
 				"assign_org_role",
 				"assign_role",
 				"audit_log",
+				"boundary_log",
 				"boundary_usage",
 				"chat",
 				"connection_log",
@@ -20474,6 +20519,7 @@
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",
 				"ResourceAuditLog",
+				"ResourceBoundaryLog",
 				"ResourceBoundaryUsage",
 				"ResourceChat",
 				"ResourceConnectionLog",
@@ -22742,6 +22788,21 @@
 				}
 			}
 		},
+		"codersdk.UpsertUserAIBudgetOverrideRequest": {
+			"type": "object",
+			"required": ["group_id"],
+			"properties": {
+				"group_id": {
+					"description": "GroupID is the group the user's spend is attributed to. The user must\nbe a member of this group.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"spend_limit_micros": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
 		"codersdk.UpsertWorkspaceAgentPortShareRequest": {
 			"type": "object",
 			"properties": {
@@ -22872,6 +22933,30 @@
 				},
 				"username": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.UserAIBudgetOverride": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"group_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"spend_limit_micros": {
+					"type": "integer"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
 				}
 			}
 		},
@@ -25268,6 +25353,71 @@
 		},
 		"key.NodePublic": {
 			"type": "object"
+		},
+		"legacyscim.SCIMUser": {
+			"type": "object",
+			"properties": {
+				"active": {
+					"description": "Active is a ptr to prevent the empty value from being interpreted as false.",
+					"type": "boolean"
+				},
+				"emails": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"display": {
+								"type": "string"
+							},
+							"primary": {
+								"type": "boolean"
+							},
+							"type": {
+								"type": "string"
+							},
+							"value": {
+								"type": "string",
+								"format": "email"
+							}
+						}
+					}
+				},
+				"groups": {
+					"type": "array",
+					"items": {}
+				},
+				"id": {
+					"type": "string"
+				},
+				"meta": {
+					"type": "object",
+					"properties": {
+						"resourceType": {
+							"type": "string"
+						}
+					}
+				},
+				"name": {
+					"type": "object",
+					"properties": {
+						"familyName": {
+							"type": "string"
+						},
+						"givenName": {
+							"type": "string"
+						}
+					}
+				},
+				"schemas": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"userName": {
+					"type": "string"
+				}
+			}
 		},
 		"netcheck.Report": {
 			"type": "object",

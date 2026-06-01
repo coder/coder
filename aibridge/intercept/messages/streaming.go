@@ -174,12 +174,13 @@ newStream:
 		var streamOpts []option.RequestOption
 		var currentKey *keypool.Key
 		if walker != nil {
-			key, err := walker.Next()
-			if respErr := ProcessKeyPoolError(err); respErr != nil {
+			key, keyPoolErr := walker.Next()
+			if keyPoolErr != nil {
 				// Pool exhausted in this iteration. Relay the
 				// error to the client: as an SSE event if events
 				// have already been sent, or by direct write
 				// otherwise.
+				respErr := ResponseErrorFromKeyPool(keyPoolErr)
 				interceptionErr = respErr
 				if events.IsStreaming() {
 					payload, mErr := i.marshal(respErr)
@@ -194,6 +195,11 @@ newStream:
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover
@@ -607,7 +613,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 			// We can't reflect an error back if there's a connection error or the request context was canceled.
 			return nil
 		}
-		if antErr := getErrorResponse(streamErr); antErr != nil {
+		if antErr := responseErrorFromAPIError(streamErr); antErr != nil {
 			logger.Warn(ctx, "anthropic stream error", slog.Error(streamErr))
 			return antErr
 		}
@@ -616,11 +622,11 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		// into known types (i.e. [shared.OverloadedError]).
 		// See https://github.com/anthropics/anthropic-sdk-go/blob/v1.12.0/packages/ssestream/ssestream.go#L172-L174
 		// All it does is wrap the payload in an error - which is all we can return, currently.
-		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
+		return newResponseError(fmt.Sprintf("unknown stream error: %s", streamErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
 	}
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
+		return newResponseError(fmt.Sprintf("processing error: %s", lastErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
 	}
 	return nil
 }

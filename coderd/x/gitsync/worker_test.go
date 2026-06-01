@@ -82,7 +82,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 		},
 	}
 
-	providers := func(string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -1120,7 +1120,7 @@ func TestRefreshChat_RefreshError(t *testing.T) {
 	// UpsertChatDiffStatus should NOT be called.
 
 	// Provider resolver returns nil → "no provider" error.
-	providers := func(string) gitprovider.Provider { return nil }
+	providers := func(context.Context, string) gitprovider.Provider { return nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -1205,7 +1205,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// Token resolver returns empty token → ErrNoTokenAvailable.
 	// Provider methods should never be called.
 	prov := &mockProvider{}
-	providers := func(string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref(""), nil
 	}

@@ -6,6 +6,13 @@ on:
       - main
       - release/*
 
+  # GitHub Actions does not reliably trigger push-based CI when a new
+  # branch is created at a commit that already has a workflow run (e.g.
+  # from main). The create event fires separately and ensures CI runs
+  # on newly cut release branches. Non-release branch creations are
+  # filtered out by the changes job condition.
+  create:
+
   pull_request:
   workflow_dispatch:
 
@@ -21,6 +28,13 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # For create events, only run on release branches to avoid
+    # triggering CI for every feature branch creation.
+    if: |
+      github.event_name != 'create' || (
+        github.event.ref_type == 'branch' &&
+        startsWith(github.event.ref, 'release/')
+      )
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
       docs: ${{ steps.filter.outputs.docs }}
@@ -53,7 +67,8 @@ jobs:
               - "**"
             docs:
               - "docs/**"
-              - "README.md"
+              - ".claude/docs/**"
+              - "*.md"
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
@@ -119,6 +134,28 @@ jobs:
           echo "$FILTER_JSON"
         env:
           FILTER_JSON: ${{ toJSON(steps.filter.outputs) }}
+
+  lint-docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Check docs
+        run: pnpm check-docs
 
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
   # Re-enable once the flake hash calculation is stable.
@@ -482,24 +519,6 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-
       - name: Setup RAM disk for Embedded Postgres (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -537,6 +556,7 @@ jobs:
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          gotestsum-json-file: default
 
       - name: Test with PostgreSQL Database (macOS)
         if: runner.os == 'macOS'
@@ -576,24 +596,11 @@ jobs:
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload failed test db dumps
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -665,24 +672,6 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-
       - name: Test with PostgreSQL Database
         uses: ./.github/actions/test-go-pg
         with:
@@ -693,25 +682,13 @@ jobs:
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          gotestsum-json-file: default
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -770,24 +747,6 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       # Our Linux runners have 16 cores, but we reduce parallelism since race detection adds a lot of overhead.
       # We aim to have parallelism match CPU count (4*4=16) to avoid making flakes worse.
-      - name: Configure Go test JSON capture
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
-          mkdir -p "$bin_dir"
-
-          real_gotestsum="$(command -v gotestsum)"
-          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'set -euo pipefail' \
-            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
-            > "${bin_dir}/gotestsum"
-          chmod +x "${bin_dir}/gotestsum"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-
       - name: Run Tests
         uses: ./.github/actions/test-go-pg
         with:
@@ -795,25 +754,13 @@ jobs:
           test-parallelism-packages: "4"
           test-parallelism-tests: "4"
           race-detection: "true"
+          gotestsum-json-file: default
 
-      - name: Publish Go test failure summary
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        run: |
-          go run ./scripts/gotestsummary \
-            --jsonfile "${RUNNER_TEMP}/go-test.json" \
-            --markdown-out - \
-            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
-            --max-output-bytes 16384 \
-            --max-failures 50 \
-            >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Go test failures
-        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Publish Go test failure report
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
         with:
-          name: go-test-failures-${{ github.job }}-${{ github.sha }}
-          path: ${{ runner.temp }}/go-test-failures.ndjson
-          retention-days: 7
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -1132,6 +1079,7 @@ jobs:
       - changes
       - fmt
       - lint
+      - lint-docs
       - lint-actions
       - gen
       - test-go-pg
@@ -1157,6 +1105,7 @@ jobs:
           echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
+          echo "- lint-docs: ${{ needs.lint-docs.result }}"
           echo "- lint-actions: ${{ needs.lint-actions.result }}"
           echo "- gen: ${{ needs.gen.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"

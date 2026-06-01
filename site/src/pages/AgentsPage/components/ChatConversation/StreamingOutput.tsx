@@ -9,6 +9,7 @@ import {
 } from "../ChatElements";
 import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -36,7 +37,8 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 const StreamingThinkingPlaceholder: FC = () => (
 	<div data-transcript-row="" className="text-content-secondary">
 		<TranscriptRow className="w-full gap-2">
-			<Shimmer as="span" className="text-[13px] leading-relaxed">
+			<ToolIcon name="thinking" isError={false} />
+			<Shimmer as="span" className="text-[13px] leading-6">
 				Thinking
 			</Shimmer>
 		</TranscriptRow>

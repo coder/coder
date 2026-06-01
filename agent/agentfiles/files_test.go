@@ -2622,11 +2622,10 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 	}
 }
 
-// TestEditFiles_DuplicatePath_Rejects pins that duplicate paths in
-// one request are rejected with 400 and the file on disk is
-// unchanged. The pre-fix behavior silently dropped the first
-// entry's edits while reporting success (last write wins).
-func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
+// TestEditFiles_DuplicatePath_Merges verifies that duplicate paths in
+// one request are merged: edits from all entries for the same path are
+// concatenated and applied in order.
+func TestEditFiles_DuplicatePath_Merges(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
@@ -2637,10 +2636,12 @@ func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
 	original := "one\ntwo\nthree\n"
 	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
 
+	// Entry 2 searches for the output of entry 1, proving edits
+	// are applied in the order they appear across entries.
 	req := workspacesdk.FileEditRequest{
 		Files: []workspacesdk.FileEdits{
-			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
-			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "CHANGED"}}},
+			{Path: path, Edits: []workspacesdk.FileEdit{{Search: "CHANGED", Replace: "FINAL"}}},
 		},
 	}
 
@@ -2653,15 +2654,49 @@ func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
 	api.Routes().ServeHTTP(w, r)
 
-	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
-	got := &codersdk.Error{}
-	require.NoError(t, json.NewDecoder(w.Body).Decode(got))
-	require.ErrorContains(t, got, "duplicate file path")
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 
-	// File on disk must be untouched: no partial edits.
 	data, err := afero.ReadFile(fs, path)
 	require.NoError(t, err)
-	require.Equal(t, original, string(data))
+	require.Equal(t, "FINAL\ntwo\nthree\n", string(data))
+}
+
+// TestEditFiles_DuplicatePath_NonCanonicalMerges verifies that
+// non-canonical paths normalizing to the same file are merged,
+// not rejected as symlink aliases.
+func TestEditFiles_DuplicatePath_NonCanonicalMerges(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+	canonical := filepath.Join(tmpdir, "noncanon")
+	nonCanonical := canonical[:len(tmpdir)] + "/./noncanon"
+	original := "one\ntwo\nthree\n"
+	require.NoError(t, afero.WriteFile(fs, canonical, []byte(original), 0o644))
+
+	req := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{Path: canonical, Edits: []workspacesdk.FileEdit{{Search: "one", Replace: "ONE"}}},
+			{Path: nonCanonical, Edits: []workspacesdk.FileEdit{{Search: "three", Replace: "THREE"}}},
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(req))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	data, err := afero.ReadFile(fs, canonical)
+	require.NoError(t, err)
+	require.Equal(t, "ONE\ntwo\nTHREE\n", string(data))
 }
 
 // TestEditFiles_DuplicatePath_SymlinkAliasRejects pins that two

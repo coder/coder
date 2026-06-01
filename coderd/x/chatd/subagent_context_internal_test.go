@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -446,10 +447,33 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
 
+	// Set a delegated API key so that copied user-role context messages
+	// are stamped with api_key_id, preserving AI Gateway routing.
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: parentChat.OwnerID})
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+
 	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
 	require.NoError(t, err)
 
 	assertChildInheritedContext(ctx, t, db, child.ID, "inspect bindings")
+
+	// Verify that all user-role messages in the child chat carry
+	// api_key_id so activeTurnAPIKeyIDFromMessages resolves correctly.
+	childMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  child.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var userMsgCount int
+	for _, msg := range childMessages {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		userMsgCount++
+		require.True(t, msg.APIKeyID.Valid, "child user message (id=%d) should have api_key_id set", msg.ID)
+		require.Equal(t, apiKey.ID, msg.APIKeyID.String, "child user message (id=%d) api_key_id mismatch", msg.ID)
+	}
+	require.Greater(t, userMsgCount, 0, "expected at least one user-role message in child chat")
 }
 
 func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {

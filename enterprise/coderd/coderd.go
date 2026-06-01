@@ -596,6 +596,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.userAIBudgetOverride)
+			r.Put("/", api.upsertUserAIBudgetOverride)
+			r.Delete("/", api.deleteUserAIBudgetOverride)
+		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -622,40 +633,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	if len(options.SCIMAPIKey) != 0 {
-		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			r.Use(
-				api.RequireFeatureMW(codersdk.FeatureSCIM),
-			)
-			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
-			r.Post("/Users", api.scimPostUser)
-			r.Route("/Users", func(r chi.Router) {
-				r.Get("/", api.scimGetUsers)
-				r.Post("/", api.scimPostUser)
-				r.Get("/{id}", api.scimGetUser)
-				r.Patch("/{id}", api.scimPatchUser)
-				r.Put("/{id}", api.scimPutUser)
-			})
-			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-				u := r.URL.String()
-				httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("SCIM endpoint %s not found", u),
-					Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
-				})
-			})
-		})
-	} else {
-		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
-		// the frontend is the fallback. A html page is not a helpful error for
-		// a SCIM provider. This JSON has a call to action that __may__ resolve
-		// the issue.
-		// Using Mount to cover all subroute possibilities.
-		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
-				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
-			})
-		})))
+	var mountScimError error
+	api.AGPL.RootHandler.Route("/scim", func(r chi.Router) {
+		mountScimError = api.mountScimRoute(options, r)
+	})
+	if mountScimError != nil {
+		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
@@ -754,6 +737,11 @@ type Options struct {
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
+	// UseLegacySCIM opts into the legacy SCIM handler implementation
+	// (imulab/go-scim based). This is provided for backward compatibility
+	// during the transition to the new elimity-com/scim implementation.
+	// It will be removed in a future release.
+	UseLegacySCIM bool
 
 	ExternalTokenEncryption []dbcrypt.Cipher
 

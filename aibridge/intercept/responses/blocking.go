@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -103,8 +104,9 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
 		if upstreamErr != nil {
-			if keyErr := ProcessKeyPoolError(upstreamErr); keyErr != nil {
-				i.writeUpstreamError(w, keyErr)
+			var keyPoolErr *keypool.Error
+			if errors.As(upstreamErr, &keyPoolErr) {
+				i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
 			}
 		}
@@ -169,15 +171,16 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 // Errors that aren't key-specific don't trigger failover and
 // are returned to the caller.
 func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

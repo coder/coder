@@ -1,6 +1,9 @@
 # Coder Desktop
 
-Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments—all without installing a CLI or configuring manual port forwarding.
+Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
+
+> [!TIP]
+> Coder Desktop provides **automatic port forwarding** to every service running in your workspace. Any port your application listens on is instantly accessible at `workspace-name.coder:PORT` with no manual setup required. For a comparison of all port forwarding methods, see [Workspace Ports](../workspace-access/port-forwarding.md).
 
 ## What You'll Need
 
@@ -21,6 +24,7 @@ Coder Desktop provides seamless access to your remote workspaces through a nativ
 **Coder Connect**, the primary component of Coder Desktop, creates a secure tunnel to your Coder deployment, allowing you to:
 
 - **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
+- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no configuration
 - **Use any application**: SSH clients, browsers, IDEs work seamlessly
 - **Sync files**: Bidirectional sync between local and remote directories
 - **Work offline**: Edit files locally, sync when reconnected
@@ -196,3 +200,4 @@ If you encounter issues not covered here:
 ## Next Steps
 
 - [Using Coder Connect and File Sync](./desktop-connect-sync.md)
+- [Compare port forwarding methods](../workspace-access/port-forwarding.md)

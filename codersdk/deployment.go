@@ -638,6 +638,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
@@ -1862,6 +1863,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Default:     "false",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "structured_logging",
+	}
+	aiGatewayAPIDumpDir := serpent.Option{
+		Name:        "AI Gateway API Dump Directory",
+		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Flag:        "ai-gateway-dump-dir",
+		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
+		Value:       &c.AI.BridgeConfig.APIDumpDir,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "api_dump_dir",
 	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
@@ -3438,6 +3449,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SCIMAPIKey,
 		},
 		{
+			Name: "SCIM Use Legacy",
+			// The legacy SCIM is a weird mix of SCIM 1.0 and SCIM 2.0
+			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
+			Flag:        "scim-use-legacy",
+			Env:         "CODER_SCIM_USE_LEGACY",
+			Hidden:      true,
+			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
+			Default:     "true",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.UseLegacySCIM,
+		},
+		{
 			Name:        "External Token Encryption Keys",
 			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
 			Flag:        "external-token-encryption-keys",
@@ -4048,6 +4071,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
 		},
+		{
+			Name:        "Chat: AI Gateway Routing Enabled",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Flag:        "chat-ai-gateway-routing-enabled",
+			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
+			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4275,6 +4309,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
 			Description: "Deprecated: use --ai-gateway-allow-byok or CODER_AI_GATEWAY_ALLOW_BYOK instead. Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
@@ -4632,6 +4667,10 @@ type AIBridgeConfig struct {
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
 	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
 	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
+	// APIDumpDir is the base directory under which each provider's
+	// request/response dumps are written, in a subdirectory named after
+	// the provider. Empty disables dumping.
+	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -4658,7 +4697,9 @@ type AIBridgeBedrockConfig struct {
 // CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
 // This follows the same indexed pattern as ExternalAuthConfig.
 type AIProviderConfig struct {
-	// Type is the provider type: "openai", "anthropic", or "copilot".
+	// Type is the provider type. Valid values are: "openai",
+	// "anthropic", "azure", "bedrock", "google", "openai-compat",
+	// "openrouter", "vercel", "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
@@ -4669,8 +4710,6 @@ type AIProviderConfig struct {
 	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
-	// DumpDir is the directory path for dumping API requests and responses.
-	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL string `json:"-"`
@@ -4701,8 +4740,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {

@@ -135,6 +135,42 @@ func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
 }
 
+func TestWorkspaceAwarenessDelaysWorkspaceCreation(t *testing.T) {
+	t.Parallel()
+
+	detached := workspaceDetachedAwareness
+	require.Contains(t, detached, "No workspace is attached to this chat yet")
+	require.Contains(t, detached, "Do not create or start a workspace by default")
+	require.Contains(t, detached, "Only call create_workspace or start_workspace")
+	require.NotContains(t, detached, "Create one using the create_workspace tool before using workspace tools")
+
+	delegated := workspaceDetachedNoCreateAwareness
+	require.Contains(t, delegated, "This delegated chat cannot create or start a workspace")
+	require.Contains(t, delegated, "report that need to the parent agent")
+	require.NotContains(t, delegated, "Only call create_workspace or start_workspace")
+
+	attached := workspaceAttachedAwareness
+	require.Contains(t, attached, "This chat is attached to a workspace")
+}
+
+func TestDefaultSystemPromptDelaysWorkspaceCreation(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, DefaultSystemPrompt, "Do not create a workspace by default")
+	require.Contains(t, DefaultSystemPrompt, "Do not clone repositories already present")
+	require.Contains(t, DefaultSystemPrompt, "including AGENTS.md")
+	require.NotContains(t, DefaultSystemPrompt, "create and start one first using create_workspace and start_workspace")
+}
+
+func TestPlanningOverlayPromptDelaysWorkspaceCreation(t *testing.T) {
+	t.Parallel()
+
+	prompt := PlanningOverlayPrompt()
+	require.Contains(t, prompt, "do not create one as the first action merely because you are planning")
+	require.Contains(t, prompt, "Before cloning, inspect the current workspace and reuse existing repositories")
+	require.NotContains(t, prompt, "create and start one with create_workspace and start_workspace before investigating")
+}
+
 func TestInsertSystemInstructionAfterSystemMessages(t *testing.T) {
 	t.Parallel()
 

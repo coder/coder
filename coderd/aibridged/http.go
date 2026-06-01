@@ -56,8 +56,24 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		authMode = "byok"
 	}
 
+	// When the request arrived via the in-process transport, the caller
+	// has placed a delegated API key ID on the context. We trust that the
+	// caller already established the user's identity and only validate
+	// liveness; the caller does not have (and cannot send) the key secret.
+	// Delegation is orthogonal to BYOK: a delegated request still carries
+	// the user's own LLM credentials in Authorization/X-Api-Key when BYOK
+	// is in effect.
+	var (
+		authReq *proto.IsAuthorizedRequest
+	)
+
+	delegatedID, delegated := agplaibridge.DelegatedAPIKeyIDFromContext(ctx)
+
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
-	if key == "" {
+
+	// When a BYOK header is present, a key is ALWAYS required.
+	// Delegated auth only requires a key when using BYOK.
+	if key == "" && !delegated {
 		// Some clients (e.g. Claude) send a HEAD request
 		// without credentials to check connectivity.
 		if r.Method == http.MethodHead {
@@ -69,20 +85,28 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip every header that may carry the Coder token so it is
-	// never forwarded to upstream providers. After stripping, the
-	// aibridge library can treat the request as a normal LLM API call
-	// with no Coder-specific information.
+	if delegated {
+		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+	} else {
+		authReq = &proto.IsAuthorizedRequest{Key: key}
+	}
+
+	// Strip every header that may carry the Coder token so it is never
+	// forwarded to upstream providers. Runs for both header-auth and
+	// delegated requests: a delegated caller may forward the user's BYOK
+	// headers, and we still want to scrub any Coder-specific credentials
+	// that may have leaked through. After stripping, the aibridge library
+	// can treat the request as a normal LLM API call with no
+	// Coder-specific information.
 	if byok {
-		// In BYOK mode the token is in X-Coder-AI-Governance-Token;
-		// Authorization and X-Api-Key carry the user's own LLM credentials
-		// and must be preserved.
+		// In BYOK mode the Coder token is in X-Coder-AI-Governance-Token;
+		// Authorization and X-Api-Key carry the user's own LLM
+		// credentials and must be preserved.
 		r.Header.Del(agplaibridge.HeaderCoderToken)
 	} else {
-		// In centralized mode the token may be in Authorization (the
-		// documented path) or X-Api-Key (legacy clients that set
-		// ANTHROPIC_API_KEY to their Coder token). Both are
-		// stripped.
+		// In centralized mode the Coder token may be in Authorization
+		// (the documented path) or X-Api-Key (legacy clients that set
+		// ANTHROPIC_API_KEY to their Coder token). Both are stripped.
 		r.Header.Del("Authorization")
 		r.Header.Del("X-Api-Key")
 	}
@@ -94,9 +118,19 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := client.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: key})
+	// Attach auth attributes used by all log lines below. "source" is the
+	// transport origin (e.g., "agents" for in-process callers, empty for
+	// network callers); "auth_delegated" distinguishes header-based from
+	// context-delegated authentication.
+	logger = logger.With(
+		slog.F("source", string(agplaibridge.SourceFromContext(ctx))),
+		slog.F("auth_mode", authMode),
+		slog.F("auth_delegated", delegated),
+	)
+
+	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err), slog.F("auth_mode", authMode))
+		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}

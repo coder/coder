@@ -1509,6 +1509,16 @@ func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	}
 }
 
+func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+	return codersdk.UserAIBudgetOverride{
+		UserID:           o.UserID,
+		GroupID:          o.GroupID,
+		SpendLimitMicros: o.SpendLimitMicros,
+		CreatedAt:        o.CreatedAt,
+		UpdatedAt:        o.UpdatedAt,
+	}
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
@@ -2037,7 +2047,7 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 		// so branch URLs for GitHub Enterprise instances will
 		// be incorrect. To fix this, this function would need
 		// access to the external auth configs.
-		gp := gitprovider.New("github", "", nil)
+		gp, _ := gitprovider.New("github", "", nil)
 		if gp != nil {
 			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {
 				branchURL := gp.BuildBranchURL(owner, repo, status.GitBranch)

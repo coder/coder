@@ -1374,9 +1374,9 @@ export const AnthropicKnownModelHappyPath: Story = {
 
 		await openKnownModelPopover(body);
 		const options = await body.findAllByRole("option");
-		await userEvent.click(findOptionByText(options, "claude-opus-4-7"));
+		await userEvent.click(findOptionByText(options, "claude-opus-4-8"));
 
-		await expectModelIdentifierValue(body, "claude-opus-4-7");
+		await expectModelIdentifierValue(body, "claude-opus-4-8");
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1000000");
 
 		await expandSection(body, "Advanced");
@@ -1858,7 +1858,7 @@ export const KnownModelAutoHidePopoverWhenNoMatches: Story = {
 			name: /Model Identifier/i,
 		});
 		await userEvent.click(input);
-		await expect(await body.findByText("Claude Opus 4.7")).toBeInTheDocument();
+		await expect(await body.findByText("Claude Opus 4.8")).toBeInTheDocument();
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "claude-opus-4-5");

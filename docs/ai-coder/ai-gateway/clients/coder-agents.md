@@ -164,6 +164,13 @@ key is a valid Coder token.
   one [model](../../agents/models.md#add-a-model) to the provider after
   saving the Base URL. Providers without an enabled model are hidden from
   developers.
+- **"Chat interrupted" error when resuming a conversation.**
+  This occurs when the API key that was used to start a chat turn is no
+  longer available. Common causes: upgrading from a version before
+  `api_key_id` tracking was introduced, or deleting an API key while a
+  chat is active. The error is self-healing: send your message again and
+  the new message will use your current API key. If the error persists
+  after resending, this indicates a bug. Please report it.
 
 ## Known limitations
 

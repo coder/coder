@@ -18,7 +18,8 @@ CREATE TYPE ai_provider_type AS ENUM (
     'google',
     'openai-compat',
     'openrouter',
-    'vercel'
+    'vercel',
+    'copilot'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (
@@ -248,7 +249,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'user_skill:read',
     'user_skill:update',
     'user_skill:delete',
-    'user_skill:*'
+    'user_skill:*',
+    'boundary_log:*',
+    'boundary_log:create',
+    'boundary_log:delete',
+    'boundary_log:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -836,6 +841,103 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.group_id;
+	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	DELETE FROM user_ai_budget_overrides
+	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
+	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM group_members_expanded
+		WHERE user_id = NEW.user_id AND group_id = NEW.group_id
+	) THEN
+		RAISE EXCEPTION 'user % is not a member of group %', NEW.user_id, NEW.group_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'user_ai_budget_overrides_must_be_group_member';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_secrets_per_user_limits() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    existing_count       int;
+    existing_total_bytes bigint;
+    existing_env_bytes   bigint;
+
+    new_count       int;
+    new_total_bytes bigint;
+    new_env_bytes   bigint;
+
+    count_limit       constant int    := 50;
+    total_bytes_limit constant bigint := 204800;   -- 200 KiB
+    env_bytes_limit   constant bigint := 24576;    -- 24 KiB
+BEGIN
+    -- Serialize cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert aggregates and exceed the cap.
+    PERFORM 1 FROM users WHERE id = NEW.user_id FOR UPDATE;
+
+    -- Sum existing rows excluding the row being updated (so UPDATE statements
+    -- don't double-count NEW). On INSERT, no row matches NEW.id, so
+    -- the FILTER is a no-op.
+    SELECT
+        count(*) FILTER (WHERE id IS DISTINCT FROM NEW.id),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id AND env_name <> ''), 0)
+    INTO existing_count, existing_total_bytes, existing_env_bytes
+    FROM user_secrets
+    WHERE user_id = NEW.user_id;
+
+    new_count       := existing_count + 1;
+    new_total_bytes := existing_total_bytes + octet_length(NEW.value);
+    new_env_bytes   := existing_env_bytes
+                       + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
+
+    IF new_count > count_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets count limit (% > %)',
+            new_count, count_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_count_limit';
+    END IF;
+
+    IF new_total_bytes > total_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the user secrets total value bytes limit (% > %)',
+            new_total_bytes, total_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_total_bytes_limit';
+    END IF;
+
+    IF new_env_bytes > env_bytes_limit THEN
+        RAISE EXCEPTION 'user has reached the env-injected user secrets bytes limit (% > %)',
+            new_env_bytes, env_bytes_limit
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_secrets_per_user_env_bytes_limit';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1154,6 +1256,17 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION remove_mcp_server_config_id_from_chats() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	UPDATE chats
+	SET mcp_server_ids = array_remove(mcp_server_ids, OLD.id)
+	WHERE OLD.id = ANY(mcp_server_ids);
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1376,6 +1489,60 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE boundary_logs (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    sequence_number integer NOT NULL,
+    captured_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    proto text DEFAULT ''::text NOT NULL,
+    method text DEFAULT ''::text NOT NULL,
+    detail text DEFAULT ''::text NOT NULL,
+    matched_rule text,
+    CONSTRAINT boundary_logs_sequence_number_check CHECK ((sequence_number >= 0))
+);
+
+COMMENT ON TABLE boundary_logs IS 'Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.';
+
+COMMENT ON COLUMN boundary_logs.session_id IS 'The session ID generated by the Boundary process on startup. Groups all events from one invocation.';
+
+COMMENT ON COLUMN boundary_logs.sequence_number IS 'Monotonically increasing integer assigned by Boundary, starting at 0 per session. Primary ordering key when Boundary is in use.';
+
+COMMENT ON COLUMN boundary_logs.captured_at IS 'When the log was sent to the DB.';
+
+COMMENT ON COLUMN boundary_logs.created_at IS 'When the event happened on the workspace.';
+
+COMMENT ON COLUMN boundary_logs.proto IS 'The protocol of the audited action. e.g. http, dns, git, fs.';
+
+COMMENT ON COLUMN boundary_logs.method IS 'The operation within the protocol. e.g. GET/POST for http, clone for git, A for dns, read/write for fs.';
+
+COMMENT ON COLUMN boundary_logs.detail IS 'Protocol-specific detail. e.g. the full URL for http, the hostname for dns, the path for fs.';
+
+COMMENT ON COLUMN boundary_logs.matched_rule IS 'The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.';
+
+CREATE TABLE boundary_sessions (
+    id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    confined_process_name text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid
+);
+
+COMMENT ON TABLE boundary_sessions IS 'Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.';
+
+COMMENT ON COLUMN boundary_sessions.id IS 'The unique session ID generated by the Boundary process on startup.';
+
+COMMENT ON COLUMN boundary_sessions.workspace_agent_id IS 'The workspace agent that this Boundary session is associated with.';
+
+COMMENT ON COLUMN boundary_sessions.confined_process_name IS 'Name of the confined process (e.g. claude-code, codex, copilot).';
+
+COMMENT ON COLUMN boundary_sessions.started_at IS 'Time when the first log for this session was received by coderd.';
+
+COMMENT ON COLUMN boundary_sessions.updated_at IS 'Time when the session was last updated.';
+
+COMMENT ON COLUMN boundary_sessions.owner_id IS 'The ID of the user who owns the workspace. NULL if the user has been deleted.';
+
 CREATE TABLE boundary_usage_stats (
     replica_id uuid NOT NULL,
     unique_workspaces_count bigint DEFAULT 0 NOT NULL,
@@ -1502,7 +1669,8 @@ CREATE TABLE chat_messages (
     total_cost_micros bigint,
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
-    provider_response_id text
+    provider_response_id text,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1541,7 +1709,8 @@ CREATE TABLE chat_queued_messages (
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    model_config_id uuid
+    model_config_id uuid,
+    api_key_id text
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -3004,6 +3173,17 @@ COMMENT ON TABLE usage_events_daily IS 'usage_events_daily is a daily rollup of 
 
 COMMENT ON COLUMN usage_events_daily.day IS 'The date of the summed usage events, always in UTC.';
 
+CREATE TABLE user_ai_budget_overrides (
+    user_id uuid NOT NULL,
+    group_id uuid NOT NULL,
+    spend_limit_micros bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_ai_budget_overrides_spend_limit_micros_check CHECK ((spend_limit_micros >= 0))
+);
+
+COMMENT ON TABLE user_ai_budget_overrides IS 'Per-user AI spend override that supersedes group budget resolution.';
+
 CREATE TABLE user_ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -3613,6 +3793,12 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY boundary_logs
+    ADD CONSTRAINT boundary_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
@@ -3847,6 +4033,9 @@ ALTER TABLE ONLY usage_events_daily
 ALTER TABLE ONLY usage_events
     ADD CONSTRAINT usage_events_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_ai_budget_overrides
+    ADD CONSTRAINT user_ai_budget_overrides_pkey PRIMARY KEY (user_id);
+
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_pkey PRIMARY KEY (id);
 
@@ -4021,6 +4210,10 @@ CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
+
+CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (captured_at);
+
+CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number);
 
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
@@ -4310,6 +4503,10 @@ CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_message
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
+CREATE TRIGGER remove_chat_mcp_server_config_id BEFORE DELETE ON mcp_server_configs FOR EACH ROW EXECUTE FUNCTION remove_mcp_server_config_id_from_chats();
+
+COMMENT ON TRIGGER remove_chat_mcp_server_config_id ON mcp_server_configs IS 'When an MCP server config is deleted, this trigger removes its ID from all chats.';
+
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
@@ -4319,6 +4516,12 @@ CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EA
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
+
+CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
+
+CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT OR UPDATE ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION enforce_user_ai_budget_override_membership();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
@@ -4333,6 +4536,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION enforce_user_secrets_per_user_limits();
 
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
@@ -4364,6 +4569,15 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY boundary_logs
+    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY boundary_sessions
+    ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4386,6 +4600,9 @@ ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -4399,6 +4616,9 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -4627,6 +4847,12 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_ai_budget_overrides
+    ADD CONSTRAINT user_ai_budget_overrides_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_ai_budget_overrides
+    ADD CONSTRAINT user_ai_budget_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;

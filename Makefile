@@ -992,7 +992,10 @@ GEN_FILES := \
 	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db gen/golden-files $(GEN_FILES)
+# Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
+# start PostgreSQL via testcontainers).
+GEN_SKIP_GOLDEN ?=
+gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)
@@ -1443,8 +1446,16 @@ ifdef TEST_SHORT
 GOTEST_FLAGS += -short
 endif
 
+# RUN is single-quoted for the shell so regex metacharacters survive make.
+# Embedded single quotes are not supported; whichtests only emits RUN values
+# built from ASCII test names so generated regexes stay within this contract.
 ifdef RUN
-GOTEST_FLAGS += -run $(RUN)
+GOTEST_FLAGS += -run '$(RUN)'
+endif
+
+# TEST_SHUFFLE values must be off, on, or an integer seed.
+ifdef TEST_SHUFFLE
+GOTEST_FLAGS += -shuffle=$(TEST_SHUFFLE)
 endif
 
 ifdef TEST_CPUPROFILE
@@ -1632,12 +1643,6 @@ else
 	pnpm playwright:test
 endif
 .PHONY: test-e2e
-
-dogfood/coder/nix.hash: flake.nix flake.lock
-	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
-
-dogfood/coder/mise.hash: mise.toml mise.lock
-	sha256sum mise.toml mise.lock >./dogfood/coder/mise.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

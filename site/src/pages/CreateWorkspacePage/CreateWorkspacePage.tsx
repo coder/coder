@@ -60,6 +60,7 @@ const CreateWorkspacePage: FC = () => {
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
 	const disabledParams = searchParams.get("disable_params")?.split(",");
+	const presetName = searchParams.get("preset") || undefined;
 	const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
 	const [autoCreateConsented, setAutoCreateConsented] = useState(false);
 	const [autoCreateError, setAutoCreateError] =
@@ -76,9 +77,12 @@ const CreateWorkspacePage: FC = () => {
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
 	);
+	const realizedVersionId =
+		customVersionId ?? templateQuery.data?.active_version_id;
+
 	const templateVersionPresetsQuery = useQuery({
-		...templateVersionPresets(templateQuery.data?.active_version_id ?? ""),
-		enabled: Boolean(templateQuery.data),
+		...templateVersionPresets(realizedVersionId ?? ""),
+		enabled: realizedVersionId !== undefined,
 	});
 	const permissionsQuery = useQuery({
 		...checkAuthorization({
@@ -89,15 +93,68 @@ const CreateWorkspacePage: FC = () => {
 		}),
 		enabled: Boolean(templateQuery.data),
 	});
-	const realizedVersionId =
-		customVersionId ?? templateQuery.data?.active_version_id;
 
 	const templateVersionQuery = useQuery({
 		...templateVersion(realizedVersionId ?? ""),
 		enabled: realizedVersionId !== undefined,
 	});
 
-	const autofillParameters = getAutofillParameters(searchParams);
+	const effectivePresetName = mode === "duplicate" ? undefined : presetName;
+
+	const presets = templateVersionPresetsQuery.data ?? [];
+
+	const urlPresetResult = useMemo(() => {
+		if (!effectivePresetName) return { preset: undefined, error: undefined };
+
+		if (templateVersionPresetsQuery.isError) {
+			return {
+				preset: undefined,
+				error: `Failed to load presets: ${templateVersionPresetsQuery.error?.message ?? "unknown error"}. Please try refreshing the page.`,
+			};
+		}
+
+		if (!templateVersionPresetsQuery.isSuccess) {
+			return { preset: undefined, error: undefined }; // Still loading
+		}
+
+		const found = presets.find((p) => p.Name === effectivePresetName);
+		if (!found) {
+			const versionLabel = templateVersionQuery.data?.name ?? realizedVersionId;
+			return {
+				preset: undefined,
+				error: `Preset "${effectivePresetName}" not found on template version "${versionLabel}". Check that the preset name matches exactly (names are case-sensitive).`,
+			};
+		}
+		return { preset: found, error: undefined };
+	}, [
+		effectivePresetName,
+		presets,
+		templateVersionPresetsQuery.isSuccess,
+		templateVersionPresetsQuery.isError,
+		templateVersionPresetsQuery.error,
+		realizedVersionId,
+		templateVersionQuery.data?.name,
+	]);
+
+	const urlAutofillParameters = useMemo(
+		() => getAutofillParameters(searchParams),
+		[searchParams],
+	);
+	const autofillParameters = useMemo(() => {
+		if (!urlPresetResult.preset) return urlAutofillParameters;
+
+		const presetParams: AutofillBuildParameter[] =
+			urlPresetResult.preset.Parameters.map((p) => ({
+				name: p.Name,
+				value: p.Value,
+				source: "url" as const,
+			}));
+
+		return presetParams;
+	}, [urlPresetResult.preset, urlAutofillParameters]);
+
+	const hasIgnoredUrlParams =
+		urlAutofillParameters.length > 0 && urlPresetResult.preset !== undefined;
 
 	const sendMessage = (
 		formValues: Record<string, string>,
@@ -227,10 +284,11 @@ const CreateWorkspacePage: FC = () => {
 			const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
 				organizationId,
 				templateName,
-				buildParameters: autofillParameters,
+				buildParameters: urlPresetResult.preset ? [] : autofillParameters,
 				workspaceName: defaultName ?? generateWorkspaceName(),
 				templateVersionId: realizedVersionId,
 				match: searchParams.get("match"),
+				templateVersionPresetId: urlPresetResult.preset?.ID,
 			});
 
 			onCreateWorkspace(newWorkspace);
@@ -244,11 +302,22 @@ const CreateWorkspacePage: FC = () => {
 			externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
+	const presetResolved =
+		!effectivePresetName ||
+		(templateVersionPresetsQuery.isSuccess &&
+			urlPresetResult.preset !== undefined);
+
 	let autoCreateReady =
-		mode === "auto" && hasAllRequiredExternalAuth && autoCreateConsented;
+		mode === "auto" &&
+		hasAllRequiredExternalAuth &&
+		autoCreateConsented &&
+		presetResolved;
 
 	const showAutoCreateConsent =
-		mode === "auto" && !autoCreateConsented && !autoCreateError;
+		mode === "auto" &&
+		!autoCreateConsented &&
+		!autoCreateError &&
+		presetResolved;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -275,6 +344,23 @@ const CreateWorkspacePage: FC = () => {
 		});
 	}
 
+	if (
+		mode === "auto" &&
+		hasAllRequiredExternalAuth &&
+		effectivePresetName &&
+		((templateVersionPresetsQuery.isSuccess && !urlPresetResult.preset) ||
+			templateVersionPresetsQuery.isError)
+	) {
+		setMode("form");
+		autoCreateReady = false;
+		setAutoCreateError({
+			message: "Auto-creation has been disabled.",
+			detail:
+				urlPresetResult.error ??
+				"The requested preset could not be resolved. Please check the preset value before continuing.",
+		});
+	}
+
 	useEffect(() => {
 		if (autoCreateReady) {
 			void automateWorkspaceCreation();
@@ -293,7 +379,10 @@ const CreateWorkspacePage: FC = () => {
 		isLoadingFormData ||
 		isLoadingExternalAuth ||
 		autoCreateReady ||
-		(!latestResponse && !wsError);
+		(!latestResponse && !wsError) ||
+		(effectivePresetName &&
+			!templateVersionPresetsQuery.isSuccess &&
+			!templateVersionPresetsQuery.isError);
 
 	return (
 		<>
@@ -301,6 +390,7 @@ const CreateWorkspacePage: FC = () => {
 
 			<AutoCreateConsentDialog
 				open={showAutoCreateConsent}
+				presetName={effectivePresetName}
 				autofillParameters={autofillParameters}
 				onConfirm={() => setAutoCreateConsented(true)}
 				onDeny={() => setMode("form")}
@@ -336,7 +426,14 @@ const CreateWorkspacePage: FC = () => {
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
 					parameters={sortedParams}
-					presets={templateVersionPresetsQuery.data ?? []}
+					presets={presets}
+					urlPreset={urlPresetResult.preset}
+					urlPresetError={
+						autoCreateError?.detail === urlPresetResult.error
+							? undefined
+							: urlPresetResult.error
+					}
+					hasIgnoredUrlParams={hasIgnoredUrlParams}
 					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}
 					onCancel={() => {

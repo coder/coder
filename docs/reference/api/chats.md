@@ -17,10 +17,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                |
-|---------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering. |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                             |
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|---------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, diff_url:<url> (quote values containing colons), pr:<number> (exact PR number match), repo:<owner/repo> (case-insensitive substring match against git remote origin or URL), pr_title:<text> (case-insensitive PR title substring). Bare terms are not supported; use title:<value> for title filtering. |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ### Example responses
 
@@ -292,13 +292,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                     |
-|---------------|--------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                  |
-| `kind`        | `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit`         |
-| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
-| `plan_mode`   | `plan`                                                                                                       |
-| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                           |
+| Property      | Value(s)                                                                                                                                 |
+|---------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                              |
+| `kind`        | `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                             |
+| `plan_mode`   | `plan`                                                                                                                                   |
+| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                                                       |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

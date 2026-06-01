@@ -10,6 +10,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -75,8 +76,8 @@ interface AgentsPageViewProps {
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
-	archivedFilter: "active" | "archived";
-	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	sidebarFilters: AgentSidebarFilters;
+	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -115,8 +116,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
-	archivedFilter,
-	onArchivedFilterChange,
+	sidebarFilters,
+	onSidebarFiltersChange,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -203,8 +204,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
 					isFetchingNextPage={isFetchingNextPage}
-					archivedFilter={archivedFilter}
-					onArchivedFilterChange={onArchivedFilterChange}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
 					onCollapse={onCollapseSidebar}
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}

@@ -111,13 +111,13 @@
 
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
-        terraform_1_15_2 =
+        terraform_1_15_5 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.15.2" {
+            pkgs.runCommand "terraform-1.15.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip";
-                hash = "sha256-xW/yvH5s6bOHmlA5KwPC6gdLR2iL9QP/lmyH+wGyqrg=";
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
               };
             } ''
               mkdir -p "$out/bin"
@@ -198,7 +198,6 @@
             pango
             pixman
             pkg-config
-            playwright-driver.browsers
             pnpm
             postgresql_16
             proto_gen_go_1_30
@@ -209,7 +208,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_15_2
+            terraform_1_15_5
             typos
             which
             # Needed for many LD system libs!
@@ -278,16 +277,6 @@
             '';
           };
       in
-      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
-      # - https://nixos.wiki/wiki/Playwright
-      assert pkgs.lib.assertMsg
-        (
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-          == pkgs.playwright-driver.version
-        )
-        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
@@ -301,22 +290,11 @@
             {
             buildInputs = devShellPackages;
 
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
-
             LOCALE_ARCHIVE =
               with pkgs;
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
 
             NODE_OPTIONS = "--max-old-space-size=8192";
-            BIOME_BINARY =
-              if pkgs.stdenv.isLinux then
-                if pkgs.stdenv.hostPlatform.isAarch64 then
-                  "@biomejs/cli-linux-arm64-musl/biome"
-                else
-                  "@biomejs/cli-linux-x64-musl/biome"
-              else
-                "";
             GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };

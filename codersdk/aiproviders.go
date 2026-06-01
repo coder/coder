@@ -41,6 +41,10 @@ const (
 	// using the Bedrock discriminator in Settings; native support is
 	// future work.
 	AIProviderTypeBedrock AIProviderType = "bedrock"
+	// AIProviderTypeCopilot routes through aibridge's Copilot client,
+	// which uses request-time GitHub OAuth tokens rather than pre-shared
+	// API keys.
+	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
 // AIProviderSettings is the discriminated container for type-specific
@@ -220,10 +224,24 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
-	if req.Settings.Bedrock != nil && req.Type != AIProviderTypeAnthropic {
+	if req.Settings.Bedrock != nil &&
+		req.Type != AIProviderTypeAnthropic &&
+		req.Type != AIProviderTypeBedrock {
 		validations = append(validations, ValidationError{
 			Field:  "settings",
-			Detail: "bedrock settings are only valid for type=anthropic",
+			Detail: "bedrock settings are only valid for type=anthropic or type=bedrock",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "type=bedrock requires bedrock settings",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=bedrock does not accept api_keys",
 		})
 	}
 	return validations

@@ -38,12 +38,13 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey  = xerrors.New("invalid key")
-	ErrUnknownKey  = xerrors.New("unknown key")
-	ErrExpired     = xerrors.New("expired")
-	ErrUnknownUser = xerrors.New("unknown user")
-	ErrDeletedUser = xerrors.New("deleted user")
-	ErrSystemUser  = xerrors.New("system user")
+	ErrInvalidKey    = xerrors.New("invalid key")
+	ErrUnknownKey    = xerrors.New("unknown key")
+	ErrExpired       = xerrors.New("expired")
+	ErrUnknownUser   = xerrors.New("unknown user")
+	ErrDeletedUser   = xerrors.New("deleted user")
+	ErrSystemUser    = xerrors.New("system user")
+	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -221,8 +222,9 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:      intcID,
-		EndedAt: in.EndedAt.AsTime(),
+		ID:             intcID,
+		EndedAt:        in.EndedAt.AsTime(),
+		CredentialHint: in.CredentialHint,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -550,6 +552,15 @@ externalAuthLoop:
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
 //
+// SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
+// caller's claim of identity and skips the key-secret check. This is safe only
+// because the DRPCServer is reachable solely via the in-process
+// [aibridged.MemTransportPipe]; the handler itself cannot tell whether it was
+// invoked over the in-memory pipe or a network socket. If this RPC is ever
+// exposed over a network boundary, any caller who knows a valid 10-char key ID
+// (which is not secret) could authenticate as the key's owner without the
+// secret. Do not bind this DRPCServer to a network listener.
+//
 // NOTE: this should really be using the code from [httpmw.ExtractAPIKey]. That function not only validates the key
 // but handles many other cases like updating last used, expiry, etc. This code does not currently use it for
 // a few reasons:
@@ -565,10 +576,26 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	// Key matches expected format.
-	keyID, keySecret, err := httpmw.SplitAPIToken(in.GetKey())
-	if err != nil {
-		return nil, ErrInvalidKey
+	var (
+		keyID     string
+		keySecret string
+		// delegated requests skip the secret check: the caller never
+		// has the secret. Trust is established at the in-process
+		// transport boundary, not in this RPC.
+		delegated bool
+	)
+	switch {
+	case in.GetKey() != "" && in.GetKeyId() != "":
+		return nil, ErrAmbiguousAuth
+	case in.GetKeyId() != "":
+		keyID = in.GetKeyId()
+		delegated = true
+	default:
+		var err error
+		keyID, keySecret, err = httpmw.SplitAPIToken(in.GetKey())
+		if err != nil {
+			return nil, ErrInvalidKey
+		}
 	}
 
 	// Key exists.
@@ -584,8 +611,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrExpired
 	}
 
-	// Key secret matches.
-	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
+	// Key secret matches (skipped for delegated callers).
+	if !delegated && !apikey.ValidateHash(key.HashedSecret, keySecret) {
 		return nil, ErrInvalidKey
 	}
 

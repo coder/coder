@@ -55,9 +55,14 @@ jobs:
           mkdir -p "$(pnpm store path --silent)"
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
+        uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
+        env:
+          # Use the runner-provided Chrome instead of letting linkspector's
+          # puppeteer download a specific version that may not match the
+          # runner's puppeteer cache. See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
+          PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
         with:
           reporter: github-pr-review
           config_file: ".github/.linkspector.yml"

@@ -78,13 +78,17 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 export const getDefaultMCPSelection = (
 	servers: readonly TypesGen.MCPServerConfig[],
 ): string[] => {
-	return servers
-		.filter(
-			(s) =>
-				s.enabled &&
-				(s.availability === "force_on" || s.availability === "default_on"),
-		)
-		.map((s) => s.id);
+	const ids: string[] = [];
+	for (const server of servers) {
+		if (
+			server.enabled &&
+			(server.availability === "force_on" ||
+				server.availability === "default_on")
+		) {
+			ids.push(server.id);
+		}
+	}
+	return ids;
 };
 
 /** localStorage key for persisting the user's MCP server selection. */
@@ -113,13 +117,15 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 		if (!Array.isArray(parsed)) {
 			return null;
 		}
-		const enabledIds = new Set(
-			servers.filter((s) => s.enabled).map((s) => s.id),
-		);
-		// Always include force_on servers even if the user didn't save them.
-		const forceOnIds = servers
-			.filter((s) => s.enabled && s.availability === "force_on")
-			.map((s) => s.id);
+		const enabledIds = new Set<string>();
+		const forceOnIds: string[] = [];
+		for (const server of servers) {
+			if (!server.enabled) continue;
+			enabledIds.add(server.id);
+			if (server.availability === "force_on") {
+				forceOnIds.push(server.id);
+			}
+		}
 		const restored = parsed.filter(
 			(id): id is string => typeof id === "string" && enabledIds.has(id),
 		);
