@@ -551,11 +551,6 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		s.logger.Error(ctx, "responseWriter does not support flushing",
@@ -563,6 +558,11 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
 
 	writeChunk := func(data string) bool {
 		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
@@ -626,12 +626,6 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 }
 
 func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter, resp anthropicResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("anthropic-version", "2023-06-01")
-	w.WriteHeader(http.StatusOK)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		s.logger.Error(ctx, "responseWriter does not support flushing",
@@ -639,6 +633,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("anthropic-version", "2023-06-01")
+	w.WriteHeader(http.StatusOK)
 
 	writeChunk := func(eventType string, data []byte) bool {
 		if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", eventType, data); err != nil {
@@ -673,16 +673,12 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 	}
 
 	contentStartEventType := "content_block_start"
-	var contentStartText string
-	if !paced {
-		contentStartText = resp.Content[0].Text
-	}
 	contentStartEvent := map[string]any{
 		"type":  contentStartEventType,
 		"index": 0,
 		"content_block": map[string]any{
 			"type": "text",
-			"text": contentStartText,
+			"text": "",
 		},
 	}
 	contentStartBytes, _ := json.Marshal(contentStartEvent)

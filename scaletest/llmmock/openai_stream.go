@@ -3,6 +3,7 @@ package llmmock
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"cdr.dev/slog/v3"
@@ -85,19 +86,27 @@ func (sw openAIStreamWriter) writeDone(ctx context.Context) bool {
 }
 
 func (sw openAIStreamWriter) writeData(ctx context.Context, data []byte) bool {
-	for _, part := range [][]byte{[]byte("data: "), data, []byte("\n\n")} {
-		if _, err := sw.w.Write(part); err != nil {
-			sw.logger.Error(ctx, "failed to write OpenAI stream chunk",
-				slog.F("response_id", sw.response.ID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-			return false
-		}
+	if _, err := io.WriteString(sw.w, "data: "); err != nil {
+		return sw.logWriteError(ctx, err)
+	}
+	if _, err := sw.w.Write(data); err != nil {
+		return sw.logWriteError(ctx, err)
+	}
+	if _, err := io.WriteString(sw.w, "\n\n"); err != nil {
+		return sw.logWriteError(ctx, err)
 	}
 	sw.flusher.Flush()
 	return true
+}
+
+func (sw openAIStreamWriter) logWriteError(ctx context.Context, err error) bool {
+	sw.logger.Error(ctx, "failed to write OpenAI stream chunk",
+		slog.F("response_id", sw.response.ID),
+		slog.Error(err),
+		slog.F("error_type", "write_error"),
+		slog.F("likely_cause", "network_error"),
+	)
+	return false
 }
 
 func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, resp openAIResponse) {
