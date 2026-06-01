@@ -166,6 +166,36 @@ single failure, which may resolve on the next change. See
 [Monitoring](./monitoring.md#provider-metrics) for the full metric list
 and sample alert queries.
 
+## Key failover
+
+You can configure multiple centralized API keys for a single provider instance
+so that AI Gateway automatically retries with the next key when one fails. This
+is transparent to end users, and clients see no difference in behavior or need
+any configuration changes.
+
+Key failover is supported for **OpenAI** and **Anthropic** providers. Amazon
+Bedrock and GitHub Copilot do not support key failover.
+
+Multiple keys can be added per provider through the
+[AI Providers API](../../reference/api/aiproviders.md). Each provider supports
+a maximum of **5 keys**.
+
+### Failover behavior
+
+Every request starts with the first key in the list. If a key is rate-limited
+or returns an authentication error, AI Gateway automatically retries the request
+with the next available key.
+
+> [!WARNING]
+> A key that fails with an authentication error (`401 Unauthorized` or
+> `403 Forbidden`) is permanently disabled and will not be used again until the
+> server is restarted or the provider configuration is reloaded.
+
+If all keys in the pool are exhausted, AI Gateway returns:
+
+- `429 Too Many Requests` when at least one key is rate-limited, with a `Retry-After` header set to the shortest cooldown across all keys.
+- `502 Bad Gateway` when every key has failed permanently.
+
 ## Bring Your Own Key
 
 A provider's configured credentials are the centralized default. When
