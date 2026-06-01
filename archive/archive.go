@@ -161,7 +161,7 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 		return err
 	}
 
-	written, err := io.CopyN(tarWriter, fileReader, size)
+	_, err = io.CopyN(tarWriter, fileReader, size)
 	switch {
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
 		return ErrInvalidZipContent
@@ -169,8 +169,6 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 		return ErrInvalidZipContent
 	case err != nil:
 		return err
-	case written != size:
-		return ErrInvalidZipContent
 	default:
 		return nil
 	}
