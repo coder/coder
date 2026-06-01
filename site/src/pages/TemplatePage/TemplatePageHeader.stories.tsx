@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
+import { workspacesKey } from "#/api/queries/workspaces";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -6,8 +8,6 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplatePageHeader } from "./TemplatePageHeader";
-import { workspacesKey } from "#/api/queries/workspaces";
-import { userEvent, within } from "storybook/test";
 
 const meta: Meta<typeof TemplatePageHeader> = {
 	title: "pages/TemplatePage/TemplatePageHeader",
