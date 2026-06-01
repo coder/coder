@@ -26,11 +26,14 @@ describe("createHeightCache", () => {
 		expect(cache.estimate("a1", "assistant")).toBe(512);
 	});
 
-	it("updates the average when an id is re-recorded, without double counting", () => {
+	it("does not let a re-recorded id drift the kind average", () => {
 		const cache = createHeightCache();
 		cache.record("a1", "assistant", 100);
+		// A streaming item growing: its own height updates, but the kind average
+		// stays put so unmeasured items above the viewport do not shift.
 		cache.record("a1", "assistant", 200);
-		expect(cache.estimate("a2", "assistant")).toBe(200);
+		expect(cache.get("a1")).toBe(200);
+		expect(cache.estimate("a2", "assistant")).toBe(100);
 	});
 
 	it("returns undefined from get for an unknown id", () => {

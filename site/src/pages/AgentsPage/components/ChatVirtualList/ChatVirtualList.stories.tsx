@@ -59,6 +59,16 @@ const StoryHarness: FC<{
 				it.id === "m-5" ? { ...it, height: it.height + 160 } : it,
 			),
 		);
+	// streamLast grows the newest item by a small amount, mimicking a token
+	// arriving while the assistant streams its reply at the bottom.
+	const streamLast = () =>
+		setItems((prev) => {
+			if (prev.length === 0) {
+				return prev;
+			}
+			const last = prev[prev.length - 1];
+			return [...prev.slice(0, -1), { ...last, height: last.height + 40 }];
+		});
 
 	const byId = new Map(items.map((it) => [it.id, it]));
 	const renderItem = (item: VirtualItem) => {
@@ -81,6 +91,9 @@ const StoryHarness: FC<{
 				</button>
 				<button type="button" data-testid="grow-5" onClick={growFive}>
 					grow-5
+				</button>
+				<button type="button" data-testid="stream-last" onClick={streamLast}>
+					stream-last
 				</button>
 				<span data-testid="fetch-count">{fetchCount}</span>
 			</div>
@@ -151,6 +164,25 @@ const settleWindow = async (
 		const id = visibleAnchorId(canvasElement, scroller);
 		expect(Math.abs(offsetOfId(canvasElement, scroller, id))).toBeLessThan(400);
 	});
+};
+
+// settleScroll waits until scrollTop stops changing, meaning any anchor
+// correction triggered by a measurement has been applied. Streaming mutates
+// height across several async frames, so a single frame can observe a position
+// that is still mid-correction.
+const settleScroll = async (scroller: HTMLElement): Promise<void> => {
+	let stableFrames = 0;
+	let previous = scroller.scrollTop;
+	for (let frame = 0; frame < 60 && stableFrames < 3; frame++) {
+		await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+		const current = scroller.scrollTop;
+		if (Math.abs(current - previous) < 0.5) {
+			stableFrames += 1;
+		} else {
+			stableFrames = 0;
+		}
+		previous = current;
+	}
 };
 
 export const RendersAndOverflows: Story = {
@@ -385,5 +417,41 @@ export const ScrollRecyclesOffscreen: Story = {
 		await expect(
 			Number.parseInt((topSpacer as HTMLElement).style.height, 10),
 		).toBeGreaterThan(22000);
+	},
+};
+
+// The reading position must stay perfectly still while the assistant streams its
+// reply at the bottom and the user is scrolled up. A few tokens arrive first
+// while pinned, mirroring how the real assistant begins streaming before the
+// user scrolls up, so the newest item is measured as it grows and the kind
+// average settles. Each later token then grows only the newest item below the
+// viewport, and the tracked reference at the top must not move.
+export const StaysStillWhileStreamingBelow: Story = {
+	render: () => <StoryHarness initialCount={200} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const scroller = canvas.getByTestId("scroll-container");
+		await waitFor(() =>
+			expect(distanceFromBottom(scroller)).toBeLessThanOrEqual(16),
+		);
+		for (let i = 0; i < 3; i++) {
+			await userEvent.click(canvas.getByTestId("stream-last"));
+			await waitFor(() =>
+				expect(distanceFromBottom(scroller)).toBeLessThanOrEqual(16),
+			);
+		}
+		scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight - 700;
+		scroller.dispatchEvent(new Event("scroll"));
+		await settleWindow(canvasElement, scroller);
+		await settleScroll(scroller);
+		const ref = visibleAnchorId(canvasElement, scroller);
+		const before = offsetOfId(canvasElement, scroller, ref);
+		for (let i = 0; i < 10; i++) {
+			await userEvent.click(canvas.getByTestId("stream-last"));
+			await settleScroll(scroller);
+			expect(
+				Math.abs(offsetOfId(canvasElement, scroller, ref) - before),
+			).toBeLessThanOrEqual(1);
+		}
 	},
 };

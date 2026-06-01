@@ -47,15 +47,17 @@ export function createHeightCache(
 		},
 		record(id, kind, height) {
 			const previous = measured.get(id);
-			const total = totals.get(kind) ?? { sum: 0, count: 0 };
-			// Replace the previous sample so re-measuring never double counts.
-			if (previous && previous.kind === kind) {
-				total.sum += height - previous.height;
-			} else {
+			// Only an id's first measurement feeds the kind average. A later
+			// re-measurement, such as a streaming item growing token by token,
+			// updates just that id's height. Folding it back into the average would
+			// drift the estimate of never-measured items above the viewport and
+			// shift the reading position while the user reads during a stream.
+			if (!previous) {
+				const total = totals.get(kind) ?? { sum: 0, count: 0 };
 				total.sum += height;
 				total.count += 1;
+				totals.set(kind, total);
 			}
-			totals.set(kind, total);
 			measured.set(id, { kind, height });
 		},
 	};
