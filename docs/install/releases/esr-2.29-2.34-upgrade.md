@@ -100,8 +100,6 @@ Template and workspace operations received several improvements:
 
 These changes reduce operational surprises for template authors, but templates
 that assumed a clean Terraform module download on every build should be tested.
-Templates that used the removed `coder_secret` Terraform data source must migrate
-to user secrets through the Coder API, CLI, or workspace injection flow.
 
 ### Security and Networking
 
@@ -124,17 +122,29 @@ Coder added several security and networking controls between 2.29 and 2.34:
 
 ### Operations and Scale
 
-Large deployments should now have improvements in database, logging, and observability
-behavior. Coder added configurable PostgreSQL connection pool settings, retention
-configuration for audit logs, connection logs, API keys, and workspace agent
-logs, dbpurge metrics, support bundle improvements, chatd metrics, agent first
-connection duration metrics, and a `coder_build_info` metric. Coder also removed
-several deprecated Prometheus metrics, so dashboards and alerts should be
-reviewed before the upgrade.
+Large deployments should now have improvements in database, logging, and
+observability behavior. Coder added the following:
 
-Several expensive queries and write paths were optimized, including AI Gateway
-session listing, audit and connection log counts, connection log batching,
-provisioner job queue lookups, chat streaming, and coordinator peer mapping.
+- Configurable PostgreSQL connection pool settings.
+- Retention configuration for audit logs, connection logs, API keys, and
+  workspace agent logs.
+- `dbpurge` metrics.
+- Support bundle improvements.
+- `chatd` metrics.
+- Agent first-connection duration metrics.
+- A `coder_build_info` metric.
+
+Coder also removed several deprecated Prometheus metrics, so dashboards and
+alerts should be reviewed before the upgrade.
+
+Several expensive queries and write paths were optimized, including:
+
+- AI Gateway session listing.
+- Audit and connection log counts.
+- Connection log batching.
+- Provisioner job queue lookups.
+- Chat streaming.
+- Coordinator peer mapping.
 
 ### CLI and Dashboard Enhancements
 
@@ -161,7 +171,6 @@ updates, or change administrator expectations:
 | Unknown external OAuth providers did not default to PKCE.                                      | Unknown external OAuth providers now default to PKCE.                                                                 | If a provider does not support PKCE, set `CODER_EXTERNAL_AUTH_<N>_PKCE_METHODS=none`. See [external authentication](../../admin/external-auth/index.md).                                                                                               |
 | `--secure-auth-cookie` defaulted independently from the access URL.                            | Secure auth cookies are enabled automatically when `CODER_ACCESS_URL` uses HTTPS.                                     | Confirm reverse proxies send the correct scheme headers. To preserve old behavior, explicitly set `CODER_SECURE_AUTH_COOKIE=false`.                                                                                                                    |
 | SFTP and SCP connections always landed in `$HOME`.                                             | SFTP and SCP now respect the workspace agent `dir` setting.                                                           | Update scripts that rely on implicit `$HOME` paths. Prefer explicit absolute paths for file transfers.                                                                                                                                                 |
-| Templates can use the `coder_secret` Terraform data source.                                    | The `coder_secret` Terraform integration was removed.                                                                 | Migrate templates to user secrets through the Coder API, CLI, or workspace injection flow before upgrading.                                                                                                                                            |
 | Pre-2.28 Tasks templates might still exist in older deployments.                               | The pre-2.28 Tasks template format is no longer supported as of 2.30.                                                 | Update Tasks templates to use `app_id` instead of the deprecated `sidebar_app` flow. See the [Tasks migration guide](../../ai-coder/tasks-migration.md).                                                                                               |
 | Tasks is the primary AI coding workflow.                                                       | Coder Agents is the long-term replacement, and Tasks is supported through the 2.34 ESR window (into 2026).            | Plan migration from the Tasks API to the Chats API and Coder Agents. See [Migrating from the Tasks API to the Chats API](../../ai-coder/agents/tasks-to-chats-migration.md).                                                                           |
 | AI Gateway injected MCP tools can be used for tool exposure.                                   | Injected MCP tools are deprecated.                                                                                    | Move new integrations toward Coder Agents MCP server configuration or the MCP server flow. See [AI Gateway MCP](../../ai-coder/ai-gateway/mcp.md) and [MCP servers](../../ai-coder/agents/platform-controls/mcp-servers.md).                           |
@@ -184,6 +193,21 @@ updates, or change administrator expectations:
 
 ## Upgrading
 
+> [!NOTE]
+> You can upgrade directly from 2.29 to 2.34. Stepping through intermediate
+> minor versions is not required.
+>
+> This upgrade applies 108 database migrations. Coder applies them in order
+> on startup. Typical durations:
+>
+> - Small deployments (under 1,000 users): under 1 minute.
+> - Medium deployments (1,000 to 10,000 users): 1 to 5 minutes.
+> - Large deployments (over 10,000 users): 5 to 15 minutes, longer for
+>   deployments with heavy chat, audit log, or connection log volume.
+>
+> Take a database backup before upgrading and validate the upgrade in a
+> staging environment that mirrors production data volume.
+
 The Coder team recommends taking the following steps when performing the upgrade:
 
 - **Perform the upgrade in a staging environment first:** The cumulative changes
@@ -191,9 +215,8 @@ The Coder team recommends taking the following steps when performing the upgrade
   authentication, RBAC, and dashboard behavior. Validate representative
   workspaces before production rollout.
 - **Retest templates and prebuilds:** Focus on Terraform module caching,
-  prebuild preset validation, `coder_env` merging, user secrets, the removed
-  `coder_secret` Terraform integration, and workspace starts with changed
-  parameters.
+  prebuild preset validation, `coder_env` merging, user secrets, and workspace
+  starts with changed parameters.
 - **Audit AI Gateway integrations:** Update experimental API routes, check
   permissions for interception/session data, move provider configuration to the
   `CODER_AI_GATEWAY_PROVIDER_*` prefix, verify proxy mode behavior, and review
