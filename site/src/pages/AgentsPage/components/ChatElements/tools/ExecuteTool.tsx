@@ -222,9 +222,6 @@ const ShellTranscriptBody: React.FC<{
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
 }> = ({ command, transcriptBlocks, isError }) => {
-	const transcriptBlockClassName =
-		"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5";
-
 	return (
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
@@ -242,12 +239,10 @@ const ShellTranscriptBody: React.FC<{
 					<pre
 						key={block.kind}
 						className={cn(
-							transcriptBlockClassName,
-							block.kind === "error"
+							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+							block.kind === "error" || isError
 								? "text-content-destructive"
-								: isError
-									? "text-content-destructive"
-									: "text-content-secondary",
+								: "text-content-secondary",
 						)}
 					>
 						{block.text}
