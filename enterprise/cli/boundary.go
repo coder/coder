@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -60,10 +59,10 @@ func (r *RootCmd) verifyLicense(inv *serpent.Invocation) error {
 	return nil
 }
 
-// buildAgentFirewallCmd builds the agent-firewall command. The returned command
+// agentFirewall builds the agent-firewall command. The returned command
 // uses the boundary base command from the external boundary package, wrapped
 // with license verification.
-func (r *RootCmd) buildAgentFirewallCmd() *serpent.Command {
+func (r *RootCmd) agentFirewall() *serpent.Command {
 	version := getBoundaryVersion()
 	cmd := boundarycli.BaseCommand(version)
 	cmd.Use = "agent-firewall [args...]"
@@ -88,18 +87,17 @@ func (r *RootCmd) buildAgentFirewallCmd() *serpent.Command {
 	return cmd
 }
 
-// buildBoundaryAliasCmd builds a hidden, deprecated "boundary" command that
+// boundaryAlias builds a hidden, deprecated "boundary" command that
 // prints a deprecation notice and then runs the same logic as agent-firewall.
-func (r *RootCmd) buildBoundaryAliasCmd() *serpent.Command {
+func (r *RootCmd) boundaryAlias() *serpent.Command {
 	version := getBoundaryVersion()
 	cmd := boundarycli.BaseCommand(version)
 	cmd.Use = "boundary [args...]"
 	cmd.Hidden = true
+	cmd.Deprecated = "use 'coder agent-firewall' instead"
 
 	originalHandler := cmd.Handler
 	cmd.Handler = func(inv *serpent.Invocation) error {
-		_, _ = fmt.Fprintln(inv.Stderr, "DEPRECATED: 'coder boundary' is deprecated, use 'coder agent-firewall' instead.")
-
 		if isChild() {
 			return originalHandler(inv)
 		}
@@ -112,12 +110,4 @@ func (r *RootCmd) buildBoundaryAliasCmd() *serpent.Command {
 	}
 
 	return cmd
-}
-
-func (r *RootCmd) agentFirewall() *serpent.Command {
-	return r.buildAgentFirewallCmd()
-}
-
-func (r *RootCmd) boundaryAlias() *serpent.Command {
-	return r.buildBoundaryAliasCmd()
 }
