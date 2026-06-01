@@ -169,14 +169,18 @@ runs:
 
     - name: Ensure Git usr/bin is in PATH (Windows)
       if: runner.os == 'Windows'
-      shell: bash
+      shell: pwsh
       # jdx/mise-action exports a complete "Path" via GITHUB_ENV
       # which can shadow or collide with the "PATH" that bash and
       # Go inherit. Normalize by writing a single "PATH" entry to
       # GITHUB_ENV with Git for Windows' usr/bin prepended. This
       # ensures cmd.exe subprocesses can resolve GNU coreutils
       # (printf, etc.) that tests depend on.
+      #
+      # PowerShell is used instead of bash so that $env:Path
+      # returns the native Windows PATH (backslashes, drive
+      # letters) rather than the MSYS-translated version.
       run: | # zizmor: ignore[github-env]
-        gitdir="C:\\Program Files\\Git\\usr\\bin"
-        current="${Path:-$PATH}"
-        printf 'PATH=%s;%s\n' "$gitdir" "$current" >> "$GITHUB_ENV"
+        $gitdir = "C:\Program Files\Git\usr\bin"
+        $current = $env:Path
+        "PATH=$gitdir;$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
