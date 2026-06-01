@@ -129,7 +129,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 							<span
 								aria-label="Command failed"
 								role="img"
-								className="flex shrink-0 text-content-destructive"
+								className="flex shrink-0 text-content-secondary"
 							>
 								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
