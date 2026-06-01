@@ -83,7 +83,7 @@ const providerDefaults: Partial<
 	},
 	copilot: {
 		name: "copilot",
-		baseUrl: "https://api.individual.githubcopilot.com",
+		baseUrl: "https://api.business.githubcopilot.com",
 	},
 	google: {
 		name: "google",
