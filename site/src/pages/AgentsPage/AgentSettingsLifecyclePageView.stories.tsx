@@ -55,7 +55,7 @@ export const DefaultAutostopDefault: Story = {
 			name: "Enable default autostop",
 		});
 		expect(toggle).not.toBeChecked();
-		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
+		expect(canvas.queryByLabelText("Autostop fallback")).toBeNull();
 	},
 };
 
@@ -70,7 +70,7 @@ export const DefaultAutostopCustomValue: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 	},
 };
@@ -90,7 +90,7 @@ export const DefaultAutostopSave: Story = {
 			);
 		});
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("1");
 
 		await userEvent.clear(durationInput);
@@ -126,7 +126,7 @@ export const DefaultAutostopExceedsMax: Story = {
 		});
 		await userEvent.click(toggle);
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		const ttlForm = durationInput.closest("form");
 		if (!(ttlForm instanceof HTMLFormElement)) {
 			throw new Error(
@@ -180,7 +180,7 @@ export const DefaultAutostopSaveDisabled: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 
 		const ttlForm = durationInput.closest("form");
@@ -229,7 +229,7 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 
 		await userEvent.click(toggle);

@@ -24,14 +24,14 @@ type AgentDisplayMode = UserPreferenceSettings["code_diff_display_mode"];
 const thinkingDisplayOptions: DisplayModeOption<ThinkingDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
 	{ value: "preview", label: "Preview" },
-	{ value: "always_expanded", label: "Always Expanded" },
-	{ value: "always_collapsed", label: "Always Collapsed" },
+	{ value: "always_expanded", label: "Always expanded" },
+	{ value: "always_collapsed", label: "Always collapsed" },
 ];
 
 const agentDisplayOptions: DisplayModeOption<AgentDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
-	{ value: "always_expanded", label: "Always Expanded" },
-	{ value: "always_collapsed", label: "Always Collapsed" },
+	{ value: "always_expanded", label: "Always expanded" },
+	{ value: "always_collapsed", label: "Always collapsed" },
 ];
 
 type DisplayModeSettingsProps<T extends string> = {
@@ -101,7 +101,7 @@ const DisplayModeSettings = <T extends string>({
 export const ThinkingDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
-			title="Thinking Display"
+			title="Thinking display"
 			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Always Expanded' shows full content. 'Always Collapsed' keeps them collapsed."
 			ariaLabel="Thinking display mode"
 			errorMessage="Failed to save your thinking display preference."
@@ -118,7 +118,7 @@ export const ThinkingDisplaySettings: FC = () => {
 export const ShellToolDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
-			title="Shell Output Display"
+			title="Shell output display"
 			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. 'Always Expanded' opens shell output by default. 'Always Collapsed' keeps it collapsed."
 			ariaLabel="Shell output display mode"
 			errorMessage="Failed to save your shell output display preference."
@@ -135,7 +135,7 @@ export const ShellToolDisplaySettings: FC = () => {
 export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
-			title="Code Diff Display"
+			title="Code diff display"
 			description="Controls how code edit diffs appear. Auto starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. Always Expanded opens diffs by default; Always Collapsed keeps them collapsed."
 			ariaLabel="Code diff display mode"
 			errorMessage="Failed to save your code diff display preference."

@@ -726,7 +726,7 @@ export const EmptyStateZoom200Desktop: Story = {
 		});
 
 		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Collapse sidebar" }),
 		).toBeVisible();
@@ -1014,7 +1014,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		});
 
 		expect(
-			screen.queryByRole("link", { name: "Manage Agents" }),
+			screen.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -1032,7 +1032,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 	play: async () => {
 		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage Agents" }),
+			await screen.findByRole("link", { name: "Manage agents" }),
 		);
 
 		await expect(
@@ -1059,7 +1059,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
 		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(

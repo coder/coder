@@ -76,7 +76,7 @@ export const UsageLimitExceeded: Story = {
 
 /**
  * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * "View usage" CTA (which links to Coder's analytics, not the provider's
  * billing page).
  */
 export const ProviderQuotaExceeded: Story = {
@@ -97,7 +97,7 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.getByText(/usage quota for openai has been exceeded/i),
 		).toBeVisible();
-		// The "View Usage" link must NOT appear for provider-originated quota errors.
+		// The "View usage" link must NOT appear for provider-originated quota errors.
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();

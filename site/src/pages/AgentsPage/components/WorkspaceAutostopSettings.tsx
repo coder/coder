@@ -140,7 +140,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 				<DurationField
 					valueMs={form.values.workspace_ttl_ms}
 					onChange={handleTTLChange}
-					label="Autostop Fallback"
+					label="Autostop fallback"
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
 					error={Boolean(fieldError)}
 					helperText={fieldError}

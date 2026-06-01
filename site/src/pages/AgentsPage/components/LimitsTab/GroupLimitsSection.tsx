@@ -92,7 +92,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 		<section className="space-y-4">
 			{!hideHeader && (
 				<SectionHeader
-					label="Group Limits"
+					label="Group limits"
 					description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
 				/>
 			)}
