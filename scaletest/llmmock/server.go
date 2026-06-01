@@ -100,13 +100,6 @@ type openAIToolCall struct {
 	Function openAIToolCallFunction `json:"function"`
 }
 
-type openAIToolCallDelta struct {
-	Index    int                    `json:"index"`
-	ID       string                 `json:"id,omitempty"`
-	Type     string                 `json:"type,omitempty"`
-	Function openAIToolCallFunction `json:"function"`
-}
-
 type openAIToolCallFunction struct {
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
@@ -561,102 +554,6 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 			slog.F("likely_cause", "network_error"),
 		)
 	}
-}
-
-func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, resp openAIResponse) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		s.logger.Error(ctx, "responseWriter does not support flushing",
-			slog.F("response_id", resp.ID),
-		)
-		return
-	}
-
-	writeChunk := func(data string) bool {
-		if _, err := fmt.Fprintf(w, "%s", data); err != nil {
-			s.logger.Error(ctx, "failed to write OpenAI stream chunk",
-				slog.F("response_id", resp.ID),
-				slog.Error(err),
-				slog.F("error_type", "write_error"),
-				slog.F("likely_cause", "network_error"),
-			)
-			return false
-		}
-		flusher.Flush()
-		return true
-	}
-
-	// Non-terminal chunks pass nil so JSON emits null for finish_reason.
-	writeStreamChunk := func(delta map[string]any, finishReason *string) bool {
-		chunk := map[string]any{
-			"id":      resp.ID,
-			"object":  "chat.completion.chunk",
-			"created": resp.Created,
-			"model":   resp.Model,
-			"choices": []map[string]any{
-				{
-					"index":         0,
-					"delta":         delta,
-					"finish_reason": finishReason,
-				},
-			},
-		}
-		chunkBytes, _ := json.Marshal(chunk)
-		return writeChunk(fmt.Sprintf("data: %s\n\n", chunkBytes))
-	}
-
-	choice := resp.Choices[0]
-	if len(choice.Message.ToolCalls) > 0 {
-		toolCalls := make([]openAIToolCallDelta, 0, len(choice.Message.ToolCalls))
-		for i, toolCall := range choice.Message.ToolCalls {
-			toolCalls = append(toolCalls, openAIToolCallDelta{
-				Index:    i,
-				ID:       toolCall.ID,
-				Type:     toolCall.Type,
-				Function: toolCall.Function,
-			})
-		}
-		if !writeStreamChunk(map[string]any{
-			"role":       "assistant",
-			"tool_calls": toolCalls,
-		}, nil) {
-			return
-		}
-	} else {
-		totalDuration := s.randomStreamDuration()
-		if totalDuration == 0 {
-			if !writeStreamChunk(map[string]any{
-				"role":    "assistant",
-				"content": choice.Message.Content,
-			}, nil) {
-				return
-			}
-		} else {
-			first := true
-			if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(choice.Message.Content), func(chunk string) bool {
-				delta := map[string]any{
-					"content": chunk,
-				}
-				if first {
-					delta["role"] = "assistant"
-					first = false
-				}
-				return writeStreamChunk(delta, nil)
-			}) {
-				return
-			}
-		}
-	}
-
-	if !writeStreamChunk(map[string]any{}, &choice.FinishReason) {
-		return
-	}
-	_ = writeChunk("data: [DONE]\n\n")
 }
 
 func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
