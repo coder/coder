@@ -43,8 +43,12 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	const providerIsOpenAiAnthropic =
-		provider !== undefined && !isBedrockProvider(provider);
+	// Copilot has no stored credential, and Bedrock keeps its secrets in
+	// settings, so only the remaining types surface the api_keys UI.
+	const providerUsesApiKeys =
+		provider !== undefined &&
+		!isBedrockProvider(provider) &&
+		provider.type !== "copilot";
 
 	const updateMutation = useMutation(
 		updateAIProviderMutation(queryClient, providerId ?? ""),
@@ -109,8 +113,8 @@ const UpdateProviderPageView: React.FC = () => {
 	}
 
 	const openAiAnthropicSavedApiKey =
-		providerIsOpenAiAnthropic && provider.api_keys.length > 0;
-	const openAiAnthropicMaskedApiKey = providerIsOpenAiAnthropic
+		providerUsesApiKeys && provider.api_keys.length > 0;
+	const openAiAnthropicMaskedApiKey = providerUsesApiKeys
 		? provider.api_keys[0]?.masked
 		: undefined;
 

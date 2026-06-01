@@ -1076,9 +1076,11 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 
 	switch {
 	case resp.StatusCode >= http.StatusInternalServerError:
-		logger.Error(s.ctx, "received error response from aibridged")
+		logger.Error(s.ctx, "received error response from aibridged",
+			slog.F("response_body", s.readErrorBodyForLog(resp, logger)))
 	case resp.StatusCode >= http.StatusBadRequest:
-		logger.Warn(s.ctx, "received error response from aibridged")
+		logger.Warn(s.ctx, "received error response from aibridged",
+			slog.F("response_body", s.readErrorBodyForLog(resp, logger)))
 	default:
 		logger.Debug(s.ctx, "received response from aibridged")
 	}
@@ -1099,6 +1101,35 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 	}
 
 	return resp
+}
+
+// maxLoggedErrorBodyBytes bounds how much of an aibridged error response
+// body is rendered into a log line, so a large upstream error payload
+// cannot blow up log volume.
+const maxLoggedErrorBodyBytes = 16 << 10 // 16 KiB
+
+// readErrorBodyForLog reads resp.Body for diagnostic logging and restores
+// it with an equivalent reader, so the proxy still forwards the body
+// downstream and the response dumper can read it again. The returned
+// string is truncated to maxLoggedErrorBodyBytes; the restored body is
+// always complete.
+func (s *Server) readErrorBodyForLog(resp *http.Response, logger slog.Logger) string {
+	if resp.Body == nil {
+		return ""
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	// Restore the full body even on a read error: the proxy and dumper
+	// downstream still expect a readable body, and a partial body is
+	// better than a nil one.
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		logger.Warn(s.ctx, "failed to read aibridged error response body", slog.Error(err))
+	}
+	if len(body) > maxLoggedErrorBodyBytes {
+		return string(body[:maxLoggedErrorBodyBytes]) + "...(truncated)"
+	}
+	return string(body)
 }
 
 // Handler returns an HTTP handler for the AI Bridge Proxy's HTTP endpoints.
