@@ -26,6 +26,7 @@ import {
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import { ToolIcon } from "./ToolIcon";
 import {
 	formatShellDurationMs,
@@ -37,7 +38,7 @@ import {
 
 type ExecuteToolProps = {
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
 	durationMs?: number;
@@ -53,8 +54,9 @@ type ExecuteToolInnerProps = ExecuteToolProps & {
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
+	const hasTranscriptBlocks = props.transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
-		props.output.length > 0 ||
+		hasTranscriptBlocks ||
 		props.status === "running" ||
 		props.isBackgrounded ||
 		!!props.killedBySignal
@@ -75,7 +77,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
 
 const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	command,
-	output,
+	transcriptBlocks,
 	status,
 	isError,
 	durationMs,
@@ -168,7 +170,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
-					output={output}
+					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 				/>
 			)}
@@ -217,9 +219,12 @@ const ShellCommandLine: React.FC<{
 
 const ShellTranscriptBody: React.FC<{
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
-}> = ({ command, output, isError }) => {
+}> = ({ command, transcriptBlocks, isError }) => {
+	const transcriptBlockClassName =
+		"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5";
+
 	return (
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
@@ -233,16 +238,21 @@ const ShellTranscriptBody: React.FC<{
 					</span>{" "}
 					{command}
 				</pre>
-				{output.length > 0 && (
+				{transcriptBlocks.map((block) => (
 					<pre
+						key={block.kind}
 						className={cn(
-							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							isError ? "text-content-destructive" : "text-content-secondary",
+							transcriptBlockClassName,
+							block.kind === "error"
+								? "text-content-destructive"
+								: isError
+									? "text-content-destructive"
+									: "text-content-secondary",
 						)}
 					>
-						{output}
+						{block.text}
 					</pre>
-				)}
+				))}
 			</div>
 		</ScrollArea>
 	);
