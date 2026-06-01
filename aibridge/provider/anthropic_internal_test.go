@@ -55,7 +55,7 @@ func TestAnthropic_TypeAndName(t *testing.T) {
 func TestNewAnthropic_KeyResolution(t *testing.T) {
 	t.Parallel()
 
-	pool, err := keypool.New([]string{"pool-key-0", "pool-key-1"}, quartz.NewMock(t))
+	pool, err := keypool.New(config.ProviderAnthropic, []string{"pool-key-0", "pool-key-1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -323,7 +323,7 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	t.Parallel()
 
-	pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+	pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
 	p := NewAnthropic(config.Anthropic{KeyPool: pool}, nil)
@@ -331,7 +331,6 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	cfg := p.KeyFailoverConfig(slog.Make())
 
 	assert.Same(t, pool, cfg.Pool, "Pool must be wired from the provider config")
-	assert.Equal(t, config.ProviderAnthropic, cfg.ProviderName, "ProviderName must match the provider name")
 	require.NotNil(t, cfg.IsBYOK)
 	require.NotNil(t, cfg.InjectAuthKey)
 	require.NotNil(t, cfg.BuildKeyPoolResponse)

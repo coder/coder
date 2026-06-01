@@ -11,12 +11,11 @@ import (
 // status code from resp (429 for temporary, 401 or 403 for
 // permanent). Returns true if the status was a key-specific
 // failover trigger so callers can retry with the next key.
-func MarkKeyOnStatus(
+func (p *Pool) MarkKeyOnStatus(
 	ctx context.Context,
 	key *Key,
 	resp *http.Response,
 	logger slog.Logger,
-	providerName string,
 ) bool {
 	if resp == nil {
 		return false
@@ -29,8 +28,11 @@ func MarkKeyOnStatus(
 			cooldown = defaultCooldown
 		}
 		if key.MarkTemporary(cooldown) {
+			if p.metrics != nil {
+				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, "rate_limited").Inc()
+			}
 			logger.Info(ctx, "key marked temporary",
-				slog.F("provider", providerName),
+				slog.F("provider", p.providerName),
 				slog.F("api_key_hint", key.Hint()),
 				slog.F("status", statusCode),
 				slog.F("cooldown", cooldown))
@@ -38,15 +40,22 @@ func MarkKeyOnStatus(
 		return true
 	case http.StatusUnauthorized, http.StatusForbidden:
 		if key.MarkPermanent() {
+			if p.metrics != nil {
+				reason := "unauthorized"
+				if statusCode == http.StatusForbidden {
+					reason = "forbidden"
+				}
+				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reason).Inc()
+			}
 			logger.Warn(ctx, "key marked permanent",
-				slog.F("provider", providerName),
+				slog.F("provider", p.providerName),
 				slog.F("api_key_hint", key.Hint()),
 				slog.F("status", statusCode))
 		}
 		return true
 	default:
 		logger.Debug(ctx, "status is not a key failover trigger",
-			slog.F("provider", providerName),
+			slog.F("provider", p.providerName),
 			slog.F("status", statusCode))
 		return false
 	}

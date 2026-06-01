@@ -33,6 +33,13 @@ type Metrics struct {
 	CircuitBreakerState   *prometheus.GaugeVec   // Current state (0=closed, 0.5=half-open, 1=open)
 	CircuitBreakerTrips   *prometheus.CounterVec // Total times circuit opened
 	CircuitBreakerRejects *prometheus.CounterVec // Requests rejected due to open circuit
+
+	// Key pool failover metrics.
+	KeyPoolStateTransitions *prometheus.CounterVec // Key state transitions during failover.
+	KeyPoolExhaustions      *prometheus.CounterVec // Times the pool ran out of usable keys.
+	// Keys attempted before success or exhaustion, per interception for
+	// bridged requests and per request for passthrough requests.
+	KeyPoolFailoverAttempts *prometheus.HistogramVec
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -128,5 +135,32 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "rejects_total",
 			Help:      "Total number of requests rejected due to open circuit breaker.",
 		}, []string{"provider", "endpoint", "model"}),
+
+		// Key pool failover metrics. Only anthropic and openai have key
+		// pools, copilot is always BYOK.
+
+		// Pessimistic cardinality: 2 providers, 3 reasons = up to 6.
+		KeyPoolStateTransitions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "key_pool",
+			Name:      "state_transitions_total",
+			Help: "The number of API key state transitions during failover " +
+				"(reason: rate_limited, unauthorized, forbidden).",
+		}, []string{"provider", "reason"}),
+		// Pessimistic cardinality: 2 providers, 2 outcomes = up to 4.
+		KeyPoolExhaustions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "key_pool",
+			Name:      "exhaustions_total",
+			Help: "The number of times the key pool was exhausted with no usable key " +
+				"(outcome: rate_limited, auth_failed).",
+		}, []string{"provider", "outcome"}),
+		// Pessimistic cardinality: 2 providers, 6 buckets + 3 extra series = up to 18.
+		KeyPoolFailoverAttempts: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Subsystem: "key_pool",
+			Name:      "failover_attempts",
+			Help: "The number of keys attempted before success or exhaustion, " +
+				"per interception for bridged requests and per request for " +
+				"passthrough requests.",
+			Buckets: []float64{1, 2, 3, 5, 10, 25},
+		}, []string{"provider"}),
 	}
 }
