@@ -2,7 +2,6 @@ package appearance
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -11,29 +10,36 @@ type Fetcher interface {
 	Fetch(ctx context.Context) (codersdk.AppearanceConfig, error)
 }
 
+// Option overlays process-local, deployment-derived values onto a
+// resolved AppearanceConfig. Options run at fetch time, so they may read
+// values that change after startup (such as atomics). They let callers
+// surface dynamic fields without adding parameters to fetcher
+// constructors, and keep this package agnostic of those fields.
+type Option func(*codersdk.AppearanceConfig)
+
 type AGPLFetcher struct {
 	docsURL string
-	// aiProvidersEnvDrift reports whether deprecated CODER_AIBRIDGE_* env
-	// configuration is ineffective because it differs from the database.
-	// It may be nil when no source is wired in.
-	aiProvidersEnvDrift *atomic.Bool
+	options []Option
 }
 
 func (f AGPLFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
-	return codersdk.AppearanceConfig{
-		AnnouncementBanners:         []codersdk.BannerConfig{},
-		SupportLinks:                codersdk.DefaultSupportLinks(f.docsURL),
-		DocsURL:                     f.docsURL,
-		AIProvidersEnvDriftDetected: f.aiProvidersEnvDrift != nil && f.aiProvidersEnvDrift.Load(),
-	}, nil
+	cfg := codersdk.AppearanceConfig{
+		AnnouncementBanners: []codersdk.BannerConfig{},
+		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
+		DocsURL:             f.docsURL,
+	}
+	for _, opt := range f.options {
+		opt(&cfg)
+	}
+	return cfg, nil
 }
 
-func NewDefaultFetcher(docsURL string, aiProvidersEnvDrift *atomic.Bool) Fetcher {
+func NewDefaultFetcher(docsURL string, opts ...Option) Fetcher {
 	if docsURL == "" {
 		docsURL = codersdk.DefaultDocsURL()
 	}
 	return &AGPLFetcher{
-		docsURL:             docsURL,
-		aiProvidersEnvDrift: aiProvidersEnvDrift,
+		docsURL: docsURL,
+		options: opts,
 	}
 }

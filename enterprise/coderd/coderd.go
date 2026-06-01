@@ -1008,17 +1008,20 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAppearance); shouldUpdate(initial, changed, enabled) {
+			withAIProvidersEnvDrift := func(cfg *codersdk.AppearanceConfig) {
+				cfg.AIProvidersEnvDriftDetected = api.AGPL.AIProvidersEnvDrift.Load()
+			}
 			if enabled {
 				f := newAppearanceFetcher(
 					api.Database,
 					api.DeploymentValues.Support.Links.Value,
 					api.DeploymentValues.DocsURL.String(),
 					buildinfo.Version(),
-					&api.AGPL.AIProvidersEnvDrift,
+					withAIProvidersEnvDrift,
 				)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			} else {
-				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String(), &api.AGPL.AIProvidersEnvDrift)
+				f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String(), withAIProvidersEnvDrift)
 				api.AGPL.AppearanceFetcher.Store(&f)
 			}
 		}

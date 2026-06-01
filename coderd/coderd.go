@@ -666,7 +666,12 @@ func New(options *Options) *API {
 		options.AppSigningKeyCache,
 	)
 
-	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String(), &api.AIProvidersEnvDrift)
+	f := appearance.NewDefaultFetcher(
+		api.DeploymentValues.DocsURL.String(),
+		func(cfg *codersdk.AppearanceConfig) {
+			cfg.AIProvidersEnvDriftDetected = api.AIProvidersEnvDrift.Load()
+		},
+	)
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	api.PrebuildsClaimer.Store(&prebuilds.DefaultClaimer)

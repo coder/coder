@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync/atomic"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -43,23 +42,23 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 }
 
 type appearanceFetcher struct {
-	database            database.Store
-	supportLinks        []codersdk.LinkConfig
-	docsURL             string
-	coderVersion        string
-	aiProvidersEnvDrift *atomic.Bool
+	database     database.Store
+	supportLinks []codersdk.LinkConfig
+	docsURL      string
+	coderVersion string
+	options      []agpl.Option
 }
 
-func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL, coderVersion string, aiProvidersEnvDrift *atomic.Bool) agpl.Fetcher {
+func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL, coderVersion string, opts ...agpl.Option) agpl.Fetcher {
 	if docsURL == "" {
 		docsURL = codersdk.DefaultDocsURL()
 	}
 	return &appearanceFetcher{
-		database:            store,
-		supportLinks:        links,
-		docsURL:             docsURL,
-		coderVersion:        coderVersion,
-		aiProvidersEnvDrift: aiProvidersEnvDrift,
+		database:     store,
+		supportLinks: links,
+		docsURL:      docsURL,
+		coderVersion: coderVersion,
+		options:      opts,
 	}
 }
 
@@ -97,12 +96,11 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	}
 
 	cfg := codersdk.AppearanceConfig{
-		ApplicationName:             applicationName,
-		LogoURL:                     logoURL,
-		AnnouncementBanners:         []codersdk.BannerConfig{},
-		SupportLinks:                codersdk.DefaultSupportLinks(f.docsURL),
-		DocsURL:                     f.docsURL,
-		AIProvidersEnvDriftDetected: f.aiProvidersEnvDrift != nil && f.aiProvidersEnvDrift.Load(),
+		ApplicationName:     applicationName,
+		LogoURL:             logoURL,
+		AnnouncementBanners: []codersdk.BannerConfig{},
+		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
+		DocsURL:             f.docsURL,
 	}
 
 	if announcementBannersJSON != "" {
@@ -121,6 +119,9 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	}
 	if len(f.supportLinks) > 0 {
 		cfg.SupportLinks = f.supportLinks
+	}
+	for _, opt := range f.options {
+		opt(&cfg)
 	}
 
 	return cfg, nil
