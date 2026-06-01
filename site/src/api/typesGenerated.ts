@@ -472,6 +472,7 @@ export type AIProviderType =
 	| "openai"
 	| "openai-compat"
 	| "openrouter"
+	| "poolside"
 	| "vercel";
 
 export const AIProviderTypes: AIProviderType[] = [
@@ -483,6 +484,7 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openai",
 	"openai-compat",
 	"openrouter",
+	"poolside",
 	"vercel",
 ];
 

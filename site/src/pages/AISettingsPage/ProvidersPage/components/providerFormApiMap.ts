@@ -80,13 +80,14 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 	["openai.azure.com", "azure"],
 	["generativelanguage.googleapis.com", "google"],
 	["openrouter.ai", "openrouter"],
+	["inference.poolside.ai", "poolside"],
 	["ai-gateway.vercel.sh", "vercel"],
 ];
 
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-// Wire `type` collapses azure/google/openrouter/vercel to `openai`, so
+// Wire `type` collapses azure/google/openrouter/poolside/vercel to `openai`, so
 // we recover the original choice from the saved host. Bedrock comes
 // through the settings discriminator. Unknown hosts fall back to wire.
 export const getProviderDisplayType = (

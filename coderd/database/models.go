@@ -28,6 +28,7 @@ const (
 	AiProviderTypeOpenrouter   AIProviderType = "openrouter"
 	AiProviderTypeVercel       AIProviderType = "vercel"
 	AiProviderTypeCopilot      AIProviderType = "copilot"
+	AiProviderTypePoolside     AIProviderType = "poolside"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -75,7 +76,8 @@ func (e AIProviderType) Valid() bool {
 		AiProviderTypeOpenaiCompat,
 		AiProviderTypeOpenrouter,
 		AiProviderTypeVercel,
-		AiProviderTypeCopilot:
+		AiProviderTypeCopilot,
+		AiProviderTypePoolside:
 		return true
 	}
 	return false
@@ -92,6 +94,7 @@ func AllAIProviderTypeValues() []AIProviderType {
 		AiProviderTypeOpenrouter,
 		AiProviderTypeVercel,
 		AiProviderTypeCopilot,
+		AiProviderTypePoolside,
 	}
 }
 

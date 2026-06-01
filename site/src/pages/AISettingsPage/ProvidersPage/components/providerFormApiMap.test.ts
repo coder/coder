@@ -196,6 +196,7 @@ describe("getProviderDisplayType", () => {
 		["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
 		["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
 		["openrouter", "https://openrouter.ai/api/v1"],
+		["poolside", "https://inference.poolside.ai/v1/"],
 		["vercel", "https://ai-gateway.vercel.sh/v1"],
 	])("recovers the %s preset from a canonical base_url", (expected, baseUrl) => {
 		const provider: AIProvider = {
@@ -279,6 +280,7 @@ describe("providerFormValuesToCreate", () => {
 			["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
 			["openai-compat", "https://compat.example.com/v1"],
 			["openrouter", "https://openrouter.ai/api/v1"],
+			["poolside", "https://inference.poolside.ai/v1/"],
 			["vercel", "https://ai-gateway.vercel.sh/v1"],
 		] as const)("collapses the %s UI type to type=openai on the wire", (type, baseUrl) => {
 			const req = providerFormValuesToCreate({

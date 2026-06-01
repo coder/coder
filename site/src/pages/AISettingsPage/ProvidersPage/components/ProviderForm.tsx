@@ -91,6 +91,7 @@ const providerDefaults: Partial<
 	},
 	"openai-compat": { name: "openai-compat", baseUrl: "" },
 	openrouter: { name: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
+	poolside: { name: "poolside", baseUrl: "https://inference.poolside.ai/v1/" },
 	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
 };
 
@@ -104,6 +105,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 				"google",
 				"openai-compat",
 				"openrouter",
+				"poolside",
 				"vercel",
 			] as const)
 			.required(),
@@ -191,6 +193,7 @@ const getProviderFormSchema = (editing: boolean) =>
 			case "google":
 			case "openai-compat":
 			case "openrouter":
+			case "poolside":
 			case "vercel":
 				return makeOpenAiAnthropicSchema(editing);
 			case "bedrock":
@@ -209,6 +212,7 @@ const getProviderFormSchema = (editing: boolean) =>
 							"google",
 							"openai-compat",
 							"openrouter",
+							"poolside",
 							"vercel",
 						])
 						.required(),

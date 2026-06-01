@@ -13547,6 +13547,7 @@
 				"google",
 				"openai-compat",
 				"openrouter",
+				"poolside",
 				"vercel",
 				"bedrock",
 				"copilot"
@@ -13558,6 +13559,7 @@
 				"AIProviderTypeGoogle",
 				"AIProviderTypeOpenAICompat",
 				"AIProviderTypeOpenrouter",
+				"AIProviderTypePoolside",
 				"AIProviderTypeVercel",
 				"AIProviderTypeBedrock",
 				"AIProviderTypeCopilot"

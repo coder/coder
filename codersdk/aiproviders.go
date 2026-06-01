@@ -28,7 +28,7 @@ const (
 	AIProviderTypeOpenAI    AIProviderType = "openai"
 	AIProviderTypeAnthropic AIProviderType = "anthropic"
 	// AIProviderTypeAzure, AIProviderTypeGoogle, AIProviderTypeOpenAICompat,
-	// AIProviderTypeOpenrouter, and AIProviderTypeVercel route through
+	// AIProviderTypeOpenrouter, AIProviderTypePoolside, and AIProviderTypeVercel route through
 	// aibridge's OpenAI client today because chatd configures these
 	// providers against their OpenAI-compatible endpoints. Native
 	// gateway-side support arrives later without an enum change.
@@ -36,6 +36,7 @@ const (
 	AIProviderTypeGoogle       AIProviderType = "google"
 	AIProviderTypeOpenAICompat AIProviderType = "openai-compat"
 	AIProviderTypeOpenrouter   AIProviderType = "openrouter"
+	AIProviderTypePoolside     AIProviderType = "poolside"
 	AIProviderTypeVercel       AIProviderType = "vercel"
 	// AIProviderTypeBedrock routes through aibridge's Anthropic client
 	// using the Bedrock discriminator in Settings; native support is
@@ -214,6 +215,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
+		AIProviderTypePoolside,
 		AIProviderTypeVercel:
 	case "":
 		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})

@@ -236,6 +236,7 @@ func buildAIProviderFromRow(
 		database.AiProviderTypeGoogle,
 		database.AiProviderTypeOpenaiCompat,
 		database.AiProviderTypeOpenrouter,
+		database.AiProviderTypePoolside,
 		database.AiProviderTypeVercel:
 		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", row.Type)

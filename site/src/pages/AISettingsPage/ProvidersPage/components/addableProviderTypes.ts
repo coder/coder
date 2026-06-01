@@ -14,5 +14,6 @@ export const addableProviders: readonly AddableProvider[] = [
 	{ value: "openai", label: "OpenAI" },
 	{ value: "openai-compat", label: "OpenAI-compatible" },
 	{ value: "openrouter", label: "OpenRouter" },
+	{ value: "poolside", label: "Poolside" },
 	{ value: "vercel", label: "Vercel" },
 ];

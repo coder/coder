@@ -44,6 +44,8 @@ const getProviderName = (provider: string): string => {
 			return "OpenAI-compatible";
 		case "openrouter":
 			return "OpenRouter";
+		case "poolside":
+			return "Poolside";
 		case "vercel":
 			return "Vercel";
 		default:

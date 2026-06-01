@@ -52,11 +52,12 @@ AI Gateway speaks two upstream API formats: the **OpenAI** format
 | `azure`         | OpenAI     | OpenAI-compatible endpoint only                                   |
 | `google`        | OpenAI     | OpenAI-compatible endpoint only                                   |
 | `openrouter`    | OpenAI     | OpenAI-compatible endpoint only                                   |
+| `poolside`      | OpenAI     | Poolside Laguna models; OpenAI-compatible endpoint                |
 | `vercel`        | OpenAI     | OpenAI-compatible endpoint only                                   |
 | `openai-compat` | OpenAI     | Generic OpenAI-compatible endpoint                                |
 
-`azure`, `google`, `openrouter`, `vercel`, and `openai-compat` are
-supported only as OpenAI-compatible endpoints: AI Gateway sends them
+`azure`, `google`, `openrouter`, `poolside`, `vercel`, and `openai-compat`
+are supported only as OpenAI-compatible endpoints: AI Gateway sends them
 OpenAI-format requests, so each must expose an OpenAI-compatible API at
 its base URL. They have no provider-specific integration beyond that.
 
@@ -125,7 +126,7 @@ certificates, IDE configuration), see
 
 ### OpenAI-compatible providers
 
-Azure-hosted OpenAI, Google, OpenRouter, Vercel, and any other
+Azure-hosted OpenAI, Google, OpenRouter, Poolside, Vercel, and any other
 OpenAI-compatible service are configured with the matching type (or the
 generic `openai-compat`), the provider's OpenAI-compatible base URL, and
 an API key.

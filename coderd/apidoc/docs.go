@@ -15155,6 +15155,7 @@ const docTemplate = `{
                 "google",
                 "openai-compat",
                 "openrouter",
+                "poolside",
                 "vercel",
                 "bedrock",
                 "copilot"
@@ -15166,6 +15167,7 @@ const docTemplate = `{
                 "AIProviderTypeGoogle",
                 "AIProviderTypeOpenAICompat",
                 "AIProviderTypeOpenrouter",
+                "AIProviderTypePoolside",
                 "AIProviderTypeVercel",
                 "AIProviderTypeBedrock",
                 "AIProviderTypeCopilot"
