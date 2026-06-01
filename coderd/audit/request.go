@@ -373,7 +373,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// provider.
 		return false
 	case database.AIGatewayKey:
-		// AI Gateway coderd keys are deployment-scoped, not org-scoped.
+		// AI Gateway keys are deployment-scoped, not org-scoped.
 		return false
 	case database.AuditableGroupAiBudget:
 		// Group AI budgets are org-scoped through their parent group.
