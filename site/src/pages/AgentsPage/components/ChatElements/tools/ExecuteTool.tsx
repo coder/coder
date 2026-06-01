@@ -26,8 +26,8 @@ import {
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import { ToolIcon } from "./ToolIcon";
+import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
