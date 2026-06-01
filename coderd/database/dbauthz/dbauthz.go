@@ -3395,6 +3395,10 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 	return q.db.GetEnabledMCPServerConfigs(ctx)
 }
 
+// GetExternalAgentTokensByWorkspaceIDs is used for scaletesting purposes; the
+// scaletest agentfake path calls this query directly via a connection to the
+// database. There is no production code path that uses this method, and it is
+// deliberately not exposed over HTTP.
 func (q *querier) GetExternalAgentTokensByWorkspaceIDs(ctx context.Context, workspaceIDs []uuid.UUID) ([]database.GetExternalAgentTokensByWorkspaceIDsRow, error) {
 	// ResourceSystem is used because the query spans multiple workspaces
 	// with no single RBAC object to check. The HTTP handler enforces
