@@ -39,12 +39,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up Go
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
 
-      - name: Install whichtests
-        shell: bash
-        run: ./.github/scripts/retry.sh -- go install github.com/coder/whichtests@ec33bab1ec04cd86beb7a61a069db4463dba63f5
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests
 
       - name: Select changed tests
         id: selector
@@ -57,9 +61,11 @@ jobs:
             --coalesce \
             --out-matrix "$RUNNER_TEMP/flake-matrix.json"
 
-      - name: Setup Terraform
+      - name: Set up Terraform
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
-        uses: ./.github/actions/setup-tf
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "terraform"
 
       - name: Run targeted Go flake checks
         id: flake_check
