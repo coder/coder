@@ -1085,6 +1085,15 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// workspace build (File.RBACObject sets WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
 
+		// Create and read user-scoped provisioner daemons. The Upsert
+		// path in dbauthz sets WithOwner(tag_owner) when scope=user, so
+		// members can run their own daemons. Read is granted for
+		// symmetry with workspace ownership: members can inspect
+		// daemons they spawned even though no production call site
+		// currently uses the member-scope read path (read on the bare
+		// InOrg object continues to require Org-level perms).
+		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
+
 		// Tasks ride along with workspaces and are owner-scoped.
 		ResourceTask.Type: ResourceTask.AvailableActions(),
 
@@ -1210,6 +1219,15 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		// during workspace build (File.RBACObject sets
 		// WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
+
+		// Create and read user-scoped provisioner daemons. The Upsert
+		// path in dbauthz sets WithOwner(tag_owner) when scope=user, so
+		// service accounts can run their own daemons. Read is granted
+		// for symmetry with workspace ownership: service accounts can
+		// inspect daemons they spawned even though no production call
+		// site currently uses the member-scope read path (read on the
+		// bare InOrg object continues to require Org-level perms).
+		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
 
 		// Tasks ride along with workspaces and are owner-scoped.
 		ResourceTask.Type: ResourceTask.AvailableActions(),
