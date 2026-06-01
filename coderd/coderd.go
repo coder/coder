@@ -1367,6 +1367,10 @@ func New(options *Options) *API {
 					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
 					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+					// Per-user custom header values for admin-marked keys.
+					r.Get("/user-headers", api.getMCPServerUserHeaderValues)
+					r.Put("/user-headers", api.updateMCPServerUserHeaderValues)
+					r.Delete("/user-headers", api.deleteMCPServerUserHeaderValues)
 				})
 			})
 			// MCP HTTP transport endpoint with mandatory authentication

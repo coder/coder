@@ -3403,6 +3403,19 @@ export interface CreateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * CustomHeadersUserKeys, when AuthType is "custom_headers", marks
+	 * these header names as user-supplied. Each entry must be disjoint
+	 * from CustomHeaders keys and from each other (case-insensitive).
+	 */
+	readonly custom_headers_user_keys?: readonly string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions optionally provides helper text
+	 * per user-set header key. Keys must be a (case-insensitive) subset
+	 * of CustomHeadersUserKeys; descriptions for unknown keys are
+	 * rejected. Empty strings are dropped.
+	 */
+	readonly custom_headers_user_key_descriptions?: Record<string, string>;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
 	readonly availability: string;
@@ -5175,6 +5188,20 @@ export interface MCPServerConfig {
 	readonly has_api_key: boolean;
 	readonly has_custom_headers: boolean;
 	/**
+	 * CustomHeadersUserKeys lists custom_headers entries whose values
+	 * are supplied per-user. These are visible to all callers so the
+	 * user settings UI can prompt for the corresponding values. The
+	 * set must be disjoint from the admin-set CustomHeaders keys.
+	 */
+	readonly custom_headers_user_keys: readonly string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions maps a user-set custom header
+	 * name to optional helper text the admin wrote to explain what
+	 * the user should enter. Keys are case-insensitively a subset of
+	 * CustomHeadersUserKeys. Missing entries mean "no description".
+	 */
+	readonly custom_headers_user_key_descriptions: Record<string, string>;
+	/**
 	 * Tool governance.
 	 */
 	readonly tool_allow_list: readonly string[];
@@ -5200,6 +5227,18 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerUserHeaderValues represents the calling user's state for
+ * an MCP server with admin-marked user-set custom headers. Values are
+ * never returned; HasValues records which keys currently have a
+ * non-empty user-supplied value.
+ */
+export interface MCPServerUserHeaderValues {
+	readonly mcp_server_config_id: string;
+	readonly has_values: Record<string, boolean>;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -8765,6 +8804,17 @@ export interface UpdateMCPServerConfigRequest {
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
 	readonly custom_headers?: Record<string, string>;
+	/**
+	 * CustomHeadersUserKeys, when non-nil, replaces the set of
+	 * user-supplied header names. See MCPServerConfig.CustomHeadersUserKeys.
+	 */
+	readonly custom_headers_user_keys?: string[];
+	/**
+	 * CustomHeadersUserKeyDescriptions, when non-nil, replaces the
+	 * per-key description map. Pass an empty map to clear all
+	 * descriptions. See MCPServerConfig.CustomHeadersUserKeyDescriptions.
+	 */
+	readonly custom_headers_user_key_descriptions?: Record<string, string>;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
 	readonly availability?: string;
@@ -8776,6 +8826,18 @@ export interface UpdateMCPServerConfigRequest {
 	 * headers are forwarded on every outgoing MCP request.
 	 */
 	readonly forward_coder_headers?: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerUserHeaderValuesRequest upserts the calling user's
+ * values for an MCP server's user-set custom headers. The set of keys
+ * in Values must be a subset of the server's CustomHeadersUserKeys;
+ * any keys not present are left unchanged. To clear a single value,
+ * pass an empty string; to clear all values, use DeleteMCPServerUserHeaderValues.
+ */
+export interface UpdateMCPServerUserHeaderValuesRequest {
+	readonly values: Record<string, string>;
 }
 
 // From codersdk/notifications.go

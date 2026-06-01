@@ -30,6 +30,9 @@ const createServerConfig = (
 	has_custom_headers: overrides.has_custom_headers ?? false,
 	tool_allow_list: overrides.tool_allow_list ?? [],
 	tool_deny_list: overrides.tool_deny_list ?? [],
+	custom_headers_user_keys: overrides.custom_headers_user_keys ?? [],
+	custom_headers_user_key_descriptions:
+		overrides.custom_headers_user_key_descriptions ?? {},
 	availability: overrides.availability ?? "default_on",
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,

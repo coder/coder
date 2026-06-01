@@ -1250,6 +1250,8 @@ const sampleMCPServers = [
 		has_custom_headers: false,
 		tool_allow_list: [],
 		tool_deny_list: [],
+		custom_headers_user_keys: [],
+		custom_headers_user_key_descriptions: {},
 		availability: "default_on",
 		enabled: true,
 		model_intent: false,

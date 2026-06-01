@@ -1210,6 +1210,9 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				tool_deny_list: req.tool_deny_list
 					? [...req.tool_deny_list]
 					: undefined,
+				custom_headers_user_keys: req.custom_headers_user_keys
+					? [...req.custom_headers_user_keys]
+					: undefined,
 			};
 			try {
 				await onUpdateServer({ id, req: updateReq });
