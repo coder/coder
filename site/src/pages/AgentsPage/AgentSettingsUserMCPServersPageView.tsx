@@ -306,13 +306,11 @@ const ConfigureHeadersDialog: FC<ConfigureHeadersDialogProps> = ({
 	// When a new server is opened, reset the parent mutation state so a
 	// previous server's error banner does not bleed into this session.
 	const openServerId = server?.id ?? null;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only fire when the open server identity changes, not on every render of the onOpen callback reference
 	useEffect(() => {
 		if (openServerId !== null) {
 			onOpen?.();
 		}
-		// We only want to fire when the open server identity changes,
-		// not on every render of the onOpen callback reference.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [openServerId]);
 	const hasAnyExisting = requiredKeys.some(
 		(k) => headerHasValues?.[k] === true,
