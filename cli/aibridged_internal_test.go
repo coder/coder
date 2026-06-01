@@ -33,7 +33,7 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, nil)
-	if err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
+	if _, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
 		return nil, err
 	}
 	providers, _, err := BuildProviders(ctx, db, cfg, logger)

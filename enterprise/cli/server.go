@@ -178,14 +178,19 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			//nolint:gocritic // Production timeout, not a test wait.
 			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			defer aibridgeInitCancel()
-			if err := agplcoderd.SeedAIProvidersFromEnv(
+			ineffective, err := agplcoderd.SeedAIProvidersFromEnv(
 				aibridgeInitCtx,
 				options.Database,
 				options.DeploymentValues.AI.BridgeConfig,
 				options.Logger.Named("aibridge.envseed"),
-			); err != nil {
+			)
+			if err != nil {
 				return nil, nil, xerrors.Errorf("seed ai providers from env: %w", err)
 			}
+			// Belt-and-suspenders: the agplcli re-seed after newAPI
+			// overwrites this with the same deterministic value. Use the
+			// computed flag rather than a hardcoded true.
+			api.AGPL.AIProvidersEnvDrift.Store(ineffective)
 			aiBridgeProxyCloser, err := newAIBridgeProxyDaemon(api)
 			if err != nil {
 				_ = closers.Close()

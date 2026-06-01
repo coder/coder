@@ -2180,6 +2180,12 @@ type API struct {
 	WebpushDispatcher webpush.Dispatcher
 	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
+	// AIProvidersEnvDrift is set to true at startup when deprecated
+	// CODER_AIBRIDGE_* env configuration differs from the AI provider rows
+	// already stored in the database. The appearance fetchers read it to
+	// warn admins that their env changes are ineffective. The zero value
+	// (false) needs no initialization.
+	AIProvidersEnvDrift atomic.Bool
 	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
 	// for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []*proxyhealth.ProxyHost]

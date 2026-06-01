@@ -1024,14 +1024,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//nolint:gocritic // Production timeout, not a test wait.
 			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 			defer aibridgeInitCancel()
-			if err := coderd.SeedAIProvidersFromEnv(
+			ineffective, err := coderd.SeedAIProvidersFromEnv(
 				aibridgeInitCtx,
 				options.Database,
 				vals.AI.BridgeConfig,
 				logger.Named("aibridge.envseed"),
-			); err != nil {
+			)
+			if err != nil {
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
+			// This runs unconditionally for both editions (enterprise
+			// reuses this AGPL server runner), so it is the authoritative
+			// setter for the deprecated-env-drift warning banner.
+			coderAPI.AIProvidersEnvDrift.Store(ineffective)
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without

@@ -24,8 +24,9 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, codersdk.AIBridgeConfig{}, testLogger(t))
+		ineffective, err := coderd.SeedAIProvidersFromEnv(ctx, db, codersdk.AIBridgeConfig{}, testLogger(t))
 		require.NoError(t, err)
+		require.False(t, ineffective)
 	})
 
 	t.Run("LegacyOpenAI", func(t *testing.T) {
@@ -40,7 +41,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 			},
 		}
 		var firstSeedLogs bytes.Buffer
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&firstSeedLogs))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&firstSeedLogs))
 		require.NoError(t, err)
 
 		// One row exists for "openai".
@@ -65,7 +66,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// Re-running with the same config is a no-op and emits no new
 		// env-seed log lines.
 		var rerunLogs bytes.Buffer
-		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&rerunLogs))
+		_, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&rerunLogs))
 		require.NoError(t, err)
 		require.NotContains(t, rerunLogs.String(), "env-seeded ai provider")
 
@@ -78,7 +79,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Len(t, keys, 1)
 	})
 
-	t.Run("DriftFailsStartup", func(t *testing.T) {
+	t.Run("DriftIsNonFatalAndFlagged", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -89,22 +90,38 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		ineffective, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.False(t, ineffective)
 
-		// Changing the API key counts as drift: keys are included
-		// in the canonical hash so operators notice when env-var
-		// credential changes are ignored by an existing provider.
+		// Changing the API key counts as drift: keys are included in the
+		// canonical hash. Because CODER_AIBRIDGE_* config is deprecated,
+		// drift no longer fails startup; the env change is ineffective,
+		// the stored row is left untouched, and the call reports it.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		ineffective, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
 
-		// Changing the base URL is also real drift.
+		// The database still holds the original key.
+		row, err := db.GetAIProviderByName(ctx, "openai")
+		require.NoError(t, err)
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, "sk-original", keys[0].APIKey)
+
+		// Changing the base URL is also drift, and also non-fatal.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-original")
 		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
-		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		ineffective, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
+
+		// The stored base URL is unchanged.
+		row, err = db.GetAIProviderByName(ctx, "openai")
+		require.NoError(t, err)
+		require.Equal(t, "https://api.openai.com/v1", row.BaseUrl)
 	})
 
 	t.Run("BedrockCredentialChangeIsDrift", func(t *testing.T) {
@@ -120,24 +137,35 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
-		// Rotating the Bedrock access key in env trips the drift
-		// check so operators know the change did not take effect.
+		// Rotating the Bedrock access key in env is drift. It is
+		// non-fatal for the deprecated env path: the call reports the
+		// change is ineffective and the stored credentials are unchanged.
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-rotated")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-rotated")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		ineffective, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
 
-		// Changing the Bedrock region (a non-credential field) is
-		// also real drift.
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Contains(t, row.Settings.String, "AKIA-original")
+		require.Contains(t, row.Settings.String, "secret-original")
+
+		// Changing the Bedrock region (a non-credential field) is also
+		// drift, and also non-fatal.
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-original")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-original")
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		ineffective, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
+
+		row, err = db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Contains(t, row.Settings.String, "us-east-1")
 	})
 
 	t.Run("LegacyBedrockOnlyKeepsBedrockSettings", func(t *testing.T) {
@@ -156,7 +184,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -191,7 +220,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		cfg := dv.AI.BridgeConfig
 		cfg.LegacyAnthropic.Key = serpent.String("sk-ant-only")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -216,7 +246,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:  serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -241,7 +272,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
 		require.Contains(t, row.Settings.String, "us-east-1")
@@ -275,7 +307,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
 		require.NoError(t, err)
@@ -319,34 +352,55 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		// Reordering keys must not count as drift. The canonical hash
 		// sorts keys before hashing, so equivalent key sets remain
 		// stable across restarts.
 		cfg.Providers[0].Keys = []string{"sk-openai-2", "sk-openai-1"}
 		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-1"}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		ineffective, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.False(t, ineffective)
 
-		// Changing one key on one provider must block startup even
-		// when multiple providers are configured.
+		// Changing one key on one provider is drift even when multiple
+		// providers are configured. Drift is non-fatal: it must not block
+		// a brand-new provider in the same config from being inserted,
+		// which exercises the continue-after-drift path.
 		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-rotated"}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
-		require.Contains(t, err.Error(), `"primary-anthropic"`)
+		cfg.Providers = append(cfg.Providers, codersdk.AIProviderConfig{
+			Type:    "openai",
+			Name:    "secondary-openai",
+			BaseURL: "https://api.openai.com/v1",
+			Keys:    []string{"sk-new"},
+		})
+		ineffective, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
 
+		// The non-drifting provider is still present with its original keys.
 		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
 		require.NoError(t, err)
 		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"sk-openai-1", "sk-openai-2"}, []string{oaKeys[0].APIKey, oaKeys[1].APIKey})
 
+		// The drifted provider keeps its original keys; the env change
+		// was ignored.
 		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
 		require.NoError(t, err)
 		anKeys, err := db.GetAIProviderKeysByProviderID(ctx, an.ID)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"sk-ant-1", "sk-ant-2"}, []string{anKeys[0].APIKey, anKeys[1].APIKey})
+
+		// The new provider was inserted despite the drift on another row.
+		sec, err := db.GetAIProviderByName(ctx, "secondary-openai")
+		require.NoError(t, err)
+		secKeys, err := db.GetAIProviderKeysByProviderID(ctx, sec.ID)
+		require.NoError(t, err)
+		require.Len(t, secKeys, 1)
+		require.Equal(t, "sk-new", secKeys[0].APIKey)
 	})
 
 	t.Run("BedrockIndexedProviderHasNoKeys", func(t *testing.T) {
@@ -367,7 +421,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "bedrock-anthropic")
 		require.NoError(t, err)
@@ -398,7 +453,9 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		// Pre-transaction validation: a legacy/indexed name conflict is
+		// still fatal.
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicts")
 	})
@@ -417,7 +474,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		// Pre-transaction validation: an invalid name is still fatal.
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid AI provider name")
 	})
@@ -446,7 +504,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -465,7 +524,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
@@ -473,14 +533,15 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		// Re-run seed; the soft-deleted row should remain soft-deleted
 		// and no new row should be created.
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
 		require.Empty(t, all, "expected no active rows after soft-delete + re-seed")
 	})
 
-	t.Run("ExistingKeysBlockOnDrift", func(t *testing.T) {
+	t.Run("ExistingKeysDriftKeepsOriginalKeys", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -491,17 +552,19 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
 
-		// Operator rotates the env key. The seed now blocks startup
-		// because the keys differ, alerting the operator.
+		// Operator rotates the env key. The seed reports the change is
+		// ineffective rather than blocking startup, and the database row
+		// is left untouched.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		ineffective, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
+		require.True(t, ineffective)
 
 		// The original key is still in the database.
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
@@ -533,7 +596,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -563,7 +627,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.NoError(t, err)
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -579,7 +644,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Same name, different canonical fields: must be rejected.
+		// Same name, different canonical fields: pre-transaction
+		// validation rejects this, so it is still fatal.
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{
@@ -596,7 +662,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		_, err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicting fields")
 	})

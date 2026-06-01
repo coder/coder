@@ -26,9 +26,16 @@ import (
 // derived AI provider configuration with rows in the ai_providers
 // table at server startup. Concurrent server starts are serialized via a
 // Postgres advisory lock; rows that already exist with a matching
-// canonical hash are left alone, missing rows are inserted, and rows
-// whose hash differs from the env-derived value cause startup to fail
-// with a descriptive error.
+// canonical hash are left alone and missing rows are inserted.
+//
+// AI-provider configuration via CODER_AIBRIDGE_* env vars is deprecated
+// in favor of managing providers through the API/UI, where the database
+// is the source of truth. When an env-derived provider differs from the
+// row already stored in the database ("drift"), startup does NOT fail:
+// the env change is ineffective, so the existing row is left untouched, a
+// warning is logged, and the returned ineffective flag is set to true so
+// callers can surface a banner to admins. Other missing providers in the
+// same config are still inserted.
 //
 // API keys derived from env vars are inserted into ai_provider_keys at
 // the time the provider row is first created. We do NOT add env-sourced
@@ -45,13 +52,13 @@ func SeedAIProvidersFromEnv(
 	db database.Store,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,
-) error {
+) (ineffective bool, err error) {
 	desired, err := providersFromEnv(ctx, cfg, logger)
 	if err != nil {
-		return xerrors.Errorf("compute providers from env: %w", err)
+		return false, xerrors.Errorf("compute providers from env: %w", err)
 	}
 	if len(desired) == 0 {
-		return nil
+		return false, nil
 	}
 
 	// Audit entries are attributed to the deployment rather than a user.
@@ -65,11 +72,19 @@ func SeedAIProvidersFromEnv(
 	var (
 		insertedProviders []database.AIProvider
 		insertedKeys      []database.AIProviderKey
+		// drift records whether any env-derived provider differs from a
+		// row already in the database. driftedNames collects the affected
+		// provider names for the warning log. Both are reset at the top of
+		// the InTx closure so a transaction retry recomputes them cleanly.
+		drift        bool
+		driftedNames []string
 	)
 
 	err = db.InTx(func(tx database.Store) error {
 		insertedProviders = insertedProviders[:0]
 		insertedKeys = insertedKeys[:0]
+		drift = false
+		driftedNames = driftedNames[:0]
 
 		// Acquire the advisory lock. The lock is released when the
 		// transaction ends.
@@ -136,7 +151,16 @@ func SeedAIProvidersFromEnv(
 				if existingHash == dp.Hash {
 					continue
 				}
-				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name)
+				// The env-derived config drifted from the stored row.
+				// CODER_AIBRIDGE_* env config is deprecated, so this is
+				// not fatal: the database is the source of truth, the
+				// existing row is left untouched, and the env change is
+				// ineffective. Flag it (the warning is emitted after the
+				// transaction commits, like the insert logs below) and keep
+				// reconciling the remaining providers.
+				drift = true
+				driftedNames = append(driftedNames, dp.Name)
+				continue
 			}
 
 			row, err := tx.InsertAIProvider(sysCtx, database.InsertAIProviderParams{
@@ -183,7 +207,7 @@ func SeedAIProvidersFromEnv(
 		return nil
 	}, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, row := range insertedProviders {
@@ -201,7 +225,12 @@ func SeedAIProvidersFromEnv(
 			slog.F("api_key", aibridgeutils.MaskSecret(keyRow.APIKey)),
 		)
 	}
-	return nil
+	if drift {
+		logger.Warn(sysCtx, "deprecated AI provider env configuration is ineffective; the database is the source of truth, so update these providers through the API or remove their CODER_AIBRIDGE_* env vars",
+			slog.F("providers", driftedNames),
+		)
+	}
+	return drift, nil
 }
 
 // canonicalAIProvider is the shape we hash to detect drift between the
