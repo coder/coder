@@ -96,7 +96,6 @@ while allowing individual users to bring their own key.
 > When a BYOK credential is present, [key failover](./providers.md#key-failover)
 > is skipped.
 
-
 Coder Agents requests routed through AI Gateway are in-process control plane
 requests, not external client requests that send their own AI Gateway bearer
 token. Coder Agents use this same global BYOK setting. When BYOK is enabled,

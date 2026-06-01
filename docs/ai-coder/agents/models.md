@@ -11,7 +11,7 @@ so developers can supply personal API keys for providers. See
 
 ## Providers
 
-Each LLM provider has a type, a credential configuration, and an Endpoint/Base URL for the upstream provider or proxy.
+Each LLM provider has a type, a credential configuration, and an endpoint/base URL for the upstream provider or proxy.
 
 Coder supports the following provider types:
 
@@ -30,9 +30,10 @@ The **OpenAI Compatible** type is a catch-all for any service that exposes an
 OpenAI-compatible chat completions endpoint. Use it to connect to self-hosted
 models, internal gateways, or third-party proxies like LiteLLM.
 
-Coder Agents provider configuration is shared with the AI Gateway-routed Agents
-path. Configure the provider endpoint as the upstream provider or proxy URL, not
-Coder's public `/api/v2/aibridge/...` client route.
+Coder Agents route model requests through AI Gateway automatically by using
+the provider configuration stored in Coder. Configure the provider endpoint/base
+URL as the upstream provider or proxy URL, not Coder's public
+`/api/v2/aibridge/...` client route.
 
 ### Add a provider
 
@@ -41,8 +42,9 @@ Coder's public `/api/v2/aibridge/...` client route.
 1. Click the provider you want to configure.
 1. Enter the **API key** for the provider, if required.
 1. Set **Endpoint** or **Base URL** to the upstream provider or proxy
-   endpoint. Use the default when it matches your provider, or override it for
-   enterprise proxies, regional endpoints, or self-hosted models.
+   [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers). Use
+   the default when it matches your provider, or override it for enterprise
+   proxies, regional endpoints, or self-hosted models.
 1. Click **Save**.
 
 <img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the Agents settings">
@@ -53,29 +55,28 @@ status.</small>
 <img src="../../images/guides/ai-agents/models-add-provider.png" alt="Screenshot of the add provider form">
 
 <small>Adding a provider usually requires an API key. AWS Bedrock can also use
-ambient AWS credentials. The endpoint should point at the upstream provider or proxy.</small>
+ambient AWS credentials. The endpoint/base URL should point at the upstream
+provider or proxy.</small>
 
-## Endpoint/Base URL for OpenAI-compatible providers
+## Endpoint/base URL for OpenAI-compatible providers
 
-Provider configuration stores an absolute HTTP(S) Endpoint/Base URL. Syntax
+Provider configuration stores an absolute HTTP(S) endpoint/base URL. Syntax
 validation confirms that the value is a URL, but it does not prove the upstream
 implements the APIs Coder sends.
 
-For the default Agents path through AI Gateway, set the Endpoint/Base URL to the
-upstream provider or proxy endpoint. Do not set it to Coder's public AI Gateway
-client route, such as `https://<coder-host>/api/v2/aibridge/openai/v1`. Those
-`/api/v2/aibridge/...` routes are for external clients that call AI Gateway over
-HTTP.
+For the default Agents path through AI Gateway, set the endpoint/base URL to
+the upstream provider or proxy endpoint. Do not set it to Coder's public AI
+Gateway route, such as `https://<coder-host>/api/v2/aibridge/openai/v1`.
 
 OpenAI-shaped provider types require the upstream OpenAI-compatible prefix in
-the Endpoint/Base URL because Coder appends request suffixes such as
+the endpoint/base URL because Coder appends request suffixes such as
 `/chat/completions`, `/responses`, and `/models`. This applies to **OpenAI**,
 **Azure OpenAI**, **Google**, **OpenAI Compatible**, **OpenRouter**, and
 **Vercel AI Gateway** provider types.
 
 Examples:
 
-| Provider type                       | Example Endpoint/Base URL                                  |
+| Provider type                       | Example endpoint/base URL                                  |
 |-------------------------------------|------------------------------------------------------------|
 | OpenAI                              | `https://api.openai.com/v1/`                               |
 | Azure OpenAI                        | `https://<resource-name>.openai.azure.com/openai/v1`       |
@@ -84,9 +85,7 @@ Examples:
 | Vercel AI Gateway                   | `https://ai-gateway.vercel.sh/v1`                          |
 | Generic OpenAI-compatible proxy     | `https://provider.example.com/v1`                          |
 
-Confirm the exact endpoint in your provider or proxy documentation. For the
-canonical AI Gateway-routed Agents guidance, see
-[Coder Agents through AI Gateway](../ai-gateway/clients/coder-agents.md).
+Confirm the exact endpoint/base URL in your provider or proxy documentation.
 
 ## Configuring AWS Bedrock
 
@@ -132,8 +131,9 @@ on this security model.
 Coder Agents use the AI providers configured by administrators. Provider API
 keys entered by administrators are centralized credentials for the deployment.
 
-BYOK for Coder Agents is controlled by the global AI Gateway BYOK setting, not
-by per-provider key policy flags. When BYOK is enabled, users can save a
+BYOK for Coder Agents is controlled by the
+[global AI Gateway BYOK setting](../ai-gateway/auth.md#bring-your-own-key-byok),
+not by per-provider key policy flags. When BYOK is enabled, users can save a
 personal API key for any enabled AI provider. When BYOK is disabled, saved user
 keys are ignored and users cannot add or update personal keys.
 
@@ -308,7 +308,7 @@ and resolution falls through to the next.
 
 ## User API keys (BYOK)
 
-When [AI Gateway BYOK](../ai-gateway/auth.md#enable-or-disable-byok) is
+When [AI Gateway BYOK](../ai-gateway/auth.md#bring-your-own-key-byok) is
 enabled, developers can supply personal API keys for any enabled AI provider
 from the Agents settings page.
 
@@ -358,12 +358,6 @@ Use the **OpenAI Compatible** provider type if your proxy serves multiple model
 families through a single OpenAI-compatible endpoint. Include the proxy
 provider's documented OpenAI-compatible path prefix, such as `/v1`, when
 required.
-
-For Coder's AI Gateway, do not point the shared Agents provider Endpoint/Base
-URL at `https://<coder-host>/api/v2/aibridge/...` for the default Agents path.
-Those public routes are for external clients. See
-[Coder Agents through AI Gateway](../ai-gateway/clients/coder-agents.md) for the
-current configuration model.
 
 This lets you keep existing proxy-level features like per-user budgets, rate
 limiting, and audit logging while using Coder Agents as the developer interface.
