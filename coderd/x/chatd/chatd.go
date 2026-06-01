@@ -8553,6 +8553,11 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
 
+	summaryAPIKeyID := activeAPIKeyID
+	if summaryAPIKeyID == "" {
+		summaryAPIKeyID, _ = aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	}
+
 	var insertedMessages []database.ChatMessage
 
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -8561,11 +8566,8 @@ func (p *Server) persistChatContextSummary(
 		}
 
 		// Hidden summary user message (not published to subscribers).
-		if activeAPIKeyID == "" {
-			activeAPIKeyID, _ = aibridge.DelegatedAPIKeyIDFromContext(ctx)
-		}
 		summaryUserMsg := newUserChatMessage(
-			activeAPIKeyID,
+			summaryAPIKeyID,
 			systemContent,
 			database.ChatMessageVisibilityModel,
 			modelConfigID,
