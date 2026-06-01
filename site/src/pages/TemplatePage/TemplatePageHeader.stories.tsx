@@ -22,7 +22,7 @@ const meta: Meta<typeof TemplatePageHeader> = {
 export default meta;
 type Story = StoryObj<typeof TemplatePageHeader>;
 
-export const CanUpdate: Story = {};
+export const Example: Story = {};
 
 export const CanNotUpdate: Story = {
 	args: {
