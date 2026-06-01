@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"errors"
 	"maps"
 	"slices"
 	"strings"
@@ -75,6 +74,15 @@ type templateRankSignals struct {
 	WorkspaceCount     int64
 	LastUsedAtUnixNano int64
 	ActiveDevelopers   int64
+}
+
+type templateRankingSignalErrors struct {
+	ActiveDeveloperCounts error
+	Usage                 error
+}
+
+func (e templateRankingSignalErrors) hasAny() bool {
+	return e.ActiveDeveloperCounts != nil || e.Usage != nil
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
@@ -161,7 +169,10 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			selectionHint, recommendedID, recommendationReason := selectTemplateRecommendation(
 				ranked,
 				visibleTemplateCount,
-				errors.Join(ownerCountsErr, usageErr),
+				templateRankingSignalErrors{
+					ActiveDeveloperCounts: ownerCountsErr,
+					Usage:                 usageErr,
+				},
 				clock.Now(),
 			)
 
@@ -329,7 +340,7 @@ func compareTemplateRankSignals(a, b templateRankSignals, query string) int {
 func selectTemplateRecommendation(
 	ranked []rankedTemplate,
 	visibleTemplateCount int,
-	rankingSignalsErr error,
+	rankingSignalErrors templateRankingSignalErrors,
 	now time.Time,
 ) (string, uuid.UUID, string) {
 	if len(ranked) == 0 {
@@ -340,8 +351,13 @@ func selectTemplateRecommendation(
 	if visibleTemplateCount == 1 && len(ranked) == 1 {
 		return listTemplatesHintOnlyAvailable, top.Template.ID, "only_available_template"
 	}
-	if rankingSignalsErr != nil {
+	if rankingSignalErrors.hasAny() {
 		if templateHasDecisiveQuerySignal(ranked) {
+			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
+		}
+		if rankingSignalErrors.Usage == nil &&
+			templateHasConfidentPersonalUsageSignal(top, now) &&
+			(len(ranked) == 1 || !templatesAreAmbiguous(top, ranked[1])) {
 			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
 		}
 		return listTemplatesHintNoConfidence, uuid.Nil, "ranking_signals_unavailable"
@@ -374,17 +390,21 @@ func templateHasDecisiveQuerySignal(ranked []rankedTemplate) bool {
 	return len(ranked) == 1 || ranked[0].QueryScore > ranked[1].QueryScore
 }
 
+func templateHasConfidentPersonalUsageSignal(t rankedTemplate, now time.Time) bool {
+	if t.Usage.WorkspaceCount >= listTemplatesMinPersonalWorkspacesForRecommendation {
+		return true
+	}
+	return t.Usage.WorkspaceCount > 0 &&
+		!t.Usage.LastUsedAt.IsZero() &&
+		now.Sub(t.Usage.LastUsedAt) <= listTemplatesRecentUsageWindow
+}
+
 func templateHasConfidentRankingSignal(t rankedTemplate, now time.Time) bool {
 	signals := templateRankSignalsFor(t)
 	if signals.QueryScore > 0 {
 		return true
 	}
-	if signals.WorkspaceCount >= listTemplatesMinPersonalWorkspacesForRecommendation {
-		return true
-	}
-	if signals.WorkspaceCount > 0 &&
-		!t.Usage.LastUsedAt.IsZero() &&
-		now.Sub(t.Usage.LastUsedAt) <= listTemplatesRecentUsageWindow {
+	if templateHasConfidentPersonalUsageSignal(t, now) {
 		return true
 	}
 	return signals.ActiveDevelopers >= listTemplatesMinActiveDevelopersForRecommendation
@@ -440,6 +460,9 @@ func templateQueryScore(t database.Template, query string) int {
 	}
 
 	queryCompact := compactTemplateSearch(query)
+	if queryCompact == "" {
+		return 0
+	}
 	for _, field := range []string{t.Name, t.DisplayName} {
 		field = normalizeTemplateSearch(field)
 		if field == "" {

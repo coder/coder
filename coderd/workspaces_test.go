@@ -4587,7 +4587,15 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to stop a workspace while it is dormant.
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.LatestBuild.ID,
+				ResourceType: database.ResourceTypeWorkspaceBuild,
+				Action:       database.AuditActionStop,
+				StatusCode:   http.StatusOK,
+			})
+		}, testutil.IntervalFast)
 
 		// Reset the auditor
 		auditor.ResetLogs()

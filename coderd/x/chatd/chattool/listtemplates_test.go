@@ -142,7 +142,7 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	displayTemplate := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
-		Name:           "data-science",
+		Name:           "tpl-42",
 		DisplayName:    "Data Science Lab",
 	})
 	descriptionTemplate := dbgen.Template(t, db, database.Template{
@@ -176,6 +176,14 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	require.Equal(t, descriptionTemplate.ID.String(), templates[0]["id"])
 	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
 	require.Equal(t, descriptionTemplate.ID.String(), result["recommended_template_id"])
+
+	result = runListTemplates(ctx, t, tool, `{"query":"-"}`)
+	templates = listTemplateItems(t, result)
+	require.Empty(t, templates)
+	require.Equal(t, float64(0), result["total_count"])
+	require.Equal(t, float64(3), result["available_template_count"])
+	require.Equal(t, "no_confident_match", result["selection_hint"])
+	require.Equal(t, "no_matching_templates", result["recommendation_reason"])
 
 	result = runListTemplates(ctx, t, tool, `{"query":"does-not-exist"}`)
 	templates = listTemplateItems(t, result)
@@ -297,6 +305,12 @@ func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
 	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
 	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
 	require.Equal(t, target.ID.String(), result["recommended_template_id"])
+
+	result = runListTemplates(ctx, t, tool, `{"page":2}`)
+	templates = listTemplateItems(t, result)
+	require.Len(t, templates, 1)
+	require.Equal(t, float64(2), result["page"])
+	require.Equal(t, float64(11), templates[0]["rank"])
 }
 
 func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
