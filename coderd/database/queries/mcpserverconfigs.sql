@@ -73,6 +73,8 @@ INSERT INTO mcp_server_configs (
     api_key_value_key_id,
     custom_headers,
     custom_headers_key_id,
+    custom_headers_user_keys,
+    custom_headers_user_key_descriptions,
     tool_allow_list,
     tool_deny_list,
     availability,
@@ -101,6 +103,8 @@ INSERT INTO mcp_server_configs (
     sqlc.narg('api_key_value_key_id')::text,
     @custom_headers::text,
     sqlc.narg('custom_headers_key_id')::text,
+    @custom_headers_user_keys::text[],
+    @custom_headers_user_key_descriptions::jsonb,
     @tool_allow_list::text[],
     @tool_deny_list::text[],
     @availability::text,
@@ -136,6 +140,8 @@ SET
     api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
     custom_headers = @custom_headers::text,
     custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
+    custom_headers_user_keys = @custom_headers_user_keys::text[],
+    custom_headers_user_key_descriptions = @custom_headers_user_key_descriptions::jsonb,
     tool_allow_list = @tool_allow_list::text[],
     tool_deny_list = @tool_deny_list::text[],
     availability = @availability::text,
@@ -210,6 +216,59 @@ DELETE FROM
 WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
+
+-- name: GetMCPServerUserHeaderValues :one
+SELECT
+    *
+FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid
+    AND user_id = @user_id::uuid;
+
+-- name: GetMCPServerUserHeaderValuesByUserID :many
+SELECT
+    *
+FROM
+    mcp_server_user_header_values
+WHERE
+    user_id = @user_id::uuid;
+
+-- name: UpsertMCPServerUserHeaderValues :one
+INSERT INTO mcp_server_user_header_values (
+    mcp_server_config_id,
+    user_id,
+    header_values,
+    header_values_key_id
+) VALUES (
+    @mcp_server_config_id::uuid,
+    @user_id::uuid,
+    @header_values::text,
+    sqlc.narg('header_values_key_id')::text
+)
+ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
+    header_values = @header_values::text,
+    header_values_key_id = sqlc.narg('header_values_key_id')::text,
+    updated_at = NOW()
+RETURNING
+    *;
+
+-- name: DeleteMCPServerUserHeaderValues :exec
+DELETE FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid
+    AND user_id = @user_id::uuid;
+
+-- name: DeleteMCPServerUserHeaderValuesByConfigID :exec
+-- Deletes every user's stored header values for the given MCP server
+-- config. Use when the admin changes auth_type away from custom_headers
+-- or alters custom_headers_user_keys so stale credentials do not
+-- silently reactivate when the key set is restored.
+DELETE FROM
+    mcp_server_user_header_values
+WHERE
+    mcp_server_config_id = @mcp_server_config_id::uuid;
 
 -- name: CleanupDeletedMCPServerIDsFromChats :exec
 UPDATE chats

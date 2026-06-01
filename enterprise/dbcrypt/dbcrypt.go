@@ -702,6 +702,12 @@ func (db *dbCrypt) decryptMCPServerUserToken(tok *database.MCPServerUserToken) e
 	return db.decryptField(&tok.RefreshToken, tok.RefreshTokenKeyID)
 }
 
+// decryptMCPServerUserHeaderValues decrypts all encrypted fields on a
+// single McpServerUserHeaderValue in place.
+func (db *dbCrypt) decryptMCPServerUserHeaderValues(row *database.McpServerUserHeaderValue) error {
+	return db.decryptField(&row.HeaderValues, row.HeaderValuesKeyID)
+}
+
 func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	cfg, err := db.Store.GetMCPServerConfigByID(ctx, id)
 	if err != nil {
@@ -874,6 +880,47 @@ func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database
 		return database.MCPServerUserToken{}, err
 	}
 	return tok, nil
+}
+
+func (db *dbCrypt) GetMCPServerUserHeaderValues(ctx context.Context, arg database.GetMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	row, err := db.Store.GetMCPServerUserHeaderValues(ctx, arg)
+	if err != nil {
+		return database.McpServerUserHeaderValue{}, err
+	}
+	if err := db.decryptMCPServerUserHeaderValues(&row); err != nil {
+		return database.McpServerUserHeaderValue{}, err
+	}
+	return row, nil
+}
+
+func (db *dbCrypt) GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserHeaderValue, error) {
+	rows, err := db.Store.GetMCPServerUserHeaderValuesByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if err := db.decryptMCPServerUserHeaderValues(&rows[i]); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
+func (db *dbCrypt) UpsertMCPServerUserHeaderValues(ctx context.Context, params database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	if strings.TrimSpace(params.HeaderValues) == "" {
+		params.HeaderValuesKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.HeaderValues, &params.HeaderValuesKeyID); err != nil {
+		return database.McpServerUserHeaderValue{}, err
+	}
+
+	row, err := db.Store.UpsertMCPServerUserHeaderValues(ctx, params)
+	if err != nil {
+		return database.McpServerUserHeaderValue{}, err
+	}
+	if err := db.decryptMCPServerUserHeaderValues(&row); err != nil {
+		return database.McpServerUserHeaderValue{}, err
+	}
+	return row, nil
 }
 
 func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {

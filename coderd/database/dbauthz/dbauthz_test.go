@@ -1662,6 +1662,46 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetMCPServerUserTokensByUserID(gomock.Any(), userID).Return(tokens, nil).AnyTimes()
 		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(tokens)
 	}))
+	s.Run("GetMCPServerUserHeaderValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: uuid.New(),
+			UserID:            uuid.New(),
+		}
+		value := testutil.Fake(s.T(), faker, database.McpServerUserHeaderValue{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
+		dbm.EXPECT().GetMCPServerUserHeaderValues(gomock.Any(), arg).Return(value, nil).AnyTimes()
+		check.Args(arg).Asserts(value, policy.ActionReadPersonal).Returns(value)
+	}))
+	s.Run("GetMCPServerUserHeaderValuesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		userID := uuid.New()
+		values := []database.McpServerUserHeaderValue{testutil.Fake(s.T(), faker, database.McpServerUserHeaderValue{UserID: userID})}
+		dbm.EXPECT().GetMCPServerUserHeaderValuesByUserID(gomock.Any(), userID).Return(values, nil).AnyTimes()
+		check.Args(userID).Asserts(values[0], policy.ActionReadPersonal).Returns(values)
+	}))
+	s.Run("UpsertMCPServerUserHeaderValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpsertMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: uuid.New(),
+			UserID:            uuid.New(),
+			HeaderValues:      `{"X-User-Token":"secret"}`,
+		}
+		value := testutil.Fake(s.T(), faker, database.McpServerUserHeaderValue{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
+		dbm.EXPECT().UpsertMCPServerUserHeaderValues(gomock.Any(), arg).Return(value, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal).Returns(value)
+	}))
+	s.Run("DeleteMCPServerUserHeaderValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.DeleteMCPServerUserHeaderValuesParams{
+			MCPServerConfigID: uuid.New(),
+			UserID:            uuid.New(),
+		}
+		value := testutil.Fake(s.T(), faker, database.McpServerUserHeaderValue{MCPServerConfigID: arg.MCPServerConfigID, UserID: arg.UserID})
+		dbm.EXPECT().GetMCPServerUserHeaderValues(gomock.Any(), database.GetMCPServerUserHeaderValuesParams(arg)).Return(value, nil).AnyTimes()
+		dbm.EXPECT().DeleteMCPServerUserHeaderValues(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(value, policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("DeleteMCPServerUserHeaderValuesByConfigID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteMCPServerUserHeaderValuesByConfigID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns()
+	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
 			DisplayName: "Test MCP Server",

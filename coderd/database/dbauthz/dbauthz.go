@@ -2114,6 +2114,24 @@ func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) e
 	return q.db.DeleteMCPServerConfigByID(ctx, id)
 }
 
+func (q *querier) DeleteMCPServerUserHeaderValues(ctx context.Context, arg database.DeleteMCPServerUserHeaderValuesParams) error {
+	fetch := func(ctx context.Context, arg database.DeleteMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+		return q.db.GetMCPServerUserHeaderValues(ctx, database.GetMCPServerUserHeaderValuesParams(arg))
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.DeleteMCPServerUserHeaderValues)(ctx, arg)
+}
+
+func (q *querier) DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	// Admin-only operation. Called from the admin MCP server config
+	// update path when auth_type or custom_headers_user_keys changes,
+	// so stale per-user header values do not silently reactivate when
+	// the key set is restored.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerUserHeaderValuesByConfigID(ctx, mcpServerConfigID)
+}
+
 func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -3710,6 +3728,14 @@ func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID)
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+}
+
+func (q *querier) GetMCPServerUserHeaderValues(ctx context.Context, arg database.GetMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetMCPServerUserHeaderValues)(ctx, arg)
+}
+
+func (q *querier) GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserHeaderValue, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetMCPServerUserHeaderValuesByUserID)(ctx, userID)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
@@ -8259,6 +8285,10 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertMCPServerUserHeaderValues(ctx context.Context, arg database.UpsertMCPServerUserHeaderValuesParams) (database.McpServerUserHeaderValue, error) {
+	return insertWithAction(q.log, q.auth, rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal, q.db.UpsertMCPServerUserHeaderValues)(ctx, arg)
 }
 
 func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {

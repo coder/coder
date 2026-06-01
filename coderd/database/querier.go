@@ -138,6 +138,12 @@ type sqlcQuerier interface {
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error
+	DeleteMCPServerUserHeaderValues(ctx context.Context, arg DeleteMCPServerUserHeaderValuesParams) error
+	// Deletes every user's stored header values for the given MCP server
+	// config. Use when the admin changes auth_type away from custom_headers
+	// or alters custom_headers_user_keys so stale credentials do not
+	// silently reactivate when the key set is restored.
+	DeleteMCPServerUserHeaderValuesByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
@@ -515,6 +521,8 @@ type sqlcQuerier interface {
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)
 	GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
 	GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error)
+	GetMCPServerUserHeaderValues(ctx context.Context, arg GetMCPServerUserHeaderValuesParams) (McpServerUserHeaderValue, error)
+	GetMCPServerUserHeaderValuesByUserID(ctx context.Context, userID uuid.UUID) ([]McpServerUserHeaderValue, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
@@ -1390,6 +1398,7 @@ type sqlcQuerier interface {
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertMCPServerUserHeaderValues(ctx context.Context, arg UpsertMCPServerUserHeaderValuesParams) (McpServerUserHeaderValue, error)
 	UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (MCPServerUserToken, error)
 	// Insert or update notification report generator logs with recent activity.
 	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error
