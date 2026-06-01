@@ -3,7 +3,6 @@ package llmmock
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"cdr.dev/slog/v3"
@@ -37,7 +36,6 @@ type openAIStreamChunk struct {
 }
 
 type openAIStreamWriter struct {
-	ctx      context.Context
 	logger   slog.Logger
 	w        http.ResponseWriter
 	flusher  http.Flusher
@@ -45,11 +43,6 @@ type openAIStreamWriter struct {
 }
 
 func (s *Server) newOpenAIStreamWriter(ctx context.Context, w http.ResponseWriter, resp openAIResponse) (openAIStreamWriter, bool) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		s.logger.Error(ctx, "responseWriter does not support flushing",
@@ -58,8 +51,12 @@ func (s *Server) newOpenAIStreamWriter(ctx context.Context, w http.ResponseWrite
 		return openAIStreamWriter{}, false
 	}
 
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
 	return openAIStreamWriter{
-		ctx:      ctx,
 		logger:   s.logger,
 		w:        w,
 		flusher:  flusher,
@@ -67,7 +64,7 @@ func (s *Server) newOpenAIStreamWriter(ctx context.Context, w http.ResponseWrite
 	}, true
 }
 
-func (sw openAIStreamWriter) writeDelta(delta openAIStreamDelta, finishReason *string) bool {
+func (sw openAIStreamWriter) writeDelta(ctx context.Context, delta openAIStreamDelta, finishReason *string) bool {
 	chunk := openAIStreamChunk{
 		ID:      sw.response.ID,
 		Object:  "chat.completion.chunk",
@@ -80,22 +77,24 @@ func (sw openAIStreamWriter) writeDelta(delta openAIStreamDelta, finishReason *s
 		}},
 	}
 	data, _ := json.Marshal(chunk)
-	return sw.writeData(string(data))
+	return sw.writeData(ctx, data)
 }
 
-func (sw openAIStreamWriter) writeDone() bool {
-	return sw.writeData("[DONE]")
+func (sw openAIStreamWriter) writeDone(ctx context.Context) bool {
+	return sw.writeData(ctx, []byte("[DONE]"))
 }
 
-func (sw openAIStreamWriter) writeData(data string) bool {
-	if _, err := fmt.Fprintf(sw.w, "data: %s\n\n", data); err != nil {
-		sw.logger.Error(sw.ctx, "failed to write OpenAI stream chunk",
-			slog.F("response_id", sw.response.ID),
-			slog.Error(err),
-			slog.F("error_type", "write_error"),
-			slog.F("likely_cause", "network_error"),
-		)
-		return false
+func (sw openAIStreamWriter) writeData(ctx context.Context, data []byte) bool {
+	for _, part := range [][]byte{[]byte("data: "), data, []byte("\n\n")} {
+		if _, err := sw.w.Write(part); err != nil {
+			sw.logger.Error(ctx, "failed to write OpenAI stream chunk",
+				slog.F("response_id", sw.response.ID),
+				slog.Error(err),
+				slog.F("error_type", "write_error"),
+				slog.F("likely_cause", "network_error"),
+			)
+			return false
+		}
 	}
 	sw.flusher.Flush()
 	return true
@@ -109,7 +108,7 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 
 	choice := resp.Choices[0]
 	if len(choice.Message.ToolCalls) > 0 {
-		if !writer.writeDelta(openAIStreamDelta{
+		if !writer.writeDelta(ctx, openAIStreamDelta{
 			Role:      "assistant",
 			ToolCalls: openAIStreamToolCallDeltas(choice.Message.ToolCalls),
 		}, nil) {
@@ -119,26 +118,26 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 		return
 	}
 
-	if !writer.writeDelta(openAIStreamDelta{}, &choice.FinishReason) {
+	if !writer.writeDelta(ctx, openAIStreamDelta{}, &choice.FinishReason) {
 		return
 	}
-	_ = writer.writeDone()
+	_ = writer.writeDone(ctx)
 }
 
 func (s *Server) writeOpenAITextStream(ctx context.Context, writer openAIStreamWriter, content string) bool {
 	totalDuration := s.randomStreamDuration()
 	if totalDuration == 0 {
-		return writer.writeDelta(openAITextDelta("assistant", content), nil)
+		return writer.writeDelta(ctx, openAITextDelta("assistant", content), nil)
 	}
 
 	first := true
-	return streamPacedChunks(ctx, totalDuration, s.streamContentChunks(content), func(chunk string) bool {
+	return s.streamPacedContent(ctx, totalDuration, content, func(chunk string) bool {
 		delta := openAITextDelta("", chunk)
 		if first {
 			delta.Role = "assistant"
 			first = false
 		}
-		return writer.writeDelta(delta, nil)
+		return writer.writeDelta(ctx, delta, nil)
 	})
 }
 

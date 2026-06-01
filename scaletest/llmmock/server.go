@@ -33,8 +33,9 @@ const (
 	anthropicDefaultResponseText       = "This is a mock response from Anthropic."
 	mockInputTokens                    = 10
 	mockOutputTokens                   = 5
-	// streamFixedWindowSize keeps large payload chunks predictable.
-	streamFixedWindowSize = 10
+	// streamFixedWindowSize is the number of bytes per delta for fixed-size
+	// payload streams (when responsePayloadSize is set).
+	streamFixedWindowSize = 1024
 )
 
 // Server wraps the LLM mock server and provides an HTTP API to retrieve requests.
@@ -65,7 +66,6 @@ type Config struct {
 	ResponsePayloadSize int
 	ToolCallsPerTurn    int
 	// ToolCallCommand is the command sent in generated execute tool calls.
-	// Empty uses the default tool-call command.
 	ToolCallCommand string
 
 	TraceEnable bool
@@ -163,11 +163,6 @@ type anthropicResponse struct {
 }
 
 func (s *Server) Start(ctx context.Context, cfg Config) error {
-	toolCallCommand := cfg.ToolCallCommand
-	if toolCallCommand == "" {
-		toolCallCommand = defaultToolCallCommand
-	}
-
 	s.address = cfg.Address
 	s.logger = cfg.Logger
 	s.artificialLatency = cfg.ArtificialLatency
@@ -175,7 +170,7 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 	s.maxStreamDuration = cfg.MaxStreamDuration
 	s.responsePayloadSize = cfg.ResponsePayloadSize
 	s.toolCallsPerTurn = cfg.ToolCallsPerTurn
-	s.toolCallCommand = toolCallCommand
+	s.toolCallCommand = cfg.ToolCallCommand
 
 	if cfg.TraceEnable {
 		otel.SetTextMapPropagator(
@@ -245,22 +240,31 @@ func (s *Server) randomStreamDuration() time.Duration {
 
 	delta := s.maxStreamDuration - s.minStreamDuration
 	//nolint:gosec // This is a scaletest mock, not security-sensitive.
-	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta+1)))
+	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta)))
 }
 
-func (s *Server) streamContentChunks(content string) []string {
+// streamPacedContent emits content as paced chunks. Fixed-size payloads use
+// byte windows of streamFixedWindowSize and iterate offsets directly; default
+// text is split on spaces.
+func (s *Server) streamPacedContent(ctx context.Context, totalDuration time.Duration, content string, emit func(chunk string) bool) bool {
 	if content == "" {
-		return []string{""}
+		return emit("")
 	}
 	if s.responsePayloadSize > 0 {
-		chunks := make([]string, 0, (len(content)+streamFixedWindowSize-1)/streamFixedWindowSize)
-		for start := 0; start < len(content); start += streamFixedWindowSize {
+		n := (len(content) + streamFixedWindowSize - 1) / streamFixedWindowSize
+		return streamPacedChunks(ctx, totalDuration, n, func(i int) string {
+			start := i * streamFixedWindowSize
 			end := min(start+streamFixedWindowSize, len(content))
-			chunks = append(chunks, content[start:end])
-		}
-		return chunks
+			return content[start:end]
+		}, emit)
 	}
+	chunks := streamWordChunks(content)
+	return streamPacedChunks(ctx, totalDuration, len(chunks), func(i int) string {
+		return chunks[i]
+	}, emit)
+}
 
+func streamWordChunks(content string) []string {
 	chunks := strings.SplitAfter(content, " ")
 	if chunks[len(chunks)-1] == "" {
 		chunks = chunks[:len(chunks)-1]
@@ -268,32 +272,27 @@ func (s *Server) streamContentChunks(content string) []string {
 	return chunks
 }
 
-func streamPacedChunks(ctx context.Context, totalDuration time.Duration, chunks []string, emit func(chunk string) bool) bool {
-	if len(chunks) == 0 {
+func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, chunk func(i int) string, emit func(chunk string) bool) bool {
+	if n == 0 {
 		return emit("")
 	}
-	if len(chunks) == 1 {
-		return emit(chunks[0])
+	if n == 1 {
+		return emit(chunk(0))
 	}
 
-	delay := totalDuration / time.Duration(len(chunks)-1)
-	for i, chunk := range chunks {
-		if !emit(chunk) {
+	delay := totalDuration / time.Duration(n-1)
+	for i := range n {
+		if !emit(chunk(i)) {
 			return false
 		}
-		if i == len(chunks)-1 || delay <= 0 {
+		if i == n-1 || delay <= 0 {
 			continue
 		}
 
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
-			if !timer.Stop() {
-				select {
-				case <-timer.C:
-				default:
-				}
-			}
+			timer.Stop()
 			return false
 		case <-timer.C:
 		}
@@ -363,12 +362,7 @@ func (s *Server) handleOpenAIWithLabels(w http.ResponseWriter, r *http.Request) 
 		time.Sleep(s.artificialLatency)
 	}
 
-	choice, err := s.buildOpenAIChoice(req)
-	if err != nil {
-		s.logger.Error(ctx, "failed to build OpenAI response", slog.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	choice := s.buildOpenAIChoice(req)
 
 	resp := openAIResponse{
 		ID:      fmt.Sprintf("chatcmpl-%s", requestID.String()[:8]),
@@ -605,7 +599,7 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 			return
 		}
 	} else {
-		if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(text), writeDelta) {
+		if !s.streamPacedContent(ctx, totalDuration, text, writeDelta) {
 			return
 		}
 	}
@@ -714,7 +708,7 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 			return
 		}
 	} else {
-		if !streamPacedChunks(ctx, totalDuration, s.streamContentChunks(resp.Content[0].Text), writeDelta) {
+		if !s.streamPacedContent(ctx, totalDuration, resp.Content[0].Text, writeDelta) {
 			return
 		}
 	}
