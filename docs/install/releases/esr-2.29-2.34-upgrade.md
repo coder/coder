@@ -211,12 +211,44 @@ updates, or change administrator expectations:
 > minor versions is not required.
 >
 > This upgrade applies 108 database migrations. Coder applies them in order
-> on startup. Most migrations are schema changes that complete quickly. Expect
-> anywhere from under a minute to several minutes total, scaling with audit,
-> connection, and chat log volume.
+> on startup. Most are fast schema changes, but a few rewrite or backfill
+> long-lived tables and hold locks while they run. Total time ranges from under
+> a minute to several minutes, scaling with the size of the tables called out
+> in [Database migrations to watch](#database-migrations-to-watch) below.
 >
 > Take a database backup before upgrading and validate the upgrade in a
 > staging environment that mirrors production data volume.
+
+### Database migrations to watch
+
+The batch runs in order on the first startup of the new version. Most
+migrations create new tables or make fast schema changes, but the following
+pre-existing tables receive the heaviest operations. Size your maintenance
+window for whichever are largest in your deployment:
+
+- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`,
+  `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an
+  exclusive lock. **`UNLOGGED` tables are not replicated to standby servers and
+  are truncated on crash recovery.** This is intentional, since coordinators
+  re-register and peers reconnect on startup, but confirm your high
+  availability strategy does not rely on replicating tailnet state to read
+  replicas.
+- **`users`** gains a service account column plus check constraints and unique
+  index rebuilds, held under an exclusive lock. This briefly blocks logins and
+  API key validation, so the duration matters most on deployments with many
+  users.
+- **`workspace_agents`** (joined with `workspace_builds`, `workspace_resources`,
+  and `workspaces`) is bulk updated to soft-delete stale agents left behind by
+  a pre-2.33 bug. This is typically the slowest step on long-lived deployments
+  with extensive build history. It is safe, but plan for the time.
+- **`workspaces`** receives full-table updates and new ACL check constraints.
+- **`usage_events`** has a check constraint revalidated and an index added; the
+  cost scales with retained event volume.
+
+Several of these changes are irreversible, including the `users` service
+account reclassification and the cleanup of `user_secrets`,
+`organization_members`, and related rows for already soft-deleted users. Take a
+database backup before upgrading.
 
 The Coder team recommends taking the following steps when performing the upgrade:
 
