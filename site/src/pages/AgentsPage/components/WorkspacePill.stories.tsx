@@ -481,8 +481,8 @@ export const MobilePortsInlinePanel: Story = {
 			expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
 		});
 
-		const portsList = body.getByText("Listening Ports");
-		const dropdown: HTMLElement | null = portsList.closest(
+		const portsHeader = body.getByText("Listening Ports");
+		const dropdown: HTMLElement | null = portsHeader.closest(
 			"[data-radix-popper-content-wrapper]",
 		);
 		expect(dropdown).not.toBeNull();

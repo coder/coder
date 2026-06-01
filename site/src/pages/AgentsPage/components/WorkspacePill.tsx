@@ -108,18 +108,18 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 		hasTerminal ||
 		portForwardingEnabled;
 
-	// Flyout sub-menus clip on mobile, so swap to an inline panel instead.
+	// Flyout sub-menus clip on mobile.
 	const [view, setView] = useState<"main" | "ports">("main");
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
-	const isMobile = useIsBelowMdViewport();
-	const showPortsView = view === "ports" && isMobile;
+	const isBelowMd = useIsBelowMdViewport();
+	const showPortsView = view === "ports" && isBelowMd;
 
 	useEffect(() => {
-		if (!isMobile && view === "ports") {
+		if (!isBelowMd && view === "ports") {
 			setView("main");
 			setFocusPortsOnMain(false);
 		}
-	}, [isMobile, view]);
+	}, [isBelowMd, view]);
 
 	return (
 		<DropdownMenu
@@ -235,7 +235,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								host={host}
 								isOpen={open}
 								isRunning={isRunning}
-								isMobile={isMobile}
+								isBelowMd={isBelowMd}
 								focusOnMount={focusPortsOnMain}
 								onFocusApplied={() => setFocusPortsOnMain(false)}
 								onSelectInline={() => {
@@ -329,7 +329,7 @@ const PortsMenuItem: FC<{
 	host: string;
 	isOpen: boolean;
 	isRunning: boolean;
-	isMobile: boolean;
+	isBelowMd: boolean;
 	focusOnMount: boolean;
 	onFocusApplied: () => void;
 	onSelectInline: () => void;
@@ -339,7 +339,7 @@ const PortsMenuItem: FC<{
 	host,
 	isOpen,
 	isRunning,
-	isMobile,
+	isBelowMd,
 	focusOnMount,
 	onFocusApplied,
 	onSelectInline,
@@ -356,14 +356,14 @@ const PortsMenuItem: FC<{
 			: "Ports";
 
 	useEffect(() => {
-		if (!focusOnMount || !isMobile) {
+		if (!focusOnMount || !isBelowMd) {
 			return;
 		}
 		itemRef.current?.focus();
 		onFocusApplied();
-	}, [focusOnMount, isMobile, onFocusApplied]);
+	}, [focusOnMount, isBelowMd, onFocusApplied]);
 
-	if (isMobile) {
+	if (isBelowMd) {
 		return (
 			<DropdownMenuItem
 				ref={itemRef}
