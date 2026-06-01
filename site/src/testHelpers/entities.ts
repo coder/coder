@@ -1558,7 +1558,7 @@ export const MockBuilds = [
 
 export const MockWorkspace: TypesGen.Workspace = {
 	id: "test-workspace",
-	name: "Test-Workspace",
+	name: "test-workspace",
 	created_at: "",
 	updated_at: "",
 	template_id: MockTemplate.id,

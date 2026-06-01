@@ -226,7 +226,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isInterruptPending,
 	workspaceOptions = [],
 	selectedWorkspaceId = null,
-	onWorkspaceChange = () => {},
+	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
