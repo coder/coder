@@ -198,12 +198,9 @@ updates, or change administrator expectations:
 > minor versions is not required.
 >
 > This upgrade applies 108 database migrations. Coder applies them in order
-> on startup. Typical durations:
->
-> - Small deployments (under 1,000 users): under 1 minute.
-> - Medium deployments (1,000 to 10,000 users): 1 to 5 minutes.
-> - Large deployments (over 10,000 users): 5 to 15 minutes, longer for
->   deployments with heavy chat, audit log, or connection log volume.
+> on startup. Most migrations are schema changes that complete quickly. Expect
+> anywhere from under a minute to several minutes total, scaling with audit,
+> connection, and chat log volume.
 >
 > Take a database backup before upgrading and validate the upgrade in a
 > staging environment that mirrors production data volume.
