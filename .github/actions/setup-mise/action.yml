@@ -184,3 +184,12 @@ runs:
         $gitdir = "C:\Program Files\Git\usr\bin"
         $current = $env:Path
         "PATH=$gitdir;$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
+    - name: Verify printf availability (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: |
+        where printf
+        printf test-ok
+        echo.
+        echo EXIT_CODE=%ERRORLEVEL%
