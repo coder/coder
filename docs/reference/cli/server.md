@@ -1743,7 +1743,7 @@ Whether to start an in-memory AI Gateway instance.
 | YAML        | <code>ai_gateway.openai_base_url</code>        |
 | Default     | <code>https://api.openai.com/v1/</code>        |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The base URL of the OpenAI API.
 
 ### --ai-gateway-openai-key
 
@@ -1752,7 +1752,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_AI_GATEWAY_OPENAI_KEY</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The key to authenticate against the OpenAI API.
 
 ### --ai-gateway-anthropic-base-url
 
@@ -1763,7 +1763,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | YAML        | <code>ai_gateway.anthropic_base_url</code>        |
 | Default     | <code>https://api.anthropic.com/</code>           |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The base URL of the Anthropic API.
 
 ### --ai-gateway-anthropic-key
 
@@ -1772,7 +1772,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_KEY</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The key to authenticate against the Anthropic API.
 
 ### --ai-gateway-bedrock-base-url
 
@@ -1782,7 +1782,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_BASE_URL</code> |
 | YAML        | <code>ai_gateway.bedrock_base_url</code>        |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 
 ### --ai-gateway-bedrock-region
 
@@ -1792,7 +1792,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_REGION</code> |
 | YAML        | <code>ai_gateway.bedrock_region</code>        |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
 ### --ai-gateway-bedrock-access-key
 
@@ -1801,7 +1801,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The access key to authenticate against the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-access-key-secret
 
@@ -1810,7 +1810,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | Type        | <code>string</code>                                      |
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-model
 
@@ -1821,7 +1821,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | YAML        | <code>ai_gateway.bedrock_model</code>                         |
 | Default     | <code>global.anthropic.claude-sonnet-4-5-20250929-v1:0</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The model to use when making requests to the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-small-fastmodel
 
@@ -1832,7 +1832,7 @@ Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only 
 | YAML        | <code>ai_gateway.bedrock_small_fast_model</code>             |
 | Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
 
-Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
 ### --ai-gateway-retention
 

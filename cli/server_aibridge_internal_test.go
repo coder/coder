@@ -583,56 +583,48 @@ func TestWarnIfAIProvidersConfiguredFromEnv(t *testing.T) {
 		t.Parallel()
 
 		sink := testutil.NewFakeSink(t)
-		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
-			"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
-		}, nil)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, nil)
 
-		require.Empty(t, sink.Entries(nil))
+		require.Empty(t, sink.Entries())
 	})
 
-	t.Run("NoProviderEnv", func(t *testing.T) {
+	t.Run("EmptyPrefix", func(t *testing.T) {
 		t.Parallel()
 
 		sink := testutil.NewFakeSink(t)
-		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
-			"HOME=/home/coder",
-		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), "", []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
 
-		require.Empty(t, sink.Entries(nil))
+		require.Empty(t, sink.Entries())
 	})
 
 	t.Run("AIGatewayPrefix", func(t *testing.T) {
 		t.Parallel()
 
 		sink := testutil.NewFakeSink(t)
-		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
-			"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
-		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
 
 		entries := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider rows at startup"
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
 		})
 		require.Len(t, entries, 1)
 		require.Len(t, entries[0].Fields, 2)
-		assert.Equal(t, aiGatewayProviderEnvPrefix, entries[0].Fields[0].Value)
-		assert.Equal(t, "Manage AI Providers from the Coder UI or HTTP API.", entries[0].Fields[1].Value)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiGatewayProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
 	})
 
 	t.Run("AIBridgePrefix", func(t *testing.T) {
 		t.Parallel()
 
 		sink := testutil.NewFakeSink(t)
-		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), []string{
-			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-		}, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiBridgeProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
 
 		entries := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider rows at startup"
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
 		})
 		require.Len(t, entries, 1)
 		require.Len(t, entries[0].Fields, 2)
-		assert.Equal(t, aiBridgeProviderEnvPrefix, entries[0].Fields[0].Value)
-		assert.Equal(t, "Manage AI Providers from the Coder UI or HTTP API.", entries[0].Fields[1].Value)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiBridgeProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
 	})
 }
 
@@ -781,4 +773,15 @@ func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
 		panic(err)
 	}
 	return sql.NullString{String: string(data), Valid: true}
+}
+
+func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			assert.Equal(t, expected, f.Value)
+			return
+		}
+	}
+	t.Errorf("field %q not found", name)
 }

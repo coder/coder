@@ -1700,7 +1700,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 
 	// AI Gateway options
-	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup once-off, if configured."
+	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. This option only seeds provider configuration at startup one-off, if set. "
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
 		Description: "Whether to start an in-memory AI Gateway instance.",
@@ -1711,10 +1711,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
 	}
-	// The base URL of the OpenAI API.
 	aiGatewayOpenAIBaseURL := serpent.Option{
 		Name:        "AI Gateway OpenAI Base URL",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the OpenAI API.",
 		Flag:        "ai-gateway-openai-base-url",
 		Env:         "CODER_AI_GATEWAY_OPENAI_BASE_URL",
 		Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
@@ -1722,10 +1721,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "openai_base_url",
 	}
-	// The key to authenticate against the OpenAI API.
 	aiGatewayOpenAIKey := serpent.Option{
 		Name:        "AI Gateway OpenAI Key",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the OpenAI API.",
 		Flag:        "ai-gateway-openai-key",
 		Env:         "CODER_AI_GATEWAY_OPENAI_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
@@ -1733,10 +1731,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 	}
-	// The base URL of the Anthropic API.
 	aiGatewayAnthropicBaseURL := serpent.Option{
 		Name:        "AI Gateway Anthropic Base URL",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the Anthropic API.",
 		Flag:        "ai-gateway-anthropic-base-url",
 		Env:         "CODER_AI_GATEWAY_ANTHROPIC_BASE_URL",
 		Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
@@ -1744,10 +1741,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "anthropic_base_url",
 	}
-	// The key to authenticate against the Anthropic API.
 	aiGatewayAnthropicKey := serpent.Option{
 		Name:        "AI Gateway Anthropic Key",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the Anthropic API.",
 		Flag:        "ai-gateway-anthropic-key",
 		Env:         "CODER_AI_GATEWAY_ANTHROPIC_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
@@ -1755,11 +1751,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 	}
-	// The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use.
-	// Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 	aiGatewayBedrockBaseURL := serpent.Option{
 		Name:        "AI Gateway Bedrock Base URL",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.",
 		Flag:        "ai-gateway-bedrock-base-url",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
@@ -1767,11 +1761,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "bedrock_base_url",
 	}
-	// The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the
-	// form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 	aiGatewayBedrockRegion := serpent.Option{
 		Name:        "AI Gateway Bedrock Region",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
 		Flag:        "ai-gateway-bedrock-region",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
@@ -1779,10 +1771,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "bedrock_region",
 	}
-	// The access key to authenticate against the AWS Bedrock API.
 	aiGatewayBedrockAccessKey := serpent.Option{
 		Name:        "AI Gateway Bedrock Access Key",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The access key to authenticate against the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-access-key",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
@@ -1790,10 +1781,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 	}
-	// The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 	aiGatewayBedrockAccessKeySecret := serpent.Option{
 		Name:        "AI Gateway Bedrock Access Key Secret",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-access-key-secret",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
@@ -1801,10 +1791,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 	}
-	// The model to use when making requests to the AWS Bedrock API.
 	aiGatewayBedrockModel := serpent.Option{
 		Name:        "AI Gateway Bedrock Model",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The model to use when making requests to the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-model",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_MODEL",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
@@ -1812,12 +1801,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "bedrock_model",
 	}
-	// The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses
-	// Haiku-class models to perform background tasks. See
-	// https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 	aiGatewayBedrockSmallFastModel := serpent.Option{
 		Name:        "AI Gateway Bedrock Small Fast Model",
-		Description: aiGatewayProviderSeedingDeprecated,
+		Description: aiGatewayProviderSeedingDeprecated + "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 		Flag:        "ai-gateway-bedrock-small-fastmodel",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
