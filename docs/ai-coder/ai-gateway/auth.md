@@ -92,6 +92,10 @@ When no user credential is present, AI Gateway falls back to the admin-configure
 This approach offers centralized keys as a default,
 while allowing individual users to bring their own key.
 
+> [!NOTE]
+> When a BYOK credential is present, [key failover](./providers.md#key-failover)
+> is skipped.
+
 Visit individual [client pages](./clients/index.md) for configuration details.
 
 ### Enable or disable BYOK
