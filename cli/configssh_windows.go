@@ -52,11 +52,13 @@ func sshConfigMatchExecEscape(path string) (string, error) {
 
 	if strings.ContainsAny(path, " ") {
 		// c.f. function comment for how this works.
-		// Use the absolute path to powershell.exe to avoid
-		// issues with PATH resolution when both Path and
-		// PATH (MSYS) exist in the environment.
-		pwsh := filepath.Join(os.Getenv("SYSTEMROOT"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-		path = fmt.Sprintf("for /f %%%%a in ('%s -Command [char]34') do @cmd.exe /c %%%%a%s%%%%a", pwsh, path) //nolint:gocritic // We don't want %q here.
+		// Use absolute paths for powershell.exe and cmd.exe
+		// to avoid PATH resolution issues when both Path and
+		// PATH (MSYS-translated) exist in the environment.
+		sysRoot := os.Getenv("SYSTEMROOT")
+		pwsh := filepath.Join(sysRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+		cmd := filepath.Join(sysRoot, "System32", "cmd.exe")
+		path = fmt.Sprintf("for /f %%%%a in ('%s -Command [char]34') do @%s /c %%%%a%s%%%%a", pwsh, cmd, path) //nolint:gocritic // We don't want %q here.
 	}
 	return path, nil
 }
