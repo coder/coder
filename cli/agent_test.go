@@ -149,6 +149,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			coderURLEnv = "%CODER_URL%"
 		}
+		headerCommand := "echo X-Process-Testing=very-wow-" + coderURLEnv + " && echo X-Process-Testing2=more-wow"
 
 		logDir := t.TempDir()
 		agentInv, _ := clitest.New(t,
@@ -159,7 +160,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--log-dir", logDir,
 			"--agent-header", "X-Testing=agent",
 			"--agent-header", "Cool-Header=Ethan was Here!",
-			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+			"--agent-header-command", headerCommand,
 			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		clitest.Start(t, agentInv)

@@ -227,10 +227,22 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
-			// OpenSSH processes %% escape sequences into %
-			escaped = strings.ReplaceAll(escaped, "%%", "%")
-			b, err := exec.Command(cmd, arg, escaped).CombinedOutput() //nolint:gosec
-			require.NoError(t, err)
+			var b []byte
+			if runtime.GOOS == "windows" {
+				// OpenSSH does not invoke Match exec through Go's Windows
+				// command-line quoting. Run the command from a batch file so the
+				// generated %% escape sequences are interpreted like they are in
+				// the SSH config path.
+				script := filepath.Join(t.TempDir(), "match-exec.cmd")
+				err = os.WriteFile(script, []byte("@echo off\r\n"+escaped+"\r\n"), 0o755) //nolint:gosec
+				require.NoError(t, err)
+				b, err = exec.Command(cmd, arg, script).CombinedOutput() //nolint:gosec
+			} else {
+				// OpenSSH processes %% escape sequences into %.
+				escaped = strings.ReplaceAll(escaped, "%%", "%")
+				b, err = exec.Command(cmd, arg, escaped).CombinedOutput() //nolint:gosec
+			}
+			require.NoErrorf(t, err, "output: %s", b)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
 		})
