@@ -74,6 +74,40 @@ export const UsageLimitExceeded: Story = {
 	},
 };
 
+/**
+ * Provider quota errors use the standard ChatStatusCallout instead of the
+ * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * billing page).
+ */
+export const ProviderQuotaExceeded: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "usage_limit",
+				message:
+					"The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+				provider: "openai",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/usage quota for openai has been exceeded/i),
+		).toBeVisible();
+		// The "View Usage" link must NOT appear for provider-originated quota errors.
+		expect(
+			canvas.queryByRole("link", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+		// Should render ChatStatusCallout instead.
+		expect(
+			canvas.getByRole("heading", { name: /usage limit reached/i }),
+		).toBeVisible();
+	},
+};
+
 /** Provider failures keep the footer-level terminal callout and status link. */
 export const TerminalOverloadedError: Story = {
 	args: {
@@ -81,7 +115,7 @@ export const TerminalOverloadedError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "overloaded",
-				message: "Anthropic is temporarily overloaded (HTTP 529).",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -94,8 +128,9 @@ export const TerminalOverloadedError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
@@ -155,6 +190,41 @@ export const TerminalTimeoutErrorUnknownProvider: Story = {
 		expect(
 			canvas.getByText(/the ai provider is temporarily unavailable/i),
 		).toBeVisible();
+	},
+};
+
+/** Missing API key shows the "Chat interrupted" terminal error. */
+export const TerminalMissingKeyError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "missing_key",
+				message:
+					"This conversation was started with an API key that is no longer available. Send your message again to continue.",
+				retryable: false,
+				detail:
+					"If this error persists after resending, please report it as a bug.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /chat interrupted/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/this conversation was started with an api key that is no longer available/i,
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/if this error persists after resending/i),
+		).toBeVisible();
+		// Guard against the generic fallback.
+		expect(
+			canvas.queryByText(/the chat request failed unexpectedly/i),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -218,6 +288,40 @@ export const TerminalStartupTimeoutError: Story = {
 	},
 };
 
+/** Disabled provider errors render an admin-oriented message without retry. */
+export const TerminalProviderDisabledError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "provider_disabled",
+				message:
+					"The OpenAI provider has been disabled. Contact your Coder administrator.",
+				provider: "openai",
+				retryable: false,
+				statusCode: 503,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /provider disabled/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/the openai provider has been disabled.*contact your coder administrator/i,
+			),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 503$/)).toBeVisible();
+		// No retry or status link for administrative disablement.
+		expect(canvas.queryByText(/retrying/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Generic failures do not show usage or provider CTAs. */
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {
@@ -247,14 +351,14 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 	},
 };
 
-/** Provider detail renders as a muted secondary line under the main error. */
+/** Provider detail renders in a monospace block for generic errors. */
 export const GenericErrorShowsProviderDetail: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			streamError: {
 				kind: "generic",
-				message: "Anthropic returned an unexpected error (HTTP 400).",
+				message: "Anthropic returned an unexpected error.",
 				detail:
 					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
 				provider: "anthropic",
@@ -269,8 +373,9 @@ export const GenericErrorShowsProviderDetail: Story = {
 			canvas.getByRole("heading", { name: /request failed/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic returned an unexpected error \(http 400\)/i),
+			canvas.getByText(/anthropic returned an unexpected error\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
 		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };

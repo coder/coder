@@ -3,13 +3,20 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { ToolCollapsible } from "./ToolCollapsible";
+import {
+	type AgentDisplayState,
+	isAgentDisplayFullyExpanded,
+	resolveAgentDisplayState,
+} from "./displayMode";
+import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import {
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
@@ -18,22 +25,24 @@ import {
 	type ToolStatus,
 } from "./utils";
 
-/**
- * Collapsed-by-default rendering for `edit_files` tool calls.
- * Shows "Edited <filename>" (or "Edited N files") with a chevron;
- * expanding reveals a unified diff for each file.
- */
+const EDIT_FILES_AUTO_DISPLAY_STATE: AgentDisplayState = "preview";
+
 export const EditFilesTool: React.FC<{
 	files: EditFilesFileEntry[];
 	diffs: (FileDiffMetadata | null)[];
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ files, diffs, status, isError, errorMessage }) => {
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+}> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
+	const displayState = resolveAgentDisplayState(
+		codeDiffDisplayMode,
+		EDIT_FILES_AUTO_DISPLAY_STATE,
+	);
 
 	let label: string;
 	if (isRunning) {
@@ -54,17 +63,23 @@ export const EditFilesTool: React.FC<{
 	}
 
 	return (
-		<ToolCollapsible
+		<AgentDisplayModeToolCollapsible
 			className="w-full"
 			hasContent={hasDiffs}
-			defaultExpanded
+			displayMode={codeDiffDisplayMode}
+			autoDisplayState={EDIT_FILES_AUTO_DISPLAY_STATE}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon name="edit_files" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">{label}</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+								<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to edit files"}
@@ -72,7 +87,7 @@ export const EditFilesTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+						<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}
@@ -84,7 +99,11 @@ export const EditFilesTool: React.FC<{
 							key={files[i].path}
 							data-testid="edit-file-diff"
 							className="rounded-md border border-solid border-border-default text-2xs"
-							viewportClassName="max-h-64"
+							viewportClassName={
+								isAgentDisplayFullyExpanded(displayState)
+									? "max-h-[80vh]"
+									: "max-h-64"
+							}
 							scrollBarClassName="w-1.5"
 						>
 							<FileDiff
@@ -96,6 +115,6 @@ export const EditFilesTool: React.FC<{
 					) : null,
 				)}
 			</div>
-		</ToolCollapsible>
+		</AgentDisplayModeToolCollapsible>
 	);
 };

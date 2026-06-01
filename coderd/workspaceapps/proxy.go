@@ -701,7 +701,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Success 101
-// @Router /workspaceagents/{workspaceagent}/pty [get]
+// @Router /api/v2/workspaceagents/{workspaceagent}/pty [get]
 func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()

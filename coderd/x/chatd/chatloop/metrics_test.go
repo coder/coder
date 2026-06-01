@@ -2,6 +2,7 @@ package chatloop_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
@@ -33,7 +35,7 @@ func TestNewMetrics_RegistersAllMetrics(t *testing.T) {
 	m.PromptSizeBytes.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.TTFTSeconds.WithLabelValues("anthropic", "claude-sonnet-4-5")
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5")
-	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout)
+	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", string(codersdk.ChatErrorKindTimeout), "false")
 	// StreamBufferDroppedTotal is a plain Counter, so it's always present
 	// in Gather output once registered; no exerciser call is
 	// needed.
@@ -87,14 +89,14 @@ func TestNopMetrics_DoesNotPanic(t *testing.T) {
 	m.CompactionTotal.WithLabelValues("openai", "gpt-5", "error").Inc()
 	m.CompactionTotal.WithLabelValues("google", "gemini-2.5-pro", "timeout").Inc()
 	m.StepsTotal.WithLabelValues("anthropic", "claude-sonnet-4-5").Inc()
-	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", chaterror.KindTimeout).Inc()
+	m.StreamRetriesTotal.WithLabelValues("anthropic", "claude-sonnet-4-5", string(codersdk.ChatErrorKindTimeout), "false").Inc()
 	m.StreamBufferDroppedTotal.Inc()
 
 	// Nil-receiver guard for RecordStreamRetry and
 	// RecordStreamBufferDropped mirrors the existing RecordCompaction nil
 	// guard.
 	var nilMetrics *chatloop.Metrics
-	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: chaterror.KindTimeout})
+	nilMetrics.RecordStreamRetry("anthropic", "claude-sonnet-4-5", chaterror.ClassifiedError{Kind: codersdk.ChatErrorKindTimeout})
 	nilMetrics.RecordStreamBufferDropped()
 	nilMetrics.RecordToolError("anthropic", "claude-sonnet-4-5", "test")
 }
@@ -279,21 +281,24 @@ func TestRecordCompaction(t *testing.T) {
 func TestRecordStreamRetry(t *testing.T) {
 	t.Parallel()
 
-	// One row per chaterror.Kind* constant. Production callers always
+	// One row per ChatErrorKind constant. Production callers always
 	// reach RecordStreamRetry through chaterror.Classify, which
 	// guarantees Kind is non-empty, so no empty-string case is
 	// needed.
 	tests := []struct {
-		name string
-		kind string
+		name        string
+		kind        codersdk.ChatErrorKind
+		chainBroken bool
 	}{
-		{name: "overloaded", kind: chaterror.KindOverloaded},
-		{name: "rate_limit", kind: chaterror.KindRateLimit},
-		{name: "timeout", kind: chaterror.KindTimeout},
-		{name: "startup_timeout", kind: chaterror.KindStartupTimeout},
-		{name: "auth", kind: chaterror.KindAuth},
-		{name: "config", kind: chaterror.KindConfig},
-		{name: "generic", kind: chaterror.KindGeneric},
+		{name: "overloaded", kind: codersdk.ChatErrorKindOverloaded},
+		{name: "rate_limit", kind: codersdk.ChatErrorKindRateLimit},
+		{name: "timeout", kind: codersdk.ChatErrorKindTimeout},
+		{name: "startup_timeout", kind: codersdk.ChatErrorKindStartupTimeout},
+		{name: "auth", kind: codersdk.ChatErrorKindAuth},
+		{name: "config", kind: codersdk.ChatErrorKindConfig},
+		{name: "missing_key", kind: codersdk.ChatErrorKindMissingKey},
+		{name: "generic", kind: codersdk.ChatErrorKindGeneric},
+		{name: "chain_broken", kind: codersdk.ChatErrorKindGeneric, chainBroken: true},
 	}
 
 	for _, tt := range tests {
@@ -303,13 +308,15 @@ func TestRecordStreamRetry(t *testing.T) {
 			reg := prometheus.NewRegistry()
 			m := chatloop.NewMetrics(reg)
 			m.RecordStreamRetry("test-provider", "test-model", chaterror.ClassifiedError{
-				Kind: tt.kind,
+				Kind:        tt.kind,
+				ChainBroken: tt.chainBroken,
 			})
 
 			requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
-				"provider": "test-provider",
-				"model":    "test-model",
-				"kind":     tt.kind,
+				"provider":     "test-provider",
+				"model":        "test-model",
+				"kind":         string(tt.kind),
+				"chain_broken": strconv.FormatBool(tt.chainBroken),
 			})
 		})
 	}
@@ -558,14 +565,15 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	// Back-compat: OnRetry still fires with classified error.
 	require.Len(t, retries, 1)
 	assert.Equal(t, 1, retries[0].attempt)
-	assert.Equal(t, chaterror.KindRateLimit, retries[0].classified.Kind)
+	assert.Equal(t, codersdk.ChatErrorKindRateLimit, retries[0].classified.Kind)
 	assert.Equal(t, "test-provider", retries[0].classified.Provider)
 
 	// Metric assertion.
 	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
-		"provider": "test-provider",
-		"model":    "test-model",
-		"kind":     chaterror.KindRateLimit,
+		"provider":     "test-provider",
+		"model":        "test-model",
+		"kind":         string(codersdk.ChatErrorKindRateLimit),
+		"chain_broken": "false",
 	})
 }
 

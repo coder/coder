@@ -3,78 +3,72 @@ package chaterror
 import (
 	"fmt"
 	"strings"
+
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // terminalMessage produces the user-facing error description shown
-// when retries are exhausted. It includes HTTP status codes and
-// actionable remediation guidance.
+// when retries are exhausted. HTTP status codes are carried in the
+// classified payload's StatusCode field and rendered as a separate
+// footer chip by the UI, so they are intentionally omitted here to
+// avoid duplicating the same information in two places.
 func terminalMessage(classified ClassifiedError) string {
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
-	case KindOverloaded:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily overloaded (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		return fmt.Sprintf("%s is temporarily overloaded.", subject)
+	case codersdk.ChatErrorKindOverloaded:
+		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily overloaded.", subject))
 
-	case KindRateLimit:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is rate limiting requests (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		return fmt.Sprintf("%s is rate limiting requests.", subject)
+	case codersdk.ChatErrorKindRateLimit:
+		return stringutil.Capitalize(fmt.Sprintf("%s is rate limiting requests.", subject))
 
-	case KindTimeout:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s is temporarily unavailable (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+	case codersdk.ChatErrorKindTimeout:
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The request timed out before it completed."
 		}
-		return fmt.Sprintf("%s is temporarily unavailable.", subject)
+		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily unavailable.", subject))
 
-	case KindStartupTimeout:
-		return fmt.Sprintf(
+	case codersdk.ChatErrorKindStartupTimeout:
+		return stringutil.Capitalize(fmt.Sprintf(
 			"%s did not start responding in time.", subject,
-		)
+		))
 
-	case KindAuth:
-		displayName := providerDisplayName(classified.Provider)
-		if displayName == "" {
-			displayName = "the AI provider"
-		}
+	case codersdk.ChatErrorKindUsageLimit:
+		return stringutil.Capitalize(fmt.Sprintf(
+			"The usage quota for %s has been exceeded."+
+				" Check the billing and quota settings for the provider account.",
+			subject,
+		))
+
+	case codersdk.ChatErrorKindAuth:
 		return fmt.Sprintf(
 			"Authentication with %s failed."+
-				" Check the API key, permissions, and billing settings.",
-			displayName,
-		)
-
-	case KindConfig:
-		return fmt.Sprintf(
-			"%s rejected the model configuration."+
-				" Check the selected model and provider settings.",
+				" Check the API key and permissions.",
 			subject,
 		)
 
+	case codersdk.ChatErrorKindConfig:
+		return stringutil.Capitalize(fmt.Sprintf(
+			"%s rejected the model configuration."+
+				" Check the selected model and provider settings.",
+			subject,
+		))
+
+	case codersdk.ChatErrorKindMissingKey:
+		return "This conversation was started with an API key that is no longer available." +
+			" Send your message again to continue."
+	case codersdk.ChatErrorKindProviderDisabled:
+		displayName := providerDisplayName(classified.Provider)
+		return fmt.Sprintf(
+			"The %s provider has been disabled."+
+				" Contact your Coder administrator.",
+			displayName,
+		)
 	default:
-		if classified.StatusCode > 0 {
-			return fmt.Sprintf(
-				"%s returned an unexpected error (HTTP %d).",
-				subject, classified.StatusCode,
-			)
-		}
-		if !classified.Retryable {
+		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
 		}
-		return fmt.Sprintf("%s returned an unexpected error.", subject)
+		return stringutil.Capitalize(fmt.Sprintf("%s returned an unexpected error.", subject))
 	}
 }
 
@@ -83,42 +77,50 @@ func terminalMessage(classified ClassifiedError) string {
 // codes (surfaced separately in the payload) and remediation
 // guidance (not actionable while auto-retrying).
 func retryMessage(classified ClassifiedError) string {
+	if classified.Retryable && classified.Message != "" {
+		return classified.Message
+	}
+
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
-	case KindOverloaded:
-		return fmt.Sprintf("%s is temporarily overloaded.", subject)
-	case KindRateLimit:
-		return fmt.Sprintf("%s is rate limiting requests.", subject)
-	case KindTimeout:
-		return fmt.Sprintf("%s is temporarily unavailable.", subject)
-	case KindStartupTimeout:
-		return fmt.Sprintf(
+	case codersdk.ChatErrorKindOverloaded:
+		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily overloaded.", subject))
+	case codersdk.ChatErrorKindRateLimit:
+		return stringutil.Capitalize(fmt.Sprintf("%s is rate limiting requests.", subject))
+	case codersdk.ChatErrorKindTimeout:
+		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily unavailable.", subject))
+	case codersdk.ChatErrorKindStartupTimeout:
+		return stringutil.Capitalize(fmt.Sprintf(
 			"%s did not start responding in time.", subject,
-		)
-	case KindAuth:
-		displayName := providerDisplayName(classified.Provider)
-		if displayName == "" {
-			displayName = "the AI provider"
-		}
+		))
+	case codersdk.ChatErrorKindAuth:
 		return fmt.Sprintf(
-			"Authentication with %s failed.", displayName,
+			"Authentication with %s failed.", subject,
 		)
-	case KindConfig:
-		return fmt.Sprintf(
+	case codersdk.ChatErrorKindConfig:
+		return stringutil.Capitalize(fmt.Sprintf(
 			"%s rejected the model configuration.", subject,
+		))
+	case codersdk.ChatErrorKindMissingKey:
+		return "The API key for this conversation is no longer available."
+	case codersdk.ChatErrorKindProviderDisabled:
+		displayName := providerDisplayName(classified.Provider)
+		return fmt.Sprintf(
+			"The %s provider has been disabled by an administrator.",
+			displayName,
 		)
 	default:
-		return fmt.Sprintf(
+		return stringutil.Capitalize(fmt.Sprintf(
 			"%s returned an unexpected error.", subject,
-		)
+		))
 	}
 }
 
 func providerSubject(provider string) string {
-	if displayName := providerDisplayName(provider); displayName != "" {
+	if displayName := providerDisplayName(provider); displayName != "AI" && displayName != "" {
 		return displayName
 	}
-	return "The AI provider"
+	return "the AI provider"
 }
 
 func providerDisplayName(provider string) string {
@@ -140,7 +142,7 @@ func providerDisplayName(provider string) string {
 	case "vercel":
 		return "Vercel AI Gateway"
 	default:
-		return ""
+		return "AI"
 	}
 }
 

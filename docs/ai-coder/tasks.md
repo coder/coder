@@ -1,10 +1,17 @@
 # Coder Tasks
 
+> [!WARNING]
+> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
+>
+> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
+>
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+
 Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
-Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access) to take a task to completion.
+Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access/index.md) to take a task to completion.
 
 You can also interact with Coder Tasks from your IDE. The [Coder extension for VS Code](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) (and compatible forks like Cursor) enables you to create, monitor, and manage Tasks directly from the IDE, eliminating the need to context-switch to a browser. After logging in, you get access to a dedicated Tasks view in the sidebar that lets you select a template, configure parameters, prompt an agent, and track task status or download logs. Your tasks run in Coder workspaces with access to your repos, credentials, and internal network.
 

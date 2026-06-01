@@ -1013,7 +1013,6 @@ func TestProvision(t *testing.T) {
 				}},
 				HasExternalAgents: true,
 			},
-			SkipCacheProviders: true,
 		},
 		{
 			Name: "ai-task-app-id",
@@ -1046,7 +1045,6 @@ func TestProvision(t *testing.T) {
 				},
 				HasAiTasks: true,
 			},
-			SkipCacheProviders: true,
 		},
 		{
 			Name: "malicious-tar",

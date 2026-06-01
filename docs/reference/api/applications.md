@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /applications/auth-redirect`
+`GET /api/v2/applications/auth-redirect`
 
 ### Parameters
 
@@ -37,7 +37,7 @@ curl -X GET http://coder-server:8080/api/v2/applications/host \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /applications/host`
+`GET /api/v2/applications/host`
 
 ### Example responses
 

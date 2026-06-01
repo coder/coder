@@ -26,7 +26,7 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.AppearanceConfig
-// @Router /appearance [get]
+// @Router /api/v2/appearance [get]
 func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	af := *api.AGPL.AppearanceFetcher.Load()
 	cfg, err := af.Fetch(r.Context())
@@ -141,7 +141,7 @@ func validateHexColor(color string) error {
 // @Tags Enterprise
 // @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
 // @Success 200 {object} codersdk.UpdateAppearanceConfig
-// @Router /appearance [put]
+// @Router /api/v2/appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

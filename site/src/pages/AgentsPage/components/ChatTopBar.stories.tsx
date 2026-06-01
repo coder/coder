@@ -1,6 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { PopoverContent } from "#/components/Popover/Popover";
 import { ChatTopBar } from "./ChatTopBar";
+
+// Probe element rendered at /agents to verify search params are preserved
+// when the mobile back button navigates away from a chat.
+const AgentsSearchProbe = () => {
+	const location = useLocation();
+	return <div data-testid="agents-search">{location.search}</div>;
+};
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
@@ -51,12 +61,13 @@ export const WithParentChat: Story = {
 			id: "parent-chat-1",
 			organization_id: "test-org-id",
 			owner_id: "owner-id",
+			owner_username: "owner",
 			last_model_config_id: "model-config-1",
 			mcp_server_ids: [],
 			labels: {},
 			title: "Set up CI/CD pipeline",
 			status: "completed",
-			last_error: null,
+			last_turn_summary: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
@@ -240,6 +251,79 @@ export const GenerateTitle: Story = {
 			const body = within(document.body);
 			expect(body.getByText("Generate new title")).toBeInTheDocument();
 		});
+	},
+};
+
+export const PreservesArchivedFilterOnMobileBack: Story = {
+	decorators: mobileDecorator,
+	parameters: {
+		chromatic: { viewports: [390] },
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/chat-123",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{ path: "/agents/:agentId", useStoryElement: true },
+				{ path: "/agents", element: <AgentsSearchProbe /> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backLink = await canvas.findByLabelText("Back");
+		await userEvent.click(backLink);
+		await waitFor(() => {
+			expect(canvas.getByTestId("agents-search")).toHaveTextContent(
+				"?archived=archived",
+			);
+		});
+	},
+};
+
+export const ShareChatButton: Story = {
+	args: {
+		renderChatSharingContent: () => (
+			<PopoverContent align="end">Share chat</PopoverContent>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Share")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Share" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
+		const body = within(document.body);
+		expect(await body.findByText("Share chat")).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		await body.findByText("Generate new title");
+		expect(
+			body.queryByRole("menuitem", { name: "Share" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ShareChatButtonHiddenWithoutPermission: Story = {
+	args: {
+		renderChatSharingContent: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: "Share chat" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Share" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		await body.findByText("Generate new title");
+		expect(
+			body.queryByRole("menuitem", { name: "Share" }),
+		).not.toBeInTheDocument();
 	},
 };
 

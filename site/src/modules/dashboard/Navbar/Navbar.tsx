@@ -27,6 +27,7 @@ export const Navbar: FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
+	const canViewAISettings = permissions.viewAnyAIProvider;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -38,7 +39,6 @@ export const Navbar: FC = () => {
 	return (
 		<NavbarView
 			user={me}
-			logo_url={appearance.logo_url}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
 			onSignOut={signOut}
@@ -48,6 +48,7 @@ export const Navbar: FC = () => {
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
 			canViewAIBridge={canViewAIBridge}
+			canViewAISettings={canViewAISettings}
 			canCreateChat={canCreateChat}
 			proxyContextValue={proxyContextValue}
 		/>

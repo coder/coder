@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/shared"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -20,6 +21,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -44,11 +46,19 @@ type interceptionBase struct {
 	credential intercept.CredentialInfo
 }
 
+// newCompletionsService builds the SDK service used for upstream
+// calls. BYOK auth is set here. Centralized auth is set
+// per-attempt by the failover loop.
 func (i *interceptionBase) newCompletionsService() openai.ChatCompletionService {
-	opts := []option.RequestOption{option.WithAPIKey(i.cfg.Key), option.WithBaseURL(i.cfg.BaseURL)}
-	if i.cfg.MaxRetries != nil {
-		opts = append(opts, option.WithMaxRetries(*i.cfg.MaxRetries))
+	// TODO(ssncferreira): validate auth is configured per
+	// https://github.com/coder/aibridge/issues/266.
+
+	var opts []option.RequestOption
+	// BYOK auth.
+	if i.cfg.KeyPool == nil {
+		opts = append(opts, option.WithAPIKey(i.cfg.Key))
 	}
+	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Add extra headers if configured.
 	// Some providers require additional headers that are not added by the SDK.
@@ -176,12 +186,16 @@ func (i *interceptionBase) unmarshalArgs(in string) (args recorder.ToolArgs) {
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *responseError) {
+func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
 	if oaiErr == nil {
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Set Retry-After when a cooldown is configured.
+	if oaiErr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(oaiErr.RetryAfter.Seconds()))))
+	}
 	w.WriteHeader(oaiErr.StatusCode)
 
 	out, err := json.Marshal(oaiErr)
@@ -193,11 +207,29 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *res
 		"type": "error",
 		"message":"error marshaling upstream error",
 		"code": "server_error"
-	},
+	}
 }`))
 	} else {
 		_, _ = w.Write(out)
 	}
+}
+
+// For centralized requests, markKeyOnError extracts an OpenAI
+// SDK error from err and marks the key based on its status
+// code. Returns true if the status was a key-specific failover
+// trigger so callers can retry with the next key.
+func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
+	if i.cfg.KeyPool == nil {
+		return false
+	}
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return keypool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response,
+		i.logger, i.providerName,
+	)
 }
 
 func (i *interceptionBase) hasInjectableTools() bool {
@@ -229,44 +261,4 @@ func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
 	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
 	return in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
 		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */
-}
-
-func getErrorResponse(err error) *responseError {
-	var apiErr *openai.Error
-	if !errors.As(err, &apiErr) {
-		return nil
-	}
-
-	return &responseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    apiErr.Code,
-			Message: apiErr.Message,
-			Type:    apiErr.Type,
-		},
-		StatusCode: apiErr.StatusCode,
-	}
-}
-
-var _ error = &responseError{}
-
-type responseError struct {
-	ErrorObject *shared.ErrorObject `json:"error"`
-	StatusCode  int                 `json:"-"`
-}
-
-func newErrorResponse(msg error) *responseError {
-	return &responseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    "error",
-			Message: msg.Error(),
-			Type:    "error",
-		},
-	}
-}
-
-func (a *responseError) Error() string {
-	if a.ErrorObject == nil {
-		return ""
-	}
-	return a.ErrorObject.Message
 }

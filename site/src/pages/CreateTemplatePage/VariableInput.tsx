@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
@@ -17,11 +16,13 @@ interface VariableLabelProps {
 const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	return (
 		<label htmlFor={variable.name}>
-			<span css={styles.labelName}>
+			<span className="mb-1 block text-sm text-content-secondary">
 				var.{variable.name}
 				{!variable.required && " (optional)"}
 			</span>
-			<span css={styles.labelDescription}>{variable.description}</span>
+			<span className="block text-base font-semibold text-content-primary">
+				{variable.description}
+			</span>
 		</label>
 	);
 };
@@ -42,7 +43,7 @@ export const VariableInput: FC<VariableInputProps> = ({
 	return (
 		<div className="flex flex-col gap-1.5">
 			<VariableLabel variable={variable} />
-			<div css={styles.input}>
+			<div className="flex flex-col">
 				<VariableField
 					disabled={disabled}
 					onChange={onChange}
@@ -109,22 +110,3 @@ const VariableField: FC<VariableInputProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	labelName: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		display: "block",
-		marginBottom: 4,
-	}),
-	labelDescription: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.primary,
-		display: "block",
-		fontWeight: 600,
-	}),
-	input: {
-		display: "flex",
-		flexDirection: "column",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

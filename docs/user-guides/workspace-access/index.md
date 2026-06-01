@@ -132,7 +132,7 @@ on connecting your JetBrains IDEs.
 [code-server](https://github.com/coder/code-server) is our supported method of
 running VS Code in the web browser.
 Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the
-[documentation for code-server](https://coder.com/docs/code-server/latest).
+[documentation for code-server](https://coder.com/docs/code-server).
 
 ![code-server in a workspace](../../images/code-server-ide.png)
 
@@ -155,11 +155,24 @@ of tools for extending the capability of your workspace. If you have a request
 for a new IDE or tool, please file an issue in our
 [Modules repo](https://github.com/coder/registry/issues).
 
+## Coder Desktop
+
+[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a VPN tunnel. With Coder Desktop, you get:
+
+- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no manual setup
+- **SSH access**: Connect with `ssh workspace-name.coder` using any SSH client
+- **File sync**: Bidirectional file synchronization between local and remote directories
+
+Coder Desktop is the recommended way to access workspace services for developers who want a seamless, native experience.
+
 ## Ports and Port forwarding
 
-You can manage listening ports on your workspace page through with the listening
+You can manage listening ports on your workspace page through the listening
 ports window in the dashboard. These ports are often used to run internal
 services or preview environments.
+
+> [!TIP]
+> For automatic access to all ports without manual configuration, use [Coder Desktop](../desktop/index.md).
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through

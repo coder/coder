@@ -40,7 +40,7 @@ type ChatStreamNotifyMessage struct {
 	// ErrorPayload carries a structured error event for cross-replica
 	// live delivery. Keep Error for backward compatibility with older
 	// replicas during rolling deploys.
-	ErrorPayload *codersdk.ChatStreamError `json:"error_payload,omitempty"`
+	ErrorPayload *codersdk.ChatError `json:"error_payload,omitempty"`
 
 	// Error is the legacy string-only error payload kept for mixed-
 	// version compatibility during rollout.

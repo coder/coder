@@ -667,7 +667,7 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 
 			// Configure template with activity_bump to enable deadline bumping.
 			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-				ActivityBumpMillis: time.Hour.Milliseconds(),
+				ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 
@@ -1874,6 +1874,51 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestWorkspaceAgentRecreateDevcontainerAuthorization(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		role func(uuid.UUID) rbac.RoleIdentifier
+	}{
+		{
+			name: "TemplateAdmin",
+			role: func(uuid.UUID) rbac.RoleIdentifier {
+				return rbac.RoleTemplateAdmin()
+			},
+		},
+		{
+			name: "OrgTemplateAdmin",
+			role: rbac.ScopedRoleOrgTemplateAdmin,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx                    = testutil.Context(t, testutil.WaitMedium)
+				client, db             = coderdtest.NewWithDatabase(t, nil)
+				admin                  = coderdtest.CreateFirstUser(t, client)
+				_, workspaceOwner      = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				templateAdminClient, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, tc.role(admin.OrganizationID))
+				workspace              = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        workspaceOwner.ID,
+				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+					return agents
+				}).Do()
+			)
+
+			_, err := templateAdminClient.WorkspaceAgentRecreateDevcontainer(ctx, workspace.Agents[0].ID, uuid.NewString())
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	}
 }
 
 func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
@@ -3139,7 +3184,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC28(ctx)
+	aAPI, _, err := client.ConnectRPC29(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

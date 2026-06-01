@@ -182,7 +182,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 }
 
 // InTx performs database operations inside a transaction.
-func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) error {
+func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) (err error) {
 	if _, ok := q.db.(*sqlx.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle

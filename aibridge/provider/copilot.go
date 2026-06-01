@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,10 +12,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -61,16 +61,6 @@ func NewCopilot(cfg config.Copilot) *Copilot {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = copilotBaseURL
 	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("COPILOT_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
-		}
-	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.OpenErrorResponse = copilotOpenErrorResponse
 	}
@@ -87,6 +77,8 @@ func (*Copilot) Type() string {
 func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
+
+func (*Copilot) Enabled() bool { return true }
 
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
@@ -117,11 +109,11 @@ func (*Copilot) AuthHeader() string {
 	return "Authorization"
 }
 
-// InjectAuthHeader is a no-op for Copilot.
-// Copilot uses per-user tokens passed in the original Authorization header,
-// rather than a global key configured at the provider level.
-// The original Authorization header flows through untouched from the client.
-func (*Copilot) InjectAuthHeader(_ *http.Header) {}
+// KeyFailoverConfig returns a config with a nil Pool, which makes
+// the KeyFailoverTransport short-circuit. Copilot is always BYOK.
+func (*Copilot) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
+	return keypool.KeyFailoverConfig{}
+}
 
 func (p *Copilot) CircuitBreakerConfig() *config.CircuitBreaker {
 	return p.circuitBreaker
@@ -153,7 +145,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		APIDumpDir:     p.cfg.APIDumpDir,
 		CircuitBreaker: p.cfg.CircuitBreaker,
 		ExtraHeaders:   extractCopilotHeaders(r),
-		MaxRetries:     p.cfg.MaxRetries,
 	}
 
 	cred := intercept.NewCredentialInfo(intercept.CredentialKindBYOK, key)

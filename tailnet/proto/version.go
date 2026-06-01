@@ -64,9 +64,14 @@ import (
 // API v2.8:
 //   - Added support for pre-created sub agents on the Agent API.
 //   - Added support for UpdateAppStatus on the Agent API.
+//
+// API v2.9:
+//   - Added session_id and confined_process fields to
+//     ReportBoundaryLogsRequest on the Agent API.
+//   - Added sequence_number field to BoundaryLog on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 8
+	CurrentMinor = 9
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

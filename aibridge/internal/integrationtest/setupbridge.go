@@ -3,6 +3,7 @@ package integrationtest
 import (
 	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -238,10 +239,12 @@ func setupInjectedToolTest(
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Wait both requests (initial + tool call result)
-	require.Eventually(t, func() bool {
-		return upstream.Calls.Load() == 2
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	// Drain the body so the bridge handler returns and asyncRecorder.Wait()
+	// flushes pending recordings (see aibridge/bridge.go:newInterceptionProcessor).
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(body))
 
 	return bridgeServer, mockMCP, resp
 }

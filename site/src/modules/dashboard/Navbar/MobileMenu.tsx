@@ -22,6 +22,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
@@ -78,6 +79,16 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/workspaces">Workspaces</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/templates">Templates</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild className={itemStyles.default}>
+					<Link to="/agents">Agents</Link>
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
 				{hasSomePermission && (
@@ -124,7 +135,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
-						<img
+						<ExternalImage
 							className="w-4 h-4"
 							src={selectedProxy.icon_url}
 							alt={selectedProxy.name}
@@ -161,7 +172,11 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									setOpen(false);
 								}}
 							>
-								<img className="w-4 h-4" src={p.icon_url} alt={p.name} />
+								<ExternalImage
+									className="w-4 h-4"
+									src={p.icon_url}
+									alt={p.name}
+								/>
 								{p.display_name || p.name}
 								{latency ? (
 									<Latency className="ml-auto" latency={latency.latencyMS} />
@@ -193,7 +208,6 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 
 const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
-	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewHealth,
@@ -225,14 +239,12 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
-				{canViewOrganizations && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/organizations">Organizations</Link>
-					</DropdownMenuItem>
-				)}
+				<DropdownMenuItem
+					asChild
+					className={cn(itemStyles.default, itemStyles.sub)}
+				>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
 				{canViewAuditLog && (
 					<DropdownMenuItem
 						asChild

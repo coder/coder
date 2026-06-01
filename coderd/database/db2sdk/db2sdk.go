@@ -19,6 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
@@ -40,6 +41,80 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 		Type: codersdk.RBACResource(entry.Type),
 		ID:   entry.ID,
 	}
+}
+
+// AIProvider converts a database row plus its API keys into the
+// codersdk shape. The caller is responsible for ensuring the row and
+// keys have been decrypted (i.e. fetched through the dbcrypt-wrapped
+// store). Each api_key is masked via aibridge utils.MaskSecret and
+// write-only fields on Settings are stripped, so the result is safe
+// to echo back in API responses.
+func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	out := codersdk.AIProvider{
+		ID:          row.ID,
+		Type:        codersdk.AIProviderType(row.Type),
+		Name:        row.Name,
+		DisplayName: display,
+		Enabled:     row.Enabled,
+		BaseURL:     row.BaseUrl,
+		APIKeys:     maskAIProviderKeys(keys),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+	s, err := AIProviderSettings(row.Settings)
+	if err != nil {
+		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
+	}
+	out.Settings = redactAIProviderSettings(s)
+	return out, nil
+}
+
+// AIProviderSettings parses the on-disk JSON form back into a codersdk
+// settings value. SQL NULL and the empty string decode to the zero
+// value.
+func AIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error) {
+	if !col.Valid || col.String == "" {
+		return codersdk.AIProviderSettings{}, nil
+	}
+	var s codersdk.AIProviderSettings
+	if err := json.Unmarshal([]byte(col.String), &s); err != nil {
+		return codersdk.AIProviderSettings{}, err
+	}
+	return s, nil
+}
+
+// maskAIProviderKeys converts the supplied database rows into the
+// public-facing AIProviderKey shape, preserving order. Plaintext is
+// replaced by a non-reversible mask (see aibridgeutils.MaskSecret) so
+// the result is safe to embed in API responses.
+func maskAIProviderKeys(keys []database.AIProviderKey) []codersdk.AIProviderKey {
+	out := make([]codersdk.AIProviderKey, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, codersdk.AIProviderKey{
+			ID:        k.ID,
+			Masked:    aibridgeutils.MaskSecret(k.APIKey),
+			CreatedAt: k.CreatedAt,
+		})
+	}
+	return out
+}
+
+// redactAIProviderSettings strips write-only fields from a settings
+// value so it can be safely echoed back in API responses.
+func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProviderSettings {
+	out := s
+	if out.Bedrock != nil {
+		// Deep-copy so we don't mutate the caller's struct.
+		b := *out.Bedrock
+		b.AccessKey = nil
+		b.AccessKeySecret = nil
+		out.Bedrock = &b
+	}
+	return out
 }
 
 type ExternalAuthMeta struct {
@@ -675,6 +750,27 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+	script := codersdk.WorkspaceAgentScript{
+		ID:               dbScript.ID,
+		LogPath:          dbScript.LogPath,
+		LogSourceID:      dbScript.LogSourceID,
+		Script:           dbScript.Script,
+		Cron:             dbScript.Cron,
+		RunOnStart:       dbScript.RunOnStart,
+		RunOnStop:        dbScript.RunOnStop,
+		StartBlocksLogin: dbScript.StartBlocksLogin,
+		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		DisplayName:      dbScript.DisplayName,
+		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
+	}
+	if dbScript.Status.Valid {
+		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
+		script.Status = &status
+	}
+	return script
+}
+
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
 		ID:             dbDaemon.ID,
@@ -876,6 +972,13 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 			policy.ActionWorkspaceStart,
 			policy.ActionWorkspaceStop,
 		}
+	}
+	return []policy.Action{}
+}
+
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
 	}
 	return []policy.Action{}
 }
@@ -1397,6 +1500,25 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
+func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+	return codersdk.GroupAIBudget{
+		GroupID:          b.GroupID,
+		SpendLimitMicros: b.SpendLimitMicros,
+		CreatedAt:        b.CreatedAt,
+		UpdatedAt:        b.UpdatedAt,
+	}
+}
+
+func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+	return codersdk.UserAIBudgetOverride{
+		UserID:           o.UserID,
+		GroupID:          o.GroupID,
+		SpendLimitMicros: o.SpendLimitMicros,
+		CreatedAt:        o.CreatedAt,
+		UpdatedAt:        o.UpdatedAt,
+	}
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
@@ -1563,6 +1685,13 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	return &value
 }
 
+func nullInt32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
+}
+
 func nullStringPtr(v sql.NullString) *string {
 	if !v.Valid {
 		return nil
@@ -1577,6 +1706,34 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	}
 	value := v.Time
 	return &value
+}
+
+const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
+
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
+	if !raw.Valid {
+		return nil
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return &codersdk.ChatError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    codersdk.ChatErrorKindGeneric,
+		}
+	}
+
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Detail = strings.TrimSpace(payload.Detail)
+	payload.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(payload.Kind)))
+	payload.Provider = strings.TrimSpace(payload.Provider)
+	if payload.Kind == "" {
+		payload.Kind = codersdk.ChatErrorKindGeneric
+	}
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
@@ -1594,10 +1751,13 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
+		OwnerUsername:     c.OwnerUsername,
+		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
@@ -1608,9 +1768,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
+		LastError:         lastError,
 	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
@@ -1886,7 +2047,7 @@ func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.
 		// so branch URLs for GitHub Enterprise instances will
 		// be incorrect. To fix this, this function would need
 		// access to the external auth configs.
-		gp := gitprovider.New("github", "", nil)
+		gp, _ := gitprovider.New("github", "", nil)
 		if gp != nil {
 			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {
 				branchURL := gp.BuildBranchURL(owner, repo, status.GitBranch)
@@ -1978,4 +2139,38 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 		result = append(result, UserSecret(s))
 	}
 	return result
+}
+
+// UserSkill converts a database UserSkill to an SDK UserSkill.
+func UserSkill(skill database.UserSkill) codersdk.UserSkill {
+	return codersdk.UserSkill{
+		UserSkillMetadata: codersdk.UserSkillMetadata{
+			ID:          skill.ID,
+			Name:        skill.Name,
+			Description: skill.Description,
+			CreatedAt:   skill.CreatedAt,
+			UpdatedAt:   skill.UpdatedAt,
+		},
+		Content: skill.Content,
+	}
+}
+
+// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
+func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
+	return codersdk.UserSkillMetadata{
+		ID:          skill.ID,
+		Name:        skill.Name,
+		Description: skill.Description,
+		CreatedAt:   skill.CreatedAt,
+		UpdatedAt:   skill.UpdatedAt,
+	}
+}
+
+// UserSkillMetadataList converts database user skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
+	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, UserSkillMetadata(row))
+	}
+	return metadata
 }

@@ -172,13 +172,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
         with:
-          use-cache: false
+          install-args: "go node pnpm helm cosign syft"
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
@@ -187,18 +190,8 @@ jobs:
           distribution: "zulu"
           java-version: "11.0"
 
-      - name: Install go-winres
-        run: ./.github/scripts/retry.sh -- go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
-
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
-
-      - name: Install nfpm
-        run: |
-          set -euo pipefail
-          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.35.1/nfpm_2.35.1_amd64.deb
-          sudo dpkg -i /tmp/nfpm.deb
-          rm /tmp/nfpm.deb
 
       - name: Install rcodesign
         run: |
@@ -209,12 +202,6 @@ jobs:
             --strip-components=1 \
             apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
           rm /tmp/rcodesign.tar.gz
-
-      - name: Install cosign
-        uses: ./.github/actions/install-cosign
-
-      - name: Install syft
-        uses: ./.github/actions/install-syft
 
       - name: Setup Apple Developer certificate and API key
         run: |
@@ -823,15 +810,16 @@ jobs:
           .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${version}" `
-            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}" `
-            --token "$env:WINGET_GH_TOKEN"
+            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}"
 
         env:
           # For gh CLI:
           GH_TOKEN: ${{ github.token }}
           # For wingetcreate. We need a real token since we're pushing a commit
           # to GitHub and then making a PR in a different repo.
-          WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          # wingetcreate will read the token from the environment variable defined below.
+          # Reference: https://aka.ms/winget-create-token
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
 
       - name: Comment on PR

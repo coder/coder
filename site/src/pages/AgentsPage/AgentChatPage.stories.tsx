@@ -8,18 +8,26 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
+	chatPromptsKey,
 	chatsKey,
 	mcpServerConfigsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
+	MockUserOwner,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -122,7 +130,9 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 
 const baseChatFields = {
 	organization_id: "test-org-id",
-	owner_id: "owner-id",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
@@ -133,7 +143,7 @@ const baseChatFields = {
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	children: [],
 } as const;
 
@@ -155,6 +165,63 @@ index abc1234..def5678 100644
 -	fmt.Println("old line")
  }
 `;
+
+/** Extract user prompts from messages, newest first, mirroring
+ * the server's `/prompts` endpoint contract: role=user, non-empty
+ * after concatenating only `text` parts.
+ */
+const extractPromptsFromMessages = (
+	messages: readonly TypesGen.ChatMessage[],
+): TypesGen.ChatPrompt[] => {
+	const prompts: TypesGen.ChatPrompt[] = [];
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role !== "user") {
+			continue;
+		}
+		const text = (message.content ?? [])
+			.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+			.map((part) => part.text)
+			.join("");
+		if (text.trim()) {
+			prompts.push({ id: message.id, text });
+		}
+	}
+	return prompts;
+};
+type ChatAuthorizationFixture = {
+	action: "share";
+	allowed: boolean;
+};
+
+const buildChatAuthorizationQuery = (
+	chat: Pick<TypesGen.Chat, "owner_id" | "organization_id">,
+	checks: Partial<Record<"canShareChat", ChatAuthorizationFixture>>,
+) => {
+	const authorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	const authorizationResponse: TypesGen.AuthorizationResponse = {};
+
+	for (const [key, check] of Object.entries(checks)) {
+		if (check === undefined) {
+			continue;
+		}
+
+		authorizationChecks[key] = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: check.action,
+		};
+		authorizationResponse[key] = check.allowed;
+	}
+
+	return {
+		key: getAuthorizationKey({ checks: authorizationChecks }),
+		data: authorizationResponse,
+	};
+};
 
 /** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
@@ -182,6 +249,12 @@ const buildQueries = (
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
 		},
+		{
+			key: chatPromptsKey(CHAT_ID),
+			data: {
+				prompts: extractPromptsFromMessages(messagesData.messages),
+			} satisfies TypesGen.ChatPromptsResponse,
+		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
 			key: chatDiffContentsKey(CHAT_ID),
@@ -198,6 +271,12 @@ const buildQueries = (
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{ key: mcpServerConfigsKey, data: [] },
+		buildChatAuthorizationQuery(chat, {
+			canShareChat: {
+				action: "share",
+				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
+			},
+		}),
 	];
 };
 
@@ -1093,6 +1172,55 @@ export const WithMessageHistory: Story = {
 			{ diffUrl: undefined },
 		),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Markdown rendering showcase"),
+		).toBeVisible();
+		await waitFor(() => {
+			expect(
+				canvas.queryByText(/^This chat is owned by/),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const RootChatShareActionAvailable: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Shareable root chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
+	},
 };
 
 /** Skeleton placeholder when no query data is available yet. */
@@ -1110,6 +1238,173 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+export const OtherUserChatReadOnly: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+				title: "Other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = await canvas.findByText(
+			"This chat is owned by Other User. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const OtherUserChatWithMessages: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+				title: "Other user's chat with messages",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Please review this plan." }],
+					},
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:00:02.000Z",
+						role: "assistant",
+						content: [
+							{ type: "text", text: "I prepared a plan." },
+							{
+								type: "tool-call",
+								tool_call_id: "other-user-plan",
+								tool_name: "propose_plan",
+								args: { path: "/home/coder/PLAN.md" },
+							},
+							{
+								type: "tool-result",
+								tool_call_id: "other-user-plan",
+								tool_name: "propose_plan",
+								result: {
+									file_id: "other-user-plan-file",
+									content: "# Plan\n\n1. Keep this chat read-only.",
+								},
+							},
+						],
+					},
+				] as TypesGen.ChatMessage[],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"This chat is owned by Other User. It is read-only.",
+			),
+		).toBeVisible();
+		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
+		expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+		expect(
+			canvas.queryByRole("button", { name: "Edit message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedOtherUserChat: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				archived: true,
+				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
+				title: "Archived other user's chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+		expect(
+			canvas.queryByText(/^This chat is owned by/),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Persisted structured errors rehydrate the failed callout after refresh. */
+export const PersistedStructuredError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Persisted provider error",
+				status: "error",
+				last_error: {
+					message: "Anthropic returned an unexpected error.",
+					detail:
+						"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+					kind: "generic",
+					provider: "anthropic",
+					retryable: false,
+					status_code: 400,
+				},
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error\./i),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };
 
@@ -2149,7 +2444,27 @@ export const WithEveryTool: Story = {
 			expect(canvas.getByText(/Editing 2 files/)).toBeInTheDocument();
 			expect(canvas.getByText(/Reading CHANGELOG\.md/)).toBeInTheDocument();
 			expect(canvas.getByText(/Writing CHANGELOG\.md/)).toBeInTheDocument();
+			expect(canvas.getByText(/Attached auth-split\.md/)).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Spawned Workspace diagnostics/i }),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Read skill deep-review/i }),
+			).toBeInTheDocument();
 		});
+
+		const rowHeights = [
+			canvas.getByText(/Attached auth-split\.md/),
+			canvas.getByRole("button", {
+				name: /Spawned Workspace diagnostics/i,
+			}),
+			canvas.getByRole("button", { name: /Read skill deep-review/i }),
+		].map((label) => {
+			const row = label.closest("[data-transcript-row]");
+			expect(row).toBeInstanceOf(HTMLElement);
+			return Math.round((row as HTMLElement).getBoundingClientRect().height);
+		});
+		expect(new Set(rowHeights)).toEqual(new Set([24]));
 	},
 };
 

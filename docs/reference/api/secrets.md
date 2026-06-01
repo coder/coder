@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/secrets`
+`GET /api/v2/users/{user}/secrets`
 
 ### Parameters
 
@@ -72,7 +72,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/secrets`
+`POST /api/v2/users/{user}/secrets`
 
 > Body parameter
 
@@ -128,7 +128,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/secrets/{name}`
+`GET /api/v2/users/{user}/secrets/{name}`
 
 ### Parameters
 
@@ -171,7 +171,7 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /users/{user}/secrets/{name}`
+`DELETE /api/v2/users/{user}/secrets/{name}`
 
 ### Parameters
 
@@ -200,7 +200,7 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/secrets/{name} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /users/{user}/secrets/{name}`
+`PATCH /api/v2/users/{user}/secrets/{name}`
 
 > Body parameter
 

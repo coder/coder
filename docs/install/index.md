@@ -10,6 +10,9 @@ minimal installation of Coder, or for a step-by-step guide on how to install and
 configure your first Coder deployment, follow the
 [quickstart guide](../tutorials/quickstart.md).
 
+> [!TIP]
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent to install and bootstrap a Coder deployment end-to-end.
+
 ## Local/Individual Installs
 
 This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, macOS, and Windows.
@@ -26,23 +29,6 @@ curl -L https://coder.com/install.sh | sh
 
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
-
-> [!Warning]
-> If you're using an Apple Silicon Mac with ARM64 architecture, so M1/M2/M3/M4, you'll need to use an external PostgreSQL Database using the following commands:
-
-``` bash
-# Install PostgreSQL
-brew install postgresql@16
-
-# Start PostgreSQL
-brew services start postgresql@16
-
-# Create database
-createdb coder
-
-# Run Coder with external database
-coder server --postgres-url="postgres://$(whoami)@localhost/coder?sslmode=disable"
-```
 
 ## Windows
 

@@ -1,16 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import {
-	clearPersistedSidebarTabId,
 	draftInputStorageKeyPrefix,
-	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
-	getPersistedSidebarTabId,
-	lastActiveSidebarTabStorageKeyPrefix,
 	restoreOptimisticRequestSnapshot,
-	savePersistedSidebarTabId,
+	runPromoteQueuedMessage,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -18,6 +14,12 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import {
+	clearPersistedSidebarTabId,
+	getPersistedSidebarTabId,
+	lastActiveSidebarTabStorageKeyPrefix,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -128,32 +130,6 @@ describe("waitForPendingChatSettingsSyncs", () => {
 	});
 });
 
-describe("filterWorkspaceOptionsByOrganization", () => {
-	const makeWorkspace = (id: string, organizationID: string) =>
-		({ id, organization_id: organizationID }) as TypesGen.Workspace;
-
-	it("returns only workspaces from the active chat organization", () => {
-		const workspaces = [
-			makeWorkspace("workspace-1", "org-a"),
-			makeWorkspace("workspace-2", "org-b"),
-			makeWorkspace("workspace-3", "org-a"),
-		];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, "org-a")).toEqual([
-			workspaces[0],
-			workspaces[2],
-		]);
-	});
-
-	it("returns an empty list until the chat organization is known", () => {
-		const workspaces = [makeWorkspace("workspace-1", "org-a")];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, undefined)).toEqual(
-			[],
-		);
-	});
-});
-
 describe("getPersistedDraftInputValue", () => {
 	const chatID = "chat-abc-123";
 	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
@@ -206,6 +182,78 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
+	});
+});
+
+describe("runPromoteQueuedMessage", () => {
+	const makeQueuedMessage = (id: number, text: string, chatID = "chat-1") =>
+		({
+			id,
+			chat_id: chatID,
+			created_at: "2025-01-01T00:00:00Z",
+			content: [{ type: "text", text }],
+		}) as ChatQueuedMessage;
+
+	it("suppresses the promoted ID and removes it optimistically", async () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+		store.setQueuedMessages([a, b, c]);
+		store.setChatStatus("running");
+
+		const promote = vi.fn(async (_id: number) => undefined);
+		const clearChatErrorReason = vi.fn();
+		const handleUsageLimitError = vi.fn();
+
+		await runPromoteQueuedMessage({
+			id: b.id,
+			store,
+			promoteQueuedMessage: promote,
+			agentId: "chat-1",
+			clearChatErrorReason,
+			handleUsageLimitError,
+		});
+
+		expect(promote).toHaveBeenCalledWith(b.id);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+		expect(snapshot.chatStatus).toBe("pending");
+	});
+
+	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		store.setQueuedMessages([a, b]);
+		store.setChatStatus("waiting");
+
+		const apiError = new Error("boom");
+		const promote = vi.fn(async (_id: number) => {
+			throw apiError;
+		});
+		const clearChatErrorReason = vi.fn();
+		const handleUsageLimitError = vi.fn();
+
+		await expect(
+			runPromoteQueuedMessage({
+				id: b.id,
+				store,
+				promoteQueuedMessage: promote,
+				agentId: "chat-1",
+				clearChatErrorReason,
+				handleUsageLimitError,
+			}),
+		).rejects.toBe(apiError);
+
+		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(snapshot.chatStatus).toBe("waiting");
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
 	});
 });
 

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -156,8 +158,8 @@ func TestAgentChatContext(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			setup := newAgentChatContextTestSetup(t)
-			model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-			chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+			model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+			chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 			for _, step := range tc.steps {
 				resp, err := setup.agentClient.AddChatContext(ctx, step.req)
@@ -202,24 +204,17 @@ func TestAgentChatContext(t *testing.T) {
 		}).WithAgent().Do()
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
 
-		originalModel := coderd.InsertAgentChatTestModelConfig(ctx, t, baseDB, user.UserID)
-		updatedModel, err := baseDB.InsertChatModelConfig(
-			dbauthz.AsSystemRestricted(ctx),
-			database.InsertChatModelConfigParams{
-				Provider:             originalModel.Provider,
-				Model:                "gpt-4o-mini-updated",
-				DisplayName:          "Updated Test Model",
-				CreatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
-				UpdatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
-				Enabled:              true,
-				IsDefault:            false,
-				ContextLimit:         originalModel.ContextLimit,
-				CompressionThreshold: originalModel.CompressionThreshold,
-				Options:              json.RawMessage(`{}`),
-			},
-		)
-		require.NoError(t, err)
-		chat := createAgentChatContextChat(ctx, t, baseDB, user.OrganizationID, user.UserID, originalModel.ID, workspace.Agents[0].ID, t.Name())
+		originalModel := coderd.InsertAgentChatTestModelConfig(t, baseDB, user.UserID)
+		updatedModel := dbgen.ChatModelConfig(t, baseDB, database.ChatModelConfig{
+			Provider:             originalModel.Provider,
+			Model:                "gpt-4o-mini-updated",
+			DisplayName:          "Updated Test Model",
+			CreatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: user.UserID, Valid: true},
+			ContextLimit:         originalModel.ContextLimit,
+			CompressionThreshold: originalModel.CompressionThreshold,
+		})
+		chat := createAgentChatContextChat(t, baseDB, user.OrganizationID, user.UserID, originalModel.ID, workspace.Agents[0].ID, t.Name())
 
 		interceptDB.beforeInTx = func() {
 			_, err := baseDB.UpdateChatLastModelConfigByID(
@@ -259,8 +254,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		skillPart := codersdk.ChatMessagePart{
 			Type:                     codersdk.ChatMessagePartTypeSkill,
@@ -321,8 +316,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		skillPart := codersdk.ChatMessagePart{
 			Type:                     codersdk.ChatMessagePartTypeSkill,
@@ -363,40 +358,30 @@ func TestAgentChatContext(t *testing.T) {
 			codersdk.ChatMessageText("compressed summary"),
 		})
 		require.NoError(t, err)
-		summaryParams := chatd.BuildSingleChatMessageInsertParams(
-			chat.ID,
-			database.ChatMessageRoleUser,
-			summaryContent,
-			database.ChatMessageVisibilityModel,
-			chat.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			setup.user.UserID,
-		)
-		summaryParams.Compressed[0] = true
-		_, err = setup.db.InsertChatMessages(
-			dbauthz.AsSystemRestricted(ctx),
-			summaryParams,
-		)
-		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, setup.db, database.ChatMessage{
+			ChatID:         chat.ID,
+			Role:           database.ChatMessageRoleUser,
+			Content:        summaryContent,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ContentVersion: chatprompt.CurrentContentVersion,
+			CreatedBy:      uuid.NullUUID{UUID: setup.user.UserID, Valid: true},
+			Compressed:     true,
+		})
 
 		regularContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("keep this user message"),
 		})
 		require.NoError(t, err)
-		_, err = setup.db.InsertChatMessages(
-			dbauthz.AsSystemRestricted(ctx),
-			chatd.BuildSingleChatMessageInsertParams(
-				chat.ID,
-				database.ChatMessageRoleUser,
-				regularContent,
-				database.ChatMessageVisibilityBoth,
-				chat.LastModelConfigID,
-				chatprompt.CurrentContentVersion,
-				setup.user.UserID,
-			),
-		)
-		require.NoError(t, err)
-
+		_ = dbgen.ChatMessage(t, setup.db, database.ChatMessage{
+			ChatID:         chat.ID,
+			Role:           database.ChatMessageRoleUser,
+			Content:        regularContent,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ContentVersion: chatprompt.CurrentContentVersion,
+			CreatedBy:      uuid.NullUUID{UUID: setup.user.UserID, Valid: true},
+		})
 		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, resp.ChatID)
@@ -420,8 +405,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			Parts: []codersdk.ChatMessagePart{{
@@ -436,20 +421,15 @@ func TestAgentChatContext(t *testing.T) {
 			codersdk.ChatMessageText("keep this user message"),
 		})
 		require.NoError(t, err)
-		_, err = setup.db.InsertChatMessages(
-			dbauthz.AsSystemRestricted(ctx),
-			chatd.BuildSingleChatMessageInsertParams(
-				chat.ID,
-				database.ChatMessageRoleUser,
-				regularContent,
-				database.ChatMessageVisibilityBoth,
-				chat.LastModelConfigID,
-				chatprompt.CurrentContentVersion,
-				setup.user.UserID,
-			),
-		)
-		require.NoError(t, err)
-
+		_ = dbgen.ChatMessage(t, setup.db, database.ChatMessage{
+			ChatID:         chat.ID,
+			Role:           database.ChatMessageRoleUser,
+			Content:        regularContent,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ContentVersion: chatprompt.CurrentContentVersion,
+			CreatedBy:      uuid.NullUUID{UUID: setup.user.UserID, Valid: true},
+		})
 		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{})
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, resp.ChatID)
@@ -477,8 +457,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			Parts: []codersdk.ChatMessagePart{{
@@ -493,21 +473,15 @@ func TestAgentChatContext(t *testing.T) {
 			codersdk.ChatMessageText("assistant reply"),
 		})
 		require.NoError(t, err)
-		assistantParams := chatd.BuildSingleChatMessageInsertParams(
-			chat.ID,
-			database.ChatMessageRoleAssistant,
-			assistantContent,
-			database.ChatMessageVisibilityBoth,
-			chat.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			uuid.Nil,
-		)
-		assistantParams.ProviderResponseID[0] = "resp-123"
-		_, err = setup.db.InsertChatMessages(
-			dbauthz.AsSystemRestricted(ctx),
-			assistantParams,
-		)
-		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, setup.db, database.ChatMessage{
+			ChatID:             chat.ID,
+			Role:               database.ChatMessageRoleAssistant,
+			Content:            assistantContent,
+			Visibility:         database.ChatMessageVisibilityBoth,
+			ModelConfigID:      uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ContentVersion:     chatprompt.CurrentContentVersion,
+			ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		})
 
 		messages := requireAgentChatContextMessages(ctx, t, setup.db, chat.ID)
 		require.Len(t, messages, 2)
@@ -539,29 +513,22 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("assistant reply"),
 		})
 		require.NoError(t, err)
-		assistantParams := chatd.BuildSingleChatMessageInsertParams(
-			chat.ID,
-			database.ChatMessageRoleAssistant,
-			assistantContent,
-			database.ChatMessageVisibilityBoth,
-			chat.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			uuid.Nil,
-		)
-		assistantParams.ProviderResponseID[0] = "resp-123"
-		_, err = setup.db.InsertChatMessages(
-			dbauthz.AsSystemRestricted(ctx),
-			assistantParams,
-		)
-		require.NoError(t, err)
-
+		_ = dbgen.ChatMessage(t, setup.db, database.ChatMessage{
+			ChatID:             chat.ID,
+			Role:               database.ChatMessageRoleAssistant,
+			Content:            assistantContent,
+			Visibility:         database.ChatMessageVisibilityBoth,
+			ModelConfigID:      uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+			ContentVersion:     chatprompt.CurrentContentVersion,
+			ProviderResponseID: sql.NullString{String: "resp-123", Valid: true},
+		})
 		resp, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{ChatID: chat.ID})
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, resp.ChatID)
@@ -595,7 +562,7 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, db, user.UserID)
+		model := coderd.InsertAgentChatTestModelConfig(t, db, user.UserID)
 
 		firstWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -606,7 +573,7 @@ func TestAgentChatContext(t *testing.T) {
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
 
-		chat := createAgentChatContextChat(ctx, t, db, user.OrganizationID, user.UserID, model.ID, firstWorkspace.Agents[0].ID, t.Name())
+		chat := createAgentChatContextChat(t, db, user.OrganizationID, user.UserID, model.ID, firstWorkspace.Agents[0].ID, t.Name())
 		secondAgentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(secondWorkspace.AgentToken))
 
 		_, err := secondAgentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
@@ -627,8 +594,8 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
 		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			ChatID: chat.ID,
@@ -682,8 +649,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			ChatID: chat.ID,
@@ -704,8 +671,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 		largeContent := strings.Repeat("a", maxContextFileBytes+100)
 
 		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
@@ -739,8 +706,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		visible := strings.Repeat("a", maxContextFileBytes-1)
 		content := visible + strings.Repeat("\u200b", 100) + "z"
@@ -781,9 +748,9 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
 		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		ownerChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
-		foreignChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		ownerChat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
+		foreignChat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
 
 		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			Parts: []codersdk.ChatMessagePart{{
@@ -805,9 +772,9 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		rootChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
-		childChat := createAgentChatContextChildChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		rootChat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
+		childChat := createAgentChatContextChildChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
 
 		resp, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			Parts: []codersdk.ChatMessagePart{{
@@ -829,9 +796,9 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat1")
-		createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat2")
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat1")
+		createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-chat2")
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			Parts: []codersdk.ChatMessagePart{{
@@ -849,9 +816,9 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		rootChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
-		childChat := createAgentChatContextChildChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		rootChat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-root")
+		childChat := createAgentChatContextChildChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, rootChat.ID, t.Name()+"-child")
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			ChatID: rootChat.ID,
@@ -877,9 +844,9 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
 		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		ownerChat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
-		_ = createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		ownerChat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-owner")
+		_ = createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name()+"-foreign")
 
 		_, err := setup.agentClient.AddChatContext(ctx, agentsdk.AddChatContextRequest{
 			ChatID: ownerChat.ID,
@@ -903,8 +870,8 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
 		_, otherUser := coderdtest.CreateAnotherUser(t, setup.client, setup.user.OrganizationID)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, otherUser.ID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.agentClient.ClearChatContext(ctx, agentsdk.ClearChatContextRequest{ChatID: chat.ID})
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
@@ -916,8 +883,8 @@ func TestAgentChatContext(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		setup := newAgentChatContextTestSetup(t)
-		model := coderd.InsertAgentChatTestModelConfig(ctx, t, setup.db, setup.user.UserID)
-		chat := createAgentChatContextChat(ctx, t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
+		model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+		chat := createAgentChatContextChat(t, setup.db, setup.user.OrganizationID, setup.user.UserID, model.ID, setup.workspace.Agents[0].ID, t.Name())
 
 		_, err := setup.db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:     chat.ID,
@@ -1020,7 +987,6 @@ func newAgentChatContextTestSetup(t *testing.T) agentChatContextTestSetup {
 }
 
 func createAgentChatContextChat(
-	ctx context.Context,
 	t testing.TB,
 	db database.Store,
 	orgID uuid.UUID,
@@ -1031,22 +997,16 @@ func createAgentChatContextChat(
 ) database.Chat {
 	t.Helper()
 
-	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
+	return dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
 		Title:             title,
 		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
 	})
-	require.NoError(t, err)
-
-	return chat
 }
 
 func createAgentChatContextChildChat(
-	ctx context.Context,
 	t testing.TB,
 	db database.Store,
 	orgID uuid.UUID,
@@ -1058,9 +1018,7 @@ func createAgentChatContextChildChat(
 ) database.Chat {
 	t.Helper()
 
-	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
+	return dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    orgID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
@@ -1069,9 +1027,6 @@ func createAgentChatContextChildChat(
 		ParentChatID:      uuid.NullUUID{UUID: parentChatID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
 	})
-	require.NoError(t, err)
-
-	return chat
 }
 
 func requireAgentChatContextParts(t testing.TB, raw json.RawMessage) []codersdk.ChatMessagePart {

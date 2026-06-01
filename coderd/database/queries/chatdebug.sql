@@ -1,3 +1,5 @@
+-- updated_at is the retention clock used by DeleteOldChatDebugRuns.
+-- Set it on every write to keep retention semantics correct.
 -- name: InsertChatDebugRun :one
 INSERT INTO chat_debug_runs (
     chat_id,
@@ -39,6 +41,7 @@ RETURNING *;
 -- write-once-finalize pattern where fields are set at creation
 -- or finalization and never cleared back to NULL. The @now
 -- parameter keeps updated_at under the caller's clock.
+-- updated_at is also the retention clock used by DeleteOldChatDebugRuns.
 --
 -- finished_at is enforced as write-once at the SQL level: once
 -- populated it cannot be overwritten by a later call. Callers
@@ -245,6 +248,23 @@ WITH affected_runs AS (
 DELETE FROM chat_debug_runs
 WHERE chat_id = @chat_id::uuid
     AND id IN (SELECT id FROM affected_runs);
+
+-- updated_at is the retention clock, so the window starts after the run
+-- stops being written to.
+-- Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
+-- older than the cutoff are also purged.
+-- name: DeleteOldChatDebugRuns :execrows
+WITH deletable AS (
+    SELECT id, chat_id
+    FROM chat_debug_runs
+    WHERE updated_at < @before_time::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count::int
+)
+DELETE FROM chat_debug_runs
+USING deletable
+WHERE chat_debug_runs.id = deletable.id
+    AND chat_debug_runs.chat_id = deletable.chat_id;
 
 -- name: FinalizeStaleChatDebugRows :one
 -- Marks orphaned in-progress rows as interrupted so they do not stay

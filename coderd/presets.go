@@ -16,7 +16,7 @@ import (
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} codersdk.Preset
-// @Router /templateversions/{templateversion}/presets [get]
+// @Router /api/v2/templateversions/{templateversion}/presets [get]
 func (api *API) templateVersionPresets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)

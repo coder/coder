@@ -1,10 +1,10 @@
 import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
 import { ModelSelector } from "./ChatElements/ModelSelector";
+import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 
 export interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -22,7 +22,7 @@ interface UpdateModelOverrideRequest {
 
 interface SubagentModelOverrideSettingsProps {
 	title: string;
-	description: ReactNode;
+	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsError: unknown;
@@ -34,6 +34,8 @@ interface SubagentModelOverrideSettingsProps {
 	isSaving: boolean;
 	isSaveError: boolean;
 	saveErrorMessage: string;
+	unsetPlaceholder?: string;
+	unavailableModelWarning?: string;
 	showHeader?: boolean;
 	disabled?: boolean;
 }
@@ -61,10 +63,13 @@ export const SubagentModelOverrideSettings: FC<
 	isSaving,
 	isSaveError,
 	saveErrorMessage,
+	unsetPlaceholder = "Use chat default",
+	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
 	showHeader = true,
 	disabled = false,
 }) => {
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
+	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModelConfigs.map(toModelSelectorOption);
 
 	const form = useFormik({
@@ -85,17 +90,16 @@ export const SubagentModelOverrideSettings: FC<
 			);
 		},
 	});
+	const isFormDisabled =
+		disabled || isSaving || isLoading || !hasLoadedModelOverride;
+	const canSave =
+		hasLoadedModelOverride && !disabled && (form.dirty || isMalformedOverride);
 
 	const isUnavailableSavedModel =
 		form.values.model_config_id !== "" &&
 		!enabledModelOptions.some(
 			(option) => option.id === form.values.model_config_id,
 		);
-	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
-	const isModelOverrideDisabled =
-		disabled || isSaving || isLoading || !hasLoadedModelOverride;
-	const canSaveModelOverride =
-		hasLoadedModelOverride && (form.dirty || isMalformedOverride);
 
 	return (
 		<form aria-label={title} className="space-y-2" onSubmit={form.handleSubmit}>
@@ -104,18 +108,20 @@ export const SubagentModelOverrideSettings: FC<
 					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 						{title}
 					</h3>
-					<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-						{description}
-					</p>
+					{description && (
+						<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+							{description}
+						</p>
+					)}
 				</>
 			)}
 			<ModelSelector
 				options={enabledModelOptions}
 				value={form.values.model_config_id}
 				onValueChange={(value) => form.setFieldValue("model_config_id", value)}
-				disabled={isModelOverrideDisabled}
+				disabled={isFormDisabled}
 				placeholder={
-					isUnavailableSavedModel ? "Unavailable model" : "Use chat default"
+					isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
 				}
 				emptyMessage={
 					isLoading ? "Loading models..." : "No enabled models found."
@@ -123,27 +129,13 @@ export const SubagentModelOverrideSettings: FC<
 				className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm"
 				contentClassName="min-w-[18rem]"
 			/>
-			{isUnavailableSavedModel && (
-				<Alert severity="warning">
-					<AlertDescription>
-						The saved model is no longer enabled and will be ignored until you
-						choose a new override.
-					</AlertDescription>
-				</Alert>
-			)}
-			{isMalformedOverride && (
-				<Alert severity="warning">
-					<AlertDescription>
-						The saved override is malformed and is being treated as unset. Click
-						Save to clear it.
-					</AlertDescription>
-				</Alert>
-			)}
-			{Boolean(modelConfigsError) && (
-				<p className="m-0 text-xs text-content-destructive">
-					Failed to load model configs.
-				</p>
-			)}
+			<ModelOverrideAlerts
+				isUnavailableSavedModel={isUnavailableSavedModel}
+				unavailableMessage={unavailableModelWarning}
+				isMalformedOverride={isMalformedOverride}
+				malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
+				modelConfigsError={modelConfigsError}
+			/>
 			<div className="flex justify-end gap-2">
 				<Button
 					size="sm"
@@ -152,15 +144,11 @@ export const SubagentModelOverrideSettings: FC<
 					onClick={() => {
 						form.setFieldValue("model_config_id", "");
 					}}
-					disabled={isModelOverrideDisabled}
+					disabled={isFormDisabled}
 				>
 					Clear
 				</Button>
-				<Button
-					size="sm"
-					type="submit"
-					disabled={isModelOverrideDisabled || !canSaveModelOverride}
-				>
+				<Button size="sm" type="submit" disabled={isFormDisabled || !canSave}>
 					Save
 				</Button>
 			</div>

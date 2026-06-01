@@ -1,0 +1,389 @@
+import {
+	ArchiveIcon,
+	ArchiveRestoreIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	EllipsisVerticalIcon,
+	PinIcon,
+	PinOffIcon,
+	SquarePenIcon,
+	Trash2Icon,
+} from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router";
+import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
+import { shortRelativeTime } from "#/utils/time";
+import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { normalizeLocationSearch } from "../locationSearch";
+import { useChatTree } from "./ChatTreeContext";
+import { getParentChatID } from "./chatTree";
+import { getModelDisplayName } from "./modelDisplayName";
+import { getChatDisplayConfig } from "./statusConfig";
+
+interface ChatTreeNodeProps {
+	readonly chat: Chat;
+	readonly isChildNode: boolean;
+}
+
+export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
+	const locationSearch = normalizeLocationSearch(location.search);
+	const {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		modelConfigs,
+		chatErrorReasons,
+		activeChatId,
+		isArchiving,
+		archivingChatId,
+		regeneratingTitleChatIds,
+		toggleExpanded,
+		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
+		onPinAgent,
+		onUnpinAgent,
+		onOpenRenameDialog,
+	} = useChatTree();
+	const chatID = chat.id;
+	const isActiveChat = activeChatId === chatID;
+	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
+		visibleChatIDs.has(childID),
+	);
+	const hasChildren = childIDs.length > 0;
+	const isDelegated = Boolean(getParentChatID(chat));
+	const isDelegatedExecuting =
+		isDelegated && (chat.status === "pending" || chat.status === "running");
+	const modelName = getModelDisplayName(
+		chat.last_model_config_id,
+		modelConfigs,
+		modelOptions,
+	);
+	const errorReason =
+		chat.status === "error"
+			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
+			: undefined;
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	const staleTurnSummaryReleaseMs = 10_000;
+	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
+		isStreaming ? lastTurnSummary : undefined,
+	);
+	const [suppressionExpired, setSuppressionExpired] = useState(false);
+	if (isStreaming) {
+		if (streamingSummary !== lastTurnSummary) {
+			setStreamingSummary(lastTurnSummary);
+		}
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	} else if (
+		streamingSummary !== undefined &&
+		lastTurnSummary !== streamingSummary
+	) {
+		setStreamingSummary(undefined);
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	}
+	const isStaleTurnSummary =
+		!isStreaming &&
+		lastTurnSummary !== undefined &&
+		!suppressionExpired &&
+		streamingSummary === lastTurnSummary;
+	useEffect(() => {
+		if (!isStaleTurnSummary) {
+			return;
+		}
+		const timeoutId = setTimeout(() => {
+			setSuppressionExpired(true);
+		}, staleTurnSummaryReleaseMs);
+		return () => clearTimeout(timeoutId);
+	}, [isStaleTurnSummary]);
+	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const subtitle =
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
+	const {
+		icon: StatusIcon,
+		className: statusClassName,
+		diffStatus,
+	} = getChatDisplayConfig(chat);
+	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
+	const changedFiles = diffStatus?.changed_files ?? 0;
+	const additions = diffStatus?.additions ?? 0;
+	const deletions = diffStatus?.deletions ?? 0;
+	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
+	const filesChangedLabel = `${changedFiles} ${
+		changedFiles === 1 ? "file" : "files"
+	}`;
+	const workspaceId = chat.workspace_id;
+	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
+	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+
+	const renderMenuItems = ({
+		Item,
+		Separator,
+	}: {
+		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
+		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
+	}) => (
+		<>
+			{!chat.archived && !isChildNode && (
+				<Item
+					onSelect={() =>
+						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
+					}
+				>
+					{chat.pin_order > 0 ? (
+						<>
+							<PinOffIcon className="size-3.5" />
+							Unpin agent
+						</>
+					) : (
+						<>
+							<PinIcon className="size-3.5" />
+							Pin agent
+						</>
+					)}
+				</Item>
+			)}
+			{chat.archived ? (
+				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
+					<ArchiveRestoreIcon className="size-3.5" />
+					Unarchive agent
+				</Item>
+			) : (
+				<>
+					{onOpenRenameDialog && (
+						<Item onSelect={() => onOpenRenameDialog(chat)}>
+							<SquarePenIcon className="size-3.5" />
+							Rename chat
+						</Item>
+					)}
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						disabled={isArchiving}
+						onSelect={() => onArchiveAgent(chat.id)}
+					>
+						<ArchiveIcon className="size-3.5" />
+						Archive agent
+					</Item>
+					{workspaceId && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							disabled={isArchiving}
+							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
+						>
+							<Trash2Icon className="size-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+				</>
+			)}
+		</>
+	);
+
+	return (
+		<div className="flex min-w-0 flex-col gap-0.5">
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div
+						data-testid={`agents-tree-node-${chat.id}`}
+						className={cn(
+							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+							isChildNode &&
+								"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+						)}
+					>
+						<div
+							className={cn(
+								"group/icon relative mt-1.5 size-5 shrink-0",
+								hasChildren && "cursor-pointer",
+							)}
+						>
+							<div
+								className={cn(
+									"flex size-5 items-center justify-center rounded-md",
+									hasChildren &&
+										"[@media(hover:hover)]:group-hover/icon:invisible",
+								)}
+							>
+								<StatusIcon
+									data-testid={
+										isDelegatedExecuting
+											? `agents-tree-executing-${chat.id}`
+											: undefined
+									}
+									className={cn("size-3.5 shrink-0", statusClassName)}
+								/>
+							</div>
+							{hasChildren && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={() => toggleExpanded(chatID)}
+									className={cn(
+										"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+										"[@media(hover:hover)]:group-hover/icon:visible",
+									)}
+									data-testid={`agents-tree-toggle-${chat.id}`}
+									aria-label={isExpanded ? "Collapse" : "Expand"}
+									aria-expanded={isExpanded}
+								>
+									{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+								</Button>
+							)}
+						</div>
+						<NavLink
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: locationSearch,
+							}}
+							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+						>
+							{({ isActive }) => (
+								<div className="min-w-0 flex-1 overflow-hidden text-left">
+									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+										<span
+											aria-busy={isRegeneratingThisChat}
+											className={cn(
+												"block flex-1 truncate text-[13px] text-content-primary",
+												isActive && "font-medium",
+												isRegeneratingThisChat && "animate-pulse",
+											)}
+										>
+											{chat.title}
+										</span>
+										{chat.has_unread && !isActiveChat && (
+											<span className="sr-only">(unread)</span>
+										)}
+										{isRegeneratingThisChat && (
+											<span className="sr-only" role="status">
+												Regenerating title…
+											</span>
+										)}
+									</div>
+									<div className="flex min-w-0 items-center gap-1.5">
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											>
+												<span className="text-git-added-bright">
+													+{additions}
+												</span>
+												<span className="text-git-deleted-bright">
+													&minus;{deletions}
+												</span>
+											</span>
+										)}
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
+										</div>
+									</div>
+								</div>
+							)}
+						</NavLink>
+						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+							{isArchivingThisChat ? (
+								<Spinner
+									className="h-3.5 w-3.5 text-content-secondary"
+									loading
+								/>
+							) : (
+								<>
+									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+										{chat.has_unread && !isActiveChat ? (
+											<span
+												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
+												data-testid={`unread-indicator-${chat.id}`}
+												aria-hidden="true"
+											/>
+										) : (
+											<span data-chromatic="ignore">
+												{shortRelativeTime(chat.updated_at)}
+											</span>
+										)}
+									</span>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+												aria-label={`Open actions for ${chat.title}`}
+											>
+												<EllipsisVerticalIcon className="size-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+										>
+											{renderMenuItems({
+												Item: DropdownMenuItem,
+												Separator: DropdownMenuSeparator,
+											})}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</>
+							)}
+						</div>
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+					{renderMenuItems({
+						Item: ContextMenuItem,
+						Separator: ContextMenuSeparator,
+					})}
+				</ContextMenuContent>
+			</ContextMenu>
+
+			{hasChildren && isExpanded && (
+				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
+					{childIDs.map((childID) => {
+						const childChat = chatById.get(childID);
+						if (!childChat) return null;
+						return (
+							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+						);
+					})}
+				</div>
+			)}
+		</div>
+	);
+};

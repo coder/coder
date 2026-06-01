@@ -1,4 +1,3 @@
-import type { Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
@@ -18,63 +17,8 @@ dayjs.extend(duration);
 dayjs.extend(utc);
 dayjs.extend(minMax);
 
-const DisplayWorkspaceBuildStatusLanguage = {
-	succeeded: "Succeeded",
-	pending: "Pending",
-	running: "Running",
-	canceling: "Canceling",
-	canceled: "Canceled",
-	failed: "Failed",
-};
-
 const DisplayAgentVersionLanguage = {
 	unknown: "Unknown",
-};
-
-export const getDisplayWorkspaceBuildStatus = (
-	theme: Theme,
-	build: TypesGen.WorkspaceBuild,
-) => {
-	switch (build.job.status) {
-		case "succeeded":
-			return {
-				type: "success",
-				color: theme.roles.success.text,
-				status: DisplayWorkspaceBuildStatusLanguage.succeeded,
-			} as const;
-		case "pending":
-			return {
-				type: "inactive",
-				color: theme.roles.active.text,
-				status: DisplayWorkspaceBuildStatusLanguage.pending,
-			} as const;
-		case "running":
-			return {
-				type: "active",
-				color: theme.roles.active.text,
-				status: DisplayWorkspaceBuildStatusLanguage.running,
-			} as const;
-		// Just handle unknown as failed
-		case "unknown":
-		case "failed":
-			return {
-				type: "error",
-				color: theme.roles.error.text,
-				status: DisplayWorkspaceBuildStatusLanguage.failed,
-			} as const;
-		case "canceling":
-			return {
-				type: "warning",
-				color: theme.roles.warning.text,
-				status: DisplayWorkspaceBuildStatusLanguage.canceling,
-			} as const;
-		case "canceled":
-			return {
-				type: "inactive",
-				color: theme.roles.warning.text,
-				status: DisplayWorkspaceBuildStatusLanguage.canceled,
-			} as const;
-	}
 };
 
 export const getDisplayWorkspaceBuildInitiatedBy = (
@@ -294,10 +238,6 @@ export const getDisplayWorkspaceStatus = (
 			} as const;
 	}
 };
-
-export const paramsUsedToCreateWorkspace = (
-	param: TypesGen.TemplateVersionParameter,
-) => !param.ephemeral;
 
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,

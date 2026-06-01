@@ -1,5 +1,10 @@
 # Monitoring
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
@@ -9,6 +14,46 @@ AI Gateway records the last `user` prompt, token usage, model reasoning, and eve
 We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](https://github.com/coder/coder/blob/main/examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
+
+## Provider metrics
+
+`aibridged` (the in-process daemon) and `aibridgeproxyd` (the external
+proxy) each export Prometheus metrics describing the configured
+provider pool and its reload loop. See
+[Provider Configuration](./providers.md) for the lifecycle these
+metrics describe.
+
+| Metric                                                                 | Type    | Labels                                     | Purpose                                                                                                                                    |
+|------------------------------------------------------------------------|---------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_aibridged_provider_info`                                        | gauge   | `provider_name`, `provider_type`, `status` | One series per configured provider. Value is always `1`; the `status` label (`enabled`, `disabled`, `error`) carries the alertable signal. |
+| `coder_aibridged_providers_last_reload_timestamp_seconds`              | gauge   |                                            | Unix timestamp of the last reload attempt, success or failure.                                                                             |
+| `coder_aibridged_providers_last_reload_success_timestamp_seconds`      | gauge   |                                            | Unix timestamp of the last reload that successfully refreshed the pool.                                                                    |
+| `coder_aibridgeproxyd_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Same shape as `aibridged_provider_info` but reported by the external proxy.                                                                |
+| `coder_aibridgeproxyd_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Last reload attempt timestamp in `aibridgeproxyd`.                                                                                         |
+| `coder_aibridgeproxyd_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Last successful reload timestamp in `aibridgeproxyd`.                                                                                      |
+| `coder_aibridgeproxyd_connect_sessions_total`                          | counter | `type` (`mitm`, `tunneled`)                | CONNECT sessions established by the proxy.                                                                                                 |
+| `coder_aibridgeproxyd_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled.                                                                                                                     |
+| `coder_aibridgeproxyd_inflight_mitm_requests`                          | gauge   | `provider`                                 | In-flight MITM requests.                                                                                                                   |
+| `coder_aibridgeproxyd_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                                        |
+
+### Suggested alerts
+
+Alert on any provider entering a non-`enabled` status:
+
+```promql
+sum by (provider_name, status) (coder_aibridged_provider_info{status!="enabled"}) > 0
+```
+
+Alert when the reload loop is firing but failing to refresh the pool
+for longer than a few minutes:
+
+```promql
+(coder_aibridged_providers_last_reload_timestamp_seconds
+  - coder_aibridged_providers_last_reload_success_timestamp_seconds) > 300
+```
+
+Repeat the same query against `coder_aibridgeproxyd_*` if you run the
+external proxy.
 
 ## Structured Logging
 
@@ -46,8 +91,8 @@ Available query filters:
   - `GitHub Copilot (VS Code)`
   - `GitHub Copilot (CLI)`
   - `Kilo Code`
+  - `Coder Agents`
   - `Mux`
-  - `Roo Code`
   - `Cursor`
   - `Unknown`
 

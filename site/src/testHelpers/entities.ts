@@ -288,7 +288,7 @@ export const MockOwnerRole: TypesGen.Role = {
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
-	name: "user_admin",
+	name: "user-admin",
 	display_name: "User Admin",
 	site_permissions: [],
 	user_permissions: [],
@@ -298,7 +298,7 @@ export const MockUserAdminRole: TypesGen.Role = {
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
-	name: "template_admin",
+	name: "template-admin",
 	display_name: "Template Admin",
 	site_permissions: [],
 	user_permissions: [],
@@ -511,11 +511,6 @@ export const MockSiteRoles = [
 	MockAuditorRole,
 	MockWorkspaceCreationBanRole,
 ];
-export const MockAssignableSiteRoles = [
-	assignableRole(MockUserAdminRole, true),
-	assignableRole(MockAuditorRole, true),
-	assignableRole(MockWorkspaceCreationBanRole, true),
-];
 
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
@@ -567,12 +562,61 @@ export const SuspendedMockUser: TypesGen.User = {
 
 export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_preference: "dark",
+	theme_mode: "single",
+	theme_light: "light",
+	theme_dark: "dark",
 	terminal_font: "",
 };
 
-export const MockTasksTabVisible: boolean = false;
+export const MockUserSecrets: TypesGen.UserSecret[] = [
+	{
+		id: "secret-env-only",
+		name: "EXAMPLE_TOKEN",
+		description: "Used by example templates.",
+		env_name: "EXAMPLE_TOKEN",
+		file_path: "",
+		created_at: "2026-04-28T16:30:00Z",
+		updated_at: "2026-04-30T16:30:00Z",
+	},
+	{
+		id: "secret-file-only",
+		name: "config-json",
+		description: "Mounted as a workspace file.",
+		env_name: "",
+		file_path: "~/.config/example/config.json",
+		created_at: "2026-04-29T16:30:00Z",
+		updated_at: "2026-05-01T16:30:00Z",
+	},
+	{
+		id: "secret-env-and-file",
+		name: "SERVICE_API_KEY",
+		description: "Available as an environment variable and file.",
+		env_name: "SERVICE_API_KEY",
+		file_path: "/var/run/secrets/service-api-key",
+		created_at: "2026-04-30T16:30:00Z",
+		updated_at: "2026-05-02T16:30:00Z",
+	},
+	{
+		id: "secret-not-injected",
+		name: "SERVICE_PASSWORD",
+		description: "",
+		env_name: "",
+		file_path: "",
+		created_at: "2026-05-01T16:30:00Z",
+		updated_at: "2026-05-03T16:30:00Z",
+	},
+	{
+		id: "secret-duplicate",
+		name: "DUPLICATE_API_KEY",
+		description: "Used to exercise duplicate validation.",
+		env_name: "DUPLICATE_API_KEY",
+		file_path: "",
+		created_at: "2026-05-01T18:30:00Z",
+		updated_at: "2026-05-03T18:30:00Z",
+	},
+];
 
-export const MockAgentsTabVisible: boolean = false;
+export const MockTasksTabVisible: boolean = false;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -986,7 +1030,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
-	display_name: "Say Hello",
+	display_name: "Startup Script",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -1011,7 +1055,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	},
 	connection_timeout_seconds: 120,
 	troubleshooting_url: "https://coder.com/troubleshoot",
-	lifecycle_state: "starting",
+	lifecycle_state: "ready",
 	logs_length: 0,
 	logs_overflowed: false,
 	log_sources: [MockWorkspaceAgentLogSource],
@@ -1177,6 +1221,14 @@ export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
 	id: "test-workspace-agent-start-timeout",
 	name: "a-workspace-agent-timed-out-while-running-startup-script",
 	lifecycle_state: "start_timeout",
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			status: "timed_out",
+		},
+	],
+	logs_length: 1,
+	log_sources: [MockWorkspaceAgentLogSource],
 };
 
 export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
@@ -1188,6 +1240,67 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
 		healthy: false,
 		reason: "agent startup script failed",
 	},
+	scripts: [
+		{
+			...MockWorkspaceAgentScript,
+			exit_code: 1,
+			status: "exit_failure",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "18eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			exit_code: 0,
+			status: "ok",
+			display_name: "coder",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "28eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "timed_out",
+			display_name: "time",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "38eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			status: "pipes_left_open",
+			display_name: "pipe",
+		},
+		{
+			...MockWorkspaceAgentScript,
+			id: "48eaca83-1221-4fad-b882-d1136981f54d",
+			log_source_id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
+		},
+	],
+	logs_length: 4,
+	log_sources: [
+		MockWorkspaceAgentLogSource,
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "a2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "coder",
+			icon: "/icon/coder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "b2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "time",
+			icon: "/icon/folder.svg",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "c2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "pipe",
+		},
+		{
+			...MockWorkspaceAgentLogSource,
+			id: "d2ee4b8d-b09d-4f4e-a1f1-5e4adf7d53bb",
+			display_name: "running",
+		},
+	],
 };
 
 export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
@@ -1498,7 +1611,16 @@ export const MockFavoriteWorkspace: TypesGen.Workspace = {
 export const MockStoppedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-stopped-workspace",
-	latest_build: { ...MockWorkspaceBuildStop, status: "stopped" },
+	latest_build: {
+		...MockWorkspaceBuildStop,
+		status: "stopped",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 export const MockStoppingWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1507,6 +1629,12 @@ export const MockStoppingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildStop,
 		job: MockRunningProvisionerJob,
 		status: "stopping",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockUnhealthyWorkspace: TypesGen.Workspace = {
@@ -1531,6 +1659,12 @@ export const MockStartingWorkspace: TypesGen.Workspace = {
 		job: MockRunningProvisionerJob,
 		transition: "start",
 		status: "starting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStarting],
+			},
+		],
 	},
 };
 export const MockCancelingWorkspace: TypesGen.Workspace = {
@@ -1540,6 +1674,12 @@ export const MockCancelingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCancelingProvisionerJob,
 		status: "canceling",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 export const MockCanceledWorkspace: TypesGen.Workspace = {
@@ -1549,6 +1689,12 @@ export const MockCanceledWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockCanceledProvisionerJob,
 		status: "canceled",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
 	},
 };
 export const MockFailedWorkspace: TypesGen.Workspace = {
@@ -1558,6 +1704,12 @@ export const MockFailedWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuild,
 		job: MockFailedProvisionerJob,
 		status: "failed",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentStartError],
+			},
+		],
 	},
 };
 export const MockDeletingWorkspace: TypesGen.Workspace = {
@@ -1567,6 +1719,12 @@ export const MockDeletingWorkspace: TypesGen.Workspace = {
 		...MockWorkspaceBuildDelete,
 		job: MockRunningProvisionerJob,
 		status: "deleting",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentShuttingDown],
+			},
+		],
 	},
 };
 
@@ -1578,7 +1736,16 @@ const MockWorkspaceWithDeletion = {
 export const MockDeletedWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-deleted-workspace",
-	latest_build: { ...MockWorkspaceBuildDelete, status: "deleted" },
+	latest_build: {
+		...MockWorkspaceBuildDelete,
+		status: "deleted",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentOff],
+			},
+		],
+	},
 };
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = {
@@ -1650,6 +1817,12 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
 		job: MockPendingProvisionerJob,
 		transition: "start",
 		status: "pending",
+		resources: [
+			{
+				...MockWorkspaceResource,
+				agents: [MockWorkspaceAgentConnecting],
+			},
+		],
 	},
 };
 
@@ -3125,6 +3298,7 @@ export const MockPermissions: Permissions = {
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3159,6 +3333,7 @@ export const MockNoPermissions: Permissions = {
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -5342,3 +5517,79 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIProviderOpenAI: TypesGen.AIProvider = {
+	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",
+	type: "openai",
+	name: "openai",
+	display_name: "OpenAI",
+	base_url: "https://api.openai.com",
+	enabled: false,
+	api_keys: [
+		{
+			id: "6d7c1f3a-1f0b-4a12-a1b5-0fb1f8e72e01",
+			masked: "sk-***\u2026***ABCD",
+			created_at: "2026-05-14T10:00:00Z",
+		},
+	],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderAnthropic: TypesGen.AIProvider = {
+	id: "4f81f1ee-37c1-4a37-a9d5-7e0c1c8c0c11",
+	type: "anthropic",
+	name: "anthropic",
+	display_name: "Anthropic",
+	base_url: "https://api.anthropic.com",
+	enabled: false,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+/**
+ * Bedrock providers come over the wire with `type: "anthropic"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
+ * backend (see `coderd/ai_providers.go`) enforce this convention.
+ */
+export const MockAIProviderBedrock: TypesGen.AIProvider = {
+	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
+	type: "anthropic",
+	name: "bedrock",
+	display_name: "Bedrock",
+	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "bedrock",
+		_version: 1,
+		region: "us-east-2",
+		model: "anthropic.claude-opus-4-7",
+		small_fast_model: "anthropic.claude-haiku-4-5",
+	} as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderCopilot: TypesGen.AIProvider = {
+	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
+	type: "copilot",
+	name: "copilot",
+	display_name: "GitHub Copilot",
+	base_url: "https://api.business.githubcopilot.com",
+	enabled: true,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviders: TypesGen.AIProvider[] = [
+	MockAIProviderOpenAI,
+	MockAIProviderAnthropic,
+	MockAIProviderBedrock,
+	MockAIProviderCopilot,
+];

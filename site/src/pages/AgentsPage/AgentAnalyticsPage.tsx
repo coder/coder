@@ -1,6 +1,7 @@
 import dayjs, { type Dayjs } from "dayjs";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
+import { useLocation } from "react-router";
 import { chatCostSummary } from "#/api/queries/chats";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
@@ -24,6 +25,7 @@ interface AgentAnalyticsPageProps {
 
 const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const { user } = useAuthContext();
+	const location = useLocation();
 	const [anchor] = useState<Dayjs>(() => dayjs());
 	const dateRange = createDateRange(now ?? anchor);
 
@@ -37,7 +39,12 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
-			<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
+			<AgentPageHeader
+				mobileBack={{
+					to: { pathname: "/agents", search: location.search },
+					label: "Agents",
+				}}
+			/>
 			<AgentAnalyticsPageView
 				summary={summaryQuery.data}
 				isLoading={summaryQuery.isLoading}

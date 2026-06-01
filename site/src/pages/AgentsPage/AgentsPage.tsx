@@ -5,7 +5,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import {
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -23,6 +28,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -31,20 +37,26 @@ import {
 	unpinChat,
 	updateChatTitle,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import { workspaceById } from "#/api/queries/workspaces";
+import {
+	invalidateWorkspaceMutationQueries,
+	workspaceById,
+} from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -52,6 +64,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -59,16 +72,34 @@ import {
 
 export type { AgentsOutletContext } from "./AgentsPageView";
 
+const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"diff_status_change",
+	"status_change",
+]);
+
+export const shouldInvalidateFilteredChatList = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
 const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
-	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
+	const { permissions, user } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
+	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
+		searchParams,
+		setSearchParams,
+	);
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -113,15 +144,27 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
+	const archivedFilter = sidebarFilters.archiveStatus === "archived";
+	const chatStatusFilter =
+		sidebarFilters.chatStatuses.length === 1
+			? sidebarFilters.chatStatuses[0]
+			: undefined;
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({ archived: archivedFilter === "archived" }),
+		infiniteChats({
+			archived: archivedFilter,
+			prStatuses: sidebarFilters.prStatuses,
+			chatStatus: chatStatusFilter,
+		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -196,6 +239,10 @@ const AgentsPage: FC = () => {
 			await queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
+			await invalidateWorkspaceMutationQueries(queryClient, {
+				organizationName,
+				username: user.username,
+			});
 		},
 		onError: (error) => {
 			toast.error(
@@ -246,6 +293,7 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
 		onError: (error: unknown) => {
@@ -321,7 +369,7 @@ const AgentsPage: FC = () => {
 					: undefined,
 			)
 		) {
-			navigate("/agents");
+			navigate({ pathname: "/agents", search: location.search });
 		}
 	};
 
@@ -335,9 +383,23 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
 				() =>
-					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-						?.created_at,
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
+				() =>
+					readInfiniteChatsCache(queryClient)?.find(
+						(chat) => chat.id === chatId,
+					)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -438,7 +500,7 @@ const AgentsPage: FC = () => {
 		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await API.experimental.proposeChatTitle(chatId);
+		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
@@ -454,7 +516,7 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate({ pathname: "/agents", search: location.search });
 	};
 
 	useEffect(() => {
@@ -479,6 +541,7 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
+		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -492,13 +555,9 @@ const AgentsPage: FC = () => {
 					}
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
-					// Read the previous status from the infinite chat list
-					// cache before we write the update below. The per-chat
-					// query cache (chatKey) only exists for chats the user
-					// has opened, so reading from the list cache ensures
-					// prevStatus is available for background agents too.
+					// The old membership is only available before the cache write below.
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(c) => c.id === updatedChat.id,
+						(chat) => chat.id === updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
@@ -528,7 +587,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -560,11 +619,6 @@ const AgentsPage: FC = () => {
 						});
 					}
 
-					// For "created" events, use a cross-page existence
-					// check and prepend only to the first page.
-					// updateInfiniteChatsCache runs the updater per
-					// page, so a naive prepend would duplicate the
-					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
 							// Child chat: add to its parent's children
@@ -577,12 +631,16 @@ const AgentsPage: FC = () => {
 							);
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
+							void invalidateChatListQueries(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
 						});
+						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
+							void invalidateChatListQueries(queryClient);
+						}
 					}
 				});
 				return ws;
@@ -595,6 +653,7 @@ const AgentsPage: FC = () => {
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
+		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -618,8 +677,9 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
+				isSearchDialogOpen={isSearchDialogOpen}
+				onSearchDialogOpenChange={setIsSearchDialogOpen}
 				isCreating={false}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
@@ -643,12 +703,15 @@ const AgentsPage: FC = () => {
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
-				archivedFilter={archivedFilter}
-				onArchivedFilterChange={setArchivedFilter}
+				sidebarFilters={sidebarFilters}
+				onSidebarFiltersChange={setSidebarFilters}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

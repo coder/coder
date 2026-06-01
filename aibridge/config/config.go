@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/coder/coder/v2/aibridge/keypool"
+)
 
 const (
 	ProviderAnthropic = "anthropic"
@@ -8,11 +12,24 @@ const (
 	ProviderCopilot   = "copilot"
 )
 
+// Anthropic carries configuration for an Anthropic provider.
+//
+// Authentication is mutually exclusive across these three fields,
+// set per interception in the provider's CreateInterceptor:
+//   - KeyPool: centralized requests with automatic key failover.
+//   - Key: BYOK with X-Api-Key (single attempt, no failover).
+//   - BYOKBearerToken: BYOK with Authorization Bearer (single
+//     attempt, no failover).
+//
+// TODO(ssncferreira): consolidate the three authentication
+// fields into a single abstraction per
+// https://github.com/coder/aibridge/issues/266.
 type Anthropic struct {
 	// Name is the provider instance name. If empty, defaults to "anthropic".
 	Name             string
 	BaseURL          string
 	Key              string
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
@@ -21,10 +38,6 @@ type Anthropic struct {
 	// with a access token. When set, the access token is used for upstream
 	// LLM requests instead of the API key.
 	BYOKBearerToken string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type AWSBedrock struct {
@@ -37,19 +50,26 @@ type AWSBedrock struct {
 	BaseURL string
 }
 
+// OpenAI carries configuration for an OpenAI provider.
+//
+// Authentication is mutually exclusive across these two fields,
+// set per interception in the provider's CreateInterceptor:
+//   - KeyPool: centralized requests with automatic key failover.
+//   - Key: BYOK with Authorization Bearer (single attempt, no
+//     failover).
+//
+// TODO(ssncferreira): consolidate the authentication fields per
+// https://github.com/coder/aibridge/issues/266.
 type OpenAI struct {
 	// Name is the provider instance name. If empty, defaults to "openai".
 	Name             string
 	BaseURL          string
 	Key              string
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
 	ExtraHeaders     map[string]string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type Copilot struct {
@@ -58,10 +78,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

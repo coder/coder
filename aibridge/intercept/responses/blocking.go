@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -100,6 +101,16 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 
 		response, upstreamErr = i.newResponse(ctx, srv, opts)
 
+		// The failover loop may return a keypool exhaustion
+		// error. Render it here.
+		if upstreamErr != nil {
+			var keyPoolErr *keypool.Error
+			if errors.As(upstreamErr, &keyPoolErr) {
+				i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
+				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
+			}
+		}
+
 		if upstreamErr != nil || response == nil {
 			break
 		}
@@ -135,10 +146,56 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+// newResponse routes between BYOK (single attempt) and
+// centralized failover.
+func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
+	// BYOK: single attempt, no failover.
+	if i.cfg.KeyPool == nil {
+		return i.newResponseWithKey(ctx, srv, opts)
+	}
+	return i.newResponseWithKeyFailover(ctx, srv, opts)
+}
+
+// newResponseWithKey performs a single upstream call.
+func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// The body is overridden by option.WithRequestBody(reqPayload) in requestOptions
 	return srv.New(ctx, responses.ResponseNewParams{}, opts...)
+}
+
+// newResponseWithKeyFailover walks the centralized key pool,
+// trying each key until one succeeds or the pool is exhausted.
+// Keys are marked temporary on 429 and permanent on 401/403.
+// Errors that aren't key-specific don't trigger failover and
+// are returned to the caller.
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
+	walker := i.cfg.KeyPool.Walker()
+	for {
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
+		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
+		requestOpts := append([]option.RequestOption{}, opts...)
+		requestOpts = append(requestOpts,
+			option.WithAPIKey(key.Value()),
+			// Disable SDK retries because the failover loop
+			// handles retries via key rotation.
+			option.WithMaxRetries(0),
+		)
+		response, err := i.newResponseWithKey(ctx, srv, requestOpts)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
+		}
+		// Either success (response, nil) or a non-key error
+		// (nil, err): nothing to retry, return as-is.
+		return response, err
+	}
 }

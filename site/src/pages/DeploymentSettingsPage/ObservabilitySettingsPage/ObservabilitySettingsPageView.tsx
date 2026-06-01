@@ -33,15 +33,13 @@ export const ObservabilitySettingsPageView: FC<
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
-				<SettingsHeader>
+				<SettingsHeader
+					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
+				>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						Audit Logging
 					</SettingsHeaderTitle>

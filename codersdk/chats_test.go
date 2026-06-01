@@ -137,6 +137,35 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	terminal := codersdk.ChatError{
+		Message: "limit reached",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err := json.Marshal(terminal)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedTerminal codersdk.ChatError
+	require.NoError(t, json.Unmarshal(data, &decodedTerminal))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedTerminal.Kind)
+
+	retry := codersdk.ChatStreamRetry{
+		Attempt: 1,
+		Error:   "retrying",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err = json.Marshal(retry)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedRetry codersdk.ChatStreamRetry
+	require.NoError(t, json.Unmarshal(data, &decodedRetry))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 
@@ -235,7 +264,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
 		"signature":                    "added in #22290, never populated by any code path",
-		"result_delta":                 "added in #22290, never populated by any code path",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
@@ -365,6 +393,70 @@ func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
 	})
 }
 
+func TestChatMessagePart_ReasoningTimestamps_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RoundTrips", func(t *testing.T) {
+		t.Parallel()
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		completedAt := startedAt.Add(2 * time.Second)
+		part := codersdk.ChatMessagePart{
+			Type:        codersdk.ChatMessagePartTypeReasoning,
+			Text:        "thinking out loud",
+			CreatedAt:   &startedAt,
+			CompletedAt: &completedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.Contains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.NotNil(t, decoded.CompletedAt)
+		require.True(t, startedAt.Equal(*decoded.CreatedAt))
+		require.True(t, completedAt.Equal(*decoded.CompletedAt))
+	})
+
+	t.Run("OmittedWhenNil", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: "thinking out loud",
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+	})
+
+	t.Run("LegacyCreatedAtWithoutCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// CompletedAt is omitted on messages persisted before this
+		// feature shipped. Confirm round-trip leaves CompletedAt nil
+		// while preserving CreatedAt so legacy data does not break
+		// API consumers.
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		part := codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeReasoning,
+			Text:      "legacy reasoning",
+			CreatedAt: &startedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.Nil(t, decoded.CompletedAt)
+	})
+}
+
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
 	t.Parallel()
 
@@ -447,7 +539,14 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := "boom"
+	lastError := &codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
 	prURL := "https://github.com/coder/coder/pull/42"
 	workspaceID := uuid.New()
 	buildID := uuid.New()
@@ -466,7 +565,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
-		LastError:         &lastError,
+		LastError:         lastError,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,

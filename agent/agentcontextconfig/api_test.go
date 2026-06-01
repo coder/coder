@@ -42,8 +42,11 @@ func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
 	return writeSkillMetaFileInRoot(t, filepath.Join(dir, ".agents", "skills"), name, description)
 }
 
+//nolint:paralleltest,tparallel // Uses t.Setenv to isolate HOME.
 func TestContextPartsFromDir(t *testing.T) {
-	t.Parallel()
+	// Prevent ~/.coder/skills on the host from leaking into results.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 
 	t.Run("ReturnsInstructionFilePart", func(t *testing.T) {
 		t.Parallel()
@@ -460,6 +463,37 @@ func TestResolve(t *testing.T) {
 		skillParts := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill)
 		require.Len(t, skillParts, 1)
 		require.Equal(t, "from skills1", skillParts[0].SkillDescription)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate HOME.
+	t.Run("DefaultDiscoversHomeAndProjectSkillsHomeWins", func(t *testing.T) {
+		fakeHome := t.TempDir()
+		t.Setenv("HOME", fakeHome)
+		t.Setenv("USERPROFILE", fakeHome)
+		workDir := t.TempDir()
+
+		homeSkills := filepath.Join(fakeHome, ".coder", "skills")
+		writeSkillMetaFileInRoot(t, homeSkills, "home-only", "home only")
+		writeSkillMetaFileInRoot(t, homeSkills, "shared", "from home")
+		writeSkillMetaFile(t, workDir, "project-only", "project only")
+		writeSkillMetaFile(t, workDir, "shared", "from project")
+
+		// Construct the Config directly with the package defaults
+		// to verify the default skills list (and only the defaults).
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.Config{
+			SkillsDirs:    agentcontextconfig.DefaultSkillsDir,
+			SkillMetaFile: agentcontextconfig.DefaultSkillMetaFile,
+		})
+
+		got := map[string]string{}
+		for _, p := range filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill) {
+			got[p.SkillName] = p.SkillDescription
+		}
+		require.Equal(t, map[string]string{
+			"home-only":    "home only",
+			"project-only": "project only",
+			"shared":       "from home",
+		}, got)
 	})
 }
 

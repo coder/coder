@@ -6,6 +6,7 @@ import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 
 const providerState: ProviderState = {
+	key: "provider-config-id",
 	provider: "openai",
 	label: "OpenAI",
 	providerConfig: {
@@ -27,6 +28,7 @@ const providerState: ProviderState = {
 	hasManagedAPIKey: true,
 	hasCatalogAPIKey: true,
 	hasEffectiveAPIKey: true,
+	allowUserAPIKey: false,
 	isEnvPreset: false,
 	baseURL: "",
 };
@@ -42,6 +44,7 @@ const providerStateWithoutAPIKey: ProviderState = {
 	hasManagedAPIKey: false,
 	hasCatalogAPIKey: false,
 	hasEffectiveAPIKey: false,
+	allowUserAPIKey: false,
 };
 
 const baseModelConfig: TypesGen.ChatModelConfig = {
@@ -147,6 +150,21 @@ export const HidesPricingWarningForExplicitZeroPricing: Story = {
 		expect(
 			canvas.queryByText("Model pricing is not defined"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const LinksToProvidersFromEmptyState: Story = {
+	args: {
+		providerStates: [providerStateWithoutAPIKey],
+		modelConfigs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const providerLink = canvas.getByRole("link", { name: /provider/i });
+
+		await expect(canvas.getByText("No models configured yet.")).toBeVisible();
+		await expect(providerLink).toBeVisible();
+		expect(providerLink).toHaveAttribute("href", "/agents/settings/providers");
 	},
 };
 
@@ -279,6 +297,7 @@ export const SavesDuplicateAsCreateRequest: Story = {
 			throw new Error("Expected create request.");
 		}
 		expect(createReq).toEqual({
+			ai_provider_id: "provider-config-id",
 			provider: "openai",
 			model: "gpt-4.1-copy",
 			display_name: "GPT-4.1 Copy",
@@ -329,6 +348,7 @@ export const SavesNonDefaultDuplicateWithEditableEnabled: Story = {
 
 		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
 		expect(createModelMock.mock.calls[0]?.[0]).toEqual({
+			ai_provider_id: "provider-config-id",
 			provider: "openai",
 			model: "gpt-4.1-copy",
 			display_name: "GPT-4.1",
@@ -370,6 +390,7 @@ export const SavesDisabledDuplicateWithEditableEnabled: Story = {
 		await waitFor(() => expect(args.onCreateModel).toHaveBeenCalledTimes(1));
 		const createModelMock = args.onCreateModel as ReturnType<typeof fn>;
 		expect(createModelMock.mock.calls[0]?.[0]).toEqual({
+			ai_provider_id: "provider-config-id",
 			provider: "openai",
 			model: "gpt-4.1-disabled-copy",
 			display_name: "GPT-4.1 Disabled",

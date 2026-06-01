@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
-import type { RenderBlock } from "./types";
+import {
+	appendTextBlock,
+	asNonEmptyString,
+	groupSequentialReadFileBlocks,
+} from "./blockUtils";
+import type { MergedTool, RenderBlock } from "./types";
 
 // ---------------------------------------------------------------------------
 // asNonEmptyString
@@ -94,5 +98,72 @@ describe("appendTextBlock", () => {
 		expect(blocks).toHaveLength(1);
 		expect((blocks[0] as { text: string }).text).toBe("original");
 		expect(result).not.toBe(blocks);
+	});
+});
+
+describe("groupSequentialReadFileBlocks", () => {
+	const tool = (id: string, name = "read_file"): MergedTool => ({
+		id,
+		name,
+		isError: false,
+		status: "completed",
+	});
+	const tools = [tool("read-1"), tool("read-2"), tool("execute-1", "execute")];
+
+	it("collapses consecutive read_file tool blocks", () => {
+		const result = groupSequentialReadFileBlocks(
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "read-2" },
+			],
+			tools,
+		);
+
+		expect(result).toEqual([
+			{
+				type: "tool-group",
+				ids: ["read-1", "read-2"],
+			},
+		]);
+	});
+
+	it("leaves a single read_file tool block ungrouped", () => {
+		const result = groupSequentialReadFileBlocks(
+			[{ type: "tool", id: "read-1" }],
+			tools,
+		);
+
+		expect(result).toEqual([{ type: "tool", id: "read-1" }]);
+	});
+
+	it.each([
+		[
+			"response content",
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "response", text: "middle" },
+				{ type: "tool", id: "read-2" },
+			],
+		],
+		[
+			"another tool",
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "execute-1" },
+				{ type: "tool", id: "read-2" },
+			],
+		],
+		[
+			"an unresolved tool",
+			[
+				{ type: "tool", id: "read-1" },
+				{ type: "tool", id: "missing" },
+				{ type: "tool", id: "read-2" },
+			],
+		],
+	] satisfies Array<
+		[string, RenderBlock[]]
+	>)("does not collapse read_file blocks across %s", (_, blocks) => {
+		expect(groupSequentialReadFileBlocks(blocks, tools)).toEqual(blocks);
 	});
 });

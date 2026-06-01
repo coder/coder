@@ -1,4 +1,4 @@
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
 	type FC,
@@ -11,13 +11,13 @@ import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type {
+	AgentChatSendShortcut,
+	ChatDiffStatus,
+	ChatMessagePart,
+} from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./AgentChatPage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -32,19 +32,29 @@ import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPane
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
+import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
+import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
+import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
-import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
-import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+type ChatOwnerInfo = {
+	name?: string;
+	username?: string;
+};
 
 // Re-use the inner presentational components directly. They are
 
@@ -82,11 +92,14 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	sendShortcut: AgentChatSendShortcut;
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	chatOwner: ChatOwnerInfo | undefined;
+	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -103,6 +116,7 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -132,6 +146,8 @@ interface AgentChatPageViewProps {
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
+		hasReceivedChanges: boolean;
+
 		refresh: () => boolean;
 	};
 
@@ -181,11 +197,14 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	sendShortcut,
 	organizationId,
 	chatTitle,
 	parentChat,
 	persistedError,
 	isArchived,
+	chatOwner,
+	canShareChat,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -196,6 +215,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -244,6 +264,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	lastInjectedContext,
 }) => {
 	const queryClient = useQueryClient();
+
+	const canOpenChatSharing = canShareChat && organizationId !== undefined;
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -358,6 +380,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
+						isGitStatusLoading={
+							workspaceAgent?.status === "connected" &&
+							!gitWatcher.hasReceivedChanges
+						}
 						onRefresh={handleRefresh}
 						onCommit={handleCommit}
 						isExpanded={visualExpanded}
@@ -396,6 +422,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isEditing =
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
+
+	const chatOwnerUsername = chatOwner?.username?.trim();
+	const chatOwnerLabel =
+		chatOwner?.name?.trim() ||
+		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
+	const isOtherUserReadOnly = !isArchived && chatOwner !== undefined;
+	const chatOwnerWarning = isOtherUserReadOnly
+		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
+		: undefined;
 
 	const titleElement = (
 		<title>
@@ -446,10 +481,31 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+								renderChatSharingContent={
+									canOpenChatSharing
+										? (open) => (
+												<ChatSharingPopoverContent
+													chatId={agentId}
+													organizationId={organizationId}
+													open={open}
+												/>
+											)
+										: undefined
+								}
 							/>
+							{chatOwnerWarning && (
+								<div
+									role="status"
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									{chatOwnerWarning}
+								</div>
+							)}
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-									<ArchiveIcon className="h-4 w-4 shrink-0" />
+									<ArchiveIcon className="size-4 shrink-0" />
 									This agent has been archived and is read-only.
 								</div>
 							)}
@@ -475,21 +531,31 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						>
 							<div className="px-4">
 								<ChatPageTimeline
-									chatID={agentId}
 									store={store}
 									persistedError={persistedError}
-									onEditUserMessage={editing.handleEditUserMessage}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
 									editingMessageId={editing.editingMessageId}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
-									onImplementPlan={onImplementPlan}
-									onSendAskUserQuestionResponse={canSendAskUserQuestionResponse}
+									onImplementPlan={
+										isOtherUserReadOnly ? undefined : onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly
+											? undefined
+											: canSendAskUserQuestionResponse
+									}
 								/>
 							</div>
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
+								sendShortcut={sendShortcut}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
@@ -505,10 +571,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								agentSetupNotice={agentSetupNotice}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
 								workspaceOptions={workspaceOptions}
+								chatOrganizationId={organizationId}
 								selectedWorkspaceId={selectedWorkspaceId}
 								onWorkspaceChange={onWorkspaceChange}
 								isWorkspaceLoading={isWorkspaceLoading}
@@ -523,7 +591,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
 								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-								onEditUserMessage={editing.handleEditUserMessage}
 								editingFileBlocks={editing.editingFileBlocks}
 								mcpServers={mcpServers}
 								selectedMCPServerIds={selectedMCPServerIds}
@@ -568,6 +635,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
+	sendShortcut: AgentChatSendShortcut;
 	titleElement: React.ReactNode;
 	isInputDisabled: boolean;
 	effectiveSelectedModel: string;
@@ -584,6 +652,7 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+	sendShortcut,
 	titleElement,
 	isInputDisabled,
 	effectiveSelectedModel,
@@ -636,6 +705,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
+						sendShortcut={sendShortcut}
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}

@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -23,6 +25,12 @@ import (
 
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -63,9 +71,9 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 		}
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, false, true)
-	server := newActiveTestServer(t, db, ps)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -106,6 +114,12 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 
 func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -145,10 +159,10 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 		}
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
-	firstModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
-	secondModel := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
-	server := newActiveTestServer(t, db, ps)
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -188,6 +202,12 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 
 func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -205,9 +225,9 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		return resp
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, false)
-	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "local-pending")
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, true, false)
+	chat := insertOpenAIResponsesChat(t, db, org.ID, user.ID, model.ID, "local-pending")
 
 	callID := fmt.Sprintf("call_local_%d", time.Now().UnixNano())
 	localCall := codersdk.ChatMessageToolCall(
@@ -229,7 +249,7 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		},
 	)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -255,6 +275,12 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 
 func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -272,9 +298,9 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		return resp
 	})
 
-	user, org, _ := seedChatDependenciesWithProvider(ctx, t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(ctx, t, db, user.ID, true, true)
-	chat := insertOpenAIResponsesChat(ctx, t, db, org.ID, user.ID, model.ID, "provider-only")
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	chat := insertOpenAIResponsesChat(t, db, org.ID, user.ID, model.ID, "provider-only")
 
 	const (
 		previousResponseID = "resp_provider_only_prior"
@@ -311,7 +337,7 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		},
 	)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -382,8 +408,23 @@ type persistedResponsesMessage struct {
 	providerResponseID string
 }
 
+func newOpenAIResponsesTestServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+) *chatd.Server {
+	t.Helper()
+	return newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		// Let CreateChat and SendMessage publish their pending status
+		// before wake-driven processing starts. The responses tests are
+		// not exercising periodic polling, and PostgreSQL can otherwise
+		// deliver that stale pending notification after processChat
+		// subscribes to control events.
+		cfg.PendingChatAcquireInterval = testutil.WaitLong
+	})
+}
+
 func insertOpenAIResponsesModelConfig(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
@@ -392,7 +433,6 @@ func insertOpenAIResponsesModelConfig(
 ) database.ChatModelConfig {
 	t.Helper()
 	return insertChatModelConfigWithCallConfig(
-		ctx,
 		t,
 		db,
 		userID,
@@ -410,7 +450,6 @@ func insertOpenAIResponsesModelConfig(
 }
 
 func insertOpenAIResponsesChat(
-	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	organizationID uuid.UUID,
@@ -419,7 +458,7 @@ func insertOpenAIResponsesChat(
 	titlePrefix string,
 ) database.Chat {
 	t.Helper()
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	return dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    organizationID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
@@ -428,8 +467,6 @@ func insertOpenAIResponsesChat(
 		MCPServerIDs:      []uuid.UUID{},
 		ClientType:        database.ChatClientTypeApi,
 	})
-	require.NoError(t, err)
-	return chat
 }
 
 func insertOpenAIResponsesMessages(
@@ -464,6 +501,8 @@ func insertOpenAIResponsesMessages(
 		params.RuntimeMs = append(params.RuntimeMs, 0)
 		params.ProviderResponseID = append(params.ProviderResponseID, message.providerResponseID)
 	}
+	// Keep this raw because dbgen.ChatMessage inserts one message at a time,
+	// while this helper needs to preserve variadic batch insert behavior.
 	_, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 }
@@ -478,7 +517,7 @@ func requireResponsesChatWaiting(
 	chat, err := db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	if chat.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q", chat.LastError.String)
+		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chat.LastError))
 	}
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
 }

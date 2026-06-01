@@ -31,7 +31,50 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // associated with a single chat. This limit prevents unbounded
 // growth in the chat_file_links table. It is easier to raise
 // this limit than to lower it.
-const MaxChatFileIDs = 20
+const MaxChatFileIDs = 50
+
+// MaxChatFileSizeBytes is the upload-endpoint cap for chat
+// attachments.
+const MaxChatFileSizeBytes = 10 * 1024 * 1024
+
+// AnthropicInlineImageCapBytes is Anthropic's documented per-image
+// wire limit; the same cap applies to Bedrock-hosted Claude. Other
+// providers have no documented per-image cap.
+const AnthropicInlineImageCapBytes = 5 * 1024 * 1024
+
+// ChatAttachmentMediaType is a media type that is allowed for durable
+// chat file storage. The set is intentionally narrow; byte-level
+// classification and inline-render rules live alongside the enforcement
+// helpers in coderd/chatfiles.
+type ChatAttachmentMediaType string
+
+const (
+	ChatAttachmentMediaTypeApplicationJSON ChatAttachmentMediaType = "application/json"
+	ChatAttachmentMediaTypeApplicationPDF  ChatAttachmentMediaType = "application/pdf"
+	ChatAttachmentMediaTypeImageGIF        ChatAttachmentMediaType = "image/gif"
+	ChatAttachmentMediaTypeImageJPEG       ChatAttachmentMediaType = "image/jpeg"
+	ChatAttachmentMediaTypeImagePNG        ChatAttachmentMediaType = "image/png"
+	ChatAttachmentMediaTypeImageWEBP       ChatAttachmentMediaType = "image/webp"
+	ChatAttachmentMediaTypeTextCSV         ChatAttachmentMediaType = "text/csv"
+	ChatAttachmentMediaTypeTextMarkdown    ChatAttachmentMediaType = "text/markdown"
+	ChatAttachmentMediaTypeTextPlain       ChatAttachmentMediaType = "text/plain"
+)
+
+// AllChatAttachmentMediaTypes enumerates every durable chat attachment
+// media type in the same lexical order the guts-generated TypeScript
+// list uses, so the frontend file picker and the backend enforcement
+// map stay in lockstep. Add new values in sorted order.
+var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
+	ChatAttachmentMediaTypeApplicationJSON,
+	ChatAttachmentMediaTypeApplicationPDF,
+	ChatAttachmentMediaTypeImageGIF,
+	ChatAttachmentMediaTypeImageJPEG,
+	ChatAttachmentMediaTypeImagePNG,
+	ChatAttachmentMediaTypeImageWEBP,
+	ChatAttachmentMediaTypeTextCSV,
+	ChatAttachmentMediaTypeTextMarkdown,
+	ChatAttachmentMediaTypeTextPlain,
+}
 
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
@@ -66,6 +109,8 @@ type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
 	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	OwnerUsername     string             `json:"owner_username,omitempty"`
+	OwnerName         string             `json:"owner_name,omitempty"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
 	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
@@ -75,7 +120,8 @@ type Chat struct {
 	Title             string             `json:"title"`
 	Status            ChatStatus         `json:"status"`
 	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
-	LastError         *string            `json:"last_error"`
+	LastError         *ChatError         `json:"last_error,omitempty"`
+	LastTurnSummary   *string            `json:"last_turn_summary"`
 	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
@@ -90,7 +136,7 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// LastInjectedContext holds the most recently persisted
 	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes — first workspace
+	// is updated only when context changes, on first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
 	Warnings            []string          `json:"warnings,omitempty"`
@@ -210,20 +256,28 @@ type ChatMessagePart struct {
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty"`
-	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
-	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
-	URL               string              `json:"url" variants:"source"`
-	Title             string              `json:"title,omitempty" variants:"source?"`
-	MediaType         string              `json:"media_type" variants:"file"`
-	Name              string              `json:"name,omitempty" variants:"file?"`
-	Data              []byte              `json:"data,omitempty" variants:"file?"`
-	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName          string              `json:"file_name" variants:"file-reference"`
-	StartLine         int                 `json:"start_line" variants:"file-reference"`
-	EndLine           int                 `json:"end_line" variants:"file-reference"`
+	// ParsedCommands holds parsed programs from an execute tool call's
+	// shell command, one entry per simple command in source order. Each
+	// entry is [program] or [program, arg] where arg is the first non-flag
+	// positional argument. Program names are normalized to their base
+	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	// is "execute" and the command parses successfully; nil otherwise.
+	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
+	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
+	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
+	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
+	SourceID       string          `json:"source_id,omitempty" variants:"source?"`
+	URL            string          `json:"url" variants:"source"`
+	Title          string          `json:"title,omitempty" variants:"source?"`
+	MediaType      string          `json:"media_type" variants:"file"`
+	Name           string          `json:"name,omitempty" variants:"file?"`
+	Data           []byte          `json:"data,omitempty" variants:"file?"`
+	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName       string          `json:"file_name" variants:"file-reference"`
+	StartLine      int             `json:"start_line" variants:"file-reference"`
+	EndLine        int             `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
@@ -233,10 +287,20 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
-	// CreatedAt records when this part was produced. Present on
-	// tool-call and tool-result parts so the frontend can compute
-	// tool execution duration.
-	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?"`
+	// CreatedAt is the timestamp this part carries. The semantics
+	// depend on the part type: for tool-call and tool-result parts
+	// it is the time the call was emitted or the result was
+	// produced (tool duration is the result's created_at minus the
+	// call's created_at); for reasoning parts it is the time
+	// reasoning started streaming.
+	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?,reasoning?"`
+	// CompletedAt is the time a reasoning part finished streaming,
+	// so reasoning duration can be computed as completed_at minus
+	// created_at. For interrupted reasoning, this is the
+	// interruption time. Absent when reasoning timestamp data was
+	// not recorded (e.g. messages persisted before this feature
+	// was added).
+	CompletedAt *time.Time `json:"completed_at,omitempty" format:"date-time" variants:"reasoning?"`
 	// ContextFilePath is the absolute path of a file loaded into
 	// the LLM context (e.g. an AGENTS.md instruction file).
 	ContextFilePath string `json:"context_file_path" variants:"context-file"`
@@ -283,9 +347,11 @@ type ChatMessagePart struct {
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta and ResultDelta are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via
-// SSE message_part events (see processStepStream in chatloop).
+// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via SSE
+// message_part events. ArgsDelta is produced by processStepStream in
+// chatloop; ResultDelta and ResultReset are produced by the advisor
+// streaming callbacks in chatd.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
@@ -474,6 +540,10 @@ type CreateChatMessageRequest struct {
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ModelConfigID, when set, overrides the model used for the
+	// replacement user message and the assistant turn that follows.
+	// When nil the original message's model is preserved.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -502,6 +572,23 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+}
+
+// ChatPrompt is a single user-authored prompt in a chat, returned by
+// GET /api/experimental/chats/{chat}/prompts. The text field contains
+// the concatenated text payload of the underlying chat message; non-text
+// parts (tool calls, files, attachments) are omitted by the server.
+type ChatPrompt struct {
+	ID   int64  `json:"id"`
+	Text string `json:"text"`
+}
+
+// ChatPromptsResponse is the payload of
+// GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+// newest first so the client can index directly into the slice for
+// up/down arrow history cycling.
+type ChatPromptsResponse struct {
+	Prompts []ChatPrompt `json:"prompts"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -562,46 +649,114 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatAgentModelOverrideContext identifies which chat or subagent context
-// a deployment override applies to.
-type ChatAgentModelOverrideContext string
+// ChatModelOverrideContext identifies which chat model override context a
+// deployment override applies to.
+type ChatModelOverrideContext string
 
 const (
-	ChatAgentModelOverrideContextGeneral ChatAgentModelOverrideContext = "general"
-	ChatAgentModelOverrideContextExplore ChatAgentModelOverrideContext = "explore"
+	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
+	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 )
 
 // Valid reports whether the override context is one of the supported values.
-func (c ChatAgentModelOverrideContext) Valid() bool {
+func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
-	case ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore:
+	case ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration:
 		return true
 	default:
 		return false
 	}
 }
 
-// AllChatAgentModelOverrideContexts returns all supported override contexts.
-func AllChatAgentModelOverrideContexts() []ChatAgentModelOverrideContext {
-	return []ChatAgentModelOverrideContext{
-		ChatAgentModelOverrideContextGeneral,
-		ChatAgentModelOverrideContextExplore,
+// AllChatModelOverrideContexts returns all supported override contexts.
+func AllChatModelOverrideContexts() []ChatModelOverrideContext {
+	return []ChatModelOverrideContext{
+		ChatModelOverrideContextGeneral,
+		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextTitleGeneration,
 	}
 }
 
-// ChatAgentModelOverrideResponse is the response body for the chat agent
-// model override configuration endpoint.
-type ChatAgentModelOverrideResponse struct {
-	Context       ChatAgentModelOverrideContext `json:"context"`
-	ModelConfigID string                        `json:"model_config_id"`
-	IsMalformed   bool                          `json:"is_malformed"`
+// ChatModelOverrideResponse is the response body for the chat model override
+// configuration endpoint.
+type ChatModelOverrideResponse struct {
+	Context       ChatModelOverrideContext `json:"context"`
+	ModelConfigID string                   `json:"model_config_id"`
+	IsMalformed   bool                     `json:"is_malformed"`
 }
 
-// UpdateChatAgentModelOverrideRequest is the request body for updating the
-// chat agent model override configuration endpoint.
-type UpdateChatAgentModelOverrideRequest struct {
+// UpdateChatModelOverrideRequest is the request body for updating the chat
+// model override configuration endpoint.
+type UpdateChatModelOverrideRequest struct {
 	ModelConfigID string `json:"model_config_id"`
+}
+
+// ChatPersonalModelOverrideContext identifies which chat context the user
+// personal model override applies to.
+type ChatPersonalModelOverrideContext string
+
+const (
+	ChatPersonalModelOverrideContextRoot    ChatPersonalModelOverrideContext = "root"
+	ChatPersonalModelOverrideContextGeneral ChatPersonalModelOverrideContext = "general"
+	ChatPersonalModelOverrideContextExplore ChatPersonalModelOverrideContext = "explore"
+)
+
+// ChatPersonalModelOverrideMode identifies how a user personal model override
+// should resolve the effective model.
+type ChatPersonalModelOverrideMode string
+
+const (
+	ChatPersonalModelOverrideModeDeploymentDefault ChatPersonalModelOverrideMode = "deployment_default"
+	ChatPersonalModelOverrideModeChatDefault       ChatPersonalModelOverrideMode = "chat_default"
+	ChatPersonalModelOverrideModeModel             ChatPersonalModelOverrideMode = "model"
+)
+
+// ChatPersonalModelOverride is a resolved user personal model override.
+type ChatPersonalModelOverride struct {
+	Context       ChatPersonalModelOverrideContext `json:"context"`
+	Mode          ChatPersonalModelOverrideMode    `json:"mode"`
+	ModelConfigID string                           `json:"model_config_id"`
+	IsSet         bool                             `json:"is_set"`
+	IsMalformed   bool                             `json:"is_malformed"`
+}
+
+// ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
+// defaults used when a personal override selects deployment_default.
+type ChatPersonalModelOverrideDeploymentDefaults struct {
+	General ChatModelOverrideResponse `json:"general"`
+	Explore ChatModelOverrideResponse `json:"explore"`
+}
+
+// UserChatPersonalModelOverridesResponse is the response body for user
+// personal model override settings.
+type UserChatPersonalModelOverridesResponse struct {
+	Enabled            bool                                        `json:"enabled"`
+	Root               ChatPersonalModelOverride                   `json:"root"`
+	General            ChatPersonalModelOverride                   `json:"general"`
+	Explore            ChatPersonalModelOverride                   `json:"explore"`
+	DeploymentDefaults ChatPersonalModelOverrideDeploymentDefaults `json:"deployment_defaults"`
+}
+
+// UpdateUserChatPersonalModelOverrideRequest is the request body for updating
+// a user personal model override.
+type UpdateUserChatPersonalModelOverrideRequest struct {
+	Mode          ChatPersonalModelOverrideMode `json:"mode"`
+	ModelConfigID string                        `json:"model_config_id"`
+}
+
+// ChatPersonalModelOverridesAdminSettings describes whether users may manage
+// personal model override settings.
+type ChatPersonalModelOverridesAdminSettings struct {
+	AllowUsers bool `json:"allow_users"`
+}
+
+// UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
+// updating personal model override admin settings.
+type UpdateChatPersonalModelOverridesAdminSettingsRequest struct {
+	AllowUsers bool `json:"allow_users"`
 }
 
 // UserChatCustomPrompt is the request and response body for the
@@ -637,6 +792,45 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// AdvisorConfig is the deployment-wide runtime configuration for the
+// experimental chat advisor.
+//
+// EXPERIMENTAL: this type is experimental and is subject to change.
+type AdvisorConfig struct {
+	// Enabled toggles the advisor runtime. When false, advisor is not
+	// attached to new chats.
+	Enabled bool `json:"enabled"`
+	// MaxUsesPerRun caps how many times the advisor can be invoked per
+	// chat run. 0 means unlimited.
+	MaxUsesPerRun int `json:"max_uses_per_run"`
+	// MaxOutputTokens caps the advisor model response tokens. 0 means
+	// use the runtime default.
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+	// ModelConfigID selects a specific chat model config to power the
+	// advisor. uuid.Nil means reuse the outer chat model. The runtime
+	// must fall back to the outer chat model when this ID cannot be
+	// resolved (e.g. the referenced model config was soft-deleted or
+	// its provider was disabled after the admin saved this config).
+	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+}
+
+// UpdateAdvisorConfigRequest is the request body for updating advisor
+// runtime configuration. It is a type alias for AdvisorConfig because
+// the request and response shapes are currently identical.
+type UpdateAdvisorConfigRequest = AdvisorConfig
+
+// ChatComputerUseProviderResponse is the response for getting the computer use
+// provider setting.
+type ChatComputerUseProviderResponse struct {
+	Provider string `json:"provider"`
+}
+
+// UpdateChatComputerUseProviderRequest is the request to update the computer use
+// provider setting.
+type UpdateChatComputerUseProviderRequest struct {
+	Provider string `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -801,6 +995,11 @@ const DefaultChatWorkspaceTTL = 0
 // auto-archival.
 const DefaultChatAutoArchiveDays int32 = 0
 
+// DefaultChatDebugRetentionDays is the default chat debug run retention
+// window, in days, applied when no site config row exists. Set the
+// config value to zero to disable the purge.
+const DefaultChatDebugRetentionDays int32 = 30
+
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
@@ -826,6 +1025,18 @@ type ChatRetentionDaysResponse struct {
 // retention period.
 type UpdateChatRetentionDaysRequest struct {
 	RetentionDays int32 `json:"retention_days"`
+}
+
+// ChatDebugRetentionDaysResponse contains the current chat debug run
+// retention setting.
+type ChatDebugRetentionDaysResponse struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
+}
+
+// UpdateChatDebugRetentionDaysRequest is a request to update the chat
+// debug run retention period.
+type UpdateChatDebugRetentionDaysRequest struct {
+	DebugRetentionDays int32 `json:"debug_retention_days"`
 }
 
 // ChatAutoArchiveDaysResponse contains the current chat auto-archive setting.
@@ -910,6 +1121,31 @@ type UpdateChatProviderConfigRequest struct {
 	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
 }
 
+// AIProviderSummary is provider metadata embedded in other API responses.
+type AIProviderSummary struct {
+	ID          uuid.UUID      `json:"id" format:"uuid"`
+	Type        AIProviderType `json:"type"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"display_name"`
+	Enabled     bool           `json:"enabled"`
+	Deleted     bool           `json:"deleted"`
+}
+
+// UserAIProviderKeyConfig is a provider summary from the current user's
+// perspective. It reports key presence but never returns key material.
+type UserAIProviderKeyConfig struct {
+	Provider          AIProviderSummary `json:"provider"`
+	HasUserAPIKey     bool              `json:"has_user_api_key"`
+	HasProviderAPIKey bool              `json:"has_provider_api_key"`
+	BYOKEnabled       bool              `json:"byok_enabled"`
+}
+
+// CreateUserAIProviderKeyRequest creates or replaces a user's API key
+// for an AI provider.
+type CreateUserAIProviderKeyRequest struct {
+	APIKey string `json:"api_key"`
+}
+
 // UserChatProviderConfig is a summary of a provider that allows
 // user-supplied keys, as seen from the current user's perspective.
 type UserChatProviderConfig struct {
@@ -918,6 +1154,7 @@ type UserChatProviderConfig struct {
 	DisplayName              string    `json:"display_name"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
+	BYOKEnabled              bool      `json:"byok_enabled"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
@@ -930,6 +1167,7 @@ type CreateUserChatProviderKeyRequest struct {
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	Provider             string               `json:"provider"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -1139,7 +1377,8 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider"`
+	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -1152,6 +1391,7 @@ type CreateChatModelConfigRequest struct {
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
 	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -1281,15 +1521,47 @@ type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
 }
 
-// ChatStreamError represents an error event in the stream.
-type ChatStreamError struct {
+// ChatErrorKind classifies chat errors for consistent client rendering.
+type ChatErrorKind string
+
+const (
+	ChatErrorKindGeneric          ChatErrorKind = "generic"
+	ChatErrorKindOverloaded       ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit        ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout          ChatErrorKind = "timeout"
+	ChatErrorKindStartupTimeout   ChatErrorKind = "startup_timeout"
+	ChatErrorKindAuth             ChatErrorKind = "auth"
+	ChatErrorKindConfig           ChatErrorKind = "config"
+	ChatErrorKindUsageLimit       ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey       ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled ChatErrorKind = "provider_disabled"
+)
+
+// AllChatErrorKinds contains every ChatErrorKind value.
+// Update this when adding new constants above.
+var AllChatErrorKinds = []ChatErrorKind{
+	ChatErrorKindGeneric,
+	ChatErrorKindOverloaded,
+	ChatErrorKindRateLimit,
+	ChatErrorKindTimeout,
+	ChatErrorKindStartupTimeout,
+	ChatErrorKindAuth,
+	ChatErrorKindConfig,
+	ChatErrorKindUsageLimit,
+	ChatErrorKindMissingKey,
+	ChatErrorKindProviderDisabled,
+}
+
+// ChatError represents a terminal chat error in persisted chat state or the
+// live stream.
+type ChatError struct {
 	// Message is the normalized, user-facing error message.
 	Message string `json:"message"`
 	// Detail is optional provider-specific context shown alongside the
 	// normalized error message when available.
 	Detail string `json:"detail,omitempty"`
 	// Kind classifies the error for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// Retryable reports whether the underlying error is transient.
@@ -1308,7 +1580,7 @@ type ChatStreamRetry struct {
 	// Error is the normalized error message from the failed attempt.
 	Error string `json:"error"`
 	// Kind classifies the retry reason for consistent client rendering.
-	Kind string `json:"kind,omitempty"`
+	Kind ChatErrorKind `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// StatusCode is the best-effort upstream HTTP status code.
@@ -1405,6 +1677,7 @@ type ChatWatchEventKind string
 
 const (
 	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
+	ChatWatchEventKindSummaryChange    ChatWatchEventKind = "summary_change"
 	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
@@ -1413,8 +1686,8 @@ const (
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
-// It delivers lifecycle events (created, status change, title change)
-// for all of the authenticated user's chats. When Kind is
+// It delivers lifecycle events (created, status change, summary change,
+// title change) for all of the authenticated user's chats. When Kind is
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
@@ -1430,7 +1703,7 @@ type ChatStreamEvent struct {
 	Message        *ChatMessage              `json:"message,omitempty"`
 	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
 	Status         *ChatStreamStatus         `json:"status,omitempty"`
-	Error          *ChatStreamError          `json:"error,omitempty"`
+	Error          *ChatError                `json:"error,omitempty"`
 	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
@@ -1736,6 +2009,33 @@ type ChatUsageLimitConfigResponse struct {
 	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
+type ChatRole string
+
+const (
+	ChatRoleRead    ChatRole = "read"
+	ChatRoleDeleted ChatRole = ""
+)
+
+type ChatUser struct {
+	MinimalUser
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatGroup struct {
+	Group
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatACL struct {
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
+}
+
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query  string
@@ -1848,6 +2148,51 @@ func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID 
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
+func (c *ExperimentalClient) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("list user AI provider key configs: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var configs []UserAIProviderKeyConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// UpsertUserAIProviderKey creates or replaces a user API key for an AI provider.
+func (c *ExperimentalClient) UpsertUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID, req CreateUserAIProviderKeyRequest) (UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), req)
+	if err != nil {
+		return UserAIProviderKeyConfig{}, xerrors.Errorf("upsert user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAIProviderKeyConfig{}, ReadBodyAsError(res)
+	}
+	var config UserAIProviderKeyConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteUserAIProviderKey deletes a user API key for an AI provider.
+func (c *ExperimentalClient) DeleteUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), nil)
+	if err != nil {
+		return xerrors.Errorf("delete user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func userAIProviderKeysPath(user string) string {
+	return fmt.Sprintf("/api/experimental/users/%s/ai-provider-keys", url.PathEscape(user))
 }
 
 // ListUserChatProviderConfigs returns user-scoped chat provider configs.
@@ -2068,30 +2413,92 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatAgentModelOverride returns the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) GetChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext) (ChatAgentModelOverrideResponse, error) {
+// GetChatModelOverride returns the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return ChatAgentModelOverrideResponse{}, err
+		return ChatModelOverrideResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatAgentModelOverrideResponse{}, ReadBodyAsError(res)
+		return ChatModelOverrideResponse{}, ReadBodyAsError(res)
 	}
-	var resp ChatAgentModelOverrideResponse
+	var resp ChatModelOverrideResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatAgentModelOverride updates the deployment-wide chat agent model
-// override for the requested context.
-func (c *ExperimentalClient) UpdateChatAgentModelOverride(ctx context.Context, override ChatAgentModelOverrideContext, req UpdateChatAgentModelOverrideRequest) error {
+// UpdateChatModelOverride updates the deployment-wide chat model override for
+// the requested context.
+func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/agent-model-override/%s",
+		"/api/experimental/chats/config/model-override/%s",
+		url.PathEscape(string(override)),
+	)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
+// personal model override admin settings.
+func (c *ExperimentalClient) GetChatPersonalModelOverridesAdminSettings(ctx context.Context) (ChatPersonalModelOverridesAdminSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/personal-model-overrides", nil)
+	if err != nil {
+		return ChatPersonalModelOverridesAdminSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPersonalModelOverridesAdminSettings{}, ReadBodyAsError(res)
+	}
+	var resp ChatPersonalModelOverridesAdminSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatPersonalModelOverridesAdminSettings updates the deployment-wide
+// personal model override admin settings.
+func (c *ExperimentalClient) UpdateChatPersonalModelOverridesAdminSettings(ctx context.Context, req UpdateChatPersonalModelOverridesAdminSettingsRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/personal-model-overrides", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatPersonalModelOverrides fetches the user's personal model
+// override settings.
+func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context) (UserChatPersonalModelOverridesResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+	if err != nil {
+		return UserChatPersonalModelOverridesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatPersonalModelOverridesResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatPersonalModelOverridesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatPersonalModelOverride updates the user's personal model
+// override for the requested context.
+func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
+	path := fmt.Sprintf(
+		"/api/experimental/chats/config/user-personal-model-overrides/%s",
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)
@@ -2146,6 +2553,61 @@ func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req U
 	return nil
 }
 
+// GetChatAdvisorConfig returns the deployment-wide advisor configuration.
+func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+	if err != nil {
+		return AdvisorConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AdvisorConfig{}, ReadBodyAsError(res)
+	}
+	var resp AdvisorConfig
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
+func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatComputerUseProvider returns the deployment-wide computer use provider.
+func (c *ExperimentalClient) GetChatComputerUseProvider(ctx context.Context) (ChatComputerUseProviderResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/computer-use-provider", nil)
+	if err != nil {
+		return ChatComputerUseProviderResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatComputerUseProviderResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatComputerUseProviderResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatComputerUseProvider updates the deployment-wide computer use
+// provider.
+func (c *ExperimentalClient) UpdateChatComputerUseProvider(ctx context.Context, req UpdateChatComputerUseProviderRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/computer-use-provider", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatWorkspaceTTL returns the configured chat workspace TTL.
 func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
@@ -2190,6 +2652,34 @@ func (c *ExperimentalClient) GetChatRetentionDays(ctx context.Context) (ChatRete
 // UpdateChatRetentionDays updates the chat retention period.
 func (c *ExperimentalClient) UpdateChatRetentionDays(ctx context.Context, req UpdateChatRetentionDaysRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/retention-days", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatDebugRetentionDays returns the configured chat debug run
+// retention period.
+func (c *ExperimentalClient) GetChatDebugRetentionDays(ctx context.Context) (ChatDebugRetentionDaysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/debug-retention-days", nil)
+	if err != nil {
+		return ChatDebugRetentionDaysResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDebugRetentionDaysResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatDebugRetentionDaysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDebugRetentionDays updates the chat debug run retention period.
+func (c *ExperimentalClient) UpdateChatDebugRetentionDays(ctx context.Context, req UpdateChatDebugRetentionDaysRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/debug-retention-days", req)
 	if err != nil {
 		return err
 	}
@@ -2390,7 +2880,7 @@ func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, o
 				}
 				_ = send(ChatStreamEvent{
 					Type: ChatStreamEventTypeError,
-					Error: &ChatStreamError{
+					Error: &ChatError{
 						Message: fmt.Sprintf("read chat stream: %v", err),
 					},
 				})
@@ -2566,6 +3056,31 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatMessages returns the messages and queued messages for a chat.
 // ChatMessagesPaginationOptions are optional pagination params for
 // GetChatMessages.
@@ -2608,6 +3123,41 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ChatPromptsOptions are optional query parameters for GetChatPrompts.
+type ChatPromptsOptions struct {
+	// Limit caps the number of prompts returned. The server enforces a
+	// minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	// applies the server-side default of 500.
+	Limit int
+}
+
+// GetChatPrompts returns the user prompts for a chat in newest-first
+// order. It is a thin endpoint dedicated to the composer's prompt
+// history cycle: only user-visible user messages are included, and
+// only their text parts (concatenated in the original order) are
+// returned. Whitespace-only prompts are filtered server-side so the
+// caller never has to skip blank entries while cycling.
+func (c *ExperimentalClient) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *ChatPromptsOptions) (ChatPromptsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.Limit > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("limit", strconv.Itoa(opts.Limit))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/prompts", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatPromptsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPromptsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatPromptsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

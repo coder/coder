@@ -6,6 +6,10 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import {
+	MockDefaultOrganization,
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -16,17 +20,18 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
+import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	createChatStore,
 	useChatSelector,
 } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +56,8 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	id: AGENT_ID,
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
+	owner_username: "owner",
+	owner_name: "Owner",
 	title: "Help me refactor",
 	status: "completed",
 	last_model_config_id: defaultModelConfigID,
@@ -62,7 +69,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -91,6 +98,7 @@ const buildGitWatcher = (): ComponentProps<
 >["gitWatcher"] => ({
 	repositories: new Map(),
 	everDirty: new Set(),
+	hasReceivedChanges: true,
 	refresh: fn().mockReturnValue(true),
 });
 
@@ -130,11 +138,15 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 
 	const props = {
 		agentId: AGENT_ID,
+		sendShortcut: "enter" as const,
 		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		chatOwner: undefined as ComponentProps<
+			typeof AgentChatPageView
+		>["chatOwner"],
 		effectiveSelectedModel: defaultModelConfigID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
@@ -175,6 +187,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
+		canShareChat: false,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -213,11 +226,95 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/^This chat is owned by/),
+		).not.toBeInTheDocument();
+	},
 };
 
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
+};
+
+export const OtherUserChatReadOnly: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This chat is owned by Other User. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const OtherUserChatUsernameFallback: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser" }}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This chat is owned by @OtherUser. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+export const OtherUserChatOwnerFallback: Story = {
+	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This chat is owned by another user. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+/** Archived chats stay read-only without the owner banner. */
+export const ArchivedOtherUserChat: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isArchived
+			isInputDisabled
+			chatOwner={{ username: "OtherUser" }}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText(/^This chat is owned by/),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+	},
 };
 
 /** Shows the parent chat link in the top bar when a parent exists. */
@@ -235,7 +332,7 @@ export const WithError: Story = {
 		<StoryAgentChatPageView
 			persistedError={{
 				kind: "overloaded",
-				message: "Anthropic is temporarily overloaded (HTTP 529).",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -248,8 +345,9 @@ export const WithError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is temporarily overloaded \(http 529\)/i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
 	},
@@ -382,6 +480,124 @@ export const NoModelOptions: Story = {
 	),
 };
 
+export const MissingProviderAndModelSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				})[0],
+			).toBeVisible();
+		});
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
+			"href",
+			"/ai/settings",
+		);
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
+	},
+};
+
+export const MissingModelSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a model."
+					);
+				})[0],
+			).toBeVisible();
+		});
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
+			"href",
+			"/agents/settings/models",
+		);
+	},
+};
+
+export const MissingProviderSetup: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
+			}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider."
+					);
+				})[0],
+			).toBeVisible();
+		});
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
+			"href",
+			"/ai/settings",
+		);
+	},
+};
+
+export const MemberNoModelsAvailable: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"AI models aren't available yet. Your admin is still getting things set up.",
+				),
+			).toBeVisible();
+		});
+	},
+};
+
 export const WithWorkspace: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -468,6 +684,7 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -486,6 +703,7 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
@@ -503,6 +721,7 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -521,6 +740,7 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -539,17 +759,24 @@ export const LoadingSidebarCollapsed: Story = {
 // Helpers for seeding stores with messages
 // ---------------------------------------------------------------------------
 
-const buildMessage = (
+const buildMessageWithContent = (
 	id: number,
 	role: TypesGen.ChatMessageRole,
-	text: string,
+	content: TypesGen.ChatMessagePart[],
 ): TypesGen.ChatMessage => ({
 	id,
 	chat_id: AGENT_ID,
 	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
 	role,
-	content: [{ type: "text", text }],
+	content,
 });
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage =>
+	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
@@ -559,6 +786,52 @@ const buildStoreWithMessages = (
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
 	return store;
+};
+
+const otherUserActionMessages: TypesGen.ChatMessage[] = [
+	buildMessage(1, "user", "Please review this plan."),
+	buildMessageWithContent(2, "assistant", [
+		{ type: "text", text: "I prepared a plan." },
+		{
+			type: "tool-call",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			args: { path: "/home/coder/PLAN.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			result: {
+				file_id: "other-user-plan-file",
+				content: "# Plan\n\n1. Keep this chat read-only.",
+			},
+		},
+	]),
+];
+
+export const OtherUserChatHidesInlineActions: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			isInputDisabled
+			onImplementPlan={fn()}
+			store={buildStoreWithMessages(otherUserActionMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This chat is owned by Other User. It is read-only."),
+		).toBeVisible();
+		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Edit message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -953,6 +1226,87 @@ export const MessageOrderIsStillCorrect: Story = {
 	},
 };
 
+const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
+
+/**
+ * Regression guard for the StickyUserMessage push-up logic.
+ *
+ * `react-infinite-scroll-component` renders two wrapper divs between the
+ * scroll container and the message tree. The library applies `overflow:
+ * auto` to its inner wrapper, which used to make `position: sticky` on a
+ * user message resolve against that wrapper instead of the actual scroller.
+ * The fix forces both wrappers to `display: contents` so the sticky
+ * container's nearest scrolling ancestor is once again the
+ * `.overflow-y-auto` element.
+ *
+ * This story scrolls past the most recent user message and asserts the
+ * message is pinned within a few pixels of the scroll container's top.
+ */
+export const StickyUserMessagePinsOnScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(stickyPinningStore, 40);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// Each sticky user message is the element immediately following its
+		// `data-user-sentinel` marker. The push-up logic depends on the
+		// sticky container resolving against the real scroll container,
+		// which is the regression this story guards against.
+		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBeGreaterThan(0);
+		for (const sentinel of sentinels) {
+			expect(sentinel.closest("[data-testid='scroll-container']")).toBe(
+				scrollContainer,
+			);
+			const container = sentinel.nextElementSibling;
+			expect(container).not.toBeNull();
+			expect(window.getComputedStyle(container as Element).position).toBe(
+				"sticky",
+			);
+		}
+
+		// At the default `scrollTop = 0`, the inverse layout shows the
+		// newest messages at the bottom of the viewport. Older user
+		// messages whose sentinels have already scrolled above the
+		// scroller's top edge should be pinned by `position: sticky`. Pick
+		// a sentinel that is comfortably above the top edge so a tiny
+		// scroll offset cannot flip it on or off the boundary.
+		const scrollerRect = scrollContainer.getBoundingClientRect();
+		// Walk the sentinels in reverse DOM order so we land on the
+		// most recent user message whose sentinel has scrolled above
+		// the scroll container's top edge. That is the message the
+		// push-up logic actively pins at the top; earlier pinned
+		// messages will have been pushed out of view by it.
+		const pinnedSentinel = Array.from(sentinels)
+			.reverse()
+			.find(
+				(sentinel) =>
+					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
+			) as HTMLElement | undefined;
+		expect(pinnedSentinel).toBeDefined();
+		if (!pinnedSentinel) {
+			return;
+		}
+		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
+
+		// `position: sticky` should pin the user message container near
+		// the scroll container's top edge while the assistant response
+		// below it is on screen. Before the fix, the sticky container
+		// resolved against the InfiniteScroll wrapper rather than the
+		// real scroll container, so it scrolled out with its sentinel
+		// and ended up far above the viewport.
+		const pinnedRect = pinnedContainer.getBoundingClientRect();
+		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
+		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
+		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
+	},
+};
+
 /**
  * Selecting the Terminal tab in the sidebar must move keyboard focus into
  * the terminal so typing goes there, not the chat input.
@@ -1161,5 +1515,75 @@ export const DoesNotPersistForArchivedChat: Story = {
 		});
 
 		expect(localStorage.getItem(sidebarTabStorageKey)).toBeNull();
+	},
+};
+
+export const ArchivedWithSharing: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isArchived
+			isInputDisabled
+			canShareChat
+			organizationId={MockDefaultOrganization.id}
+		/>
+	),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
+	},
+};
+
+export const ShareChatPopoverFromTopBar: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			canShareChat
+			organizationId={MockDefaultOrganization.id}
+		/>
+	),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
 	},
 };

@@ -15,6 +15,87 @@
 	font-display: swap;
 }
 
+@layer components {
+	@media (max-width: 767px) {
+		/*
+			Full-width mobile dropdowns. We set custom properties on
+			`document.documentElement` from the chat input container so
+			dropdown positions track the actual input box, not hardcoded
+			offsets. Radix popover wrappers are fixed-positioned, so
+			bottom offsets are measured from the layout viewport. The
+			above-composer max-height also accounts for the visual
+			viewport offset so soft-keyboard viewport panning on mobile
+			keeps dropdowns inside the visible area:
+
+			- `--mobile-dropdown-bottom`: distance from the layout
+			  viewport bottom to the composer's bottom edge. Used by the
+			  `-bottom` variant; the dropdown's bottom edge sits at the
+			  composer's bottom edge.
+			- `--mobile-dropdown-left` and `--mobile-dropdown-width`:
+			  composer-aligned horizontal geometry for full-width mobile
+			  dropdowns.
+			- `--mobile-dropdown-above-composer-bottom`: distance from
+			  the layout viewport bottom to a point just above the
+			  composer's top edge.
+			- `--mobile-dropdown-above-composer-max-height`: maximum
+			  height the `-above-composer` variant can grow to without
+			  extending past the visible viewport top.
+		*/
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+			position: fixed !important;
+			left: var(--mobile-dropdown-left, 1rem) !important;
+			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-top-below-header
+			) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-above-composer
+			) {
+			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
+			top: auto !important;
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
+		.mobile-full-width-dropdown {
+			width: 100% !important;
+			min-width: 0 !important;
+			max-width: none !important;
+		}
+		.mobile-full-width-dropdown-above-composer {
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
+		.mobile-full-width-dropdown-above-composer
+			.mobile-full-width-dropdown-scroll-area {
+			max-height: calc(
+				var(--mobile-dropdown-above-composer-max-height, 18rem) -
+				0.5rem
+			) !important;
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
+}
+
 @layer base {
 	:root,
 	.light {
@@ -154,83 +235,114 @@
 		--primary: var(--content-link);
 		--primary-foreground: var(--surface-primary);
 	}
+	/*
+		Colorblind-friendly variants. ThemeProvider applies these classes
+		alongside the base mode class (`dark` or `light`), so unchanged
+		variables cascade from the base mode and each block only overrides
+		the semantic colors that shift for colorblind accessibility.
+
+		Palette rationale:
+		- dark-protan-deuter / light-protan-deuter: shift the red/green
+		  success+error axis onto sky-blue (success) + vermilion/orange
+		  (destructive). Warning shifts to fuchsia so it does not collide
+		  with destructive states on the orange axis.
+		- dark-tritan / light-tritan: keep destructive states on the
+		  red/orange axis and shift `success` (and the green-tinted
+		  diff/git surfaces) onto sky-blue. This matches GitHub
+		  Primer's tritanopia preset, where diff additions render in
+		  blue rather than green so the success+destructive pair stays
+		  consistent with the protan-deuter palette and with other
+		  tritan-aware tools. Warning still moves from amber to
+		  fuchsia because amber and sky-blue blur together under
+		  tritanopia.
+	*/
+	.light-protan-deuter {
+		--content-success: 199 89% 48%;
+		--content-warning: 322 81% 43%;
+		--content-destructive: 24 95% 53%;
+		--surface-destructive: 34 100% 92%;
+		--surface-green: 201 94% 86%;
+		--surface-orange: 289 100% 98%;
+		--surface-red: 34 100% 92%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
+		--border-warning: 322 81% 60%;
+		--border-destructive: 24 95% 53%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-red: 24 95% 42%;
+		--syntax-string: 24 95% 42%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
+		--git-deleted: 24 95% 53%;
+		--git-modified: 271 91% 45%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 204 94% 94%;
+		--surface-git-deleted: 33 100% 93%;
+	}
+	.dark-protan-deuter {
+		--content-success: 199 82% 67%;
+		--content-warning: 322 81% 67%;
+		--content-destructive: 27 96% 67%;
+		--surface-destructive: 17 75% 15%;
+		--surface-green: 201 80% 14%;
+		--surface-orange: 322 70% 15%;
+		--surface-red: 17 75% 15%;
+		--border-success: 199 82% 67%;
+		--border-warning: 322 81% 67%;
+		--border-destructive: 27 96% 67%;
+		--border-green: 201 94% 86%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-red: 27 96% 67%;
+		--git-added: 199 82% 67%;
+		--git-deleted: 27 96% 67%;
+		--git-modified: 271 91% 65%;
+		--git-added-bright: 199 89% 48%;
+		--git-deleted-bright: 24 95% 53%;
+		--surface-git-added: 201 80% 14%;
+		--surface-git-deleted: 17 75% 15%;
+	}
+	.light-tritan {
+		--content-success: 199 89% 48%;
+		--content-warning: 322 81% 43%;
+		--surface-green: 201 94% 86%;
+		--surface-orange: 289 100% 98%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
+		--border-warning: 322 81% 60%;
+		--highlight-green: 201 94% 36%;
+		--highlight-orange: 322 81% 43%;
+		--highlight-magenta: 322, 81%, 43%;
+		--syntax-boolean: 322 81% 43%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
+		--git-modified: 322 81% 43%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 204 94% 94%;
+	}
+	.dark-tritan {
+		--content-success: 199 82% 67%;
+		--content-warning: 322 81% 67%;
+		--surface-green: 201 80% 14%;
+		--surface-orange: 322 70% 15%;
+		--surface-magenta: 322 70% 15%;
+		--border-success: 199 82% 67%;
+		--border-green: 201 94% 86%;
+		--border-magenta: 322 81% 72%;
+		--border-warning: 322 81% 67%;
+		--highlight-green: 201 94% 86%;
+		--highlight-orange: 322 81% 67%;
+		--highlight-magenta: 322 81% 72%;
+		--syntax-boolean: 322 81% 67%;
+		--git-added: 199 82% 67%;
+		--git-modified: 322 81% 72%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 201 80% 14%;
+	}
 }
 
-@layer components {
-	/* Map each stripe variant to a color token so the
-	   pseudo-element rules can stay DRY. */
-	.navbar-stripe-devel {
-		--stripe-color: var(--content-warning);
-	}
-
-	.navbar-stripe-rc {
-		--stripe-color: var(--border-sky);
-	}
-
-	/* Thin stripe bars at the top and bottom edges of the
-	   navbar. Using pseudo-elements keeps the stripes out of
-	   the content area so nav links stay readable. */
-	.navbar-stripe-devel::before,
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::before,
-	.navbar-stripe-rc::after {
-		content: "";
-		position: absolute;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: repeating-linear-gradient(
-			-45deg,
-			transparent,
-			transparent 4px,
-			hsl(var(--stripe-color) / 0.5) 4px,
-			hsl(var(--stripe-color) / 0.5) 8px
-		);
-		pointer-events: none;
-	}
-
-	.navbar-stripe-devel::before,
-	.navbar-stripe-rc::before {
-		top: 0;
-	}
-
-	.navbar-stripe-devel::after,
-	.navbar-stripe-rc::after {
-		bottom: 0;
-	}
-
-	@media (max-width: 767px) {
-		/*
-			 * Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
-			 * custom property on the chat input container so the dropdown
-			 * position tracks the actual input box, not a hardcoded offset.
-			 */
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
-			position: fixed !important;
-			left: 1rem !important;
-			width: calc(100vw - 2rem) !important;
-			min-width: 0 !important;
-			transform: none !important;
-			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
-			top: auto !important;
-		}
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
-			bottom: auto !important;
-			top: var(--mobile-dropdown-top, 3.5rem) !important;
-		}
-		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-top-below-header
-			) {
-			bottom: auto !important;
-			top: 5rem !important;
-		}
-		.mobile-full-width-dropdown {
-			width: 100% !important;
-			min-width: 0 !important;
-			max-width: none !important;
-		}
-	}
-}
 @layer base {
 	* {
 		@apply border-border;
@@ -253,6 +365,8 @@
 	input:-webkit-autofill:focus,
 	input:-webkit-autofill:active {
 		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+		-webkit-text-fill-color: hsl(var(--content-primary)) !important;
+		caret-color: hsl(var(--content-primary));
 	}
 
 	::placeholder {

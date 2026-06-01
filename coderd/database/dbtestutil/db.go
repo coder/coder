@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -240,31 +241,26 @@ func PGDump(dbURL string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-const (
-	minimumPostgreSQLVersion = 13
-	postgresImageSha         = "sha256:467e7f2fb97b2f29d616e0be1d02218a7bbdfb94eb3cda7461fd80165edfd1f7"
-)
+const minimumPostgreSQLVersion = 13
 
 // PGDumpSchemaOnly is for use by gen/dump only.
 // It runs pg_dump against dbURL and sets a consistent timezone and encoding.
 func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 	hasPGDump := false
-	// TODO: Temporarily pin pg_dump to the docker image until
-	// https://github.com/sqlc-dev/sqlc/issues/4065 is resolved.
-	// if _, err := exec.LookPath("pg_dump"); err == nil {
-	// 	out, err := exec.Command("pg_dump", "--version").Output()
-	// 	if err == nil {
-	// 		// Parse output:
-	// 		// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
-	// 		parts := strings.Split(string(out), " ")
-	// 		if len(parts) > 2 {
-	// 			version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
-	// 			if err == nil && version >= minimumPostgreSQLVersion {
-	// 				hasPGDump = true
-	// 			}
-	// 		}
-	// 	}
-	// }
+	if _, err := exec.LookPath("pg_dump"); err == nil {
+		out, err := exec.Command("pg_dump", "--version").Output()
+		if err == nil {
+			// Parse output:
+			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
+			parts := strings.Split(string(out), " ")
+			if len(parts) > 2 {
+				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
+				if err == nil && version >= minimumPostgreSQLVersion {
+					hasPGDump = true
+				}
+			}
+		}
+	}
 
 	cmdArgs := []string{
 		"pg_dump",
@@ -289,7 +285,7 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 			"run",
 			"--rm",
 			"--network=host",
-			fmt.Sprintf("%s:%d@%s", postgresImage, minimumPostgreSQLVersion, postgresImageSha),
+			fmt.Sprintf("%s:%d", postgresImage, minimumPostgreSQLVersion),
 		}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec
@@ -310,6 +306,11 @@ func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
 func normalizeDump(schema []byte) []byte {
 	// Remove all comments.
 	schema = regexp.MustCompile(`(?im)^(--.*)$`).ReplaceAll(schema, []byte{})
+	// Strip psql meta-commands (\restrict / \unrestrict) emitted by pg_dump
+	// 13.22+ / 14.19+ / 15.14+ / 16.10+ / 17.6+. The token in these lines is
+	// randomized per run, so we drop them entirely. See
+	// https://github.com/coder/internal/issues/965.
+	schema = regexp.MustCompile(`(?im)^\\(restrict|unrestrict).*$`).ReplaceAll(schema, []byte{})
 	// Public is implicit in the schema.
 	schema = regexp.MustCompile(`(?im)( |::|'|\()public\.`).ReplaceAll(schema, []byte(`$1`))
 	// Remove database settings.

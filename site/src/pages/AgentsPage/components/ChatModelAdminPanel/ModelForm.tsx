@@ -9,7 +9,6 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
 	InputGroupAddon,
@@ -35,11 +34,13 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingModelConfigFields,
 } from "./ModelConfigFields";
+import { ModelIdentifierField } from "./ModelIdentifierField";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -135,6 +136,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const formDescription = isDuplicating
 		? "Review the copied settings, then save to create a new model."
 		: undefined;
+	const mode: "add" | "edit" | "duplicate" = (() => {
+		if (isEditing) return "edit";
+		if (isDuplicating) return "duplicate";
+		return "add";
+	})();
+
+	const selectedProviderType =
+		selectedProviderState?.provider ?? selectedProvider;
 
 	const form = useFormik<ModelFormValues>({
 		initialValues,
@@ -153,7 +162,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProvider,
+				selectedProviderType,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -161,8 +170,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
 
+			const selectedProviderConfigID =
+				selectedProviderState?.providerConfig?.id;
+
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(selectedProviderConfigID &&
+						selectedProviderConfigID !==
+							readOptionalString(editingModel.ai_provider_id) && {
+							provider: selectedProviderState.provider,
+							ai_provider_id: selectedProviderConfigID,
+						}),
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -193,7 +211,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 				if (!selectedProvider || !selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProvider,
+					provider: selectedProviderState.provider,
+					ai_provider_id: selectedProviderState.providerConfig.id,
 					model: trimmedModel,
 					enabled: values.enabled,
 					is_default: values.isDefault,
@@ -222,7 +241,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProvider,
+		selectedProviderType,
 		form.values.config,
 	);
 
@@ -244,7 +263,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<Select
 				value={selectedProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || isDuplicating || providerStates.length === 0}
+				disabled={
+					((isEditing || isDuplicating) && selectedProviderState !== null) ||
+					providerStates.length === 0
+				}
 			>
 				<SelectTrigger
 					id="providerSelect"
@@ -254,9 +276,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</SelectTrigger>
 				<SelectContent>
 					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
+						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
+								<ProviderIcon provider={ps.provider} className="size-4" />
 								{ps.label}
 							</span>
 						</SelectItem>
@@ -326,7 +348,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				{selectedProviderState && (
 					<ProviderIcon
 						provider={selectedProviderState.provider}
-						className="h-8 w-8"
+						className="size-8"
 					/>
 				)}
 				<div className="inline-flex items-center gap-1">
@@ -346,7 +368,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							placeholder={initialModel?.model ?? "Model name"}
 						/>
 					</div>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+					<PencilIcon className="size-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
 				{initialModel && (
 					<Tooltip>
@@ -385,50 +407,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
 							{" "}
-							<div className="grid gap-1.5">
-								<Label
-									htmlFor={modelField.id}
-									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
-								>
-									Model Identifier{" "}
-									<span className="text-xs font-bold text-content-destructive">
-										*
-									</span>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
-										</TooltipTrigger>
-										<TooltipContent side="top" className="max-w-[240px]">
-											The model identifier sent to the provider API.
-										</TooltipContent>
-									</Tooltip>
-								</Label>
-								<Input
-									id={modelField.id}
-									name={modelField.name}
-									className={cn(
-										"h-9 text-[13px] placeholder:text-content-disabled",
-										modelField.error && "border-content-destructive",
-									)}
-									placeholder="e.g. gpt-5, claude-sonnet-4-5"
-									value={modelField.value}
-									onChange={modelField.onChange}
-									onBlur={modelField.onBlur}
-									disabled={isSaving}
-									aria-invalid={modelField.error}
-									aria-describedby={
-										modelField.error ? `${modelField.id}-error` : undefined
-									}
-								/>
-								{modelField.error && (
-									<p
-										id={`${modelField.id}-error`}
-										className="m-0 text-xs text-content-destructive"
-									>
-										{modelField.helperText}
-									</p>
-								)}
-							</div>
+							<ModelIdentifierField
+								form={form}
+								modelField={modelField}
+								mode={mode}
+								selectedProvider={selectedProviderType}
+								disabled={isSaving}
+							/>
 							<div className="grid gap-1.5">
 								<Label
 									htmlFor={contextLimitField.id}
@@ -440,7 +425,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									</span>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
+											<InfoIcon className="size-3 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent side="top" className="max-w-[240px]">
 											Max tokens in the context window.
@@ -496,9 +481,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showPricing && (
@@ -530,9 +515,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showProviderConfig && (
@@ -564,9 +549,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showAdvanced && (
@@ -585,7 +570,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 										Compression Threshold
 										<Tooltip>
 											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
+												<InfoIcon className="size-3 text-content-secondary" />
 											</TooltipTrigger>
 											<TooltipContent side="top" className="max-w-[240px]">
 												Percentage at which context is compressed.
