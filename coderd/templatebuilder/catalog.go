@@ -1,8 +1,10 @@
 package templatebuilder
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"path"
 	"sync"
@@ -14,11 +16,11 @@ import (
 
 var (
 	//go:embed modules
-	files embed.FS
+	modulesFS embed.FS
 
-	catalogOnce    sync.Once
-	catalogModules []ModuleManifest
-	errCatalogLoad error
+	loadModules = sync.OnceValues(func() ([]ModuleManifest, error) {
+		return ParseModulesFromFS(modulesFS)
+	})
 )
 
 const modulesDir = "modules"
@@ -49,26 +51,44 @@ type ModuleVariable struct {
 	BuilderManaged bool    `json:"builder_managed"`
 }
 
-// LoadModules reads all module.json files from the embedded catalog.
-// Results are cached after the first successful call.
-func LoadModules() ([]ModuleManifest, error) {
-	catalogOnce.Do(func() {
-		catalogModules, errCatalogLoad = parseModules()
-	})
-	return catalogModules, errCatalogLoad
+// validVariableTypes maps module.json type strings to their SDK equivalents.
+// Used both for validation in ParseModulesFromFS and for conversion in ToSDK.
+var validVariableTypes = map[string]codersdk.TemplateBuilderVariableType{
+	"string": codersdk.TemplateBuilderVariableTypeString,
+	"number": codersdk.TemplateBuilderVariableTypeNumber,
+	"bool":   codersdk.TemplateBuilderVariableTypeBool,
 }
 
-func parseModules() ([]ModuleManifest, error) {
-	modulesFS, err := fs.Sub(files, modulesDir)
+// LoadModules returns all module manifests from the embedded catalog.
+// Results are cached after the first call, including errors. Each call
+// returns a fresh slice so callers can filter or sort without corrupting
+// the cache.
+func LoadModules() ([]ModuleManifest, error) {
+	modules, err := loadModules()
 	if err != nil {
-		return nil, xerrors.Errorf("get modules fs: %w", err)
+		return nil, err
+	}
+	out := make([]ModuleManifest, len(modules))
+	copy(out, modules)
+	return out, nil
+}
+
+// ParseModulesFromFS reads and validates all module.json files from the
+// given filesystem. Most callers should use LoadModules, which reads from
+// the embedded catalog. ParseModulesFromFS is exposed for tests that need
+// to supply custom fixtures.
+func ParseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
+	sub, err := fs.Sub(fsys, modulesDir)
+	if err != nil {
+		return nil, xerrors.Errorf("open embedded module catalog: %w", err)
 	}
 
-	dirs, err := fs.ReadDir(modulesFS, ".")
+	dirs, err := fs.ReadDir(sub, ".")
 	if err != nil {
-		return nil, xerrors.Errorf("read modules dir: %w", err)
+		return nil, xerrors.Errorf("list module catalog entries: %w", err)
 	}
 
+	seen := make(map[string]bool)
 	var modules []ModuleManifest
 	for _, dir := range dirs {
 		if !dir.IsDir() {
@@ -76,15 +96,44 @@ func parseModules() ([]ModuleManifest, error) {
 		}
 
 		manifestPath := path.Join(dir.Name(), "module.json")
-		data, err := fs.ReadFile(modulesFS, manifestPath)
+		data, err := fs.ReadFile(sub, manifestPath)
 		if err != nil {
-			// Skip directories without a module.json.
-			continue
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return nil, xerrors.Errorf("read %s: %w", manifestPath, err)
 		}
 
 		var manifest ModuleManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&manifest); err != nil {
 			return nil, xerrors.Errorf("decode %s: %w", manifestPath, err)
+		}
+
+		if manifest.ID == "" {
+			return nil, xerrors.Errorf("module in %s has empty id", dir.Name())
+		}
+		if manifest.PinnedVersion == "" {
+			return nil, xerrors.Errorf("module %q has empty pinned_version", manifest.ID)
+		}
+		if seen[manifest.ID] {
+			return nil, xerrors.Errorf("duplicate module id %q", manifest.ID)
+		}
+		seen[manifest.ID] = true
+
+		seenVars := make(map[string]bool)
+		for i, v := range manifest.Variables {
+			if v.Name == "" {
+				return nil, xerrors.Errorf("module %q variable %d has empty name", manifest.ID, i)
+			}
+			if seenVars[v.Name] {
+				return nil, xerrors.Errorf("module %q has duplicate variable name %q", manifest.ID, v.Name)
+			}
+			seenVars[v.Name] = true
+			if _, ok := validVariableTypes[v.Type]; !ok {
+				return nil, xerrors.Errorf("module %q variable %d (%q): unknown type %q", manifest.ID, i, v.Name, v.Type)
+			}
 		}
 
 		modules = append(modules, manifest)
@@ -94,20 +143,28 @@ func parseModules() ([]ModuleManifest, error) {
 }
 
 // ToSDK converts a ModuleManifest to the API response type.
-// PinnedVersion is mapped to Version; tags are excluded from the
-// API surface.
+// PinnedVersion is mapped to Version; tags are not part of the API surface.
 func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 	variables := make([]codersdk.TemplateBuilderModuleVariable, 0, len(m.Variables))
 	for _, v := range m.Variables {
 		variables = append(variables, codersdk.TemplateBuilderModuleVariable{
 			Name:           v.Name,
-			Type:           codersdk.TemplateBuilderVariableType(v.Type),
+			Type:           validVariableTypes[v.Type],
 			Description:    v.Description,
 			Default:        v.Default,
 			Required:       v.Required,
 			Sensitive:      v.Sensitive,
 			BuilderManaged: v.BuilderManaged,
 		})
+	}
+
+	compatibleOS := m.CompatibleOS
+	if compatibleOS == nil {
+		compatibleOS = []string{}
+	}
+	conflictsWith := m.ConflictsWith
+	if conflictsWith == nil {
+		conflictsWith = []string{}
 	}
 
 	return codersdk.TemplateBuilderModule{
@@ -117,8 +174,8 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 		Icon:          m.Icon,
 		Category:      m.Category,
 		Version:       m.PinnedVersion,
-		CompatibleOS:  m.CompatibleOS,
-		ConflictsWith: m.ConflictsWith,
+		CompatibleOS:  compatibleOS,
+		ConflictsWith: conflictsWith,
 		Variables:     variables,
 	}
 }

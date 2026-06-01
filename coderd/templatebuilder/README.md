@@ -1,9 +1,10 @@
 # templatebuilder
 
 Package `templatebuilder` implements the bundled module catalog for the guided
-template creation workflow. It embeds module metadata (`module.json` manifests)
-into the Coder binary via `go:embed` and provides functions to load and convert
-them for the API layer.
+template creation workflow
+([RFC](https://www.notion.so/coderhq/RFC-Guided-Template-Creation-Workflow-342d579be59280dfbf8eea2e5006dbda)).
+It embeds module metadata (`module.json` manifests) into the Coder binary via
+`go:embed` and provides functions to load and convert them for the API layer.
 
 ## Directory layout
 
@@ -57,18 +58,18 @@ silently skipped.
 
 Key fields:
 
-- **`builder_managed`**: Variables the compose engine injects automatically
-  (e.g. `agent_id`). These are never shown to users.
-- **`sensitive`**: Variables containing secrets. The builder does not collect
-  these; they become bare Terraform `variable` blocks so values are supplied
-  at workspace creation time.
+- **`builder_managed`**: Variables the compose engine will inject automatically
+  (e.g. `agent_id`). These should not be shown to users.
+- **`sensitive`**: Variables containing secrets. The builder will not collect
+  these; they will become bare Terraform `variable` blocks so values are
+  supplied at a later stage.
 - **`pinned_version`**: The exact module version shipped with this Coder
-  release. The compose endpoint always emits this version; `latest` is never
-  used.
-- **`compatible_os`**: Matched against the base template's OS to filter
+  release. The compose endpoint will always emit this version; `latest` is
+  never used.
+- **`compatible_os`**: Will be matched against the base template's OS to filter
   incompatible modules.
 - **`conflicts_with`**: Module IDs that should not be selected together. The
-  UI surfaces a warning but does not block selection.
+  UI will surface a warning but not block selection.
 
 ## Two type layers
 
@@ -83,7 +84,13 @@ Key fields:
 
 1. Create `modules/<module-id>/module.json` following the schema above.
 2. Run `go build ./coderd/templatebuilder/` to verify the embed compiles.
-3. Run `go test ./coderd/templatebuilder/` to verify parsing.
+3. Run `go test ./coderd/templatebuilder/` to verify parsing and validation.
 
 The catalog is bundled at build time. New modules or version bumps require a
 Coder release to appear in the builder.
+
+## Testing
+
+`ParseModulesFromFS(fs.FS)` accepts an arbitrary filesystem, so tests can
+supply custom fixtures via `fstest.MapFS` without modifying the embedded
+production catalog.

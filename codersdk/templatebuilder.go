@@ -1,6 +1,7 @@
 package codersdk
 
-// TemplateBuilderVariableType represents the type of a template builder variable.
+// TemplateBuilderVariableType enumerates the variable types
+// supported by template builder module manifests.
 type TemplateBuilderVariableType string
 
 const (
@@ -9,7 +10,6 @@ const (
 	TemplateBuilderVariableTypeBool   TemplateBuilderVariableType = "bool"
 )
 
-// TemplateBuilderModuleVariable represents a variable within a template builder module.
 type TemplateBuilderModuleVariable struct {
 	Name           string                      `json:"name"`
 	Type           TemplateBuilderVariableType `json:"type"`
@@ -22,7 +22,7 @@ type TemplateBuilderModuleVariable struct {
 
 // TemplateBuilderModule is the API response type returned by
 // GET /api/v2/templatebuilder/modules. The Version field is
-// populated from the catalog's PinnedVersion at serving time.
+// populated from the catalog manifest's PinnedVersion at serving time.
 type TemplateBuilderModule struct {
 	ID            string                          `json:"id"`
 	DisplayName   string                          `json:"display_name"`
@@ -35,8 +35,6 @@ type TemplateBuilderModule struct {
 	Variables     []TemplateBuilderModuleVariable `json:"variables"`
 }
 
-// TemplateBuilderModulesResponse is the response body for listing
-// template builder modules.
 type TemplateBuilderModulesResponse struct {
 	Modules []TemplateBuilderModule `json:"modules"`
 }

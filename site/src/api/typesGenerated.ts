@@ -8214,7 +8214,7 @@ export interface TemplateBuilderConfig {
 /**
  * TemplateBuilderModule is the API response type returned by
  * GET /api/v2/templatebuilder/modules. The Version field is
- * populated from the catalog's PinnedVersion at serving time.
+ * populated from the catalog manifest's PinnedVersion at serving time.
  */
 export interface TemplateBuilderModule {
 	readonly id: string;
@@ -8229,9 +8229,6 @@ export interface TemplateBuilderModule {
 }
 
 // From codersdk/templatebuilder.go
-/**
- * TemplateBuilderModuleVariable represents a variable within a template builder module.
- */
 export interface TemplateBuilderModuleVariable {
 	readonly name: string;
 	readonly type: TemplateBuilderVariableType;
@@ -8243,10 +8240,6 @@ export interface TemplateBuilderModuleVariable {
 }
 
 // From codersdk/templatebuilder.go
-/**
- * TemplateBuilderModulesResponse is the response body for listing
- * template builder modules.
- */
 export interface TemplateBuilderModulesResponse {
 	readonly modules: readonly TemplateBuilderModule[];
 }
