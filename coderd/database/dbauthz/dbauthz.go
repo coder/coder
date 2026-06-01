@@ -6956,6 +6956,17 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
 }
 
+func (q *querier) UpdateEncryptedMCPServerConfig(ctx context.Context, arg database.UpdateEncryptedMCPServerConfigParams) (database.MCPServerConfig, error) {
+	// Updates only the encrypted columns so the dbcrypt rotation
+	// utility can move every secret to a new cipher digest before old
+	// keys are revoked. Treated as an admin-only operation just like
+	// the regular MCP server config update path.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.UpdateEncryptedMCPServerConfig(ctx, arg)
+}
+
 func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
 	// Encrypted user-owned provider keys can be rewritten on any row so
 	// dbcrypt rotation can move every key to a new digest. This is a

@@ -9413,6 +9413,21 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
 }
 
+// UpdateEncryptedMCPServerConfig mocks base method.
+func (m *MockStore) UpdateEncryptedMCPServerConfig(ctx context.Context, arg database.UpdateEncryptedMCPServerConfigParams) (database.MCPServerConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedMCPServerConfig", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedMCPServerConfig indicates an expected call of UpdateEncryptedMCPServerConfig.
+func (mr *MockStoreMockRecorder) UpdateEncryptedMCPServerConfig(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedMCPServerConfig", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedMCPServerConfig), ctx, arg)
+}
+
 // UpdateEncryptedUserAIProviderKey mocks base method.
 func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
 	m.ctrl.T.Helper()

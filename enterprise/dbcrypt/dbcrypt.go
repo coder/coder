@@ -833,6 +833,38 @@ func (db *dbCrypt) InsertMCPServerConfig(ctx context.Context, params database.In
 	return cfg, nil
 }
 
+// UpdateEncryptedMCPServerConfig re-encrypts the three MCP server
+// secret columns (oauth2_client_secret, api_key_value, custom_headers)
+// on a row so dbcrypt key rotation can move every cipher digest
+// before old keys are revoked. Empty inputs clear the matching
+// key_id so the row stays internally consistent.
+func (db *dbCrypt) UpdateEncryptedMCPServerConfig(ctx context.Context, params database.UpdateEncryptedMCPServerConfigParams) (database.MCPServerConfig, error) {
+	if strings.TrimSpace(params.OAuth2ClientSecret) == "" {
+		params.OAuth2ClientSecretKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.OAuth2ClientSecret, &params.OAuth2ClientSecretKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if strings.TrimSpace(params.APIKeyValue) == "" {
+		params.APIKeyValueKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.APIKeyValue, &params.APIKeyValueKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if strings.TrimSpace(params.CustomHeaders) == "" {
+		params.CustomHeadersKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.CustomHeaders, &params.CustomHeadersKeyID); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+
+	cfg, err := db.Store.UpdateEncryptedMCPServerConfig(ctx, params)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
 func (db *dbCrypt) UpdateMCPServerConfig(ctx context.Context, params database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if strings.TrimSpace(params.OAuth2ClientSecret) == "" {
 		params.OAuth2ClientSecretKeyID = sql.NullString{}

@@ -101,6 +101,51 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				log.Debug(ctx, "rotated user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			}
 
+			mcpUserTokens, err := cryptTx.GetMCPServerUserTokensByUserID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get mcp server user tokens for user %s: %w", uid, err)
+			}
+			for _, tok := range mcpUserTokens {
+				if tok.AccessTokenKeyID.Valid && tok.AccessTokenKeyID.String == ciphers[0].HexDigest() &&
+					tok.RefreshTokenKeyID.Valid && tok.RefreshTokenKeyID.String == ciphers[0].HexDigest() {
+					log.Debug(ctx, "skipping mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+					continue
+				}
+				if _, err := cryptTx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+					MCPServerConfigID: tok.MCPServerConfigID,
+					UserID:            uid,
+					AccessToken:       tok.AccessToken,
+					AccessTokenKeyID:  sql.NullString{}, // dbcrypt will re-encrypt
+					RefreshToken:      tok.RefreshToken,
+					RefreshTokenKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+					TokenType:         tok.TokenType,
+					Expiry:            tok.Expiry,
+				}); err != nil {
+					return xerrors.Errorf("rotate mcp server user token user_id=%s mcp_server_config_id=%s: %w", uid, tok.MCPServerConfigID, err)
+				}
+				log.Debug(ctx, "rotated mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			}
+
+			mcpHeaderRows, err := cryptTx.GetMCPServerUserHeaderValuesByUserID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get mcp server user header values for user %s: %w", uid, err)
+			}
+			for _, row := range mcpHeaderRows {
+				if row.HeaderValuesKeyID.Valid && row.HeaderValuesKeyID.String == ciphers[0].HexDigest() {
+					log.Debug(ctx, "skipping mcp server user header values", slog.F("user_id", uid), slog.F("mcp_server_config_id", row.MCPServerConfigID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+					continue
+				}
+				if _, err := cryptTx.UpsertMCPServerUserHeaderValues(ctx, database.UpsertMCPServerUserHeaderValuesParams{
+					MCPServerConfigID: row.MCPServerConfigID,
+					UserID:            uid,
+					HeaderValues:      row.HeaderValues,
+					HeaderValuesKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+				}); err != nil {
+					return xerrors.Errorf("rotate mcp server user header values user_id=%s mcp_server_config_id=%s: %w", uid, row.MCPServerConfigID, err)
+				}
+				log.Debug(ctx, "rotated mcp server user header values", slog.F("user_id", uid), slog.F("mcp_server_config_id", row.MCPServerConfigID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -178,6 +223,33 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("update user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
 		}
 		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	mcpConfigs, err := cryptDB.GetMCPServerConfigs(ctx)
+	if err != nil {
+		return xerrors.Errorf("get mcp server configs: %w", err)
+	}
+	log.Info(ctx, "encrypting mcp server config secrets", slog.F("config_count", len(mcpConfigs)))
+	for idx, cfg := range mcpConfigs {
+		oauth2Current := cfg.OAuth2ClientSecretKeyID.Valid && cfg.OAuth2ClientSecretKeyID.String == ciphers[0].HexDigest()
+		apiKeyCurrent := cfg.APIKeyValueKeyID.Valid && cfg.APIKeyValueKeyID.String == ciphers[0].HexDigest()
+		customHeadersCurrent := cfg.CustomHeadersKeyID.Valid && cfg.CustomHeadersKeyID.String == ciphers[0].HexDigest()
+		if oauth2Current && apiKeyCurrent && customHeadersCurrent {
+			log.Debug(ctx, "skipping mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("slug", cfg.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedMCPServerConfig(ctx, database.UpdateEncryptedMCPServerConfigParams{
+			ID:                      cfg.ID,
+			OAuth2ClientSecret:      cfg.OAuth2ClientSecret,
+			OAuth2ClientSecretKeyID: sql.NullString{}, // dbcrypt will update as required
+			APIKeyValue:             cfg.APIKeyValue,
+			APIKeyValueKeyID:        sql.NullString{}, // dbcrypt will update as required
+			CustomHeaders:           cfg.CustomHeaders,
+			CustomHeadersKeyID:      sql.NullString{}, // dbcrypt will update as required
+		}); err != nil {
+			return xerrors.Errorf("update mcp server config id=%s slug=%s: %w", cfg.ID, cfg.Slug, err)
+		}
+		log.Debug(ctx, "encrypted mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("slug", cfg.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	// Revoke old keys
@@ -288,6 +360,50 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
 			}
 
+			mcpUserTokens, err := tx.GetMCPServerUserTokensByUserID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get mcp server user tokens for user %s: %w", uid, err)
+			}
+			for _, tok := range mcpUserTokens {
+				if !tok.AccessTokenKeyID.Valid && !tok.RefreshTokenKeyID.Valid {
+					log.Debug(ctx, "skipping mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID), slog.F("current", idx+1))
+					continue
+				}
+				if _, err := tx.UpsertMCPServerUserToken(ctx, database.UpsertMCPServerUserTokenParams{
+					MCPServerConfigID: tok.MCPServerConfigID,
+					UserID:            uid,
+					AccessToken:       tok.AccessToken,
+					AccessTokenKeyID:  sql.NullString{}, // clear the key ID
+					RefreshToken:      tok.RefreshToken,
+					RefreshTokenKeyID: sql.NullString{}, // clear the key ID
+					TokenType:         tok.TokenType,
+					Expiry:            tok.Expiry,
+				}); err != nil {
+					return xerrors.Errorf("decrypt mcp server user token user_id=%s mcp_server_config_id=%s: %w", uid, tok.MCPServerConfigID, err)
+				}
+				log.Debug(ctx, "decrypted mcp server user token", slog.F("user_id", uid), slog.F("mcp_server_config_id", tok.MCPServerConfigID), slog.F("current", idx+1))
+			}
+
+			mcpHeaderRows, err := tx.GetMCPServerUserHeaderValuesByUserID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get mcp server user header values for user %s: %w", uid, err)
+			}
+			for _, row := range mcpHeaderRows {
+				if !row.HeaderValuesKeyID.Valid {
+					log.Debug(ctx, "skipping mcp server user header values", slog.F("user_id", uid), slog.F("mcp_server_config_id", row.MCPServerConfigID), slog.F("current", idx+1))
+					continue
+				}
+				if _, err := tx.UpsertMCPServerUserHeaderValues(ctx, database.UpsertMCPServerUserHeaderValuesParams{
+					MCPServerConfigID: row.MCPServerConfigID,
+					UserID:            uid,
+					HeaderValues:      row.HeaderValues,
+					HeaderValuesKeyID: sql.NullString{}, // clear the key ID
+				}); err != nil {
+					return xerrors.Errorf("decrypt mcp server user header values user_id=%s mcp_server_config_id=%s: %w", uid, row.MCPServerConfigID, err)
+				}
+				log.Debug(ctx, "decrypted mcp server user header values", slog.F("user_id", uid), slog.F("mcp_server_config_id", row.MCPServerConfigID), slog.F("current", idx+1))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -358,6 +474,30 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 	}
 
+	mcpConfigs, err := cryptDB.GetMCPServerConfigs(ctx)
+	if err != nil {
+		return xerrors.Errorf("get mcp server configs: %w", err)
+	}
+	log.Info(ctx, "decrypting mcp server config secrets", slog.F("config_count", len(mcpConfigs)))
+	for idx, cfg := range mcpConfigs {
+		if !cfg.OAuth2ClientSecretKeyID.Valid && !cfg.APIKeyValueKeyID.Valid && !cfg.CustomHeadersKeyID.Valid {
+			log.Debug(ctx, "skipping mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("slug", cfg.Slug), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedMCPServerConfig(ctx, database.UpdateEncryptedMCPServerConfigParams{
+			ID:                      cfg.ID,
+			OAuth2ClientSecret:      cfg.OAuth2ClientSecret,
+			OAuth2ClientSecretKeyID: sql.NullString{}, // explicitly clear the key id
+			APIKeyValue:             cfg.APIKeyValue,
+			APIKeyValueKeyID:        sql.NullString{}, // explicitly clear the key id
+			CustomHeaders:           cfg.CustomHeaders,
+			CustomHeadersKeyID:      sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt mcp server config id=%s slug=%s: %w", cfg.ID, cfg.Slug, err)
+		}
+		log.Debug(ctx, "decrypted mcp server config", slog.F("mcp_server_config_id", cfg.ID), slog.F("slug", cfg.Slug), slog.F("current", idx+1))
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -388,6 +528,21 @@ UPDATE ai_providers
 	WHERE settings_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+DELETE FROM mcp_server_user_tokens
+	WHERE access_token_key_id IS NOT NULL
+	OR refresh_token_key_id IS NOT NULL;
+DELETE FROM mcp_server_user_header_values
+	WHERE header_values_key_id IS NOT NULL;
+UPDATE mcp_server_configs
+	SET oauth2_client_secret = '',
+		oauth2_client_secret_key_id = NULL,
+		api_key_value = '',
+		api_key_value_key_id = NULL,
+		custom_headers = '{}',
+		custom_headers_key_id = NULL
+	WHERE oauth2_client_secret_key_id IS NOT NULL
+	OR api_key_value_key_id IS NOT NULL
+	OR custom_headers_key_id IS NOT NULL;
 COMMIT;
 `
 

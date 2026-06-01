@@ -15772,6 +15772,86 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 	return i, err
 }
 
+const updateEncryptedMCPServerConfig = `-- name: UpdateEncryptedMCPServerConfig :one
+UPDATE
+    mcp_server_configs
+SET
+    oauth2_client_secret = $1::text,
+    oauth2_client_secret_key_id = $2::text,
+    api_key_value = $3::text,
+    api_key_value_key_id = $4::text,
+    custom_headers = $5::text,
+    custom_headers_key_id = $6::text,
+    updated_at = NOW()
+WHERE
+    id = $7::uuid
+RETURNING
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, custom_headers_user_keys, custom_headers_user_key_descriptions
+`
+
+type UpdateEncryptedMCPServerConfigParams struct {
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ID                      uuid.UUID      `db:"id" json:"id"`
+}
+
+// Updates only the encrypted columns (oauth2_client_secret,
+// api_key_value, custom_headers) and their per-row key_id pointers,
+// plus the updated_at timestamp. Used by the dbcrypt key rotation
+// utility to re-encrypt or decrypt rows in place so old ciphers can
+// be revoked without orphaning MCP secrets.
+func (q *sqlQuerier) UpdateEncryptedMCPServerConfig(ctx context.Context, arg UpdateEncryptedMCPServerConfigParams) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedMCPServerConfig,
+		arg.OAuth2ClientSecret,
+		arg.OAuth2ClientSecretKeyID,
+		arg.APIKeyValue,
+		arg.APIKeyValueKeyID,
+		arg.CustomHeaders,
+		arg.CustomHeadersKeyID,
+		arg.ID,
+	)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ModelIntent,
+		&i.AllowInPlanMode,
+		&i.ForwardCoderHeaders,
+		pq.Array(&i.CustomHeadersUserKeys),
+		&i.CustomHeadersUserKeyDescriptions,
+	)
+	return i, err
+}
+
 const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
 UPDATE
     mcp_server_configs

@@ -204,6 +204,23 @@ func TestServerDBCrypt(t *testing.T) {
 		userSecrets, err := db.ListUserSecretsWithValues(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user secrets for user %s", usr.ID)
 		require.Empty(t, userSecrets)
+
+		mcpUserTokens, err := db.GetMCPServerUserTokensByUserID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get mcp server user tokens for user %s", usr.ID)
+		require.Empty(t, mcpUserTokens)
+
+		mcpHeaderRows, err := db.GetMCPServerUserHeaderValuesByUserID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get mcp server user header values for user %s", usr.ID)
+		require.Empty(t, mcpHeaderRows)
+
+		mcpConfig, err := db.GetMCPServerConfigBySlug(ctx, "mcp-"+usr.ID.String())
+		require.NoError(t, err, "failed to get mcp server config for user %s", usr.ID)
+		require.Empty(t, mcpConfig.OAuth2ClientSecret, "mcp_server_configs.oauth2_client_secret should be cleared")
+		require.False(t, mcpConfig.OAuth2ClientSecretKeyID.Valid, "mcp_server_configs.oauth2_client_secret_key_id should be NULL")
+		require.Empty(t, mcpConfig.APIKeyValue, "mcp_server_configs.api_key_value should be cleared")
+		require.False(t, mcpConfig.APIKeyValueKeyID.Valid, "mcp_server_configs.api_key_value_key_id should be NULL")
+		require.Equal(t, "{}", mcpConfig.CustomHeaders, "mcp_server_configs.custom_headers should be reset to {}")
+		require.False(t, mcpConfig.CustomHeadersKeyID.Valid, "mcp_server_configs.custom_headers_key_id should be NULL")
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -256,6 +273,18 @@ func genData(t *testing.T, db database.Store) []database.User {
 				})
 				require.NoError(t, err)
 
+				// Each user owns one MCP server config so dbcrypt rotate /
+				// decrypt / delete exercise mcp_server_configs alongside the
+				// per-user MCP rows below.
+				mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+					Slug:               "mcp-" + usr.ID.String(),
+					OAuth2ClientSecret: "mcp-oauth2-secret-" + usr.ID.String(),
+					APIKeyValue:        "mcp-api-key-" + usr.ID.String(),
+					CustomHeaders:      "mcp-custom-headers-" + usr.ID.String(),
+					CreatedBy:          uuid.NullUUID{UUID: usr.ID, Valid: true},
+					UpdatedBy:          uuid.NullUUID{UUID: usr.ID, Valid: true},
+				})
+
 				// Deleted users cannot have user_links or user_secrets.
 				if !deleted {
 					// Fun fact: our schema allows _all_ login types to have
@@ -274,6 +303,21 @@ func genData(t *testing.T, db database.Store) []database.User {
 						Value:    "value-" + usr.ID.String(),
 						EnvName:  "",
 						FilePath: "",
+					})
+
+					_, err := db.UpsertMCPServerUserToken(context.Background(), database.UpsertMCPServerUserTokenParams{
+						MCPServerConfigID: mcpConfig.ID,
+						UserID:            usr.ID,
+						AccessToken:       "mcp-access-" + usr.ID.String(),
+						RefreshToken:      "mcp-refresh-" + usr.ID.String(),
+						TokenType:         "Bearer",
+					})
+					require.NoError(t, err)
+
+					_ = dbgen.MCPServerUserHeaderValues(t, db, database.McpServerUserHeaderValue{
+						MCPServerConfigID: mcpConfig.ID,
+						UserID:            usr.ID,
+						HeaderValues:      "mcp-headers-" + usr.ID.String(),
 					})
 				}
 				users = append(users, usr)
@@ -354,6 +398,31 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Len(t, userAIProviderKeys, 1)
 	requireEncryptedEquals(t, c, "user-ai-provider-key-"+userID.String(), userAIProviderKeys[0].APIKey)
 	require.Equal(t, c.HexDigest(), userAIProviderKeys[0].ApiKeyKeyID.String)
+
+	mcpConfig, err := db.GetMCPServerConfigBySlug(ctx, "mcp-"+userID.String())
+	require.NoError(t, err, "failed to get mcp server config for user %s", userID)
+	requireEncryptedEquals(t, c, "mcp-oauth2-secret-"+userID.String(), mcpConfig.OAuth2ClientSecret)
+	require.Equal(t, c.HexDigest(), mcpConfig.OAuth2ClientSecretKeyID.String)
+	requireEncryptedEquals(t, c, "mcp-api-key-"+userID.String(), mcpConfig.APIKeyValue)
+	require.Equal(t, c.HexDigest(), mcpConfig.APIKeyValueKeyID.String)
+	requireEncryptedEquals(t, c, "mcp-custom-headers-"+userID.String(), mcpConfig.CustomHeaders)
+	require.Equal(t, c.HexDigest(), mcpConfig.CustomHeadersKeyID.String)
+
+	mcpUserTokens, err := db.GetMCPServerUserTokensByUserID(ctx, userID)
+	require.NoError(t, err, "failed to get mcp server user tokens for user %s", userID)
+	for _, tok := range mcpUserTokens {
+		requireEncryptedEquals(t, c, "mcp-access-"+userID.String(), tok.AccessToken)
+		require.Equal(t, c.HexDigest(), tok.AccessTokenKeyID.String)
+		requireEncryptedEquals(t, c, "mcp-refresh-"+userID.String(), tok.RefreshToken)
+		require.Equal(t, c.HexDigest(), tok.RefreshTokenKeyID.String)
+	}
+
+	mcpHeaderRows, err := db.GetMCPServerUserHeaderValuesByUserID(ctx, userID)
+	require.NoError(t, err, "failed to get mcp server user header values for user %s", userID)
+	for _, row := range mcpHeaderRows {
+		requireEncryptedEquals(t, c, "mcp-headers-"+userID.String(), row.HeaderValues)
+		require.Equal(t, c.HexDigest(), row.HeaderValuesKeyID.String)
+	}
 }
 
 // TestServerAIProviderKeysEncryptedWithDBCrypt starts a real enterprise server

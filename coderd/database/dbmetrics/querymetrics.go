@@ -4977,6 +4977,14 @@ func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateEncryptedMCPServerConfig(ctx context.Context, arg database.UpdateEncryptedMCPServerConfigParams) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedMCPServerConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedMCPServerConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedMCPServerConfig").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateEncryptedUserAIProviderKey(ctx, arg)

@@ -162,6 +162,27 @@ DELETE FROM
 WHERE
     id = @id::uuid;
 
+-- name: UpdateEncryptedMCPServerConfig :one
+-- Updates only the encrypted columns (oauth2_client_secret,
+-- api_key_value, custom_headers) and their per-row key_id pointers,
+-- plus the updated_at timestamp. Used by the dbcrypt key rotation
+-- utility to re-encrypt or decrypt rows in place so old ciphers can
+-- be revoked without orphaning MCP secrets.
+UPDATE
+    mcp_server_configs
+SET
+    oauth2_client_secret = @oauth2_client_secret::text,
+    oauth2_client_secret_key_id = sqlc.narg('oauth2_client_secret_key_id')::text,
+    api_key_value = @api_key_value::text,
+    api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
+    custom_headers = @custom_headers::text,
+    custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: GetMCPServerUserToken :one
 SELECT
     *

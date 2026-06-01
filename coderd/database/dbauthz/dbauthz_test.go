@@ -1702,6 +1702,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteMCPServerUserHeaderValuesByConfigID(gomock.Any(), id).Return(nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateEncryptedMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		cfg := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.UpdateEncryptedMCPServerConfigParams{
+			ID:                 cfg.ID,
+			OAuth2ClientSecret: "encrypted-secret",
+			APIKeyValue:        "encrypted-api-key",
+			CustomHeaders:      `{"X-Foo":"encrypted"}`,
+		}
+		dbm.EXPECT().UpdateEncryptedMCPServerConfig(gomock.Any(), arg).Return(cfg, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(cfg)
+	}))
 	s.Run("InsertMCPServerConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertMCPServerConfigParams{
 			DisplayName: "Test MCP Server",
