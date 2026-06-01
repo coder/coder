@@ -1253,6 +1253,12 @@
 									]
 								},
 								{
+									"title": "Provider Configuration",
+									"description": "How AI Gateway stores, seeds, and reloads provider configuration",
+									"path": "./ai-coder/ai-gateway/providers.md",
+									"state": ["ai governance add-on"]
+								},
+								{
 									"title": "Auditing AI Sessions",
 									"description": "How to audit AI sessions",
 									"path": "./ai-coder/ai-gateway/audit.md",
