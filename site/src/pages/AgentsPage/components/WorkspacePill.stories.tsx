@@ -460,18 +460,24 @@ const mobilePortsStoryConfig = {
 	},
 } satisfies Partial<Story>;
 
+const openMobilePortsPanel = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const pill = await canvas.findByRole("button", {
+		name: /workspace menu/,
+	});
+	await userEvent.click(pill);
+
+	const body = within(document.body);
+	const portsItem = await body.findByText(/Ports \(\d+\)/);
+	await userEvent.click(portsItem);
+
+	return { body, pill };
+};
+
 export const MobilePortsInlinePanel: Story = {
 	...mobilePortsStoryConfig,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
-		});
-		await userEvent.click(pill);
-
-		const body = within(document.body);
-		const portsItem = await body.findByText(/Ports \(\d+\)/);
-		await userEvent.click(portsItem);
+		const { body, pill } = await openMobilePortsPanel(canvasElement);
 
 		await waitFor(() => {
 			expect(body.getByText("Listening Ports")).toBeInTheDocument();
@@ -522,15 +528,7 @@ export const MobilePortsInlinePanel: Story = {
 export const MobilePortsInlinePanelOpen: Story = {
 	...mobilePortsStoryConfig,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
-		});
-		await userEvent.click(pill);
-
-		const body = within(document.body);
-		const portsItem = await body.findByText(/Ports \(\d+\)/);
-		await userEvent.click(portsItem);
+		const { body } = await openMobilePortsPanel(canvasElement);
 
 		await waitFor(() => {
 			expect(body.getByText("Listening Ports")).toBeInTheDocument();

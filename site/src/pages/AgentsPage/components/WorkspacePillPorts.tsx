@@ -9,7 +9,7 @@ import {
 	RadioIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { API } from "#/api/api";
@@ -27,22 +27,10 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { belowMdViewportMediaQuery, isBelowMdViewport } from "#/utils/mobile";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
 } from "#/utils/portForward";
-
-// Reactive wrapper so callers re-render when the viewport crosses `md`.
-const subscribeBelowMdViewport = (onStoreChange: () => void) => {
-	const mediaQuery = matchMedia(belowMdViewportMediaQuery);
-	mediaQuery.addEventListener("change", onStoreChange);
-	return () => mediaQuery.removeEventListener("change", onStoreChange);
-};
-
-export const useIsBelowMdViewport = (): boolean => {
-	return useSyncExternalStore(subscribeBelowMdViewport, isBelowMdViewport);
-};
 
 interface PortsData {
 	listeningPorts: readonly WorkspaceAgentListeningPort[] | undefined;

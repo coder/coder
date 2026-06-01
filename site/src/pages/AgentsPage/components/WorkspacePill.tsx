@@ -34,6 +34,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -44,11 +45,7 @@ import {
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
-import {
-	MobilePortsPanel,
-	PortsMenuItem,
-	useIsBelowMdViewport,
-} from "./WorkspacePillPorts";
+import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
