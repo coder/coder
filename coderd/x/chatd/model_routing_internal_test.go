@@ -495,7 +495,7 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 	}
 }
 
-func TestActiveTurnAPIKeyIDUsesPromptMessages(t *testing.T) {
+func TestActiveTurnAPIKeyIDFromPromptMessagesWithVisibleUser(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
