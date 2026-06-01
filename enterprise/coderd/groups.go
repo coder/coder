@@ -13,6 +13,7 @@ import (
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -607,26 +608,35 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an
+	// N+1 lookup pattern that makes this endpoint extremely slow on
+	// deployments with many groups.
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.Group.ID
+	}
+
+	// The groups returned above are already authorized via GetGroups
+	// (which uses fetchWithPostFilter). The batch count query requires
+	// system-level read on ResourceGroup, so elevate to system context
+	// the same way /acl/available does.
+	// nolint:gocritic // Auth check already happened in GetGroups above.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		resp = append(resp, db2sdk.Group(group, members, int(memberCount)))
+		resp = append(resp, db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

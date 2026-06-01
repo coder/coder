@@ -1013,54 +1013,64 @@ func TestGroups(t *testing.T) {
 			Organization: user.OrganizationID.String(),
 		})
 		require.NoError(t, err)
-		normalizeAllGroups(groups)
 
-		// 'Everyone' group + 2 custom groups.
-		require.ElementsMatch(t, []codersdk.Group{
-			everyoneGroup,
-			group1,
-			group2,
-		}, groups)
+		// The list endpoint no longer populates Members (use the
+		// dedicated /groups/{group}/members endpoint instead), so
+		// compare by ID and verify TotalMemberCount.
+		groupIDs := slice.List(groups, func(g codersdk.Group) uuid.UUID {
+			return g.ID
+		})
+		require.ElementsMatch(t, []uuid.UUID{
+			everyoneGroup.ID,
+			group1.ID,
+			group2.ID,
+		}, groupIDs)
+		for _, g := range groups {
+			require.Empty(t, g.Members, "list endpoint should not populate members")
+			switch g.ID {
+			case group1.ID:
+				require.Equal(t, 2, g.TotalMemberCount)
+			case group2.ID:
+				require.Equal(t, 2, g.TotalMemberCount)
+			default:
+				// Everyone group includes all 6 users (owner + userAdmin + user2-5).
+				require.Equal(t, 6, g.TotalMemberCount)
+			}
+		}
 
 		// Filter by user
 		user5Groups, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
 			HasMember: user5.Username,
 		})
 		require.NoError(t, err)
-		normalizeAllGroups(user5Groups)
+		user5GroupIDs := slice.List(user5Groups, func(g codersdk.Group) uuid.UUID {
+			return g.ID
+		})
 		// Everyone group and group 2
-		require.ElementsMatch(t, []codersdk.Group{
-			everyoneGroup,
-			group2,
-		}, user5Groups)
+		require.ElementsMatch(t, []uuid.UUID{
+			everyoneGroup.ID,
+			group2.ID,
+		}, user5GroupIDs)
 
 		// Query from the user's perspective
 		user5View, err := user5Client.Groups(ctx, codersdk.GroupArguments{})
 		require.NoError(t, err)
-		normalizeAllGroups(user5View)
 
 		// Org members can read all groups when workspace sharing is not
-		// disabled, but group membership is limited to the requesting user.
+		// disabled.
 		// TODO(geokat): add another test with workspace sharing disabled.
 		require.Len(t, user5View, 3)
 		user5ViewIDs := slice.List(user5View, func(g codersdk.Group) uuid.UUID {
 			return g.ID
 		})
-
 		require.ElementsMatch(t, []uuid.UUID{
 			everyoneGroup.ID,
 			group1.ID,
 			group2.ID,
 		}, user5ViewIDs)
+		// Members are no longer populated in the list response.
 		for _, g := range user5View {
-			if g.ID == everyoneGroup.ID || g.ID == group2.ID {
-				// Only expect the 1 member, themselves.
-				require.Len(t, g.Members, 1)
-				require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
-				continue
-			}
-
-			require.Empty(t, g.Members)
+			require.Empty(t, g.Members, "list endpoint should not populate members")
 		}
 	})
 }
