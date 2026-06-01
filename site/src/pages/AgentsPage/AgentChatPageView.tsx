@@ -51,6 +51,11 @@ import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
+type ChatOwnerInfo = {
+	name?: string;
+	username?: string;
+};
+
 // Re-use the inner presentational components directly. They are
 
 interface EditingState {
@@ -93,9 +98,7 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	chatOwner: Pick<TypesGen.MinimalUser, "name" | "username"> | undefined;
-	canUpdateOtherUserChat: boolean;
-	canUpdateOtherUserChatLoading: boolean;
+	chatOwner: ChatOwnerInfo | undefined;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -201,8 +204,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	persistedError,
 	isArchived,
 	chatOwner,
-	canUpdateOtherUserChat,
-	canUpdateOtherUserChatLoading,
 	canShareChat,
 	workspaceAgent,
 	workspace,
@@ -422,16 +423,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
 
-	const chatOwnerUsername = chatOwner?.username.trim();
+	const chatOwnerUsername = chatOwner?.username?.trim();
 	const chatOwnerLabel =
 		chatOwner?.name?.trim() ||
-		(chatOwnerUsername ? `@${chatOwnerUsername}` : undefined);
-	const chatOwnerWarning =
-		isArchived || canUpdateOtherUserChatLoading || chatOwnerLabel === undefined
-			? undefined
-			: canUpdateOtherUserChat
-				? `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`
-				: `This chat is owned by ${chatOwnerLabel}. You have read-only access.`;
+		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
+	const isOtherUserReadOnly = !isArchived && chatOwner !== undefined;
+	const chatOwnerWarning = isOtherUserReadOnly
+		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
+		: undefined;
 
 	const titleElement = (
 		<title>
@@ -535,12 +534,22 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									chatID={agentId}
 									store={store}
 									persistedError={persistedError}
-									onEditUserMessage={editing.handleEditUserMessage}
+									onEditUserMessage={
+										isOtherUserReadOnly
+											? undefined
+											: editing.handleEditUserMessage
+									}
 									editingMessageId={editing.editingMessageId}
 									urlTransform={urlTransform}
 									mcpServers={mcpServers}
-									onImplementPlan={onImplementPlan}
-									onSendAskUserQuestionResponse={canSendAskUserQuestionResponse}
+									onImplementPlan={
+										isOtherUserReadOnly ? undefined : onImplementPlan
+									}
+									onSendAskUserQuestionResponse={
+										isOtherUserReadOnly
+											? undefined
+											: canSendAskUserQuestionResponse
+									}
 								/>
 							</div>
 						</ChatScrollContainer>

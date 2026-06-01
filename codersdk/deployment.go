@@ -638,6 +638,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
@@ -3448,6 +3449,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SCIMAPIKey,
 		},
 		{
+			Name: "SCIM Use Legacy",
+			// The legacy SCIM is a weird mix of SCIM 1.0 and SCIM 2.0
+			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
+			Flag:        "scim-use-legacy",
+			Env:         "CODER_SCIM_USE_LEGACY",
+			Hidden:      true,
+			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
+			Default:     "true",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.UseLegacySCIM,
+		},
+		{
 			Name:        "External Token Encryption Keys",
 			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
 			Flag:        "external-token-encryption-keys",
@@ -4684,7 +4697,9 @@ type AIBridgeBedrockConfig struct {
 // CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
 // This follows the same indexed pattern as ExternalAuthConfig.
 type AIProviderConfig struct {
-	// Type is the provider type: "openai", "anthropic", or "copilot".
+	// Type is the provider type. Valid values are: "openai",
+	// "anthropic", "azure", "bedrock", "google", "openai-compat",
+	// "openrouter", "vercel", "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.

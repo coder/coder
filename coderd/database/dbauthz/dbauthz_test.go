@@ -440,35 +440,55 @@ func (s *MethodTestSuite) TestAuditLogs() {
 	}))
 }
 
-// TODO (PR #24810): These RBAC assertions use placeholder resource types.
-// They will be updated when the dedicated boundary_log resource type is added.
 func (s *MethodTestSuite) TestBoundaryLogs() {
-	s.Run("InsertBoundarySession", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertBoundarySessionParams{}
-		dbm.EXPECT().InsertBoundarySession(gomock.Any(), arg).Return(database.BoundarySession{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	s.Run("InsertBoundarySession", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		aww := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentAndWorkspaceByIDRow{})
+		arg := database.InsertBoundarySessionParams{
+			WorkspaceAgentID: aww.WorkspaceAgent.ID,
+		}
+		dbm.EXPECT().GetWorkspaceAgentAndWorkspaceByID(gomock.Any(), aww.WorkspaceAgent.ID).Return(aww, nil).AnyTimes()
+		expectedArg := database.InsertBoundarySessionParams{
+			WorkspaceAgentID: aww.WorkspaceAgent.ID,
+			OwnerID:          uuid.NullUUID{UUID: aww.WorkspaceTable.OwnerID, Valid: true},
+		}
+		dbm.EXPECT().InsertBoundarySession(gomock.Any(), expectedArg).Return(database.BoundarySession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(
+			rbac.ResourceBoundaryLog.WithOwner(aww.WorkspaceTable.OwnerID.String()), policy.ActionCreate,
+		)
 	}))
 	s.Run("GetBoundarySessionByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), uuid.Nil).Return(database.BoundarySession{}, nil).AnyTimes()
-		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+		check.Args(uuid.Nil).Asserts(rbac.ResourceBoundaryLog, policy.ActionRead)
 	}))
-	s.Run("InsertBoundaryLog", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.InsertBoundaryLogParams{}
-		dbm.EXPECT().InsertBoundaryLog(gomock.Any(), arg).Return(database.BoundaryLog{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionCreate)
+	s.Run("InsertBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		sessionID := uuid.New()
+		session := database.BoundarySession{
+			ID:      sessionID,
+			OwnerID: uuid.NullUUID{UUID: ownerID, Valid: true},
+		}
+		arg := database.InsertBoundaryLogsParams{
+			SessionID: sessionID,
+			ID:        []uuid.UUID{uuid.New(), uuid.New()},
+		}
+		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), sessionID).Return(session, nil).AnyTimes()
+		dbm.EXPECT().InsertBoundaryLogs(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
+		check.Args(arg).Asserts(
+			rbac.ResourceBoundaryLog.WithOwner(ownerID.String()), policy.ActionCreate,
+		)
 	}))
 	s.Run("GetBoundaryLogByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetBoundaryLogByID(gomock.Any(), uuid.Nil).Return(database.BoundaryLog{}, nil).AnyTimes()
-		check.Args(uuid.Nil).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+		check.Args(uuid.Nil).Asserts(rbac.ResourceBoundaryLog, policy.ActionRead)
 	}))
 	s.Run("ListBoundaryLogsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.ListBoundaryLogsBySessionIDParams{}
 		dbm.EXPECT().ListBoundaryLogsBySessionID(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+		check.Args(arg).Asserts(rbac.ResourceBoundaryLog, policy.ActionRead)
 	}))
 	s.Run("DeleteOldBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldBoundaryLogs(gomock.Any(), database.DeleteOldBoundaryLogsParams{}).Return(int64(0), nil).AnyTimes()
-		check.Args(database.DeleteOldBoundaryLogsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+		check.Args(database.DeleteOldBoundaryLogsParams{}).Asserts(rbac.ResourceBoundaryLog, policy.ActionDelete)
 	}))
 }
 
@@ -4587,7 +4607,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetUserCount", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetUserCount(gomock.Any(), false).Return(int64(0), nil).AnyTimes()
-		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
+		check.Args(false).Asserts(rbac.ResourceUser, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetTemplates", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetTemplates(gomock.Any()).Return([]database.Template{}, nil).AnyTimes()
@@ -6462,6 +6482,36 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
 		dbm.EXPECT().DeleteGroupAIBudget(gomock.Any(), g.ID).Return(b, nil).AnyTimes()
 		check.Args(g.ID).Asserts(g, policy.ActionUpdate).Returns(b)
+	}))
+
+	s.Run("GetUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(override)
+	}))
+
+	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID, GroupID: group.ID})
+		arg := database.UpsertUserAIBudgetOverrideParams{UserID: user.ID, GroupID: group.ID, SpendLimitMicros: override.SpendLimitMicros}
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetGroupByID(gomock.Any(), group.ID).Return(group, nil).AnyTimes()
+		dbm.EXPECT().UpsertUserAIBudgetOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
+	}))
+
+	s.Run("DeleteUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		override := testutil.Fake(s.T(), faker, database.UserAiBudgetOverride{UserID: user.ID, GroupID: group.ID})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		dbm.EXPECT().GetGroupByID(gomock.Any(), group.ID).Return(group, nil).AnyTimes()
+		dbm.EXPECT().DeleteUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
 	}))
 
 	s.Run("GetAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

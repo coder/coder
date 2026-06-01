@@ -91,6 +91,7 @@ const meta: Meta<typeof ChatSearchDialog> = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
+		recentChats: mockChats,
 		location: {
 			pathname: "/agents",
 			search: "",
@@ -106,6 +107,8 @@ const meta: Meta<typeof ChatSearchDialog> = {
 				{ path: "/agents", useStoryElement: true },
 				{ path: "/agents/:agentId", useStoryElement: true },
 				{ path: "/agents/settings", useStoryElement: true },
+				{ path: "/agents/settings/personal-skills", useStoryElement: true },
+				{ path: "/agents/analytics", useStoryElement: true },
 			],
 		}),
 	},
@@ -187,6 +190,13 @@ export const RefreshingResults: Story = {
 		// must be absent. Without this assertion, the test would still pass if the
 		// spinner were always visible.
 		expect(body.queryByLabelText("Searching chats")).not.toBeInTheDocument();
+
+		// Ensure the first debounced API call has been registered before
+		// clearing, so the clear+retype cycle triggers a distinct second call
+		// rather than coalescing within a single debounce window.
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(1);
+		});
 
 		await userEvent.clear(searchInput);
 		await userEvent.type(searchInput, "review");
@@ -336,5 +346,199 @@ export const ErrorState: Story = {
 			"title:",
 		);
 		await expect(await body.findByRole("alert")).toBeInTheDocument();
+	},
+};
+
+export const ErrorStateWithStackTrace: Story = {
+	beforeEach: () => {
+		const err = new Error(
+			"NetworkError: Failed to fetch chats from the server API endpoint /api/v2/chats",
+		);
+		err.stack = [
+			"Error: NetworkError: Failed to fetch chats from the server API endpoint /api/v2/chats",
+			"    at fetchChats (http://localhost:6006/src/api/queries/chats.ts:42:11)",
+			"    at async queryFn (http://localhost:6006/src/api/queries/chats.ts:58:14)",
+			"    at async Object.fetchQuery (http://localhost:6006/node_modules/@tanstack/react-query/src/queryClient.ts:198:16)",
+			"    at async ChatSearchDialogContent (http://localhost:6006/src/pages/AgentsPage/components/ChatsSidebar/dialogs/ChatSearchDialog.tsx:180:20)",
+			"    at async renderWithHooks (http://localhost:6006/node_modules/react-dom/cjs/react-dom.development.js:14985:18)",
+			"    at async mountIndeterminateComponent (http://localhost:6006/node_modules/react-dom/cjs/react-dom.development.js:17811:13)",
+			"    at async beginWork (http://localhost:6006/node_modules/react-dom/cjs/react-dom.development.js:19049:16)",
+		].join("\n");
+		spyOn(API.experimental, "getChats").mockRejectedValue(err);
+	},
+	play: async () => {
+		const body = within(document.body);
+		await userEvent.type(
+			body.getByRole("combobox", { name: "Search chats" }),
+			"title:",
+		);
+		const alert = await body.findByRole("alert");
+		await expect(alert).toBeInTheDocument();
+
+		// Open the stack trace details and verify it stays contained.
+		const details = body.getByText("Stack Trace");
+		await userEvent.click(details);
+		await expect(body.getByText(/fetchChats/)).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Interaction states: default view, filter pills, dropdown.
+// ---------------------------------------------------------------------------
+
+export const DefaultViewWithRecentChats: Story = {
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("Recent chats")).toBeInTheDocument();
+		await expect(
+			body.getByText("Fix race condition in auth middleware"),
+		).toBeInTheDocument();
+	},
+};
+
+export const FilterDropdownOnFocus: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await expect(await body.findByText("Filter by")).toBeInTheDocument();
+		await expect(body.getByText("Unread")).toBeInTheDocument();
+		await expect(body.getByText("Archived")).toBeInTheDocument();
+		await expect(body.getByText("PR status")).toBeInTheDocument();
+		await expect(body.getByText("Diff URL")).toBeInTheDocument();
+	},
+};
+
+export const BooleanFilterPill: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Unread"));
+
+		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Remove has_unread filter" }),
+		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "has_unread:true",
+			});
+		});
+	},
+};
+
+export const ParameterizedFilterPill: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("PR status"));
+
+		await expect(await body.findByText("pr_status:")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, "open ");
+
+		await expect(await body.findByText("pr_status:open")).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "pr_status:open",
+			});
+		});
+	},
+};
+
+export const ParameterizedFilterPillEnterCommit: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("PR status"));
+
+		await expect(await body.findByText("pr_status:")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, "closed");
+		await userEvent.keyboard("{Enter}");
+
+		await expect(await body.findByText("pr_status:closed")).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "pr_status:closed",
+			});
+		});
+	},
+};
+
+export const BackspaceRemovesFilter: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Unread"));
+		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.keyboard("{Backspace}");
+		await waitFor(() => {
+			expect(body.queryByText("has_unread:true")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const TypedFilterAutoDetection: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.type(searchInput, "has_unread:true ");
+
+		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Remove has_unread filter" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const CombinedFilterAndText: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Unread"));
+		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, "Fix");
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'has_unread:true title:"Fix"',
+			});
+		});
 	},
 };

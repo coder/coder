@@ -277,7 +277,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -990,10 +989,6 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
-  }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
   }
 }
 

@@ -2,6 +2,7 @@ package chaterror_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -218,6 +219,85 @@ func TestClassify(t *testing.T) {
 				StatusCode: 0,
 			},
 		},
+		// The next cases model the error that fantasy produces
+		// when aibridge's disabledProviderHandler returns a 503
+		// plain-text sentinel. Fantasy sets Title from the HTTP
+		// status text and Message from the response body (including
+		// the trailing newline written by http.Error).
+		{
+			name: "ProviderDisabled503ClassifiesAsProviderDisabled",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "openai"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The OpenAI provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "openai"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "ProviderDisabled503UnknownProvider",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "mycustomprovider"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "mycustomprovider"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "ProviderDisabledPlainErrorString",
+			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic")),
+			want: chaterror.ClassifiedError{
+				Message:    "The Anthropic provider has been disabled. Contact your Coder administrator.",
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "anthropic",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "ProviderDisabledBeatsTimeout503",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "google"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The Google provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "google"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "google",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "Generic503StillClassifiesAsTimeout",
+			err: &fantasy.ProviderError{
+				Message:    "service unavailable",
+				StatusCode: 503,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "service unavailable",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 503,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -363,6 +443,7 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "OperationInterruptedLiteral", err: "operation interrupted", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: false},
 		{name: "Status408", err: "status 408", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "Status500", err: "status 500", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: true},
+		{name: "ProviderDisabledLiteral", err: "provider_disabled", wantKind: codersdk.ChatErrorKindProviderDisabled, wantRetry: false},
 	}
 
 	for _, tt := range tests {
@@ -1156,6 +1237,28 @@ func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
 	require.True(t, round.ChainBroken,
 		"WithClassification round-trips ChainBroken so the retry path"+
 			" can detect it after re-classification")
+}
+
+func TestClassify_MissingKeyPreClassified(t *testing.T) {
+	t.Parallel()
+
+	raw := xerrors.New("AI Gateway routing requires the active turn API key ID")
+	wrapped := chaterror.WithClassification(raw, chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindMissingKey,
+		Retryable: false,
+		Detail:    "If this error persists after resending, please report it as a bug.",
+	})
+
+	classified := chaterror.Classify(wrapped)
+	require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, "If this error persists after resending, please report it as a bug.", classified.Detail)
+	require.Equal(t,
+		"This conversation was started with an API key that is no longer available."+
+			" Send your message again to continue.",
+		classified.Message,
+		"Message should be filled by terminalMessage when not set explicitly",
+	)
 }
 
 func testProviderError(

@@ -17,6 +17,7 @@ interface ToolCollapsibleProps {
 	children: ReactNode;
 	header: ToolCollapsibleHeader;
 	headerActions?: ReactNode;
+	headerStatus?: ReactNode;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
 	expanded?: boolean;
@@ -50,6 +51,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	children,
 	header,
 	headerActions,
+	headerStatus,
 	hasContent = true,
 	defaultExpanded = false,
 	expanded: expandedProp,
@@ -88,6 +90,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 				onClick={toggleExpanded}
 			>
 				{renderedHeader}
+				{headerStatus}
 				<ChevronDownIcon
 					className={cn(
 						"size-3 shrink-0 text-current transition-transform",
@@ -105,6 +108,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			)}
 		>
 			{renderedHeader}
+			{headerStatus}
 		</TranscriptRow>
 	);
 

@@ -164,6 +164,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover

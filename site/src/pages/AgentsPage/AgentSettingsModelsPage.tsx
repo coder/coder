@@ -47,7 +47,7 @@ const AgentSettingsModelsPage: FC = () => {
 			<ChatModelAdminPanel
 				section="models"
 				sectionLabel="Models"
-				sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+				sectionDescription="Choose which models from your configured providers are available for Coder Agents. Set a default and adjust context limits."
 				providerConfigsData={providerConfigsQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				modelCatalogData={modelCatalogQuery.data}

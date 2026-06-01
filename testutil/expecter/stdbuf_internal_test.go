@@ -1,4 +1,4 @@
-package ptytest
+package expecter
 
 import (
 	"bytes"

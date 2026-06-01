@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -54,7 +56,7 @@ func newMockUpstream(t *testing.T, name string) *mockUpstream {
 // the supplied API and subscribes it to ai_providers change events.
 // This mirrors what cli/server.go does in production so /api/v2/aibridge
 // requests dispatch through the real pool and reloader.
-func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) {
+func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
 	t.Helper()
 
 	ctx := context.Background()
@@ -62,14 +64,15 @@ func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) {
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-reload-test")
 
-	providers, err := cli.BuildProviders(ctx, api.Database, cfg, logger)
+	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger)
 	require.NoError(t, err)
 
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), nil, tracer)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
 
-	reloader := &testPoolReloader{pool: pool, db: api.Database, cfg: cfg, logger: logger.Named("reloader")}
+	metrics := aibridged.NewMetrics(prometheus.NewRegistry())
+	reloader := &testPoolReloader{pool: pool, db: api.Database, cfg: cfg, logger: logger.Named("reloader"), metrics: metrics}
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
 	require.NoError(t, err)
 	t.Cleanup(unsubscribe)
@@ -81,21 +84,25 @@ func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) {
 	t.Cleanup(func() { _ = srv.Close() })
 
 	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
+	return metrics
 }
 
 type testPoolReloader struct {
-	pool   *aibridged.CachedBridgePool
-	db     database.Store
-	cfg    codersdk.AIBridgeConfig
-	logger slog.Logger
+	pool    *aibridged.CachedBridgePool
+	db      database.Store
+	cfg     codersdk.AIBridgeConfig
+	logger  slog.Logger
+	metrics *aibridged.Metrics
 }
 
 func (r *testPoolReloader) Reload(ctx context.Context) error {
-	providers, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger)
+	defer r.metrics.RecordReloadAttempt()
+	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger)
 	if err != nil {
 		return err
 	}
 	r.pool.ReplaceProviders(providers)
+	r.metrics.RecordReloadSuccess(outcomes)
 	return nil
 }
 
@@ -124,7 +131,34 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 		},
 	})
 
-	startTestAIBridgeDaemon(t, api.AGPL)
+	metrics := startTestAIBridgeDaemon(t, api.AGPL)
+
+	// requireProviderStatus polls until the provider_info series for
+	// (name, status) settles to value 1. Reloads happen via pubsub, so
+	// the assertion has to be eventual.
+	requireProviderStatus := func(t *testing.T, name, status string) {
+		t.Helper()
+		require.Eventuallyf(t, func() bool {
+			return promtest.ToFloat64(metrics.ProviderInfo.WithLabelValues(name, "openai", status)) == 1
+		}, testutil.WaitShort, testutil.IntervalFast,
+			"expected provider_info{provider_name=%q, status=%q} == 1", name, status)
+	}
+
+	// requireProviderAbsent polls until no series exists for the
+	// provider name in any status. After a delete the Reset on the
+	// next reload must clear all previous status labels for the name.
+	requireProviderAbsent := func(t *testing.T, name string) {
+		t.Helper()
+		require.Eventuallyf(t, func() bool {
+			for _, status := range []string{"enabled", "disabled", "error"} {
+				if promtest.ToFloat64(metrics.ProviderInfo.WithLabelValues(name, "openai", status)) != 0 {
+					return false
+				}
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalFast,
+			"expected provider_info series for %q to be cleared after delete", name)
+	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -177,6 +211,18 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 			"expected provider %q to stop routing", providerName)
 	}
 
+	// requireDisabledSentinel polls until the provider name yields a
+	// 503 with the provider_disabled body, indicating the disabled
+	// handler is wired up for the row.
+	requireDisabledSentinel := func(t *testing.T, providerName string) {
+		t.Helper()
+		require.Eventuallyf(t, func() bool {
+			status, _ := sendRequest(providerName)
+			return status == http.StatusServiceUnavailable
+		}, testutil.WaitShort, testutil.IntervalFast,
+			"expected provider %q to serve the disabled sentinel", providerName)
+	}
+
 	// 1. Create: provider points at upstream A.
 	created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 		Type:    codersdk.AIProviderTypeOpenAI,
@@ -188,6 +234,7 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "primary", created.Name)
 	requireRoutesTo(t, "primary", upstreamA)
+	requireProviderStatus(t, "primary", "enabled")
 
 	// 2. Update BaseURL: same name, now points at upstream B.
 	newBaseURL := upstreamB.server.URL
@@ -196,15 +243,17 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	})
 	require.NoError(t, err)
 	requireRoutesTo(t, "primary", upstreamB)
+	requireProviderStatus(t, "primary", "enabled")
 
-	// 3. Disable: the provider drops out of the snapshot, requests
-	// stop reaching any upstream.
+	// 3. Disable: requests stop reaching upstream and the bridge
+	// answers with the 503 sentinel. The metric flips to "disabled".
 	disabled := false
 	_, err = client.UpdateAIProvider(ctx, "primary", codersdk.UpdateAIProviderRequest{
 		Enabled: &disabled,
 	})
 	require.NoError(t, err)
-	requireRoutingGone(t, "primary")
+	requireDisabledSentinel(t, "primary")
+	requireProviderStatus(t, "primary", "disabled")
 
 	// 4. Re-enable: routing comes back at the most recent BaseURL.
 	enabled := true
@@ -213,6 +262,7 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	})
 	require.NoError(t, err)
 	requireRoutesTo(t, "primary", upstreamB)
+	requireProviderStatus(t, "primary", "enabled")
 
 	// 5. Add a second provider; both names must route independently.
 	_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -225,9 +275,19 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	require.NoError(t, err)
 	requireRoutesTo(t, "primary", upstreamB)
 	requireRoutesTo(t, "secondary", upstreamA)
+	requireProviderStatus(t, "primary", "enabled")
+	requireProviderStatus(t, "secondary", "enabled")
 
-	// 6. Delete primary: only secondary remains routable.
+	// 6. Delete primary: only secondary remains routable. The
+	// provider_info series for primary disappears entirely on the
+	// next reload's Reset.
 	require.NoError(t, client.DeleteAIProvider(ctx, "primary"))
 	requireRoutingGone(t, "primary")
 	requireRoutesTo(t, "secondary", upstreamA)
+	requireProviderAbsent(t, "primary")
+	requireProviderStatus(t, "secondary", "enabled")
+
+	// Both timestamp gauges must have advanced during this test.
+	assert.Positive(t, promtest.ToFloat64(metrics.ProvidersLastReloadTimestampSeconds))
+	assert.Positive(t, promtest.ToFloat64(metrics.ProvidersLastReloadSuccessTimestampSeconds))
 }

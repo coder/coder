@@ -387,17 +387,17 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Duplicate entries both read the same file and race to write;
-	// the first entry's edits are silently lost. Resolve symlinks
-	// before comparing so two paths that alias the same real file
-	// (e.g. one via a symlink, one direct) don't slip past as
-	// distinct keys. prepareFileEdit resolves the path again for
-	// its own use; the double lstat cost is cheap compared to the
-	// data-loss risk of silent aliasing.
+	// Merge duplicate entries that refer to the same literal path
+	// so callers don't have to pre-coalesce. Two different paths
+	// that resolve to the same real file via symlinks are still
+	// rejected: silently merging edits the caller addressed to
+	// different paths would hide accidental aliasing.
 	type seenEntry struct {
 		caller string
+		index  int // position in merged slice
 	}
 	seenPaths := make(map[string]seenEntry, len(req.Files))
+	var merged []workspacesdk.FileEdits
 	for _, f := range req.Files {
 		// On resolve error, use the raw path; phase 1 surfaces
 		// the error with its proper status code.
@@ -406,17 +406,22 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			key = resolved
 		}
 		if prev, dup := seenPaths[key]; dup {
-			msg := fmt.Sprintf("duplicate file path %q: combine edits into a single entry's \"edits\" list", f.Path)
-			if prev.caller != f.Path {
-				msg = fmt.Sprintf("duplicate file path %q aliases %q (same real file): combine edits into a single entry's \"edits\" list", f.Path, prev.caller)
+			// Same literal path: merge edits.
+			if filepath.Clean(prev.caller) == filepath.Clean(f.Path) {
+				merged[prev.index].Edits = append(merged[prev.index].Edits, f.Edits...)
+				continue
 			}
+			// Different paths, same real file (symlink alias).
+			msg := fmt.Sprintf("duplicate file path %q aliases %q (same real file): combine edits into a single entry's \"edits\" list", f.Path, prev.caller)
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: msg,
 			})
 			return
 		}
-		seenPaths[key] = seenEntry{caller: f.Path}
+		seenPaths[key] = seenEntry{caller: f.Path, index: len(merged)}
+		merged = append(merged, f)
 	}
+	req.Files = merged
 
 	// Phase 1: compute all edits in memory. If any file fails
 	// (bad path, search miss, permission error), bail before

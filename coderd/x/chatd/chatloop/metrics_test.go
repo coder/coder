@@ -296,6 +296,7 @@ func TestRecordStreamRetry(t *testing.T) {
 		{name: "startup_timeout", kind: codersdk.ChatErrorKindStartupTimeout},
 		{name: "auth", kind: codersdk.ChatErrorKindAuth},
 		{name: "config", kind: codersdk.ChatErrorKindConfig},
+		{name: "missing_key", kind: codersdk.ChatErrorKindMissingKey},
 		{name: "generic", kind: codersdk.ChatErrorKindGeneric},
 		{name: "chain_broken", kind: codersdk.ChatErrorKindGeneric, chainBroken: true},
 	}
