@@ -421,10 +421,6 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
 			require.Equal(t, tt.wantOK, gotOK)
 			require.Equal(t, tt.wantKey, gotKey)
-			ctx := contextWithActiveTurnAPIKeyID(t.Context(), tt.messages)
-			ctxKey, ctxOK := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-			require.Equal(t, tt.wantOK, ctxOK)
-			require.Equal(t, tt.wantKey, ctxKey)
 		})
 	}
 }
@@ -485,15 +481,11 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 			gotKey, gotOK := activeTurnAPIKeyIDFromPromptMessages(tt.messages)
 			require.Equal(t, tt.wantOK, gotOK)
 			require.Equal(t, tt.wantKey, gotKey)
-			ctx := contextWithPromptActiveTurnAPIKeyID(t.Context(), tt.messages)
-			ctxKey, ctxOK := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-			require.Equal(t, tt.wantOK, ctxOK)
-			require.Equal(t, tt.wantKey, ctxKey)
 		})
 	}
 }
 
-func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
+func TestActiveTurnAPIKeyIDUsesPromptMessages(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -541,8 +533,7 @@ func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	ctx = contextWithPromptActiveTurnAPIKeyID(ctx, messages)
-	gotKey, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	gotKey, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
 	require.True(t, ok)
 	require.Equal(t, currentKey.ID, gotKey)
 }

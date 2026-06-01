@@ -6468,22 +6468,6 @@ type runChatResult struct {
 	HistoryTipMessageID     int64
 }
 
-func contextWithActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
-	apiKeyID, ok := activeTurnAPIKeyIDFromMessages(messages)
-	if !ok {
-		return ctx
-	}
-	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
-}
-
-func contextWithPromptActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
-	apiKeyID, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
-	if !ok {
-		return ctx
-	}
-	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
-}
-
 func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
