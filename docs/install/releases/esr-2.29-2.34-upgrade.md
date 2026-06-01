@@ -31,6 +31,7 @@ Coder Agents includes the following high-level functionality:
 Administrators have the following elvers to configure appropriate access to various parts of Coder Agents: 
 
 - Template allow lists for agents
+- BYOK for users
 - Cost controls
 - Configurable chat retention
 - Automatic chat archiving
