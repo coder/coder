@@ -98,6 +98,9 @@ export const getProviderDisplayType = (
 	if (provider.type === "anthropic") {
 		return "anthropic";
 	}
+	if (provider.type === "copilot") {
+		return "copilot";
+	}
 	const host = parseProviderHost(provider.base_url ?? "");
 	const match = displayTypeHosts.find(([h]) => matchesHost(host, h));
 	return match?.[1] ?? provider.type;
@@ -125,12 +128,16 @@ const buildBedrockSettings = (
 export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
-	const name = values.name.trim();
 	const displayName = values.displayName.trim();
-	const baseUrl = values.baseUrl.trim();
+	const base: Omit<CreateAIProviderRequest, "type"> = {
+		name: values.name.trim(),
+		...(displayName ? { display_name: displayName } : {}),
+		base_url: values.baseUrl.trim(),
+		enabled: values.enabled,
+	};
 
 	if (values.type === "bedrock") {
-		const region = parseBedrockRegionFromBaseUrl(baseUrl);
+		const region = parseBedrockRegionFromBaseUrl(base.base_url);
 		const settings = buildBedrockSettings(
 			region,
 			values.model.trim(),
@@ -140,17 +147,18 @@ export const providerFormValuesToCreate = (
 		);
 		return {
 			type: "anthropic",
-			name,
-			...(displayName ? { display_name: displayName } : {}),
-			base_url: baseUrl,
-			enabled: values.enabled,
+			...base,
 			settings: settings as AIProviderSettings,
 		};
 	}
 
+	if (values.type === "copilot") {
+		return { type: "copilot", ...base };
+	}
+
 	const apiKey = sanitizeCredential(values.apiKey);
-	// `""` is unreachable here (Yup blocks it, Bedrock branched out), but the
-	// union still includes it; narrow so TS stays honest.
+	// `""` is unreachable here (Yup blocks it, Bedrock and Copilot branched
+	// out), but the union still includes it; narrow so TS stays honest.
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
@@ -160,10 +168,7 @@ export const providerFormValuesToCreate = (
 		values.type === "anthropic" ? "anthropic" : "openai";
 	return {
 		type: wireType,
-		name,
-		...(displayName ? { display_name: displayName } : {}),
-		base_url: baseUrl,
-		enabled: values.enabled,
+		...base,
 		...(apiKey ? { api_keys: [apiKey] } : {}),
 	};
 };
@@ -181,6 +186,10 @@ export const providerFormValuesToUpdate = (
 		enabled: values.enabled,
 		base_url: values.baseUrl.trim(),
 	};
+
+	if (values.type === "copilot") {
+		return base;
+	}
 
 	if (values.type !== "bedrock") {
 		// If the user didn't touch the input, the form still holds the seeded
@@ -240,8 +249,18 @@ export const aiProviderToFormValues = (
 		};
 	}
 
-	// Wire `type` is only `openai` or `anthropic`; the dropdown's richer
-	// labels apply only on create.
+	if (provider.type === "copilot") {
+		return {
+			type: "copilot",
+			name: provider.name,
+			displayName,
+			baseUrl: provider.base_url,
+			enabled: provider.enabled,
+		};
+	}
+
+	// Wire `type` is otherwise only `openai` or `anthropic`; the dropdown's
+	// richer labels apply only on create.
 	return {
 		type: provider.type === "anthropic" ? "anthropic" : "openai",
 		name: provider.name,
