@@ -237,7 +237,7 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 				c.Env = appendAndDedupEnv(os.Environ())
 			}
 			b, err := c.CombinedOutput()
-			require.NoError(t, err)
+			require.NoError(t, err, "command output: %s", string(b))
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
 		})
