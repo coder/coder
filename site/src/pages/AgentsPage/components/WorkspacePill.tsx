@@ -57,7 +57,7 @@ import {
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
-import { isBelowMdViewport } from "#/utils/mobile";
+import { belowMdViewportMediaQuery, isBelowMdViewport } from "#/utils/mobile";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
@@ -264,7 +264,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 // Reactive wrapper so callers re-render when the viewport crosses `md`.
 const subscribeBelowMdViewport = (onStoreChange: () => void) => {
-	const mediaQuery = matchMedia("(max-width: 767px)");
+	const mediaQuery = matchMedia(belowMdViewportMediaQuery);
 	mediaQuery.addEventListener("change", onStoreChange);
 	return () => mediaQuery.removeEventListener("change", onStoreChange);
 };
