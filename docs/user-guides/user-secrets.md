@@ -1,11 +1,11 @@
-# User secrets (Early Access)
+# User secrets (Beta)
 
 User secrets let you store secret values in Coder and make them available in
 every workspace you own.
 
 > [!NOTE]
-> User secrets are in Early Access and may change. For more information, see
-> [feature stages](../install/releases/feature-stages.md#early-access-features).
+> User secrets are in Beta and may change. For more information, see
+> [feature stages](../install/releases/feature-stages.md#beta).
 
 ## How user secrets work
 

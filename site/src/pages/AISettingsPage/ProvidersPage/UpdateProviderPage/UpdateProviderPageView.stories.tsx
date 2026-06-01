@@ -5,6 +5,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
@@ -50,6 +51,21 @@ export const Bedrock: Story = {
 	parameters: {
 		reactRouter: routingFor(`/ai/settings/${MockAIProviderBedrock.name}`),
 		...seed(MockAIProviderBedrock),
+	},
+};
+
+// Copilot has no stored credential, so the edit form renders no API key
+// field and keeps the immutable name disabled.
+export const Copilot: Story = {
+	parameters: {
+		reactRouter: routingFor(`/ai/settings/${MockAIProviderCopilot.name}`),
+		...seed(MockAIProviderCopilot),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const name = await canvas.findByLabelText(/^name/i);
+		expect(name).toBeDisabled();
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
 	},
 };
 

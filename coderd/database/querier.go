@@ -198,6 +198,7 @@ type sqlcQuerier interface {
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
+	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
 	DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error
 	DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error
@@ -738,6 +739,7 @@ type sqlcQuerier interface {
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAiProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
 	// user-scoped lookups instead of this bulk accessor.
@@ -920,7 +922,7 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
-	InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error)
+	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
@@ -1407,6 +1409,7 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and
 	// created_at for the insert path only.

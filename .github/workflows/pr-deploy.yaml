@@ -238,14 +238,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 
       - name: GHCR Login
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0

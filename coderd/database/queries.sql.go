@@ -2389,20 +2389,28 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = $1::timestamptz
+	SET ended_at = $1::timestamptz,
+		-- BYOK records its hint at the start of the interception.
+		-- Centralized uses key failover, so its hint is only known
+		-- at end-of-interception.
+		credential_hint = CASE
+			WHEN credential_kind = 'centralized' THEN $2::text
+			ELSE credential_hint
+		END
 WHERE
-	id = $2::uuid
+	id = $3::uuid
 	AND ended_at IS NULL
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt time.Time `db:"ended_at" json:"ended_at"`
-	ID      uuid.UUID `db:"id" json:"id"`
+	EndedAt        time.Time `db:"ended_at" json:"ended_at"`
+	CredentialHint string    `db:"credential_hint" json:"credential_hint"`
+	ID             uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.CredentialHint, arg.ID)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,
@@ -2433,6 +2441,23 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 	row := q.db.QueryRowContext(ctx, deleteGroupAIBudget, groupID)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteUserAIBudgetOverride = `-- name: DeleteUserAIBudgetOverride :one
+DELETE FROM user_ai_budget_overrides WHERE user_id = $1 RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -2478,6 +2503,25 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 	row := q.db.QueryRowContext(ctx, getGroupAIBudget, groupID)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
+SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
+FROM user_ai_budget_overrides
+WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, getUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -2532,6 +2576,35 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 	row := q.db.QueryRowContext(ctx, upsertGroupAIBudget, arg.GroupID, arg.SpendLimitMicros)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
+INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+	group_id           = EXCLUDED.group_id,
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
+	updated_at         = NOW()
+RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+type UpsertUserAIBudgetOverrideParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -3627,7 +3700,7 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id FROM boundary_sessions WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
@@ -3639,11 +3712,12 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
-const insertBoundaryLog = `-- name: InsertBoundaryLog :one
+const insertBoundaryLogs = `-- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
@@ -3654,62 +3728,80 @@ INSERT INTO boundary_logs (
     method,
     detail,
     matched_rule
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9
-) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+)
+SELECT
+    unnest($1 :: uuid[]),
+    $2 :: uuid,
+    unnest($3 :: int[]),
+    unnest($4 :: timestamptz[]),
+    unnest($5 :: timestamptz[]),
+    unnest($6 :: text[]),
+    unnest($7 :: text[]),
+    unnest($8 :: text[]),
+    unnest($9 :: text[])
+RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 `
 
-type InsertBoundaryLogParams struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
-	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
-	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	Proto          string         `db:"proto" json:"proto"`
-	Method         string         `db:"method" json:"method"`
-	Detail         string         `db:"detail" json:"detail"`
-	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+type InsertBoundaryLogsParams struct {
+	ID             []uuid.UUID `db:"id" json:"id"`
+	SessionID      uuid.UUID   `db:"session_id" json:"session_id"`
+	SequenceNumber []int32     `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     []time.Time `db:"captured_at" json:"captured_at"`
+	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
+	Proto          []string    `db:"proto" json:"proto"`
+	Method         []string    `db:"method" json:"method"`
+	Detail         []string    `db:"detail" json:"detail"`
+	MatchedRule    []string    `db:"matched_rule" json:"matched_rule"`
 }
 
-func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
-	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
-		arg.ID,
+func (q *sqlQuerier) InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertBoundaryLogs,
+		pq.Array(arg.ID),
 		arg.SessionID,
-		arg.SequenceNumber,
-		arg.CapturedAt,
-		arg.CreatedAt,
-		arg.Proto,
-		arg.Method,
-		arg.Detail,
-		arg.MatchedRule,
+		pq.Array(arg.SequenceNumber),
+		pq.Array(arg.CapturedAt),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Proto),
+		pq.Array(arg.Method),
+		pq.Array(arg.Detail),
+		pq.Array(arg.MatchedRule),
 	)
-	var i BoundaryLog
-	err := row.Scan(
-		&i.ID,
-		&i.SessionID,
-		&i.SequenceNumber,
-		&i.CapturedAt,
-		&i.CreatedAt,
-		&i.Proto,
-		&i.Method,
-		&i.Detail,
-		&i.MatchedRule,
-	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertBoundarySession = `-- name: InsertBoundarySession :one
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
+    owner_id,
     confined_process_name,
     started_at,
     updated_at
@@ -3718,22 +3810,25 @@ INSERT INTO boundary_sessions (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
+    $5,
+    $6
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id
 `
 
 type InsertBoundarySessionParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
-	StartedAt           time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID     `db:"workspace_agent_id" json:"workspace_agent_id"`
+	OwnerID             uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	ConfinedProcessName string        `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
 	row := q.db.QueryRowContext(ctx, insertBoundarySession,
 		arg.ID,
 		arg.WorkspaceAgentID,
+		arg.OwnerID,
 		arg.ConfinedProcessName,
 		arg.StartedAt,
 		arg.UpdatedAt,
@@ -3745,6 +3840,7 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
@@ -28052,65 +28148,77 @@ WHERE
 			name ILIKE concat('%', $3, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+	  WHEN $4 :: text != '' THEN
+		  lower(username) = lower($4)
+	  ELSE true
+	END
+  	-- Filter by exact email
+  	AND CASE
+	  WHEN $5 :: text != '' THEN
+		  lower(email) = lower($5)
+	  ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($4 :: user_status[]) > 0 THEN
-			status = ANY($4 :: user_status[])
+		WHEN cardinality($6 :: user_status[]) > 0 THEN
+			status = ANY($6 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 		-- everyone is a member.
-		WHEN cardinality($5 :: text[]) > 0 AND 'member' != ANY($5 :: text[]) THEN
-			rbac_roles && $5 :: text[]
+		WHEN cardinality($7 :: text[]) > 0 AND 'member' != ANY($7 :: text[]) THEN
+			rbac_roles && $7 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
 	AND CASE
-		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at <= $6
-		ELSE true
-	END
-	AND CASE
-		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			last_seen_at >= $7
-		ELSE true
-	END
-	-- Filter by created_at
-	AND CASE
 		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= $8
+			last_seen_at <= $8
 		ELSE true
 	END
 	AND CASE
 		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= $9
+			last_seen_at >= $9
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $10
+		ELSE true
+	END
+	AND CASE
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $11
 		ELSE true
 	END
 	-- Filter by system type
 	AND CASE
-		WHEN $10::bool THEN TRUE
+		WHEN $12::bool THEN TRUE
 		ELSE is_system = false
 	END
 	-- Filter by github.com user ID
 	AND CASE
-		WHEN $11 :: bigint != 0 THEN
-			github_com_user_id = $11
+		WHEN $13 :: bigint != 0 THEN
+			github_com_user_id = $13
 		ELSE true
 	END
 	-- Filter by login_type
 	AND CASE
-		WHEN cardinality($12 :: login_type[]) > 0 THEN
-			login_type = ANY($12 :: login_type[])
+		WHEN cardinality($14 :: login_type[]) > 0 THEN
+			login_type = ANY($14 :: login_type[])
 		ELSE true
 	END
 	-- Filter by service account.
 	AND CASE
-		WHEN $13 :: boolean IS NOT NULL THEN
-			is_service_account = $13 :: boolean
+		WHEN $15 :: boolean IS NOT NULL THEN
+			is_service_account = $15 :: boolean
 		ELSE true
 	END
 	-- End of filters
@@ -28119,16 +28227,18 @@ WHERE
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $14
+	LOWER(username) ASC OFFSET $16
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($15 :: int, 0)
+	NULLIF($17 :: int, 0)
 `
 
 type GetUsersParams struct {
 	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
 	Search           string       `db:"search" json:"search"`
 	Name             string       `db:"name" json:"name"`
+	ExactUsername    string       `db:"exact_username" json:"exact_username"`
+	ExactEmail       string       `db:"exact_email" json:"exact_email"`
 	Status           []UserStatus `db:"status" json:"status"`
 	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
@@ -28173,6 +28283,8 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.AfterID,
 		arg.Search,
 		arg.Name,
+		arg.ExactUsername,
+		arg.ExactEmail,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,

@@ -205,3 +205,58 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 		})
 	}
 }
+
+// TestDisabledProviderHandler asserts that requests to a disabled
+// provider return a 503 with an ErrorCodeProviderDisabled body and
+// that a sibling enabled provider keeps routing normally.
+func TestDisabledProviderHandler(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("upstream-reached"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	enabled := aibridge.NewOpenAIProvider(config.OpenAI{Name: "enabled-openai", BaseURL: upstream.URL})
+	disabled := aibridge.NewDisabledProviderStub("disabled-openai", "openai")
+	bridge, err := aibridge.NewRequestBridge(
+		t.Context(),
+		[]provider.Provider{enabled, disabled},
+		nil, nil, logger, nil, bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "Bridged", path: "/disabled-openai/v1/chat/completions"},
+		{name: "Passthrough", path: "/disabled-openai/v1/models"},
+		{name: "Unknown", path: "/disabled-openai/anything/else"},
+	} {
+		t.Run("DisabledProviderReturnsSentinel/"+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodPost, tc.path, nil)
+			resp := httptest.NewRecorder()
+			bridge.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+			assert.Contains(t, resp.Body.String(), aibridge.ErrorCodeProviderDisabled)
+			assert.Contains(t, resp.Body.String(), "disabled-openai")
+		})
+	}
+
+	t.Run("EnabledProviderUnaffected", func(t *testing.T) {
+		t.Parallel()
+
+		req := httptest.NewRequest(http.MethodGet, "/enabled-openai/v1/models", nil)
+		resp := httptest.NewRecorder()
+		bridge.ServeHTTP(resp, req)
+
+		assert.Equal(t, http.StatusOK, resp.Code)
+		assert.Equal(t, "upstream-reached", resp.Body.String())
+	})
+}

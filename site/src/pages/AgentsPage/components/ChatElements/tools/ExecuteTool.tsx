@@ -26,6 +26,8 @@ import {
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { ToolIcon } from "./ToolIcon";
+import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
@@ -36,7 +38,7 @@ import {
 
 type ExecuteToolProps = {
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
 	durationMs?: number;
@@ -52,8 +54,9 @@ type ExecuteToolInnerProps = ExecuteToolProps & {
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
+	const hasTranscriptBlocks = props.transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
-		props.output.length > 0 ||
+		hasTranscriptBlocks ||
 		props.status === "running" ||
 		props.isBackgrounded ||
 		!!props.killedBySignal
@@ -74,7 +77,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
 
 const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	command,
-	output,
+	transcriptBlocks,
 	status,
 	isError,
 	durationMs,
@@ -126,7 +129,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 							<span
 								aria-label="Command failed"
 								role="img"
-								className="flex shrink-0 text-content-destructive"
+								className="flex shrink-0 text-content-secondary"
 							>
 								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
@@ -167,7 +170,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
-					output={output}
+					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 				/>
 			)}
@@ -188,22 +191,20 @@ const ShellCommandLine: React.FC<{
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
+	const commandLabel = intentLabel
+		? `${intentLabel} using ${commandDisplay}`
+		: `Ran ${commandDisplay}`;
+	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
+
 	return (
 		<>
-			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				{intentLabel ? (
-					<>
-						{intentLabel} using {commandDisplay}
-					</>
-				) : (
-					<>Ran {commandDisplay}</>
+			<ToolIcon name="execute" isError={false} />
+			<span className="min-w-0 truncate text-[13px] font-normal leading-6 text-current">
+				{commandLabel}
+				{durationSuffix && (
+					<span className="text-content-secondary">{durationSuffix}</span>
 				)}
 			</span>
-			{durationLabel && (
-				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{intentLabel ? ` for ${durationLabel}` : durationLabel}
-				</span>
-			)}
 			{expanded !== undefined && (
 				<ChevronDownIcon
 					className={cn(
@@ -218,9 +219,9 @@ const ShellCommandLine: React.FC<{
 
 const ShellTranscriptBody: React.FC<{
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
-}> = ({ command, output, isError }) => {
+}> = ({ command, transcriptBlocks, isError }) => {
 	return (
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
@@ -234,16 +235,19 @@ const ShellTranscriptBody: React.FC<{
 					</span>{" "}
 					{command}
 				</pre>
-				{output.length > 0 && (
+				{transcriptBlocks.map((block) => (
 					<pre
+						key={block.kind}
 						className={cn(
 							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							isError ? "text-content-destructive" : "text-content-secondary",
+							block.kind === "error" || isError
+								? "text-content-destructive"
+								: "text-content-secondary",
 						)}
 					>
-						{output}
+						{block.text}
 					</pre>
-				)}
+				))}
 			</div>
 		</ScrollArea>
 	);

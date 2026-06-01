@@ -231,12 +231,15 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -245,7 +248,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
@@ -938,6 +941,10 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					mcpSlug={mcpServer?.slug}
 				/>
 			)}
+		</>
+	);
+	const toolHeaderStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -963,7 +970,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 
 	return (
-		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={toolHeader}
+			headerStatus={toolHeaderStatus}
+		>
 			{toolContent}
 		</ToolCollapsible>
 	);

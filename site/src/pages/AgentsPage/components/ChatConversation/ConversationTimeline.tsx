@@ -39,6 +39,7 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -160,13 +161,16 @@ const ReasoningDisclosure = memo<{
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
 					header={
-						isStreaming ? (
-							<Shimmer as="span" className="text-[13px]">
-								{title}
-							</Shimmer>
-						) : (
-							<span className="text-[13px]">{title}</span>
-						)
+						<>
+							<ToolIcon name="thinking" isError={false} />
+							{isStreaming ? (
+								<Shimmer as="span" className="text-[13px] leading-6">
+									{title}
+								</Shimmer>
+							) : (
+								<span className="text-[13px] leading-6">{title}</span>
+							)}
+						</>
 					}
 				>
 					{hasText && (
@@ -293,7 +297,7 @@ export const BlockList: FC<{
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.shell_tool_display_mode || "auto";
+		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 

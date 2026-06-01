@@ -58,6 +58,7 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
+  string credential_hint = 3;
 }
 
 message RecordInterceptionEndedResponse {}

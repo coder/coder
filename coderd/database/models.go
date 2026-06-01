@@ -320,6 +320,10 @@ const (
 	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
 	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
 	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
+	ApiKeyScopeBoundaryLog                         APIKeyScope = "boundary_log:*"
+	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -580,7 +584,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeUserSkillRead,
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
-		ApiKeyScopeUserSkill:
+		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead:
 		return true
 	}
 	return false
@@ -810,6 +818,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
 		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
 	}
 }
 
@@ -4543,6 +4555,8 @@ type BoundarySession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// Time when the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// The ID of the user who owns the workspace. NULL if the user has been deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.
@@ -5714,6 +5728,15 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+}
+
+// Per-user AI spend override that supersedes group budget resolution.
+type UserAiBudgetOverride struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.

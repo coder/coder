@@ -142,7 +142,7 @@ as OpenAI and Anthropic. Users authenticate through Coder instead of managing se
 provider API keys. All prompts, token usage, and tool invocations are recorded
 for compliance and cost tracking.
 
-Learn more: [AI Gateway](../../ai-coder/ai-gateway)
+Learn more: [AI Gateway](../../ai-coder/ai-gateway/index.md)
 
 ### Agent Firewall
 

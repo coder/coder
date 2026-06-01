@@ -277,7 +277,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -518,6 +517,11 @@ resource "coder_agent" "dev" {
       # (non-MISE keys flow through). Move this back to `[oci.env]`
       # once upstream mise fixes that.
       MISE_CONFIG_DIR : "/home/coder/.config/mise",
+      # Keep user-installed mise tools on the persistent home volume.
+      # The image still exposes baked tools from /opt/mise/data via
+      # MISE_SHARED_INSTALL_DIRS, but /opt itself is image-resident
+      # and is recreated with the container on workspace restart.
+      MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
@@ -985,10 +989,6 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
-  }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
   }
 }
 

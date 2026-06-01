@@ -17,7 +17,7 @@ Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, yo
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
-Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and CLI. Some Tasks can also be accessed through the Coder Workspace IDE; see [connect via an IDE](../user-guides/workspace-access).
+Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and CLI. Some Tasks can also be accessed through the Coder Workspace IDE; see [connect via an IDE](../user-guides/workspace-access/index.md).
 
 ## Why Use Tasks?
 
