@@ -1801,13 +1801,6 @@ func TestWatchChats(t *testing.T) {
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
 		t.Parallel()
 
-		// This test verifies that the pubsub "created" event
-		// carries a fully-populated codersdk.Chat. Exhaustive
-		// field-level coverage of the converter is handled by
-		// TestChat_AllFieldsPopulated (db2sdk) and
-		// TestChat_JSONRoundTrip (codersdk). This integration
-		// test only checks that key fields survive the full
-		// API → pubsub → websocket pipeline.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -1926,31 +1919,11 @@ func TestWatchChats(t *testing.T) {
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
 
-		// Publish the event in a goroutine that keeps retrying.
-		// When the WebSocket Dial returns, the server has completed
-		// the HTTP upgrade but may not have called SubscribeWithErr
-		// yet. If we publish only once, the message can arrive
-		// before the subscription is active and be silently dropped,
-		// causing the read loop to block until the context deadline.
-		// Re-publishing on a short ticker guarantees that at least
-		// one publish lands after the subscription is ready.
-		publishDone := make(chan struct{})
-		go func() {
-			ticker := time.NewTicker(testutil.IntervalFast)
-			defer ticker.Stop()
-			for {
-				// Publish immediately on the first iteration,
-				// then again on each tick.
-				_ = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
-				select {
-				case <-publishDone:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-				}
-			}
-		}()
+		// A single publish is sufficient because the subscription
+		// is active before websocket.Accept (and thus before Dial
+		// returns). This serves as a regression test for the fix.
+		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
+		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
 		for {
@@ -1962,7 +1935,6 @@ func TestWatchChats(t *testing.T) {
 				break
 			}
 		}
-		close(publishDone)
 
 		// Verify the event carries the full DiffStatus.
 		require.NotNil(t, received.Chat.DiffStatus, "diff_status_change event must include DiffStatus")

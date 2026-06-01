@@ -174,17 +174,67 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	logger := api.Logger.Named("chat_watcher")
 
+	// Subscribe before accepting the websocket so the subscription
+	// is active when the client's Dial returns.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		encoder      *json.Encoder
+		encoderReady = make(chan struct{})
+		// Capture before WebsocketNetConn reassigns ctx (data race).
+		ctxDone = ctx.Done()
+	)
+
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
+		pubsub.HandleChatWatchEvent(
+			func(cbCtx context.Context, payload codersdk.ChatWatchEvent, err error) {
+				if err != nil {
+					logger.Error(cbCtx, "chat watch event subscription error", slog.Error(err))
+					return
+				}
+				select {
+				case <-encoderReady:
+				case <-ctxDone:
+					return
+				case <-cbCtx.Done():
+					return
+				}
+
+				// encoderReady may close with encoder still nil on error paths.
+				if encoder == nil {
+					return
+				}
+				// The encoder is only written from the pubsub delivery
+				// goroutine, which processes messages serially. Do not
+				// add a second write path without synchronization.
+				if err := encoder.Encode(payload); err != nil {
+					logger.Debug(cbCtx, "failed to send chat watch event", slog.Error(err))
+					cancel()
+					return
+				}
+			},
+		))
+	if err != nil {
+		close(encoderReady)
+		logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to subscribe to chat events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer cancelSubscribe()
+
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
+		close(encoderReady)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to open chat watch stream.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	_ = conn.CloseRead(context.Background())
 
@@ -193,31 +243,8 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	// The encoder is only written from the SubscribeWithErr callback,
-	// which delivers serially per subscription. Do not add a second
-	// write path without introducing synchronization.
-	encoder := json.NewEncoder(wsNetConn)
-
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(pubsub.ChatWatchEventChannel(apiKey.UserID),
-		pubsub.HandleChatWatchEvent(
-			func(ctx context.Context, payload codersdk.ChatWatchEvent, err error) {
-				if err != nil {
-					logger.Error(ctx, "chat watch event subscription error", slog.Error(err))
-					return
-				}
-				if err := encoder.Encode(payload); err != nil {
-					logger.Debug(ctx, "failed to send chat watch event", slog.Error(err))
-					cancel()
-					return
-				}
-			},
-		))
-	if err != nil {
-		logger.Error(ctx, "failed to subscribe to chat watch events", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, "Failed to subscribe to chat events.")
-		return
-	}
-	defer cancelSubscribe()
+	encoder = json.NewEncoder(wsNetConn)
+	close(encoderReady)
 
 	<-ctx.Done()
 }
