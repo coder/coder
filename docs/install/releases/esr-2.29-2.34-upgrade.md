@@ -45,14 +45,14 @@ Administrators also now have platform controls for the following functionality:
 - Chat retention
 - Automatic chat archiving
 
-Coder Tasks remains available during the support window, but it is being
-replaced by Coder Agents. See the
-[Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
-for API migration details.
+Coder Tasks remains available, but new development happens in Coder Agents.
 
 > [!CAUTION]
-> Tasks is deprecated and will enter ESR support in 2026. Plan migration from
-> the Tasks API to the Chats API and Coder Agents for new automation.
+> Tasks is deprecated. It remains supported through the 2.34 ESR window
+> (into 2026) but receives no new features. Start planning the migration
+> to Coder Agents and the Chats API now. See the
+> [Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
+> for API migration details.
 
 ### AI Gateway and AI Governance
 
@@ -163,7 +163,7 @@ updates, or change administrator expectations:
 | SFTP and SCP connections always landed in `$HOME`.                                             | SFTP and SCP now respect the workspace agent `dir` setting.                                                           | Update scripts that rely on implicit `$HOME` paths. Prefer explicit absolute paths for file transfers.                                                                                                                                                 |
 | Templates can use the `coder_secret` Terraform data source.                                    | The `coder_secret` Terraform integration was removed.                                                                 | Migrate templates to user secrets through the Coder API, CLI, or workspace injection flow before upgrading.                                                                                                                                            |
 | Pre-2.28 Tasks templates might still exist in older deployments.                               | The pre-2.28 Tasks template format is no longer supported as of 2.30.                                                 | Update Tasks templates to use `app_id` instead of the deprecated `sidebar_app` flow. See the [Tasks migration guide](../../ai-coder/tasks-migration.md).                                                                                               |
-| Tasks is the primary AI coding workflow.                                                       | Coder Agents is the long-term replacement, and Tasks enters ESR support in 2026.                                      | Plan migration from the Tasks API to the Chats API and Coder Agents. See [Migrating from the Tasks API to the Chats API](../../ai-coder/agents/tasks-to-chats-migration.md).                                                                           |
+| Tasks is the primary AI coding workflow.                                                       | Coder Agents is the long-term replacement, and Tasks is supported through the 2.34 ESR window (into 2026).            | Plan migration from the Tasks API to the Chats API and Coder Agents. See [Migrating from the Tasks API to the Chats API](../../ai-coder/agents/tasks-to-chats-migration.md).                                                                           |
 | AI Gateway injected MCP tools can be used for tool exposure.                                   | Injected MCP tools are deprecated.                                                                                    | Move new integrations toward Coder Agents MCP server configuration or the MCP server flow. See [AI Gateway MCP](../../ai-coder/ai-gateway/mcp.md) and [MCP servers](../../ai-coder/agents/platform-controls/mcp-servers.md).                           |
 | AI Gateway providers are configured with `CODER_AIBRIDGE_PROVIDER_*` variables.                | `CODER_AI_GATEWAY_PROVIDER_*` is the current prefix, and the old prefix remains an alias.                             | Move to the `CODER_AI_GATEWAY_PROVIDER_*` prefix. Do not mix old and new provider prefixes in the same deployment.                                                                                                                                     |
 | Regular users can read their own AI Gateway interceptions.                                     | Only owners and auditors can read AI Gateway interception data.                                                       | Update dashboards, scripts, or user workflows that expected self-service interception reads. This intentionally narrows the RBAC surface.                                                                                                              |
