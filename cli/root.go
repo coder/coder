@@ -1703,9 +1703,10 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // appendAndDedupEnv appends extra environment variables and
 // deduplicates entries with the same key (case-insensitive on
-// Windows). The last value for each key wins. This prevents
-// issues where both "Path" and "PATH" exist in the environment
-// block, causing cmd.exe to use whichever appears first.
+// Windows). For the PATH variable specifically, it prefers the
+// value that contains native Windows paths (with backslashes)
+// over MSYS-translated paths (with forward slashes). For all
+// other variables, the last value wins.
 func appendAndDedupEnv(env []string, extra ...string) []string {
 	env = append(env, extra...)
 	if runtime.GOOS != "windows" {
@@ -1714,13 +1715,20 @@ func appendAndDedupEnv(env []string, extra ...string) []string {
 	seen := make(map[string]int, len(env))
 	result := make([]string, 0, len(env))
 	for _, e := range env {
-		key, _, ok := strings.Cut(e, "=")
+		key, val, ok := strings.Cut(e, "=")
 		if !ok {
 			result = append(result, e)
 			continue
 		}
 		upper := strings.ToUpper(key)
 		if idx, exists := seen[upper]; exists {
+			if upper == "PATH" {
+				// Prefer the value with native Windows paths.
+				existingVal := result[idx][len(key)+1:]
+				if strings.Contains(existingVal, "\\") && !strings.Contains(val, "\\") {
+					continue
+				}
+			}
 			result[idx] = e
 			continue
 		}
