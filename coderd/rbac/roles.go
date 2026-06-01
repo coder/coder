@@ -1055,44 +1055,69 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Uses allPermsExcept to automatically include permissions for new resources.
-	memberPerms := append(
-		allPermsExcept(
-			ResourceWorkspaceDormant,
-			ResourcePrebuiltWorkspace,
-			ResourceUser,
-			ResourceOrganizationMember,
-			ResourceBoundaryLog,
-			ResourceAibridgeInterception,
-			// Chat access requires the agents-access role.
-			ResourceChat,
-		),
+	// Enumerate the per-member resources explicitly so new resources do
+	// not auto-grant to org members. Adding a resource to the codebase
+	// requires an explicit decision to expose it here.
+	memberPerms := Permissions(map[string][]policy.Action{
+		// Workspace lifecycle on resources owned by this member.
+		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
-		Permissions(map[string][]policy.Action{
-			// Reduced permission set on dormant workspaces. No build,
-			// ssh, or exec.
-			ResourceWorkspaceDormant.Type: {
-				policy.ActionRead,
-				policy.ActionDelete,
-				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
-				policy.ActionCreateAgent,
-				policy.ActionDeleteAgent,
-				policy.ActionUpdateAgent,
-			},
-			// Can read their own organization member record.
-			ResourceOrganizationMember.Type: {
-				policy.ActionRead,
-			},
-			// Members can create and update AI Bridge interceptions but
-			// cannot read them back.
-			ResourceAibridgeInterception.Type: {
-				policy.ActionCreate,
-				policy.ActionUpdate,
-			},
-		})...,
-	)
+		// Dormant workspaces share the workspace action set minus the
+		// build, ssh, and exec actions.
+		ResourceWorkspaceDormant.Type: {
+			policy.ActionRead,
+			policy.ActionDelete,
+			policy.ActionCreate,
+			policy.ActionUpdate,
+			policy.ActionWorkspaceStop,
+			policy.ActionCreateAgent,
+			policy.ActionDeleteAgent,
+			policy.ActionUpdateAgent,
+		},
+
+		// Workspace runtime support: proxies, agent monitors,
+		// devcontainer setup, and tailnet coordination.
+		ResourceWorkspaceProxy.Type:                {policy.ActionRead},
+		ResourceWorkspaceAgentResourceMonitor.Type: ResourceWorkspaceAgentResourceMonitor.AvailableActions(),
+		ResourceWorkspaceAgentDevcontainers.Type:   ResourceWorkspaceAgentDevcontainers.AvailableActions(),
+		ResourceTailnetCoordinator.Type:            ResourceTailnetCoordinator.AvailableActions(),
+
+		// Apply templates; full template lifecycle is restricted to
+		// template-admin.
+		ResourceTemplate.Type: {policy.ActionRead, policy.ActionUse},
+
+		// Upload and read template files used during workspace build.
+		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
+
+		// Provisioner jobs back workspace builds.
+		ResourceProvisionerJobs.Type: ResourceProvisionerJobs.AvailableActions(),
+
+		// Tasks ride along with workspaces.
+		ResourceTask.Type: ResourceTask.AvailableActions(),
+
+		// Read groups and group memberships for ACL evaluation.
+		ResourceGroup.Type:       {policy.ActionRead},
+		ResourceGroupMember.Type: {policy.ActionRead},
+
+		// Read-self org-member record.
+		ResourceOrganizationMember.Type: {policy.ActionRead},
+
+		// Members can create and update AI Bridge interceptions but
+		// cannot read them back. Chat access requires the agents-access
+		// role and is intentionally not granted here.
+		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+
+		// Own session tokens and workspace agent auth keys.
+		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
+
+		// User-scoped notification surfaces.
+		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
+		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
+		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
+
+		// Replica metadata (read-only is the only defined action).
+		ResourceReplicas.Type: {policy.ActionRead},
+	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
 		memberPerms = append(memberPerms, Permission{
@@ -1140,45 +1165,67 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 	}
 
 	// service account-scoped permissions (resources owned by the
-	// service account).  Uses allPermsExcept to automatically include
-	// permissions for new resources.
-	memberPerms := append(
-		allPermsExcept(
-			ResourceWorkspaceDormant,
-			ResourcePrebuiltWorkspace,
-			ResourceUser,
-			ResourceOrganizationMember,
-			ResourceBoundaryLog,
-			ResourceAibridgeInterception,
-			// Chat access requires the agents-access role.
-			ResourceChat,
-		),
+	// service account). Enumerated explicitly so new resources do not
+	// auto-grant to service accounts.
+	memberPerms := Permissions(map[string][]policy.Action{
+		// Workspace lifecycle on resources owned by this service account.
+		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
-		Permissions(map[string][]policy.Action{
-			// Reduced permission set on dormant workspaces. No build,
-			// ssh, or exec.
-			ResourceWorkspaceDormant.Type: {
-				policy.ActionRead,
-				policy.ActionDelete,
-				policy.ActionCreate,
-				policy.ActionUpdate,
-				policy.ActionWorkspaceStop,
-				policy.ActionCreateAgent,
-				policy.ActionDeleteAgent,
-				policy.ActionUpdateAgent,
-			},
-			// Can read their own organization member record.
-			ResourceOrganizationMember.Type: {
-				policy.ActionRead,
-			},
-			// Service accounts can create and update AI Bridge
-			// interceptions but cannot read them back.
-			ResourceAibridgeInterception.Type: {
-				policy.ActionCreate,
-				policy.ActionUpdate,
-			},
-		})...,
-	)
+		// Dormant workspaces share the workspace action set minus the
+		// build, ssh, and exec actions.
+		ResourceWorkspaceDormant.Type: {
+			policy.ActionRead,
+			policy.ActionDelete,
+			policy.ActionCreate,
+			policy.ActionUpdate,
+			policy.ActionWorkspaceStop,
+			policy.ActionCreateAgent,
+			policy.ActionDeleteAgent,
+			policy.ActionUpdateAgent,
+		},
+
+		// Workspace runtime support.
+		ResourceWorkspaceProxy.Type:                {policy.ActionRead},
+		ResourceWorkspaceAgentResourceMonitor.Type: ResourceWorkspaceAgentResourceMonitor.AvailableActions(),
+		ResourceWorkspaceAgentDevcontainers.Type:   ResourceWorkspaceAgentDevcontainers.AvailableActions(),
+		ResourceTailnetCoordinator.Type:            ResourceTailnetCoordinator.AvailableActions(),
+
+		// Apply templates; full template lifecycle is restricted to
+		// template-admin.
+		ResourceTemplate.Type: {policy.ActionRead, policy.ActionUse},
+
+		// Upload and read template files used during workspace build.
+		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
+
+		// Provisioner jobs back workspace builds.
+		ResourceProvisionerJobs.Type: ResourceProvisionerJobs.AvailableActions(),
+
+		// Tasks ride along with workspaces.
+		ResourceTask.Type: ResourceTask.AvailableActions(),
+
+		// Read groups and group memberships for ACL evaluation.
+		ResourceGroup.Type:       {policy.ActionRead},
+		ResourceGroupMember.Type: {policy.ActionRead},
+
+		// Read-self org-member record.
+		ResourceOrganizationMember.Type: {policy.ActionRead},
+
+		// Service accounts can create and update AI Bridge interceptions
+		// but cannot read them back. Chat access requires the
+		// agents-access role and is intentionally not granted here.
+		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+
+		// Own session tokens and workspace agent auth keys.
+		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
+
+		// User-scoped notification surfaces.
+		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
+		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
+		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
+
+		// Replica metadata (read-only is the only defined action).
+		ResourceReplicas.Type: {policy.ActionRead},
+	})
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }
