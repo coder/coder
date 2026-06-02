@@ -256,7 +256,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				>
 					<div className="space-y-5">
 						<ProviderField
-							label="API Key"
+							label="API key"
 							htmlFor={apiKeyInputId}
 							required={requiresAPIKey}
 							description={apiKeyDescription}

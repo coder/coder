@@ -1,0 +1,35 @@
+// Enforce sentence case for user-facing UI labels.
+//
+// Flags Title Case in label-bearing JSX attributes (label, title,
+// sectionLabel, aria-label) and object-property labels (label:, title:,
+// sectionLabel:). Sentence case capitalizes only the first word and
+// proper nouns: "Personal instructions", not "Personal Instructions".
+//
+// Heuristic: a space followed by a capitalized word ([A-Z][a-z]). This
+// also catches acronym-prefixed Title Case like "MCP Servers". Genuine
+// multi-word proper nouns (e.g. "VS Code") are false positives and must
+// be added to the allowlist below.
+//
+// Diagnostic-only: Biome GritQL plugins cannot autofix yet.
+language js
+
+or {
+	JsxAttribute(name = $name) as $node where {
+		$name <: r"^(?:label|title|sectionLabel|aria-label)$",
+		$node <: contains JsxString() as $value
+	},
+	JsPropertyObjectMember() as $node where {
+		$node <: contains JsLiteralMemberName() as $key,
+		$key <: r"^(?:label|title|sectionLabel)$",
+		$node <: contains JsStringLiteralExpression() as $value
+	}
+} where {
+	$value <: r".* [A-Z][a-z].*",
+	// Allowlist: proper nouns / product names that are correctly multi-cap.
+	not $value <: r".*(?:VS Code|Coder Agents|GitHub Actions|JetBrains Fleet|Cmd/Ctrl).*",
+	register_diagnostic(
+		span = $value,
+		message = "Use sentence case for UI labels (e.g. \"Personal instructions\"), not Title Case. If this is a proper noun, add it to the allowlist in use-sentence-case-labels.grit.",
+		severity = "warn"
+	)
+}

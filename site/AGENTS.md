@@ -117,6 +117,15 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 - For JSX boolean props that are `true`, use the shorthand form
   (`<Foo prop />`) instead of `<Foo prop={true} />`. The two are
   equivalent; the shorthand is the React convention and reduces noise.
+- Use **sentence case** for user-facing UI labels: capitalize only the
+  first word and proper nouns (`Personal instructions`, `API key`), not
+  Title Case (`Personal Instructions`, `API Key`). Under
+  `src/pages/AgentsPage`, a Biome GritQL plugin
+  (`biome-rules/use-sentence-case-labels.grit`) enforces this for
+  `label`/`title`/`sectionLabel`/`aria-label` attributes and `label:`/
+  `title:` object properties. It cannot see labels rendered as JSX text
+  or built from variables, so those still need a human eye. Add genuine
+  proper nouns to the allowlist in that file.
 - **Avoid unnecessary indirection.** Inline single-use module-level
   constants, single-use aliases, and one-line helpers that just return a
   single field at the call site. Do not create wrapper hooks that only

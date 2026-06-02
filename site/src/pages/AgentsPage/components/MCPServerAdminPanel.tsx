@@ -67,25 +67,25 @@ const TRANSPORT_OPTIONS = [
 const AUTH_TYPE_OPTIONS = [
 	{ value: "none", label: "None" },
 	{ value: "oauth2", label: "OAuth2" },
-	{ value: "api_key", label: "API Key" },
-	{ value: "custom_headers", label: "Custom Headers" },
-	{ value: "user_oidc", label: "User OIDC Identity" },
+	{ value: "api_key", label: "API key" },
+	{ value: "custom_headers", label: "Custom headers" },
+	{ value: "user_oidc", label: "User OIDC identity" },
 ] as const;
 
 const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
-		label: "Force On",
+		label: "Force on",
 		description: "Always injected into every conversation.",
 	},
 	{
 		value: "default_on",
-		label: "Default On",
+		label: "Default on",
 		description: "Pre-selected but users can opt out.",
 	},
 	{
 		value: "default_off",
-		label: "Default Off",
+		label: "Default off",
 		description: "Available but users must opt in.",
 	},
 ] as const;
@@ -784,7 +784,7 @@ const ServerForm: FC<ServerFormProps> = ({
 												disabled={isDisabled}
 											/>
 										</Field>
-										<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
+										<Field label="API key" htmlFor={`${formId}-apikey-value`}>
 											<Input
 												id={`${formId}-apikey-value`}
 												className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
