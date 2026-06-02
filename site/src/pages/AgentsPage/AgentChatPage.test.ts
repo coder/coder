@@ -3,9 +3,11 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
+	getWorkspaceOptionsWithLinkedWorkspace,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	submitEditAndScroll,
@@ -77,6 +79,42 @@ const setMobileViewport = (isMobile: boolean) => {
 		}),
 	});
 };
+
+describe("getWorkspaceOptionsWithLinkedWorkspace", () => {
+	it("includes a missing linked workspace only when the current user owns it", () => {
+		const existingWorkspace = {
+			...MockWorkspace,
+			id: "existing-workspace",
+		};
+		const ownerWorkspaceOptions = [existingWorkspace];
+		const linkedWorkspace = {
+			...MockWorkspace,
+			id: "linked-workspace",
+			owner_id: MockUserOwner.id,
+		};
+
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				linkedWorkspace,
+				MockUserOwner.id,
+			),
+		).toEqual([linkedWorkspace, existingWorkspace]);
+
+		const sharedWorkspace = {
+			...linkedWorkspace,
+			owner_id: "another-user",
+		};
+
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				sharedWorkspace,
+				MockUserOwner.id,
+			),
+		).toBe(ownerWorkspaceOptions);
+	});
+});
 
 describe("waitForPendingChatSettingsSyncs", () => {
 	it("waits for plan-mode and workspace updates before resolving", async () => {

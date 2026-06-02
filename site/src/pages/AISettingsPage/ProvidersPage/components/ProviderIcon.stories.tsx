@@ -27,6 +27,12 @@ export const Bedrock: Story = {
 	},
 };
 
+export const Copilot: Story = {
+	args: {
+		provider: "copilot",
+	},
+};
+
 export const Azure: Story = {
 	args: {
 		provider: "azure",

@@ -210,6 +210,38 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
+export const AddCopilot: Story = {
+	args: {
+		// The real add flow passes only the type; the form fills name and
+		// endpoint from the copilot defaults.
+		initialValues: { type: "copilot" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText(/endpoint/i);
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	},
+};
+
+export const EditCopilot: Story = {
+	args: {
+		editing: true,
+		initialValues: {
+			type: "copilot",
+			name: "copilot",
+			displayName: "GitHub Copilot",
+			baseUrl: "https://api.business.githubcopilot.com",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const name = await canvas.findByLabelText(/^name/i);
+		expect(name).toBeDisabled();
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	},
+};
+
 export const EditProvider: Story = {
 	args: {
 		editing: true,

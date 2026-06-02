@@ -81,6 +81,10 @@ const providerDefaults: Partial<
 		name: "azure",
 		baseUrl: "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
 	},
+	copilot: {
+		name: "copilot",
+		baseUrl: "https://api.business.githubcopilot.com",
+	},
 	google: {
 		name: "google",
 		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -164,6 +168,20 @@ const makeBedrockSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
+const makeCopilotSchema = (editing: boolean) =>
+	Yup.object({
+		type: Yup.string()
+			.oneOf(["copilot"] as const)
+			.required(),
+		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
+		baseUrl: Yup.string()
+			.url("Endpoint must be a valid URL")
+			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
+			.required("Endpoint is required"),
+		enabled: Yup.boolean(),
+	});
+
 const getProviderFormSchema = (editing: boolean) =>
 	Yup.lazy((value: { type?: AIProviderType } | undefined) => {
 		switch (value?.type) {
@@ -177,6 +195,8 @@ const getProviderFormSchema = (editing: boolean) =>
 				return makeOpenAiAnthropicSchema(editing);
 			case "bedrock":
 				return makeBedrockSchema(editing);
+			case "copilot":
+				return makeCopilotSchema(editing);
 			default:
 				return Yup.object({
 					type: Yup.string()
@@ -185,6 +205,7 @@ const getProviderFormSchema = (editing: boolean) =>
 							"anthropic",
 							"bedrock",
 							"azure",
+							"copilot",
 							"google",
 							"openai-compat",
 							"openrouter",
@@ -358,19 +379,39 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							required
 							field={getFieldHelpers("baseUrl")}
 							label="Endpoint"
-							description="The base URL where the provider's API is hosted."
+							description={
+								typeSelectValue === "copilot" ? (
+									<>
+										The base URL for your Copilot tier:{" "}
+										<code>https://api.individual.githubcopilot.com</code>,{" "}
+										<code>https://api.business.githubcopilot.com</code>, or{" "}
+										<code>https://api.enterprise.githubcopilot.com</code>.
+									</>
+								) : (
+									"The base URL where the provider's API is hosted."
+								)
+							}
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
-						<CredentialField
-							required
-							label="API key"
-							helpers={getFieldHelpers("apiKey")}
-							onBlur={() => handleCredentialBlur("apiKey")}
-							onFocus={() => handleCredentialFocus("apiKey")}
-							autoComplete="new-password"
-							placeholder={apiKeyPlaceholder(form.values.type)}
-						/>
+						{typeSelectValue === "copilot" ? (
+							<p className="text-sm text-content-secondary m-0">
+								Copilot authenticates with each user's GitHub OAuth token at
+								request time, so there is no API key to configure here. This
+								requires a GitHub external authentication provider to be
+								configured.
+							</p>
+						) : (
+							<CredentialField
+								required
+								label="API key"
+								helpers={getFieldHelpers("apiKey")}
+								onBlur={() => handleCredentialBlur("apiKey")}
+								onFocus={() => handleCredentialFocus("apiKey")}
+								autoComplete="new-password"
+								placeholder={apiKeyPlaceholder(form.values.type)}
+							/>
+						)}
 					</>
 				)}
 
@@ -452,7 +493,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</Button>
 					</Link>
 					<Button
-						disabled={isLoading || !form.dirty || !form.isValid}
+						disabled={isLoading || !form.isValid || (editing && !form.dirty)}
 						type="submit"
 					>
 						<Spinner loading={isLoading} />

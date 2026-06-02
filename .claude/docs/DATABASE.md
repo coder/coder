@@ -41,6 +41,41 @@
   dimension.
 - Avoid `ByX` names for grouped queries.
 
+### Enum Changes Run in a Single Transaction
+
+All migrations run inside one transaction (`pgTxnDriver`). Postgres forbids
+*using* an enum value added by `ALTER TYPE ... ADD VALUE` within the same
+transaction that added it, so it fails with `unsafe use of new value`.
+
+Adding the value is fine; using it in the same batch is not. "Using it"
+includes a later migration that casts to it (`col::my_enum`), inserts or
+updates a row with it, or sets it as a column default. This only fails when a
+row actually materializes the new value, so fresh databases and CI pass while
+deployments with existing data break.
+
+**MUST DO**: If any migration uses a newly added enum value, recreate the type
+instead of using `ADD VALUE`. A freshly created enum's values are usable
+immediately in the same transaction. Precedent: `000144_user_status_dormant`.
+
+```sql
+CREATE TYPE new_my_enum AS ENUM ('existing', 'value', 'new_value');
+
+ALTER TABLE my_table
+    ALTER COLUMN col TYPE new_my_enum USING (col::text::new_my_enum);
+
+DROP TYPE my_enum;
+
+ALTER TYPE new_my_enum RENAME TO my_enum;
+```
+
+Recreating produces an identical schema, so `make gen` yields no `dump.sql`
+diff and databases that already applied the migration see no drift.
+
+**Testing**: `migrations.Stepper` commits each migration separately, so tests
+built on it cannot surface this. To catch it, seed a row using the new value,
+then apply the affected migrations in a single transaction (see
+`TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
+
 ## Handling Nullable Fields
 
 Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:

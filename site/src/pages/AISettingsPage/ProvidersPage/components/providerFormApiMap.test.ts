@@ -3,6 +3,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
 import {
@@ -41,6 +42,19 @@ const baseBedrockFormValues: ProviderFormValues = {
 	smallFastModel: "anthropic.claude-haiku-4-5",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
+	apiKey: "",
+	enabled: true,
+};
+
+const baseCopilotFormValues: ProviderFormValues = {
+	type: "copilot",
+	name: "copilot",
+	displayName: "GitHub Copilot",
+	baseUrl: "https://api.business.githubcopilot.com",
+	model: "",
+	smallFastModel: "",
+	accessKey: "",
+	accessKeySecret: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -171,6 +185,10 @@ describe("getProviderDisplayType", () => {
 
 	it("returns openai for the canonical OpenAI host", () => {
 		expect(getProviderDisplayType(MockAIProviderOpenAI)).toBe("openai");
+	});
+
+	it("returns copilot for a Copilot provider", () => {
+		expect(getProviderDisplayType(MockAIProviderCopilot)).toBe("copilot");
 	});
 
 	it.each([
@@ -333,6 +351,31 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.api_keys).toBeUndefined();
 		});
 	});
+
+	describe("Copilot", () => {
+		it("maps to a distinct wire type with no api_keys", () => {
+			const req = providerFormValuesToCreate(baseCopilotFormValues);
+			expect(req.type).toBe("copilot");
+			expect(req.base_url).toBe("https://api.business.githubcopilot.com");
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("never sends api_keys even if the field carries a value", () => {
+			const req = providerFormValuesToCreate({
+				...baseCopilotFormValues,
+				apiKey: "should-be-ignored",
+			});
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("omits display_name when blank so the server stores NULL", () => {
+			const req = providerFormValuesToCreate({
+				...baseCopilotFormValues,
+				displayName: "",
+			});
+			expect(req.display_name).toBeUndefined();
+		});
+	});
 });
 
 describe("providerFormValuesToUpdate", () => {
@@ -460,6 +503,18 @@ describe("providerFormValuesToUpdate", () => {
 			expect(s.access_key_secret).toBeUndefined();
 		});
 	});
+
+	describe("Copilot", () => {
+		it("patches only the base fields and never sends api_keys", () => {
+			const req = providerFormValuesToUpdate(
+				{ ...baseCopilotFormValues, apiKey: "should-be-ignored" },
+				MockAIProviderCopilot,
+			);
+			expect(req.api_keys).toBeUndefined();
+			expect(req.settings).toBeUndefined();
+			expect(req.base_url).toBe("https://api.business.githubcopilot.com");
+		});
+	});
 });
 
 describe("aiProviderToFormValues", () => {
@@ -484,6 +539,14 @@ describe("aiProviderToFormValues", () => {
 		const values = aiProviderToFormValues(MockAIProviderBedrock);
 		expect(values.accessKey).toBe("");
 		expect(values.accessKeySecret).toBe("");
+	});
+
+	it("seeds Copilot form values without a credential field", () => {
+		const values = aiProviderToFormValues(MockAIProviderCopilot);
+		expect(values.type).toBe("copilot");
+		expect(values.name).toBe(MockAIProviderCopilot.name);
+		expect(values.baseUrl).toBe(MockAIProviderCopilot.base_url);
+		expect(values.apiKey).toBeUndefined();
 	});
 
 	it("falls back to the slug when display_name is empty", () => {

@@ -285,31 +285,24 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (transport.Interface, error) {
-	// Each connection gets its own HTTP client with a dedicated
-	// transport so that httptest.Server.Close() (which calls
-	// CloseIdleConnections on http.DefaultTransport) does not
-	// disrupt unrelated connections during parallel tests.
-	var httpClient *http.Client
-	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
-		httpClient = &http.Client{Transport: dt.Clone()}
-	} else {
-		httpClient = &http.Client{}
-	}
+	httpClient := mcpHTTPClient()
 
 	switch cfg.Transport {
 	case "sse":
-		return transport.NewSSE(
-			cfg.Url,
-			transport.WithHeaders(headers),
-			transport.WithHTTPClient(httpClient),
-		)
+		var opts []transport.ClientOption
+		opts = append(opts, transport.WithHeaders(headers))
+		if httpClient != nil {
+			opts = append(opts, transport.WithHTTPClient(httpClient))
+		}
+		return transport.NewSSE(cfg.Url, opts...)
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
-		return transport.NewStreamableHTTP(
-			cfg.Url,
-			transport.WithHTTPHeaders(headers),
-			transport.WithHTTPBasicClient(httpClient),
-		)
+		var opts []transport.StreamableHTTPCOption
+		opts = append(opts, transport.WithHTTPHeaders(headers))
+		if httpClient != nil {
+			opts = append(opts, transport.WithHTTPBasicClient(httpClient))
+		}
+		return transport.NewStreamableHTTP(cfg.Url, opts...)
 	default:
 		return nil, xerrors.Errorf(
 			"unsupported transport %q", cfg.Transport,
