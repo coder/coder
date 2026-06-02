@@ -10,6 +10,7 @@ import {
 	NetworkIcon,
 	RadioIcon,
 	SquareTerminalIcon,
+	UnlinkIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { useState } from "react";
@@ -67,6 +68,7 @@ interface WorkspacePillProps {
 	chatId: string;
 	sshCommand?: string;
 	folder?: string;
+	onRemoveWorkspace?: () => void;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
@@ -75,6 +77,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	chatId,
 	sshCommand,
 	folder,
+	onRemoveWorkspace,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -107,41 +110,42 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<Tooltip
-				open={tooltipOpen}
-				onOpenChange={(v) => setTooltipOpen(v && !open)}
-			>
-				<TooltipTrigger asChild>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							aria-label={`${workspace.name} workspace menu`}
-							className={cn(
-								"inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-secondary text-xs font-medium text-content-secondary overflow-hidden md:min-w-[2.75rem]",
-								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-								"size-7 justify-center p-0 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
-							)}
-						>
-							<StatusIcon
-								type={effectiveType}
-								className="size-icon-sm shrink-0 md:size-3"
-							/>
-							<span className="hidden min-w-0 truncate md:inline">
-								{workspace.name}
-							</span>
-							<ChevronDownIcon
+			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+				<Tooltip
+					open={tooltipOpen}
+					onOpenChange={(v) => setTooltipOpen(v && !open)}
+				>
+					<TooltipTrigger asChild>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
-									open && "rotate-180",
+									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
 								)}
-							/>
-						</button>
-					</DropdownMenuTrigger>
-				</TooltipTrigger>
-				<TooltipContent className="hidden md:block">
-					{statusLabel}
-				</TooltipContent>
-			</Tooltip>
+							>
+								<StatusIcon
+									type={effectiveType}
+									className="size-icon-sm shrink-0 md:size-3"
+								/>
+								<span className="hidden min-w-0 truncate md:inline">
+									{workspace.name}
+								</span>
+								<ChevronDownIcon
+									className={cn(
+										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										open && "rotate-180",
+									)}
+								/>
+							</button>
+						</DropdownMenuTrigger>
+					</TooltipTrigger>
+					<TooltipContent className="hidden md:block">
+						{statusLabel}
+					</TooltipContent>
+				</Tooltip>
+			</span>
 
 			<DropdownMenuContent
 				side="top"
@@ -208,6 +212,18 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						View Workspace
 					</Link>
 				</DropdownMenuItem>
+				{onRemoveWorkspace && (
+					<>
+						<DropdownMenuSeparator className="my-1" />
+						<DropdownMenuItem
+							className="text-content-destructive focus:text-content-destructive"
+							onClick={onRemoveWorkspace}
+						>
+							<UnlinkIcon className="size-3.5" />
+							Detach workspace
+						</DropdownMenuItem>
+					</>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
