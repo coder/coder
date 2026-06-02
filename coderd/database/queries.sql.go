@@ -25000,17 +25000,28 @@ WHERE
 			END
 		ELSE true
 	END
+	-- Filter by general search text, matching on name, display name, description, or abstract
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			(
+				lower(t.name) ILIKE '%' || REPLACE(REPLACE(REPLACE(REPLACE(lower($7), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_'), ' ', '') || '%' ESCAPE '\'
+				OR lower(t.display_name) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower($7), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+				OR lower(t.description) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower($7), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+				OR lower(t.abstract) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower($7), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+			)
+		ELSE true
+	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($7 :: uuid[], 1) > 0 THEN
-			t.id = ANY($7)
+		WHEN array_length($8 :: uuid[], 1) > 0 THEN
+			t.id = ANY($8)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $8 :: boolean IS NOT NULL THEN
+		WHEN $9 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $8 :: boolean THEN
+				WHEN $9 :: boolean THEN
 					t.deprecated != ''
 				ELSE
 					t.deprecated = ''
@@ -25019,27 +25030,27 @@ WHERE
 	END
 	-- Filter by has_ai_task in latest version
 	AND CASE
-		WHEN $9 :: boolean IS NOT NULL THEN
-			tv.has_ai_task = $9 :: boolean
+		WHEN $10 :: boolean IS NOT NULL THEN
+			tv.has_ai_task = $10 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -25054,6 +25065,7 @@ type GetTemplatesWithFilterParams struct {
 	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
 	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
 	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
+	FuzzySearch      string       `db:"fuzzy_search" json:"fuzzy_search"`
 	IDs              []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
 	HasAITask        sql.NullBool `db:"has_ai_task" json:"has_ai_task"`
@@ -25070,6 +25082,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.ExactDisplayName,
 		arg.FuzzyName,
 		arg.FuzzyDisplayName,
+		arg.FuzzySearch,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,

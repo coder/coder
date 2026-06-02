@@ -963,6 +963,20 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
+			Name:  "SearchField",
+			Query: "search:rust",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzySearch: "rust",
+			},
+		},
+		{
+			Name:  "SearchFieldQuoted",
+			Query: `search:"rust compiler"`,
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzySearch: "rust compiler",
+			},
+		},
+		{
 			Name:  "NameField",
 			Query: "name:testname",
 			Expected: database.GetTemplatesWithFilterParams{

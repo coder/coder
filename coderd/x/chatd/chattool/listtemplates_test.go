@@ -132,13 +132,13 @@ func TestListTemplates_Abstract(t *testing.T) {
 		wantPresent bool
 	}{
 		{
-			name: "LongAbstract",
+			name: "TruncatesLongAbstract",
 			template: database.Template{
 				Name:        "with-abstract",
 				Description: "short description",
 				Abstract:    strings.Repeat("a", 1000),
 			},
-			want:        strings.Repeat("a", 1000),
+			want:        strings.Repeat("a", 499) + "…",
 			wantPresent: true,
 		},
 		{
@@ -189,6 +189,74 @@ func TestListTemplates_Abstract(t *testing.T) {
 			if tc.wantPresent {
 				require.Equal(t, tc.want, got.(string))
 			}
+		})
+	}
+}
+
+func TestListTemplates_Query(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		query              string
+		matchedDescription string
+		matchedAbstract    string
+		otherDescription   string
+		otherAbstract      string
+	}{
+		{
+			name:               "MatchesAbstract",
+			query:              "rust compiler",
+			matchedDescription: "Short card text.",
+			matchedAbstract:    "Use this template for Rust compiler work and systems debugging.",
+			otherDescription:   "Short card text.",
+			otherAbstract:      "Use this template for frontend and API work.",
+		},
+		{
+			name:               "MatchesDescription",
+			query:              "cuda toolkit",
+			matchedDescription: "Short card text for CUDA toolkit work.",
+			matchedAbstract:    "Use this template for systems debugging.",
+			otherDescription:   "Short card text.",
+			otherAbstract:      "Use this template for frontend and API work.",
+		},
+		{
+			name:               "EscapesLikeWildcards",
+			query:              "%",
+			matchedDescription: "Short card text.",
+			matchedAbstract:    "Use this template when the workload needs 100% GPU access.",
+			otherDescription:   "Short card text.",
+			otherAbstract:      "Use this template for frontend and API work.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newListTemplatesFixture(t)
+			matched := dbgen.Template(t, fixture.db, database.Template{
+				OrganizationID: fixture.org.ID,
+				CreatedBy:      fixture.user.ID,
+				Name:           "matched-dev",
+				DisplayName:    "Matched Dev",
+				Description:    tc.matchedDescription,
+				Abstract:       tc.matchedAbstract,
+			})
+			dbgen.Template(t, fixture.db, database.Template{
+				OrganizationID: fixture.org.ID,
+				CreatedBy:      fixture.user.ID,
+				Name:           "other-dev",
+				DisplayName:    "Other Dev",
+				Description:    tc.otherDescription,
+				Abstract:       tc.otherAbstract,
+			})
+
+			input, err := json.Marshal(map[string]string{"query": tc.query})
+			require.NoError(t, err)
+			items := fixture.listTemplates(t, string(input))
+			require.Len(t, items, 1)
+			require.Equal(t, matched.ID.String(), items[0]["id"].(string))
 		})
 	}
 }

@@ -83,6 +83,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.ExactDisplayName,
 		arg.FuzzyName,
 		arg.FuzzyDisplayName,
+		arg.FuzzySearch,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,

@@ -27,6 +27,12 @@ import {
 	StackLabel,
 	StackLabelHelperText,
 } from "#/components/StackLabel/StackLabel";
+import {
+	MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
+	MAX_TEMPLATE_ABSTRACT_MESSAGE,
+	MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
+	MAX_TEMPLATE_DESCRIPTION_MESSAGE,
+} from "#/modules/templates/validation";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -36,19 +42,17 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 
-const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
-const MAX_ABSTRACT_CHAR_LIMIT = 2048;
-const MAX_ABSTRACT_MESSAGE = `Please enter an abstract that is no longer than ${MAX_ABSTRACT_CHAR_LIMIT} characters.`;
-
 export const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	display_name: displayNameValidator("Display name"),
 	description: Yup.string().max(
-		MAX_DESCRIPTION_CHAR_LIMIT,
-		MAX_DESCRIPTION_MESSAGE,
+		MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
+		MAX_TEMPLATE_DESCRIPTION_MESSAGE,
 	),
-	abstract: Yup.string().max(MAX_ABSTRACT_CHAR_LIMIT, MAX_ABSTRACT_MESSAGE),
+	abstract: Yup.string().max(
+		MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
+		MAX_TEMPLATE_ABSTRACT_MESSAGE,
+	),
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
@@ -143,7 +147,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 
 					<TextField
 						{...getFieldHelpers("description", {
-							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+							maxLength: MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
 						})}
 						multiline
 						disabled={isSubmitting}
@@ -156,7 +160,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						{...getFieldHelpers("abstract", {
 							helperText:
 								"Detailed summary for agents to help choose the right template.",
-							maxLength: MAX_ABSTRACT_CHAR_LIMIT,
+							maxLength: MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
 						})}
 						multiline
 						disabled={isSubmitting}

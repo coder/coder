@@ -196,6 +196,39 @@ func TestChatGPTSearch_TemplateIncludesAbstract(t *testing.T) {
 	require.Equal(t, desc, byTitle["No Abstract"].Text)
 }
 
+func TestChatGPTSearch_TemplateSearchMatchesAbstract(t *testing.T) {
+	t.Parallel()
+
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	matched := dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "systems-dev",
+		DisplayName:    "Systems Dev",
+		Description:    "Short card text.",
+		Abstract:       "Use this template for rust compiler internals.",
+	})
+	dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "web-dev",
+		DisplayName:    "Web Dev",
+		Description:    "Short card text.",
+		Abstract:       "Use this template for frontend and API work.",
+	})
+
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	result, err := testTool(t, toolsdk.ChatGPTSearch, deps, toolsdk.SearchArgs{Query: `templates/search:"rust compiler"`})
+	require.NoError(t, err)
+	require.Len(t, result.Results, 1)
+	require.Equal(t, "template:"+matched.ID.String(), result.Results[0].ID)
+	require.Contains(t, result.Results[0].Text, "rust compiler")
+}
+
 func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
 	t.Parallel()
 

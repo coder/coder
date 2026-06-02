@@ -21,6 +21,7 @@ export const newTemplate = (
 		cors_behavior: null,
 		display_name: formData.display_name,
 		description: formData.description,
+		abstract: formData.abstract,
 		icon: formData.icon,
 		allow_user_autostart: formData.allow_user_autostart,
 		allow_user_autostop: formData.allow_user_autostop,

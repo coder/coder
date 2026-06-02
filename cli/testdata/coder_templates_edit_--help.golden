@@ -9,6 +9,10 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+      --abstract string
+          Edit the detailed template summary used by agents to choose a
+          template.
+
       --activity-bump duration
           Edit the template activity bump - workspaces created from this
           template will have their shutdown time bumped by this value when

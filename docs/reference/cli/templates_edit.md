@@ -35,6 +35,14 @@ Edit the template display name.
 
 Edit the template description.
 
+### --abstract
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Edit the detailed template summary used by agents to choose a template.
+
 ### --deprecated
 
 |      |                     |

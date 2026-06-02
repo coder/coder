@@ -152,6 +152,7 @@ var ChatGPTSearch = Tool[SearchArgs, SearchResult]{
 To pick what you want to search for, use the following query formats:
 
 - ` + "`" + `templates/<template-query>` + "`" + `: List templates. The query accepts the following, optional parameters delineated by whitespace:
+	- "search:<text>" - Search by template name, display name, description, or abstract. Quote multi-word values. Examples: "search:rust" and search:"rust compiler"
 	- "name:<name>" - Fuzzy search by template name (substring matching). Example: "name:docker"
 	- "organization:<organization>" - Filter by organization ID or name. Example: "organization:coder"
 	- "deprecated:<true|false>" - Filter by deprecated status. Example: "deprecated:true"

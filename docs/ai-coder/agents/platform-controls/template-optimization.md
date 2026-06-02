@@ -5,9 +5,10 @@ agent decides it needs compute — to read files, write code, run commands, or
 execute builds.
 
 When a workspace is needed, the agent reads the available templates, selects
-the appropriate one based on its name and description, and provisions a
-workspace automatically. Administrators can restrict which templates the agent
-can see using the [template allowlist](#restrict-available-templates).
+the appropriate one based on its name, short description, and abstract, then
+provisions a workspace automatically. Administrators can restrict which
+templates the agent can see using the
+[template allowlist](#restrict-available-templates).
 
 This guide covers best practices for creating templates that are discoverable
 and useful to Coder Agents.
@@ -37,19 +38,20 @@ manually create workspaces from any template they have access to. This lets
 platform teams apply stricter policies to agent workloads without affecting
 the manual workspace experience.
 
-## Write discoverable template descriptions
+## Write discoverable template metadata
 
-The agent selects templates by reading their names and descriptions — the same
-metadata shown on the templates page in the Coder dashboard, sorted by number
-of active developers. It does not inspect the template's Terraform to
-understand what infrastructure is inside.
+The agent selects templates by reading their names, descriptions, and abstracts,
+sorted by number of active developers. It does not inspect the template's
+Terraform to understand what infrastructure is inside.
 
-This means the template description is the single most important factor in
-whether the agent picks the right template for a given task.
+Use the template description as short card text for the dashboard. Use the
+abstract for a longer agent-facing summary that explains when the agent should
+choose the template. The abstract is the best place for routing details that do
+not fit in the short description.
 
 ### What to include
 
-A good template description tells the agent:
+A good template abstract tells the agent:
 
 - What language, framework, or stack the template is for.
 - Which repository or service it targets, if applicable.
@@ -58,25 +60,25 @@ A good template description tells the agent:
 
 ### Examples
 
-| Description                                                                                 | Why it works                                                       |
-|---------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
-| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain                             |
-| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed                       |
-| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive — the agent can match it to Go-related tasks |
-| Java microservices for the order-processing pipeline. Maven, JDK 21, Kafka client libraries | Names the service domain and build tool                            |
+| Abstract                                                                                    | Why it works                                                      |
+|---------------------------------------------------------------------------------------------|-------------------------------------------------------------------|
+| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain                            |
+| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed                      |
+| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive, the agent can match it to Go-related tasks |
+| Java microservices for the order-processing pipeline. Maven, JDK 21, Kafka client libraries | Names the service domain and build tool                           |
 
-| Description        | Why it fails                                                            |
-|--------------------|-------------------------------------------------------------------------|
-| Team A template v2 | No information about what the template is for                           |
-| Dev environment    | Too generic — the agent cannot distinguish this from any other template |
-| k8s-prod-2024      | Internal shorthand that carries no meaning for the agent                |
-| Default            | Tells the agent nothing                                                 |
+| Abstract           | Why it fails                                                           |
+|--------------------|------------------------------------------------------------------------|
+| Team A template v2 | No information about what the template is for                          |
+| Dev environment    | Too generic, the agent cannot distinguish this from any other template |
+| k8s-prod-2024      | Internal shorthand that carries no meaning for the agent               |
+| Default            | Tells the agent nothing                                                |
 
 > [!TIP]
 > If many developers already use a template, the agent is more likely to
 > select it because templates are sorted by active developer count. A
-> well-written description on a popular template is the strongest routing
-> signal you can provide.
+> well-written abstract on a popular template is the strongest routing signal
+> you can provide.
 
 ### Template display names
 

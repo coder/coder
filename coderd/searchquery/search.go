@@ -328,7 +328,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the display name
+		// Bare terms preserve the existing template search behavior by matching display names.
 		values.Add("display_name", term)
 		return nil
 	})
@@ -344,6 +344,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		ExactDisplayName: parser.String(values, "", "exact_display_name"),
 		FuzzyName:        parser.String(values, "", "name"),
 		FuzzyDisplayName: parser.String(values, "", "display_name"),
+		FuzzySearch:      parser.String(values, "", "search"),
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),

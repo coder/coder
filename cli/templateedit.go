@@ -20,6 +20,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		name                           string
 		displayName                    string
 		description                    string
+		abstract                       string
 		icon                           string
 		defaultTTL                     time.Duration
 		activityBump                   time.Duration
@@ -95,6 +96,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			if !userSetOption(inv, "description") {
 				description = template.Description
+			}
+
+			if !userSetOption(inv, "abstract") {
+				abstract = template.Abstract
 			}
 
 			if !userSetOption(inv, "icon") {
@@ -177,6 +182,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				Name:               &name,
 				DisplayName:        &displayName,
 				Description:        &description,
+				Abstract:           &abstract,
 				Icon:               &icon,
 				DefaultTTLMillis:   ptr.Ref(defaultTTL.Milliseconds()),
 				ActivityBumpMillis: ptr.Ref(activityBump.Milliseconds()),
@@ -226,6 +232,11 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Flag:        "description",
 			Description: "Edit the template description.",
 			Value:       serpent.StringOf(&description),
+		},
+		{
+			Flag:        "abstract",
+			Description: "Edit the detailed template summary used by agents to choose a template.",
+			Value:       serpent.StringOf(&abstract),
 		},
 		{
 			Name:        deprecatedFlagName,

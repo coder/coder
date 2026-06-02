@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"encoding/json"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -115,21 +114,6 @@ func provisionerJobTerminal(status database.ProvisionerJobStatus) bool {
 	default:
 		return false
 	}
-}
-
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 || value == "" {
-		return ""
-	}
-	if utf8.RuneCountInString(value) <= maxLen {
-		return value
-	}
-
-	runes := []rune(value)
-	if maxLen > len(runes) {
-		maxLen = len(runes)
-	}
-	return string(runes[:maxLen])
 }
 
 // buildErrorResult is a structured error response that preserves

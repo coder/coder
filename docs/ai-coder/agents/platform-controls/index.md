@@ -75,12 +75,13 @@ The same value is exposed over the experimental chat configuration API:
 
 Platform teams control which templates are available to agents and how the agent
 selects them. When a developer describes a task, the agent reads template
-descriptions to determine which template to provision.
+names, descriptions, and abstracts to determine which template to provision.
 
-By writing clear template descriptions — for example, "Use this template for
-Python backend services in the payments repo" — platform teams can guide the
-agent toward the correct infrastructure without requiring developers to
-understand template selection at all.
+Descriptions are short dashboard card text. Abstracts are longer summaries for
+agent routing. By writing clear template abstracts, for example, "Use this
+template for Python backend services in the payments repo," platform teams can
+guide the agent toward the correct infrastructure without requiring developers
+to understand template selection at all.
 
 Administrators can also restrict which templates are available to agents
 using the template allowlist at **Agents** > **Settings** >
@@ -92,9 +93,9 @@ stricter policies to agent-created workspaces without affecting the manual
 workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
-discoverable descriptions, restricting template visibility, configuring network
-boundaries, scoping credentials, and designing template parameters for agent
-use.
+discoverable template metadata, restricting template visibility, configuring
+network boundaries, scoping credentials, and designing template parameters for
+agent use.
 
 ### MCP servers
 

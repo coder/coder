@@ -54,6 +54,17 @@ WHERE
 			END
 		ELSE true
 	END
+	-- Filter by general search text, matching on name, display name, description, or abstract
+	AND CASE
+		WHEN @fuzzy_search :: text != '' THEN
+			(
+				lower(t.name) ILIKE '%' || REPLACE(REPLACE(REPLACE(REPLACE(lower(@fuzzy_search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_'), ' ', '') || '%' ESCAPE '\'
+				OR lower(t.display_name) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower(@fuzzy_search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+				OR lower(t.description) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower(@fuzzy_search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+				OR lower(t.abstract) ILIKE '%' || REPLACE(REPLACE(REPLACE(lower(@fuzzy_search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%' ESCAPE '\'
+			)
+		ELSE true
+	END
 	-- Filter by ids
 	AND CASE
 		WHEN array_length(@ids :: uuid[], 1) > 0 THEN

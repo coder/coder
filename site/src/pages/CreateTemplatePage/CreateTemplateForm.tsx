@@ -34,6 +34,12 @@ import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
+import {
+	MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
+	MAX_TEMPLATE_ABSTRACT_MESSAGE,
+	MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
+	MAX_TEMPLATE_DESCRIPTION_MESSAGE,
+} from "#/modules/templates/validation";
 import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
 import { docs } from "#/utils/docs";
 import {
@@ -50,12 +56,11 @@ import {
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
-const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-
 export interface CreateTemplateFormData {
 	name: string;
 	display_name: string;
 	description: string;
+	abstract: string;
 	icon: string;
 	default_ttl_hours: number;
 	autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
@@ -76,8 +81,12 @@ const validationSchema = Yup.object({
 	name: nameValidator("Name"),
 	display_name: displayNameValidator("Display name"),
 	description: Yup.string().max(
-		MAX_DESCRIPTION_CHAR_LIMIT,
-		"Please enter a description that is less than or equal to 128 characters.",
+		MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
+		MAX_TEMPLATE_DESCRIPTION_MESSAGE,
+	),
+	abstract: Yup.string().max(
+		MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
+		MAX_TEMPLATE_ABSTRACT_MESSAGE,
 	),
 	icon: Yup.string().optional(),
 });
@@ -86,6 +95,7 @@ const defaultInitialValues: CreateTemplateFormData = {
 	name: "",
 	display_name: "",
 	description: "",
+	abstract: "",
 	icon: "",
 	default_ttl_hours: 24,
 	// autostop_requirement is an enterprise-only feature, and the server ignores
@@ -344,13 +354,26 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
 					<TextField
 						{...getFieldHelpers("description", {
-							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+							maxLength: MAX_TEMPLATE_DESCRIPTION_CHAR_LIMIT,
 						})}
 						disabled={isSubmitting}
 						rows={5}
 						multiline
 						fullWidth
 						label="Description"
+					/>
+
+					<TextField
+						{...getFieldHelpers("abstract", {
+							helperText:
+								"Detailed summary for agents to help choose the right template.",
+							maxLength: MAX_TEMPLATE_ABSTRACT_CHAR_LIMIT,
+						})}
+						disabled={isSubmitting}
+						rows={5}
+						multiline
+						fullWidth
+						label="Abstract"
 					/>
 
 					<IconField

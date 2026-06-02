@@ -42,6 +42,7 @@ func TestTemplateEdit(t *testing.T) {
 		name := "new-template-name"
 		displayName := "New Display Name 789"
 		desc := "lorem ipsum dolor sit amet et cetera"
+		abstract := "longer summary for agents"
 		icon := "/icon/new-icon.png"
 		defaultTTL := 12 * time.Hour
 		allowUserCancelWorkspaceJobs := false
@@ -53,6 +54,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", name,
 			"--display-name", displayName,
 			"--description", desc,
+			"--abstract", abstract,
 			"--icon", icon,
 			"--default-ttl", defaultTTL.String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
@@ -71,6 +73,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, name, updated.Name)
 		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, desc, updated.Description)
+		assert.Equal(t, abstract, updated.Abstract)
 		assert.Equal(t, icon, updated.Icon)
 		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
 		assert.Equal(t, allowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
@@ -155,11 +158,13 @@ func TestTemplateEdit(t *testing.T) {
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
+		initialAbstract := "This is an agent-facing summary"
 		initialIcon := "/img/icon.png"
 
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = initialDisplayName
 			ctr.Description = initialDescription
+			ctr.Abstract = initialAbstract
 			ctr.Icon = initialIcon
 		})
 
@@ -168,6 +173,7 @@ func TestTemplateEdit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, initialDisplayName, created.DisplayName)
 		assert.Equal(t, initialDescription, created.Description)
+		assert.Equal(t, initialAbstract, created.Abstract)
 		assert.Equal(t, initialIcon, created.Icon)
 
 		// Test the cli command.
@@ -195,6 +201,7 @@ func TestTemplateEdit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, template.Name, updated.Name) // doesn't change
 		assert.Equal(t, description, updated.Description)
+		assert.Equal(t, initialAbstract, updated.Abstract)
 		assert.Equal(t, displayName, updated.DisplayName)
 		assert.Equal(t, icon, updated.Icon)
 	})
@@ -208,11 +215,13 @@ func TestTemplateEdit(t *testing.T) {
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
+		initialAbstract := "This is an agent-facing summary"
 		initialIcon := "/img/icon.png"
 
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = initialDisplayName
 			ctr.Description = initialDescription
+			ctr.Abstract = initialAbstract
 			ctr.Icon = initialIcon
 		})
 
@@ -221,6 +230,7 @@ func TestTemplateEdit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, initialDisplayName, created.DisplayName)
 		assert.Equal(t, initialDescription, created.Description)
+		assert.Equal(t, initialAbstract, created.Abstract)
 		assert.Equal(t, initialIcon, created.Icon)
 
 		// Test the cli command.
@@ -229,6 +239,7 @@ func TestTemplateEdit(t *testing.T) {
 			"edit",
 			template.Name,
 			"--description", "",
+			"--abstract", "",
 			"--display-name", "",
 			"--icon", "",
 		}
@@ -248,6 +259,7 @@ func TestTemplateEdit(t *testing.T) {
 		// These properties are removed, as the API considers it as "delete" request
 		// See: https://github.com/coder/coder/issues/5066
 		assert.Equal(t, "", updated.Description)
+		assert.Equal(t, "", updated.Abstract)
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})

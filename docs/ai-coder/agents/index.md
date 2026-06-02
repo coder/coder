@@ -83,13 +83,16 @@ This means:
 - **Lower infrastructure cost** — workspaces are only created when the agent
   needs to do real development work.
 
-When a workspace _is_ needed, the agent reads the templates available to that user —
-including their descriptions and parameters — selects the appropriate one, and
-creates a workspace automatically. Template visibility is scoped to the user's role and permissions, so the agent can only select templates the user is authorized to use. Users can also manually choose which workspace is used when starting a new chat.
+When a workspace _is_ needed, the agent reads the templates available to that user,
+including their descriptions, abstracts, and parameters. It selects the
+appropriate one and creates a workspace automatically. Template visibility is
+scoped to the user's role and permissions, so the agent can only select
+templates the user is authorized to use. Users can also manually choose which
+workspace is used when starting a new chat.
 
-Platform teams control template routing by writing clear template descriptions.
-For example, a description like "Use this template for Python backend services
-in the payments repo" helps the agent select the correct infrastructure.
+Platform teams control template routing by writing clear template abstracts.
+For example, an abstract like "Use this template for Python backend services in
+the payments repo" helps the agent select the correct infrastructure.
 
 **Examples of what triggers workspace creation:**
 

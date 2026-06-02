@@ -118,7 +118,7 @@ Key differences:
   `file`, and `file-reference` types) instead of a plain string.
 - `template_version_id` and `template_version_preset_id` are removed. The
   agent selects a template automatically based on the prompt and available
-  template descriptions. To pin to a specific workspace, pass
+  template descriptions and abstracts. To pin to a specific workspace, pass
   `workspace_id` instead.
 - Optionally pass `model_config_id` to override the default model, or
   `mcp_server_ids` to attach MCP servers.
@@ -378,10 +378,11 @@ unchanged. The reasons are different from Tasks, but the principle holds:
 <!-- TODO: Expand this section with concrete Terraform examples once
      template patterns stabilize. -->
 
-- **Clear descriptions.** The agent selects templates by reading names and
-  descriptions. Include the target language, framework, repository, and
-  type of work. For example: *"Python backend services for the payments
-  repo. Includes Poetry, Python 3.12, and PostgreSQL."*
+- **Clear template metadata.** The agent selects templates by reading names,
+  descriptions, and abstracts. Keep descriptions short for dashboard cards.
+  Use abstracts for the target language, framework, repository, and type of
+  work. For example: *"Python backend services for the payments repo.
+  Includes Poetry, Python 3.12, and PostgreSQL."*
 - **Pre-installed dependencies.** Language runtimes, build tools, `git`,
   and project-specific dependencies should be baked into the image. Time
   the agent spends installing tools is time not spent on the task.
@@ -445,7 +446,7 @@ unused when the chat is driven by the Chats API:
 
 See
 [Template Optimization](./platform-controls/template-optimization.md)
-for the full guide on writing discoverable descriptions, configuring
+for the full guide on writing discoverable template metadata, configuring
 network boundaries, scoping credentials, and pre-installing dependencies.
 
 ### Pre-creating a workspace for deterministic results

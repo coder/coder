@@ -19,7 +19,7 @@ Before you begin, confirm the following:
 - **Network access** from the control plane to your LLM provider. Workspaces
   do not need LLM access — only the control plane does.
 - **At least one template** with a
-  [descriptive name and description](./platform-controls/template-optimization.md)
+  [descriptive name, description, and abstract](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
@@ -125,11 +125,11 @@ immediately with no provisioning delay.
 
 ## Optimize your templates
 
-The agent selects templates based on their **name and description** — it does
-not read Terraform. Clear, specific descriptions are the most important factor
-in whether the agent picks the right template.
+The agent selects templates based on their **name, description, and abstract**.
+It does not read Terraform. Keep the description short for dashboard cards, and
+use the abstract for richer agent-facing routing details.
 
-Update your template descriptions to include:
+Update your template abstracts to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
@@ -137,15 +137,15 @@ Update your template descriptions to include:
 
 **Good examples:**
 
-| Description                                                                                 | Why it works                                 |
+| Abstract                                                                                    | Why it works                                 |
 |---------------------------------------------------------------------------------------------|----------------------------------------------|
 | Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain       |
 | React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed |
 | General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive                        |
 
-**Descriptions to avoid:**
+**Abstracts to avoid:**
 
-| Description        | Problem                                         |
+| Abstract           | Problem                                         |
 |--------------------|-------------------------------------------------|
 | Team A template v2 | No information about what the template is for   |
 | Dev environment    | Too generic to distinguish from other templates |
