@@ -24,7 +24,10 @@ jobs:
   flake_go:
     name: Flake Check
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    # This timeout must be greater than the Go test timeout set in `make test`
+    # (-timeout 20m) so we receive a goroutine trace before the runner kills
+    # the job. Mirrors the test-go-pg job in ci.yaml.
+    timeout-minutes: 25
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
@@ -75,7 +78,7 @@ jobs:
           postgres-version: "13"
           test-parallelism-packages: "4"
           test-parallelism-tests: "16"
-          test-count: "25"
+          test-count: "35"
           test-packages: ${{ fromJSON(steps.selector.outputs.matrix).include[0].package }}
           run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
           test-shuffle: "on"
