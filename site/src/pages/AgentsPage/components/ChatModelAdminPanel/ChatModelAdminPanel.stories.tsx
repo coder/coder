@@ -965,8 +965,8 @@ export const SubmitModelConfigExplicitly: Story = {
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
-		// Reasoning Effort is a provider option under "Provider Configuration".
-		await expandSection(body, "Provider Configuration");
+		// Reasoning Effort is a provider option under "Provider configuration".
+		await expandSection(body, "Provider configuration");
 		const effortGroup = await body.findByRole("radiogroup", {
 			name: "Reasoning Effort",
 		});
@@ -1192,7 +1192,7 @@ const ensureCostTrackingOpen = async (body: ReturnType<typeof within>) => {
 	if (body.queryByLabelText(/^Input$/i)) {
 		return;
 	}
-	await expandSection(body, "Cost Tracking");
+	await expandSection(body, "Cost tracking");
 	await body.findByLabelText(/^Input$/i);
 };
 
@@ -1271,7 +1271,7 @@ const ensureProviderConfigurationOpen = async (
 	if (body.queryByLabelText(/Max Completion Tokens/i)) {
 		return;
 	}
-	await expandSection(body, "Provider Configuration");
+	await expandSection(body, "Provider configuration");
 	await body.findByLabelText(/Max Completion Tokens/i);
 };
 
@@ -1321,7 +1321,7 @@ export const OpenAIKnownModelHappyPath: Story = {
 		);
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Max Completion Tokens/i),
 		).toHaveValue("128000");
@@ -1384,7 +1384,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 			"128000",
 		);
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		const sendReasoningGroup = await body.findByRole("radiogroup", {
 			name: "Send Reasoning",
 		});
@@ -1409,7 +1409,7 @@ export const AnthropicHaikuKnownModelUsesThinkingBudgetNotEffort: Story = {
 		await openAddModelForm(body, "Anthropic");
 		await selectKnownModel(body, "claude-haiku-4-5");
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 
 		// Reasoning Effort should remain empty because Haiku 4.5 uses the
 		// thinking budget path instead of Anthropic adaptive thinking.
@@ -1981,7 +1981,7 @@ export const ModelFormOpenAI: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -1996,7 +1996,7 @@ export const ModelFormAnthropic: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Anthropic");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),
 		).toBeInTheDocument();
@@ -2011,7 +2011,7 @@ export const ModelFormGoogle: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Google");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Thinking Config Thinking Budget/i),
 		).toBeInTheDocument();
@@ -2026,7 +2026,7 @@ export const ModelFormOpenAICompat: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI-compatible");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -2038,7 +2038,7 @@ export const ModelFormOpenRouter: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenRouter");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -2053,7 +2053,7 @@ export const ModelFormVercel: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Vercel AI Gateway");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -2068,7 +2068,7 @@ export const ModelFormAzure: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Azure OpenAI");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		// Azure aliases to OpenAI fields.
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
@@ -2084,7 +2084,7 @@ export const ModelFormBedrock: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "AWS Bedrock");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		// Bedrock aliases to Anthropic fields.
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),

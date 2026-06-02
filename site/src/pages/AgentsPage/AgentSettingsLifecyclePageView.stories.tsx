@@ -634,7 +634,7 @@ export const RetentionBelowMin: Story = {
 export const DebugRetentionLoadedDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Chat Debug Data Retention");
+		await canvas.findByText("Chat debug data retention");
 		await canvas.findByText(/debug runs and debug steps/i);
 		await canvas.findByText(/does not control chat message retention/i);
 

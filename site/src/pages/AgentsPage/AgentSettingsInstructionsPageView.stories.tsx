@@ -117,7 +117,7 @@ export const InvisibleUnicodeWarningSystemPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("System Instructions");
+		await canvas.findByText("System instructions");
 		const alert = await canvas.findByText(/invisible Unicode/);
 		expect(alert).toBeInTheDocument();
 		expect(alert.textContent).toContain("4");
@@ -138,7 +138,7 @@ export const NoWarningForCleanPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("System Instructions");
+		await canvas.findByText("System instructions");
 		await canvas.findByDisplayValue("You are a helpful coding assistant.");
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 	},

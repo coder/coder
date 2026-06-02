@@ -473,7 +473,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						>
 							<div>
 								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Cost Tracking{" "}
+									Cost tracking{" "}
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Set per-token pricing so Coder can track costs and enforce
@@ -498,7 +498,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						)}
 					</div>
 
-					{/* Provider Configuration */}
+					{/* Provider configuration */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
@@ -507,7 +507,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						>
 							<div>
 								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Provider Configuration
+									Provider configuration
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Tune provider-specific behavior like reasoning, tool calling,
