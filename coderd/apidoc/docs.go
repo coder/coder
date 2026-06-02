@@ -1483,7 +1483,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "List AI Gateway keys",
-                "operationId": "list-ai-gatewaykeys",
+                "operationId": "list-ai-gateway-keys",
                 "responses": {
                     "200": {
                         "description": "OK",

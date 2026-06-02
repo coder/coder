@@ -122,7 +122,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 }
 
 // @Summary List AI Gateway keys
-// @ID list-ai-gatewaykeys
+// @ID list-ai-gateway-keys
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
