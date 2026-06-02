@@ -27,9 +27,12 @@ func (NopPeerFetcher) PrimaryPeerAddresses() []string {
 }
 
 // SetPeerFetcher replaces the peer fetcher used by RefreshPeers and triggers
-// an immediate peer refresh.
+// an immediate peer refresh. Passing nil disables peering.
 func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
 	p.mu.Lock()
+	if fetcher == nil {
+		fetcher = NopPeerFetcher{}
+	}
 	p.peerFetcher = fetcher
 	p.mu.Unlock()
 	p.RefreshPeers()
@@ -49,9 +52,6 @@ func (p *Pubsub) runPeerRefresh() {
 		p.mu.Lock()
 		fetcher := p.peerFetcher
 		p.mu.Unlock()
-		if fetcher == nil {
-			continue
-		}
 
 		addrs := fetcher.PrimaryPeerAddresses()
 		if err := p.setPeerAddresses(addrs); err != nil {

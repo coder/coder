@@ -119,21 +119,19 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 
 	t.Run("PeersFetchedOnStartup", func(t *testing.T) {
 		t.Parallel()
-		opts := clusterTestOptions(t)
-		b := newTestPubsub(t, opts)
 
 		// Supplying PeerFetcher in Options should be enough to seed routes.
 		// Callers should not need a separate SetPeerFetcher or RefreshPeers call
 		// after New returns.
-		fetcher := &testPeerFetcher{addresses: []string{clusterRouteAddress(t, b)}}
-		aOpts := clusterTestOptions(t)
-		aOpts.PeerFetcher = fetcher
-		a := newTestPubsub(t, aOpts)
+		fetcher := &testPeerFetcher{addresses: []string{"nats://127.0.0.1:1234"}}
+		opts := clusterTestOptions(t)
+		opts.PeerFetcher = fetcher
+		a := newTestPubsub(t, opts)
 
 		require.Eventually(t, func() bool {
 			routes := currentRouteURLs(a)
 			return sortedURLsEqual(routes, sortRouteURLs(mustParsePeerAddresses(t,
-				addrWithAuth(t, clusterRouteAddress(t, b), aOpts.ClusterAuthToken),
+				addrWithAuth(t, "nats://127.0.0.1:1234", opts.ClusterAuthToken),
 			)))
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
@@ -156,8 +154,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 			return sortedURLsEqual(currentRouteURLs(a), sortRouteURLs(expectedRoutes))
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		nop := NopPeerFetcher{}
-		a.SetPeerFetcher(nop)
+		a.SetPeerFetcher(nil)
 		require.Eventually(t, func() bool {
 			return sortedURLsEqual(currentRouteURLs(a), nil)
 		}, testutil.WaitShort, testutil.IntervalFast)
