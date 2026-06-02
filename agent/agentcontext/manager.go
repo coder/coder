@@ -352,7 +352,9 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 // Resync forces an immediate re-resolve and returns the new
 // Snapshot. Resync is safe to call regardless of whether Run
 // is active; the work is done synchronously under the
-// Manager's mutex either way.
+// Manager's mutex either way. When the watcher is active,
+// Resync also re-arms it so newly added scan roots are
+// observed for subsequent edits.
 func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
@@ -362,13 +364,24 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
 	}
+	roots := m.scanRootsLocked()
 	m.resolveLocked()
 	snap := m.snapshot
+	watcher := m.watcher
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)
 	}
 	m.mu.Unlock()
+
+	if watcher != nil {
+		watcher.Sync(ctx, roots)
+	}
+
+	// The broadcast is unconditional: Resync waiters that
+	// triggered the pass without an actual content change
+	// still need to wake up. Subscribers compare snapshots via
+	// AggregateHash if they want to filter.
 	for _, ch := range subs {
 		select {
 		case ch <- struct{}{}:
