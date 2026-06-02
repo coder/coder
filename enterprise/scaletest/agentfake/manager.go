@@ -138,11 +138,12 @@ func (m *Manager) Run(ctx context.Context) error {
 		return xerrors.Errorf("enumerate external agents: %w", err)
 	}
 
-	// Buffered to len(tokens) so a stalled collector can never block any
-	// agent's send.
-	firstConnectCh := make(chan time.Duration, len(tokens))
+	numAgents := len(tokens)
 
-	agents := make([]*Agent, 0, len(tokens))
+	// Buffered so a stalled collector can never block any agent's send.
+	firstConnectCh := make(chan time.Duration, numAgents)
+
+	agents := make([]*Agent, 0, numAgents)
 	for i, ti := range tokens {
 		agents = append(agents, NewAgent(m.coderURL, ti.Token,
 			m.logger.Named("agent-"+strconv.Itoa(i)),
@@ -166,7 +167,7 @@ func (m *Manager) Run(ctx context.Context) error {
 	collectorCtx, cancelCollector := context.WithCancel(ctx)
 	defer cancelCollector()
 	go func() {
-		durations := collectFirstConnect(collectorCtx, firstConnectCh, len(agents))
+		durations := collectFirstConnect(collectorCtx, firstConnectCh, numAgents)
 		if len(durations) == 0 {
 			return
 		}
