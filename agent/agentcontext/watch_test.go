@@ -10,10 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestWatcher_FiresOnAgentsMdEdit(t *testing.T) {

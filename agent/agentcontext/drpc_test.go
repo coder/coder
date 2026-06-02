@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
 	"storj.io/drpc/drpcerr"
 
 	"github.com/coder/coder/v2/agent/agentcontext"

@@ -292,8 +292,8 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 		if err != nil {
 			// Watch the deepest existing ancestor so the
 			// root being created later still fires.
-			if anc := existingAncestor(root.Path); anc != "" {
-				out[anc] = struct{}{}
+			if ancestor := existingAncestor(root.Path); ancestor != "" {
+				out[ancestor] = struct{}{}
 			}
 			continue
 		}
