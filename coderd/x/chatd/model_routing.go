@@ -29,11 +29,6 @@ func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOp
 	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 }
 
-func modelBuildOptionsFromPromptMessages(messages []database.ChatMessage) modelBuildOptions {
-	apiKeyID, _ := activeTurnAPIKeyIDFromPromptMessages(messages)
-	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-}
-
 type modelRouteKind int
 
 const (

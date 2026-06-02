@@ -405,7 +405,7 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "SkipsModelOnlyUserMessages",
+			name: "SkipsUncompressedModelOnlyUserMessages",
 			messages: []database.ChatMessage{
 				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
 				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
@@ -413,29 +413,6 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			wantKey: oldKeyID,
 			wantOK:  true,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
-			require.Equal(t, tt.wantOK, gotOK)
-			require.Equal(t, tt.wantKey, gotKey)
-		})
-	}
-}
-
-func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
-	t.Parallel()
-
-	oldKeyID := uuid.NewString()
-	currentKeyID := uuid.NewString()
-	tests := []struct {
-		name     string
-		messages []database.ChatMessage
-		wantKey  string
-		wantOK   bool
-	}{
 		{
 			name: "CompressedSummaryFallback",
 			messages: []database.ChatMessage{
@@ -465,7 +442,7 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 			wantOK:  true,
 		},
 		{
-			name: "MissingVisibleUserKeyDoesNotFallBack",
+			name: "MissingVisibleUserKeyDoesNotFallBackToCompressedSummary",
 			messages: []database.ChatMessage{
 				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
 				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
@@ -478,9 +455,10 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "CompressedSummaryMissingKeyFails",
+			name: "CompressedSummaryMissingKeyDoesNotFallBack",
 			messages: []database.ChatMessage{
-				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
 			},
 		},
 	}
@@ -488,14 +466,14 @@ func TestActiveTurnAPIKeyIDFromPromptMessages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotKey, gotOK := activeTurnAPIKeyIDFromPromptMessages(tt.messages)
+			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
 			require.Equal(t, tt.wantOK, gotOK)
 			require.Equal(t, tt.wantKey, gotKey)
 		})
 	}
 }
 
-func TestActiveTurnAPIKeyIDFromPromptMessagesWithVisibleUser(t *testing.T) {
+func TestPromptMessagesForVisibleUserPreserveActiveAPIKeyID(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -543,12 +521,12 @@ func TestActiveTurnAPIKeyIDFromPromptMessagesWithVisibleUser(t *testing.T) {
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	gotKey, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
 	require.True(t, ok)
 	require.Equal(t, currentKey.ID, gotKey)
 }
 
-func TestActiveTurnAPIKeyIDFromPromptMessagesUsesCompressedSummary(t *testing.T) {
+func TestPromptMessagesForCompactedChatPreserveActiveAPIKeyID(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -602,7 +580,7 @@ func TestActiveTurnAPIKeyIDFromPromptMessagesUsesCompressedSummary(t *testing.T)
 	_, hasAfterSummary := ids[afterSummary.ID]
 	require.True(t, hasAfterSummary)
 
-	gotKey, ok := activeTurnAPIKeyIDFromPromptMessages(messages)
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
 	require.True(t, ok)
 	require.Equal(t, key.ID, gotKey)
 }

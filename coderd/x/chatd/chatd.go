@@ -6474,29 +6474,14 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 		if message.Role != database.ChatMessageRoleUser {
 			continue
 		}
-		if !isUserVisibleChatMessage(message) {
+		if !isUserVisibleChatMessage(message) &&
+			!(message.Visibility == database.ChatMessageVisibilityModel && message.Compressed) {
 			continue
 		}
-		return chatMessageAPIKeyID(message)
-	}
-	return "", false
-}
-
-// activeTurnAPIKeyIDFromPromptMessages returns the API key ID from the most
-// recent user-role message. It prefers visible user turns. If none exist, it
-// falls back to compressed model-only summaries left by prompt compaction.
-func activeTurnAPIKeyIDFromPromptMessages(messages []database.ChatMessage) (string, bool) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Role != database.ChatMessageRoleUser {
-			continue
+		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
+			return "", false
 		}
-		if isUserVisibleChatMessage(message) {
-			return chatMessageAPIKeyID(message)
-		}
-		if message.Visibility == database.ChatMessageVisibilityModel && message.Compressed {
-			return chatMessageAPIKeyID(message)
-		}
+		return message.APIKeyID.String, true
 	}
 	return "", false
 }
@@ -6504,13 +6489,6 @@ func activeTurnAPIKeyIDFromPromptMessages(messages []database.ChatMessage) (stri
 func isUserVisibleChatMessage(message database.ChatMessage) bool {
 	return message.Visibility == database.ChatMessageVisibilityBoth ||
 		message.Visibility == database.ChatMessageVisibilityUser
-}
-
-func chatMessageAPIKeyID(message database.ChatMessage) (string, bool) {
-	if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
-		return "", false
-	}
-	return message.APIKeyID.String, true
 }
 
 func allToolNames(allTools []fantasy.AgentTool) []string {
@@ -7142,7 +7120,7 @@ func (p *Server) runChat(
 	if err != nil {
 		return result, xerrors.Errorf("get chat messages: %w", err)
 	}
-	modelOpts := modelBuildOptionsFromPromptMessages(messages)
+	modelOpts := modelBuildOptionsFromMessages(messages)
 	if modelOpts.ActiveAPIKeyID != "" {
 		ctx = aibridge.WithDelegatedAPIKeyID(ctx, modelOpts.ActiveAPIKeyID)
 	}
