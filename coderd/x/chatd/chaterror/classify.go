@@ -11,6 +11,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// ErrProviderTransportReset identifies provider stream cancellations that
+// occur while the caller-owned chat context is still alive.
+var ErrProviderTransportReset = errors.New("provider transport reset")
+
 // ClassifiedError is the normalized, user-facing view of an
 // underlying provider or runtime error.
 type ClassifiedError struct {
@@ -147,9 +151,10 @@ func Classify(err error) ClassifiedError {
 		statusCode = extractStatusCode(lower)
 	}
 	provider := detectProvider(lower)
-	canceled := errors.Is(err, context.Canceled) || strings.Contains(lower, "context canceled")
+	canceled := errors.Is(err, context.Canceled)
+	providerTransportReset := errors.Is(err, ErrProviderTransportReset)
 	interrupted := containsAny(lower, interruptedPatterns...)
-	if canceled || interrupted {
+	if interrupted {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
 			Detail:     structured.detail,
@@ -209,9 +214,11 @@ func Classify(err error) ClassifiedError {
 		// over broader string fallbacks so protocol bugs do not retry.
 		timeoutPatternMatch = false
 	}
-	timeoutMatch := deadline || statusCode == 408 || statusCode == 502 ||
-		statusCode == 503 || statusCode == 504 ||
-		retryableHTTP2StreamReset || timeoutPatternMatch
+	providerTransportResetMatch := providerTransportReset && statusCode == 0
+	timeoutMatch := providerTransportResetMatch || deadline ||
+		statusCode == 408 || statusCode == 502 || statusCode == 503 ||
+		statusCode == 504 || retryableHTTP2StreamReset ||
+		timeoutPatternMatch
 	genericRetryableMatch := statusCode == 500 || containsAny(lower, genericRetryablePatterns...)
 
 	// Config signals should beat ambiguous wrapper signals so
@@ -284,6 +291,17 @@ func Classify(err error) ClassifiedError {
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
+
+	if canceled {
+		return normalizeClassification(ClassifiedError{
+			Message:    "The request was canceled before it completed.",
+			Detail:     structured.detail,
+			Kind:       codersdk.ChatErrorKindGeneric,
+			Provider:   provider,
 			StatusCode: statusCode,
 			RetryAfter: structured.retryAfter,
 		})

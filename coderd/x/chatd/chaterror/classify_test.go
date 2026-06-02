@@ -219,6 +219,57 @@ func TestClassify(t *testing.T) {
 				StatusCode: 0,
 			},
 		},
+		{
+			name: "ProviderTransportResetIsRetryable",
+			err:  fmt.Errorf("%w: %w", chaterror.ErrProviderTransportReset, context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "BareContextCanceledStaysNonRetryable",
+			err:  context.Canceled,
+			want: chaterror.ClassifiedError{
+				Message:    "The request was canceled before it completed.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "Status500ContextCanceledClassifiesAsRetryable",
+			err:  xerrors.Errorf("received status 500 from upstream: %w", context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
+			},
+		},
+		{
+			name: "ProviderStatus500ContextCanceledClassifiesAsRetryable",
+			err: fmt.Errorf("provider stream closed: %w: %w",
+				context.Canceled,
+				&fantasy.ProviderError{
+					Message:    "context canceled",
+					StatusCode: http.StatusInternalServerError,
+				},
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Detail:     "context canceled",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
+			},
+		},
 		// The next cases model the error that fantasy produces
 		// when aibridge's disabledProviderHandler returns a 503
 		// plain-text sentinel. Fantasy sets Title from the HTTP

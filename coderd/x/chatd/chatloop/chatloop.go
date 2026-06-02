@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -1115,6 +1116,9 @@ func processStepStream(
 					toolNames,
 				)
 				return result, ErrInterrupted
+			}
+			if errors.Is(part.Error, context.Canceled) && ctx.Err() == nil {
+				return result, fmt.Errorf("%w: %w", chaterror.ErrProviderTransportReset, part.Error)
 			}
 			return result, part.Error
 		}

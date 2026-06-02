@@ -5,6 +5,8 @@ package chatretry
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -60,6 +62,24 @@ func effectiveDelay(attempt int, classified ClassifiedError) time.Duration {
 	return delay
 }
 
+func contextError(ctx context.Context) error {
+	if ctx.Err() == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	return ctx.Err()
+}
+
+func normalizeAttemptError(err error, classified ClassifiedError) (error, ClassifiedError) {
+	if classified.Retryable || classified.StatusCode != 0 || !errors.Is(err, context.Canceled) {
+		return err, classified
+	}
+	err = fmt.Errorf("%w: %w", chaterror.ErrProviderTransportReset, err)
+	return err, chaterror.Classify(err)
+}
+
 // RetryFn is the function to retry. It receives a context and returns
 // an error. The context may be a child of the original with adjusted
 // deadlines for individual attempts.
@@ -81,20 +101,30 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 	var attempt int
 	for {
+		if err := contextError(ctx); err != nil {
+			return err
+		}
+
 		err := fn(ctx)
 		if err == nil {
 			return nil
 		}
 
+		// The attempt runs with ctx. If ctx is done after fn returns, its
+		// cancellation is the authoritative error, and a bare context.Canceled
+		// from fn must not be normalized as a provider transport reset.
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return ctxErr
+		}
+
 		classified := chaterror.Classify(err)
+		err, classified = normalizeAttemptError(err, classified)
 		if !classified.Retryable {
 			return chaterror.WithClassification(err, classified)
 		}
 
-		// If the caller's context is already done, return the
-		// context error so cancellation propagates cleanly.
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return ctxErr
 		}
 
 		attempt++
@@ -115,7 +145,7 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return ctx.Err()
+			return contextError(ctx)
 		case <-timer.C:
 		}
 	}
