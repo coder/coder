@@ -174,6 +174,27 @@ runs:
           $goTestArgs += "-shuffle=$env:TEST_SHUFFLE"
         }
 
+        $nativePathParts = @(
+          "$env:SystemRoot\System32"
+          "$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+          "$env:SystemRoot\System32\OpenSSH"
+          "C:\Program Files\Git\usr\bin"
+          "C:\Program Files\Git\cmd"
+        )
+        $nativePathParts += $env:Path -split ";"
+        $dedupedNativePathParts = @()
+        $seenNativePathParts = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($part in $nativePathParts) {
+          if ([string]::IsNullOrWhiteSpace($part)) {
+            continue
+          }
+          if ($seenNativePathParts.Add($part)) {
+            $dedupedNativePathParts += $part
+          }
+        }
+        $nativePath = $dedupedNativePathParts -join ";"
+        $env:Path = $nativePath
+
         $gotestsum = (mise which gotestsum).Trim()
         $envBlock = [Environment]::GetEnvironmentVariables()
         $process = [System.Diagnostics.ProcessStartInfo]::new()
@@ -186,7 +207,7 @@ runs:
             $process.Environment[$entry.Key] = [string]$entry.Value
           }
         }
-        $process.Environment["Path"] = $env:Path
+        $process.Environment["Path"] = $nativePath
         foreach ($arg in ($gotestsumArgs + $goTestArgs)) {
           $process.ArgumentList.Add($arg) | Out-Null
         }
