@@ -110,6 +110,8 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 	}
 
 	n, err := w.w.Write(p)
+	// io.Writer may report both written bytes and an error, so
+	// account for any accepted bytes before returning the error.
 	w.remaining -= int64(n)
 	if err != nil {
 		return n, err
