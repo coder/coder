@@ -183,7 +183,7 @@ updates, or change administrator expectations:
 | Pre-2.28 Tasks templates might still exist in older deployments.                                                | The pre-2.28 Tasks template format is no longer supported as of 2.30.                                                                                    | Update Tasks templates to use `app_id` instead of the deprecated `sidebar_app` flow. See the [Tasks migration guide](../../ai-coder/tasks-migration.md).                                                                                               |
 | Tasks is the primary AI coding workflow.                                                                        | Coder Agents is the long-term replacement, and Tasks is supported through the 2.34 ESR window (into 2026).                                               | Plan migration from the Tasks API to the Chats API and Coder Agents. See [Migrating from the Tasks API to the Chats API](../../ai-coder/agents/tasks-to-chats-migration.md).                                                                           |
 | AI Gateway injected MCP tools can be used for tool exposure.                                                    | Injected MCP tools are deprecated.                                                                                                                       | Move new integrations toward Coder Agents MCP server configuration or the MCP server flow. See [AI Gateway MCP](../../ai-coder/ai-gateway/mcp.md) and [MCP servers](../../ai-coder/agents/platform-controls/mcp-servers.md).                           |
-| AI Gateway is opt-in via `CODER_AI_GATEWAY_ENABLED`.                                                            | `CODER_AI_GATEWAY_ENABLED` defaults to `true`.                                                                                                           | The in-memory AI Gateway now starts on every deployment. Set `CODER_AI_GATEWAY_ENABLED=false` to keep the old behavior.                                                                                                                                |
+| AI Bridge is opt-in via `CODER_AIBRIDGE_ENABLED` (default `false`).                                             | The toggle is renamed to `CODER_AI_GATEWAY_ENABLED` and now defaults to `true`.                                                                          | The in-memory AI Gateway now starts on every deployment. Set `CODER_AI_GATEWAY_ENABLED=false`, or the deprecated `CODER_AIBRIDGE_ENABLED` alias which still works, to keep the old behavior.                                                           |
 | AI Gateway providers are configured with `CODER_AIBRIDGE_PROVIDER_*` or `CODER_AI_GATEWAY_PROVIDER_*` env vars. | Provider configuration is stored in the database. Env vars seed the database once on first startup, then are deprecated.                                 | After upgrade, visit `/ai/settings` to verify seeded providers, then remove the env vars. Coderd fails to start if env vars drift from the seeded database row. See [AI Gateway providers](../../ai-coder/ai-gateway/providers.md).                    |
 | Regular users can read their own AI Gateway interceptions.                                                      | Only owners and auditors can read AI Gateway interception data.                                                                                          | Update dashboards, scripts, or user workflows that expected self-service interception reads. This intentionally narrows the RBAC surface.                                                                                                              |
 | `coder groups list -o json` returns the old command output shape.                                               | `coder groups list -o json` returns a flat structure matching other list commands.                                                                       | Update scripts that parse this command output.                                                                                                                                                                                                         |
@@ -198,7 +198,6 @@ updates, or change administrator expectations:
 | Agent SSH port forwarding is always available when the agent allows SSH.                                        | Reverse and local port forwarding can be disabled per agent.                                                                                             | Review templates and IDE workflows before enabling `--block-reverse-port-forwarding` or `--block-local-port-forwarding`. See [port forwarding](../../admin/networking/port-forwarding.md).                                                             |
 | `PATCH /api/v2/templates/{template}` accepts value fields for metadata updates.                                 | Template metadata update fields are optional pointer fields in the SDK, and 304 responses were removed.                                                  | Update SDK consumers and direct API clients that patch template metadata. Send only fields that should change, including false or zero values explicitly.                                                                                              |
 | External provisioner daemons use the 2.29 provisionerd protocol.                                                | The provisionerd protocol changed for provisioner operations and file upload/download.                                                                   | Update external provisioner daemons to the matching 2.34 protocol. The protocol reserves removed fields such as `stop_modules`, `exp_reuse_terraform_workspace`, and `user_secrets`, and adds `DownloadFile`.                                          |
-| Workspace sharing and chat sharing are only controlled through roles and feature availability.                  | Deployment-wide sharing disable flags are available.                                                                                                     | Review `CODER_DISABLE_WORKSPACE_SHARING` and `CODER_DISABLE_CHAT_SHARING` if your deployment needs to disable ACL-based sharing globally.                                                                                                              |
 | Helm chart health probes and observability bind addresses use older chart defaults.                             | Readiness and liveness probes have `enabled` toggles and more fields, and Prometheus/pprof addresses are overridable.                                    | Review custom Helm values for probe behavior and observability bindings. Prefer restricting pprof to a local address when exposing diagnostics.                                                                                                        |
 
 ## Upgrading
@@ -208,12 +207,44 @@ updates, or change administrator expectations:
 > minor versions is not required.
 >
 > This upgrade applies 108 database migrations. Coder applies them in order
-> on startup. Most migrations are schema changes that complete quickly. Expect
-> anywhere from under a minute to several minutes total, scaling with audit,
-> connection, and chat log volume.
+> on startup. Most are fast schema changes, but a few rewrite or backfill
+> long-lived tables and hold locks while they run. Total time ranges from under
+> a minute to several minutes, scaling with the size of the tables called out
+> in [Database migrations to watch](#database-migrations-to-watch) below.
 >
 > Take a database backup before upgrading and validate the upgrade in a
 > staging environment that mirrors production data volume.
+
+### Database migrations to watch
+
+The batch runs in order on the first startup of the new version. Most
+migrations create new tables or make fast schema changes, but the following
+pre-existing tables receive the heaviest operations. Size your maintenance
+window for whichever are largest in your deployment:
+
+- **Tailnet coordination tables** (`tailnet_peers`, `tailnet_tunnels`,
+  `tailnet_coordinators`) are converted to `UNLOGGED` and rewritten under an
+  exclusive lock. **`UNLOGGED` tables are not replicated to standby servers and
+  are truncated on crash recovery.** This is intentional, since coordinators
+  re-register and peers reconnect on startup, but confirm your high
+  availability strategy does not rely on replicating tailnet state to read
+  replicas.
+- **`users`** gains a service account column plus check constraints and unique
+  index rebuilds, held under an exclusive lock. This briefly blocks logins and
+  API key validation, so the duration matters most on deployments with many
+  users.
+- **`workspace_agents`** (joined with `workspace_builds`, `workspace_resources`,
+  and `workspaces`) is bulk updated to soft-delete stale agents left behind by
+  a pre-2.33 bug. This is typically the slowest step on long-lived deployments
+  with extensive build history. It is safe, but plan for the time.
+- **`workspaces`** receives full-table updates and new ACL check constraints.
+- **`usage_events`** has a check constraint revalidated and an index added; the
+  cost scales with retained event volume.
+
+Several of these changes are irreversible, including the `users` service
+account reclassification and the cleanup of `user_secrets`,
+`organization_members`, and related rows for already soft-deleted users. Take a
+database backup before upgrading.
 
 The Coder team recommends taking the following steps when performing the upgrade:
 
