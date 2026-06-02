@@ -219,8 +219,8 @@ importers:
         specifier: 3.0.6
         version: 3.0.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-router:
-        specifier: 7.12.0
-        version: 7.12.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+        specifier: 7.15.1
+        version: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       react-syntax-highlighter:
         specifier: 15.6.6
         version: 15.6.6(react@19.2.6)
@@ -443,7 +443,7 @@ importers:
         version: 10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       storybook-addon-remix-react-router:
         specifier: 6.0.0
-        version: 6.0.0(react-dom@19.2.6(react@19.2.6))(react-router@7.12.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
+        version: 6.0.0(react-dom@19.2.6(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       tailwindcss:
         specifier: 3.4.18
         version: 3.4.18(yaml@2.8.3)
@@ -5258,8 +5258,8 @@ packages:
       react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
-  react-router@7.12.0:
-    resolution: {integrity: sha512-kTPDYPFzDVGIIGNLS5VJykK0HfHLY5MF3b+xj0/tTyNYL1gF1qs7u67Z9jEhQk2sQ98SUaHxlG31g1JtF7IfVw==, tarball: https://registry.npmjs.org/react-router/-/react-router-7.12.0.tgz}
+  react-router@7.15.1:
+    resolution: {integrity: sha512-R8rl9HhgikFYoPJymnUtPXWbnDb3oget6lQnfIoupbt61aT9aOhRkDsY2XRhZRyX1Z/8a5sL74fXmFNm3NRK5A==, tarball: https://registry.npmjs.org/react-router/-/react-router-7.15.1.tgz}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -11691,7 +11691,7 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
-  react-router@7.12.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+  react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
     dependencies:
       cookie: 1.1.1
       react: 19.2.6
@@ -12139,12 +12139,12 @@ snapshots:
     dependencies:
       internal-slot: 1.0.6
 
-  storybook-addon-remix-react-router@6.0.0(react-dom@19.2.6(react@19.2.6))(react-router@7.12.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)):
+  storybook-addon-remix-react-router@6.0.0(react-dom@19.2.6(react@19.2.6))(react-router@7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)):
     dependencies:
       '@mjackson/form-data-parser': 0.4.0
       compare-versions: 6.1.0
       react-inspector: 6.0.2(react@19.2.6)
-      react-router: 7.12.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react-router: 7.15.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       storybook: 10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     optionalDependencies:
       react: 19.2.6
