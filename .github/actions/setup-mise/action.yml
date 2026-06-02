@@ -166,23 +166,18 @@ runs:
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
         install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"
+        # Do not export mise's resolved env (every tool install dir) into
+        # GITHUB_ENV. Tools resolve through the shims dir on GITHUB_PATH, so
+        # the export only bloats PATH. On Windows the mise go shim re-prepends
+        # those dirs at invocation, and the resulting PATH crosses cmd.exe's
+        # ~8191 character limit, which makes cmd.exe drop PATH entirely and
+        # fail to resolve native executables in subprocesses spawned by tests.
+        env: false
 
-    - name: Ensure Git usr/bin is in PATH (Windows)
+    - name: Add Git usr/bin to PATH (Windows)
       if: runner.os == 'Windows'
-      shell: pwsh
-      # jdx/mise-action exports "Path" via GITHUB_ENV which may
-      # collide with bash's "PATH". Ensure Git usr/bin is present
-      # and remove any duplicate Path/PATH entries from GITHUB_ENV
-      # by writing both forms.
-      run: | # zizmor: ignore[github-env]
-        $gitdir = "C:\Program Files\Git\usr\bin"
-        $current = $env:Path
-        if ($current -notlike "*$gitdir*") {
-          $current = "$gitdir;$current"
-        }
-        # Write both Path and PATH to GITHUB_ENV so that both
-        # cmd.exe (uses Path) and bash/Go (uses PATH) see the
-        # same value including Git usr/bin.
-        "Path=$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
-        "PATH=$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
-
+      shell: bash
+      # GITHUB_PATH is the casing-safe channel and keeps the entry short.
+      # cmd.exe subprocesses spawned by Go tests need MSYS coreutils such as
+      # printf, which live here.
+      run: echo "C:\Program Files\Git\usr\bin" >> "$GITHUB_PATH"
