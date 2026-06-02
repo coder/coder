@@ -129,10 +129,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 				selectedProviderState.providerConfig.allow_user_api_key),
 	);
 	const formTitle = isEditing
-		? "Edit Model"
+		? "Edit model"
 		: isDuplicating
-			? "Duplicate Model"
-			: "Add Model";
+			? "Duplicate model"
+			: "Add model";
 	const formDescription = isDuplicating
 		? "Review the copied settings, then save to create a new model."
 		: undefined;
@@ -403,7 +403,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{/* Model ID + Context Limit + Pricing */}
+					{/* Model ID + Context limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
 							{" "}
@@ -419,7 +419,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									htmlFor={contextLimitField.id}
 									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
 								>
-									Context Limit{" "}
+									Context limit{" "}
 									<span className="text-xs font-bold text-content-destructive">
 										*
 									</span>
@@ -567,7 +567,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 										htmlFor={compressionThresholdField.id}
 										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
 									>
-										Compression Threshold
+										Compression threshold
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<InfoIcon className="size-3 text-content-secondary" />

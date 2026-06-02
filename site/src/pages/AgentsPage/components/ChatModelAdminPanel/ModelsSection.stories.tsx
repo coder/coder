@@ -213,20 +213,20 @@ export const OpensDuplicateFormWithoutCreating: Story = {
 			}),
 		);
 
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 		expect(args.onCreateModel).not.toHaveBeenCalled();
 		expect(args.onUpdateModel).not.toHaveBeenCalled();
 		expect(canvas.getByDisplayValue("GPT-4.1 Default")).toBeVisible();
-		expect(canvas.getByLabelText(/Model Identifier/)).toHaveValue(
+		expect(canvas.getByLabelText(/Model identifier/)).toHaveValue(
 			"gpt-4.1-default",
 		);
-		expect(canvas.getByLabelText(/Context Limit/)).toHaveValue("200000");
+		expect(canvas.getByLabelText(/Context limit/)).toHaveValue("200000");
 		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
 		expect(enabledSwitch).toBeChecked();
 		expect(enabledSwitch).toBeEnabled();
 
 		await userEvent.click(canvas.getByRole("button", { name: /Advanced/ }));
-		expect(canvas.getByLabelText(/Compression Threshold/)).toHaveValue("65");
+		expect(canvas.getByLabelText(/Compression threshold/)).toHaveValue("65");
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Provider configuration/ }),
@@ -246,14 +246,14 @@ export const AbandonsDuplicateWithoutSaving: Story = {
 		const copyButtonName = "Duplicate model: GPT-4.1 Default";
 
 		await userEvent.click(canvas.getByRole("button", { name: copyButtonName }));
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: "Cancel" }));
 		await expect(
 			canvas.findByRole("button", { name: copyButtonName }),
 		).resolves.toBeVisible();
 
 		await userEvent.click(canvas.getByRole("button", { name: copyButtonName }));
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: "Back" }));
 		await expect(
 			canvas.findByRole("button", { name: copyButtonName }),
@@ -276,9 +276,9 @@ export const SavesDuplicateAsCreateRequest: Story = {
 				name: "Duplicate model: GPT-4.1 Default",
 			}),
 		);
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 
-		const modelInput = canvas.getByLabelText(/Model Identifier/);
+		const modelInput = canvas.getByLabelText(/Model identifier/);
 		await userEvent.clear(modelInput);
 		await userEvent.type(modelInput, "gpt-4.1-copy");
 		const displayNameInput = canvas.getByDisplayValue("GPT-4.1 Default");
@@ -329,14 +329,14 @@ export const SavesNonDefaultDuplicateWithEditableEnabled: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Duplicate model: GPT-4.1" }),
 		);
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 
 		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
 		expect(enabledSwitch).toBeChecked();
 		expect(enabledSwitch).toBeEnabled();
 		await userEvent.click(enabledSwitch);
 
-		const modelInput = canvas.getByLabelText(/Model Identifier/);
+		const modelInput = canvas.getByLabelText(/Model identifier/);
 		await userEvent.clear(modelInput);
 		await userEvent.type(modelInput, "gpt-4.1-copy");
 		await userEvent.click(
@@ -373,14 +373,14 @@ export const SavesDisabledDuplicateWithEditableEnabled: Story = {
 				name: "Duplicate model: GPT-4.1 Disabled",
 			}),
 		);
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 
 		const enabledSwitch = canvas.getByRole("switch", { name: "Enabled" });
 		expect(enabledSwitch).not.toBeChecked();
 		expect(enabledSwitch).toBeEnabled();
 		await userEvent.click(enabledSwitch);
 
-		const modelInput = canvas.getByLabelText(/Model Identifier/);
+		const modelInput = canvas.getByLabelText(/Model identifier/);
 		await userEvent.clear(modelInput);
 		await userEvent.type(modelInput, "gpt-4.1-disabled-copy");
 		await userEvent.click(
@@ -417,7 +417,7 @@ export const DisablesDuplicateWhenProviderCannotManageModels: Story = {
 
 		expect(duplicateButton).toHaveAttribute("aria-disabled", "true");
 		await userEvent.click(duplicateButton);
-		expect(canvas.queryByText("Duplicate Model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Duplicate model")).not.toBeInTheDocument();
 		expect(args.onCreateModel).not.toHaveBeenCalled();
 	},
 };
@@ -442,13 +442,13 @@ export const RowActionsDoNotOpenRowBody: Story = {
 			"model-config-id",
 			{ is_default: true },
 		]);
-		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Edit model")).not.toBeInTheDocument();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Default model: GPT-4o" }),
 		);
 		expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
-		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Edit model")).not.toBeInTheDocument();
 
 		const disabledStarButton = canvas.getByRole("button", {
 			name: "Set as default model: GPT-4.1 Disabled",
@@ -456,20 +456,20 @@ export const RowActionsDoNotOpenRowBody: Story = {
 		expect(disabledStarButton).toHaveAttribute("aria-disabled", "true");
 		await userEvent.click(disabledStarButton);
 		expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
-		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Edit model")).not.toBeInTheDocument();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Duplicate model: GPT-4.1" }),
 		);
-		await expect(canvas.findByText("Duplicate Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Duplicate model")).resolves.toBeVisible();
 		expect(args.onCreateModel).not.toHaveBeenCalled();
 		expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
-		expect(canvas.queryByText("Edit Model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Edit model")).not.toBeInTheDocument();
 
 		await userEvent.click(canvas.getByRole("button", { name: "Back" }));
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Edit model: GPT-4.1" }),
 		);
-		await expect(canvas.findByText("Edit Model")).resolves.toBeVisible();
+		await expect(canvas.findByText("Edit model")).resolves.toBeVisible();
 	},
 };
