@@ -578,7 +578,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					onClose={() => {
 						setIsScheduleDialogOpen(false);
 					}}
-					title="Workspace Scheduling"
+					title="Workspace scheduling"
 					updateDormantWorkspaces={(update: boolean) =>
 						form.setFieldValue("update_workspace_dormant_at", update)
 					}

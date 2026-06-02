@@ -46,7 +46,7 @@ const CreateTemplatePage: FC = () => {
 		<>
 			<title>{pageTitle("Create Template")}</title>
 
-			<FullPageHorizontalForm title="Create Template">
+			<FullPageHorizontalForm title="Create template">
 				{searchParams.has("fromTemplate") ? (
 					<DuplicateTemplateView {...pageViewProps} />
 				) : searchParams.has("exampleId") ? (

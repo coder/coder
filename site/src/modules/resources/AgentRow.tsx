@@ -297,7 +297,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 		error: boolean;
 	}[] = [
 		{
-			title: "All Logs",
+			title: "All logs",
 			value: "all",
 			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
 			error: false,

@@ -63,7 +63,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			type="delete"
 			hideCancel={false}
 			open={isOpen}
-			title="Delete Workspace"
+			title="Delete workspace"
 			onConfirm={() => onConfirm(orphanWorkspace)}
 			onClose={onCancel}
 			disabled={!deletionConfirmed}

@@ -129,7 +129,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 							helperText: "Optional: keep empty to default to the name.",
 						})}
 						fullWidth
-						label="Display Name"
+						label="Display name"
 					/>
 					<ActionCheckboxes
 						permissions={role?.organization_permissions || []}

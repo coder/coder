@@ -104,7 +104,7 @@ export const DisabledOptions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const dropdown = canvas.getByLabelText("Sharing Level");
+		const dropdown = canvas.getByLabelText("Sharing level");
 		await userEvent.click(dropdown);
 	},
 };

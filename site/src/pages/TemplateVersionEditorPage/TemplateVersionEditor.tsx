@@ -331,7 +331,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 										<Button
 											size="icon"
 											variant="subtle"
-											aria-label="Create File"
+											aria-label="Create file"
 											onClick={(event) => {
 												setCreateFileOpen(true);
 												event.currentTarget.blur();

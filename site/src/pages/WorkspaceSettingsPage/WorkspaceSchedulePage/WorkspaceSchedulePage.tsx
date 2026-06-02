@@ -95,7 +95,7 @@ const WorkspaceSchedulePage: FC = () => {
 						Prebuilt workspaces ignore workspace-level scheduling until they are
 						claimed. For prebuilt workspace specific scheduling refer to the{" "}
 						<Link
-							title="Prebuilt Workspaces Scheduling"
+							title="Prebuilt workspaces scheduling"
 							href={docs(
 								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
 							)}

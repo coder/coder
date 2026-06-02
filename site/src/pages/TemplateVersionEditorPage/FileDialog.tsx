@@ -56,7 +56,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 			type="success"
 			cancelText="Cancel"
 			confirmText="Create"
-			title="Create File"
+			title="Create file"
 			description={
 				<div className="flex flex-col gap-8">
 					<p>
@@ -78,7 +78,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 						placeholder="example.tf"
 						value={pathValue}
 						onChange={handleChange}
-						label="File Path"
+						label="File path"
 					/>
 				</div>
 			}
@@ -105,7 +105,7 @@ export const DeleteFileDialog: FC<DeleteFileDialogProps> = ({
 			onClose={onClose}
 			open={open}
 			onConfirm={onConfirm}
-			title="Delete File"
+			title="Delete file"
 			description={
 				<>
 					Are you sure you want to delete <strong>{filename}</strong>? It will
@@ -177,7 +177,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 			type="success"
 			cancelText="Cancel"
 			confirmText="Rename"
-			title="Rename File"
+			title="Rename file"
 			description={
 				<div className="flex flex-col gap-4">
 					<p>
@@ -199,7 +199,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 						placeholder={filename}
 						value={pathValue}
 						onChange={handleChange}
-						label="File Path"
+						label="File path"
 					/>
 				</div>
 			}

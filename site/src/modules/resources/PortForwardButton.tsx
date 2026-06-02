@@ -560,7 +560,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									fullWidth
 									select
 									value={form.values.share_level}
-									label="Sharing Level"
+									label="Sharing level"
 								>
 									<MenuItem value="organization">Organization</MenuItem>
 									{canSharePortsAuthenticated ? (

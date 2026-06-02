@@ -6,9 +6,10 @@
 	"overrides": [
 		{
 			"includes": [
-				"src/pages/AgentsPage/**/*.ts",
-				"src/pages/AgentsPage/**/*.tsx",
+				"src/**/*.ts",
+				"src/**/*.tsx",
 				"!**/*.stories.tsx",
+				"!**/*.test.ts",
 				"!**/*.test.tsx"
 			],
 			"plugins": ["./biome-rules/use-sentence-case-labels.grit"]

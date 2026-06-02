@@ -53,29 +53,29 @@ const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 		description: "Whether an IPv4 STUN round trip completed successfully.",
 	},
 	IPv6CanSend: {
-		label: "IPv6 Send",
+		label: "IPv6 send",
 		description: "Whether this server can send IPv6 packets.",
 	},
 	IPv4CanSend: {
-		label: "IPv4 Send",
+		label: "IPv4 send",
 		description: "Whether this server can send IPv4 packets.",
 	},
 	OSHasIPv6: {
-		label: "OS IPv6 Support",
+		label: "OS IPv6 support",
 		description: "Whether the operating system supports IPv6.",
 	},
 	ICMPv4: {
-		label: "ICMP Ping",
+		label: "ICMP ping",
 		description: "Whether an ICMPv4 round trip completed successfully.",
 	},
 	MappingVariesByDestIP: {
-		label: "No Symmetric NAT",
+		label: "No symmetric NAT",
 		description:
 			"Whether STUN results are consistent across destinations. Symmetric NAT may degrade peer-to-peer connectivity.",
 		invert: true,
 	},
 	HairPinning: {
-		label: "NAT Hairpinning",
+		label: "NAT hairpinning",
 		description:
 			"Whether the router supports communication between local devices through the public IP address.",
 	},
@@ -92,7 +92,7 @@ const flagDescriptions: Record<BooleanKeys<NetcheckReport>, FlagInfo> = {
 		description: "Whether Port Control Protocol was detected on the LAN.",
 	},
 	CaptivePortal: {
-		label: "No Captive Portal",
+		label: "No captive portal",
 		description:
 			"Whether HTTP traffic is free from captive portal interception.",
 		invert: true,
@@ -110,15 +110,15 @@ const flagGroups: FlagGroup[] = [
 		flags: ["UDP", "IPv4", "IPv6", "ICMPv4", "CaptivePortal"],
 	},
 	{
-		title: "IPv6 Support",
+		title: "IPv6 support",
 		flags: ["OSHasIPv6", "IPv4CanSend", "IPv6CanSend"],
 	},
 	{
-		title: "NAT Traversal",
+		title: "NAT traversal",
 		flags: ["MappingVariesByDestIP", "HairPinning"],
 	},
 	{
-		title: "Port Mapping",
+		title: "Port mapping",
 		flags: ["UPnP", "PMP", "PCP"],
 	},
 ];

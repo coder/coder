@@ -138,24 +138,24 @@ const DERPRegionPage: FC = () => {
 					);
 					const checks: NodeCheckRow[] = [
 						{
-							label: "Exchange Messages",
+							label: "Exchange messages",
 							description:
 								"Whether DERP clients can relay messages through this node.",
 							value: report.can_exchange_messages,
 						},
 						{
-							label: "Direct HTTP Upgrade",
+							label: "Direct HTTP upgrade",
 							description:
 								"Whether the connection used a direct HTTP upgrade instead of falling back to WebSocket. Fallback may indicate the DERP upgrade header is being blocked.",
 							value: !report.uses_websocket,
 						},
 						{
-							label: "STUN Enabled",
+							label: "STUN enabled",
 							description: "Whether STUN is enabled on this node.",
 							value: report.stun.Enabled,
 						},
 						{
-							label: "STUN Reachable",
+							label: "STUN reachable",
 							description:
 								"Whether this node responded to a STUN request successfully.",
 							value: report.stun.CanSTUN,

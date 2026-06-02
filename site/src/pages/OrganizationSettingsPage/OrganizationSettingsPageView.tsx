@@ -152,7 +152,7 @@ export const OrganizationSettingsPageView: FC<
 			{onChangeShareableOwners && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title="Workspace Sharing"
+						title="Workspace sharing"
 						description="Control whether workspace owners can share their workspaces."
 					>
 						<div className="flex flex-col gap-2">
@@ -262,7 +262,7 @@ export const OrganizationSettingsPageView: FC<
 			{!organization.is_default && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title="Delete Organization"
+						title="Delete organization"
 						description="Delete your organization permanently."
 					>
 						<div className="flex flex-col gap-4 flex-grow">

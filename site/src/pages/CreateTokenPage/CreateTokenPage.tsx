@@ -94,7 +94,7 @@ const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
 
 			{tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
 			<FullPageHorizontalForm
-				title="Create Token"
+				title="Create token"
 				detail="All tokens are unscoped and therefore have full resource access."
 			>
 				<CreateTokenForm

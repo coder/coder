@@ -9,7 +9,7 @@ const meta: Meta<typeof ScheduleDialog> = {
 		onConfirm: action("onConfirm"),
 		onClose: action("onClose"),
 		open: true,
-		title: "Workspace Scheduling",
+		title: "Workspace scheduling",
 	},
 };
 

@@ -62,7 +62,7 @@ const ExternalAuthPage: FC = () => {
 			/>
 			<DeleteDialog
 				key={appToUnlink?.id}
-				title="Unlink Application"
+				title="Unlink application"
 				verb="Unlinking"
 				info={
 					appToUnlink?.supports_revocation

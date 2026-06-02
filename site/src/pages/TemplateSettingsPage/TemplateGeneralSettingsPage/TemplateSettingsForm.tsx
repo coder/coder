@@ -308,7 +308,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							isSubmitting || (!template.deprecated && !accessControlEnabled)
 						}
 						fullWidth
-						label="Deprecation Message"
+						label="Deprecation message"
 					/>
 					{!accessControlEnabled && (
 						<div className="flex flex-row gap-4 items-center">
@@ -324,7 +324,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			</FormSection>
 
 			<FormSection
-				title="Port Sharing"
+				title="Port sharing"
 				description="Shared ports with the Public sharing level can be accessed by anyone,
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
@@ -344,7 +344,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 								? form.values.max_port_share_level
 								: "public"
 						}
-						label="Maximum Port Sharing Level"
+						label="Maximum port sharing level"
 					>
 						<MenuItem value="owner">Owner</MenuItem>
 						<MenuItem value="organization">Organization</MenuItem>
@@ -363,7 +363,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			</FormSection>
 
 			<FormSection
-				title="CORS Behavior"
+				title="CORS behavior"
 				description="Control how Cross-Origin Resource Sharing (CORS) requests are handled for all shared ports."
 			>
 				<FormFields>
@@ -376,7 +376,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						fullWidth
 						select
 						value={form.values.cors_behavior}
-						label="CORS Behavior"
+						label="CORS behavior"
 					>
 						<MenuItem value="simple">Simple (recommended)</MenuItem>
 						<MenuItem value="passthru">Passthru</MenuItem>

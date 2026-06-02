@@ -88,7 +88,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 									}}
 								/>
 							}
-							label="Prevent Dormancy - Reset all workspace inactivity periods"
+							label="Prevent dormancy - reset all workspace inactivity periods"
 						/>
 					</>
 				)}
@@ -118,7 +118,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 									}}
 								/>
 							}
-							label="Prevent Deletion - Reset all workspace dormancy periods"
+							label="Prevent deletion - reset all workspace dormancy periods"
 						/>
 					</>
 				)}

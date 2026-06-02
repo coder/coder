@@ -25,8 +25,12 @@ or {
 	}
 } where {
 	$value <: r".* [A-Z][a-z].*",
-	// Allowlist: proper nouns / product names that are correctly multi-cap.
-	not $value <: r".*(?:VS Code|Coder Agents|GitHub Actions|JetBrains Fleet|Cmd/Ctrl).*",
+	// Skip multi-sentence prose (descriptions, tooltips): a period followed
+	// by a space signals sentence text, not a label.
+	not $value <: r".*\. .*",
+	// Allowlist: proper nouns, product names, and key combos that are
+	// correctly multi-capitalized. Extend as needed.
+	not $value <: r".*(?:VS Code|VSCode Insiders|Coder Agents|AI Bridge|AI Governance|GitHub Copilot|GitHub Actions|AWS Bedrock|Azure OpenAI|OpenID Connect|JetBrains Fleet|Cmd/Ctrl|Ctrl \+ Enter).*",
 	register_diagnostic(
 		span = $value,
 		message = "Use sentence case for UI labels (e.g. \"Personal instructions\"), not Title Case. If this is a proper noun, add it to the allowlist in use-sentence-case-labels.grit.",
