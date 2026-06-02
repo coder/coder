@@ -1412,9 +1412,9 @@ endif
 
 GOTESTSUM := gotestsum
 ifeq ($(GOOS),windows)
-# Git Bash adds a POSIX PATH alongside native Path. Launch native gotestsum
-# without PATH so Go tests inherit only the native Path from the runner.
-GOTESTSUM := env -u PATH "$$(command -v gotestsum)"
+# Resolve gotestsum before dropping PATH. The shim needs mise in PATH, but
+# native test subprocesses should not inherit Git Bash's POSIX PATH.
+GOTESTSUM := env -u PATH "$$(cygpath -u "$$(mise which gotestsum)")"
 endif
 
 # Default to 8x8 parallelism to avoid overwhelming our workspaces.
