@@ -140,11 +140,20 @@ func (a *Agent) Run(ctx context.Context) error {
 
 // connectAndServe opens one dRPC websocket, announces lifecycle = READY, then blocks until ctx is canceled or the
 // connection is closed by either side. Returns the underlying error, if any.
+//
+// A child ctx (connCtx) is derived from ctx and canceled when this function
+// returns. Background goroutines started for the lifetime of this single dRPC
+// connection (notably runMetadata) bind to connCtx rather than ctx so that
+// they exit promptly on remote-close + reconnect, instead of leaking and
+// continuing to issue RPCs against an already-closed rpc handle until the
+// outer ctx (the whole Agent's lifetime) eventually cancels.
 func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	rpc, _, err := client.ConnectRPC29WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
+	connCtx, cancelConn := context.WithCancel(ctx)
+	defer cancelConn()
 	conn := rpc.DRPCConn()
 	a.metrics.incConnected()
 	defer func() {
@@ -188,7 +197,7 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 				slog.Error(idErr))
 			workspaceID = uuid.Nil
 		}
-		go a.runMetadata(ctx, rpc, workspaceID, descs)
+		go a.runMetadata(connCtx, rpc, workspaceID, descs)
 	}
 
 	select {
