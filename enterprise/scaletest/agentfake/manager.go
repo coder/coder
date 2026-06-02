@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -137,11 +138,16 @@ func (m *Manager) Run(ctx context.Context) error {
 		return xerrors.Errorf("enumerate external agents: %w", err)
 	}
 
+	// Buffered to len(tokens) so a stalled collector can never block any
+	// agent's send.
+	firstConnectCh := make(chan time.Duration, len(tokens))
+
 	agents := make([]*Agent, 0, len(tokens))
 	for i, ti := range tokens {
 		agents = append(agents, NewAgent(m.coderURL, ti.Token,
 			m.logger.Named("agent-"+strconv.Itoa(i)),
-			WithMetrics(m.opts.Metrics)))
+			WithMetrics(m.opts.Metrics),
+			WithFirstConnect(firstConnectCh)))
 	}
 	m.mu.Lock()
 	m.agents = agents
@@ -154,11 +160,48 @@ func (m *Manager) Run(ctx context.Context) error {
 		})
 	}
 
+	// Bound to Run's lifetime rather than egCtx so the collector can't
+	// outlive Run when every agent returns nil (errgroup never cancels
+	// egCtx on clean shutdown).
+	collectorCtx, cancelCollector := context.WithCancel(ctx)
+	defer cancelCollector()
+	go func() {
+		durations := collectFirstConnect(collectorCtx, firstConnectCh, len(agents))
+		if len(durations) == 0 {
+			return
+		}
+		m.logger.Info(collectorCtx, "all agents connected",
+			slog.F("count", len(durations)),
+			slog.F("mean", meanDuration(durations)),
+			slog.F("pct_ninety_five", percentileDuration(durations, 95)),
+			slog.F("pct_ninety_nine", percentileDuration(durations, 99)),
+		)
+	}()
+
 	err = eg.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		return err
 	}
 	return nil
+}
+
+// collectFirstConnect drains ch until expected values arrive or ctx is
+// canceled. The single shared channel ensures one stalled agent cannot
+// hold up reports from the others.
+func collectFirstConnect(ctx context.Context, ch <-chan time.Duration, expected int) []time.Duration {
+	if expected <= 0 {
+		return nil
+	}
+	durations := make([]time.Duration, 0, expected)
+	for len(durations) < expected {
+		select {
+		case d := <-ch:
+			durations = append(durations, d)
+		case <-ctx.Done():
+			return durations
+		}
+	}
+	return durations
 }
 
 // Close stops every Agent constructed during Run. Safe to call any
@@ -385,4 +428,33 @@ func IsFatalEnumerationError(err error) bool {
 		return true
 	}
 	return false
+}
+
+// meanDuration returns the mean of d, or zero if d is empty.
+func meanDuration(d []time.Duration) time.Duration {
+	if len(d) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, v := range d {
+		total += v
+	}
+	return total / time.Duration(len(d))
+}
+
+// percentileDuration returns the p-th percentile (0-100) using nearest-rank.
+// Sorts d in place; callers that care about preserving order should pass a copy.
+func percentileDuration(d []time.Duration, p float64) time.Duration {
+	if len(d) == 0 {
+		return 0
+	}
+	sort.Slice(d, func(i, j int) bool { return d[i] < d[j] })
+	idx := int(p/100*float64(len(d))+0.5) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(d) {
+		idx = len(d) - 1
+	}
+	return d[idx]
 }

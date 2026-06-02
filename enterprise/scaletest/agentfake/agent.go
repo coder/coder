@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,6 +58,12 @@ type Agent struct {
 	dialer   rpcDialer // nil → built from coderURL+token in Run
 	metrics  *Metrics  // nil → no metrics
 
+	// firstConnected guards firstConnect so reconnects don't re-report.
+	firstConnect   chan<- time.Duration
+	firstConnected atomic.Bool
+
+	start time.Time
+
 	cancel context.CancelFunc
 }
 
@@ -92,6 +99,15 @@ func WithMetrics(m *Metrics) Option {
 	}
 }
 
+// WithFirstConnect sets a shared channel used by the Manager to aggregate
+// time-to-first-connect across all agents without one stalled agent blocking
+// the others.
+func WithFirstConnect(ch chan<- time.Duration) Option {
+	return func(a *Agent) {
+		a.firstConnect = ch
+	}
+}
+
 func NewAgent(coderURL *url.URL, token string, logger slog.Logger, opts ...Option) *Agent {
 	a := &Agent{
 		coderURL: coderURL,
@@ -119,6 +135,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if client == nil {
 		client = agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
 	}
+	a.start = a.clock.Now()
 	for {
 		if err := runCtx.Err(); err != nil {
 			return nil
@@ -156,6 +173,14 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	defer cancelConn()
 	conn := rpc.DRPCConn()
 	a.metrics.incConnected()
+	// Non-blocking so a slow collector can never stall this agent's
+	// reconnect loop.
+	if a.firstConnect != nil && a.firstConnected.CompareAndSwap(false, true) {
+		select {
+		case a.firstConnect <- a.clock.Since(a.start):
+		default:
+		}
+	}
 	defer func() {
 		_ = conn.Close()
 		a.metrics.decConnected()
