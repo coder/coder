@@ -165,13 +165,13 @@ lists Cursor as not supported across all three providers (Anthropic,
 OpenAI, Bedrock) and links to the upstream Cursor issue: the OpenAI
 base URL override doesn't direct requests to the configured endpoint.
 Until Cursor fixes that, AI Gateway cannot intercept either the
-desktop client's model traffic *or* the in-cloud Background Agent's
+desktop client's model traffic *or* the Cloud Agent's
 model traffic, and the Coder + Cursor combination has no AI Gateway
 coverage in either direction.
 
 If desktop Cursor support lands first (via Cursor fixing the base URL
 override), AI Gateway will cover developer-initiated chat from the
-client. It will not cover the Background Agent sessions those clients
+client. It will not cover the Cloud Agent sessions those clients
 spawn, because those run in Cursor's cloud, not in the client.
 
 ## Audit log: where the signal lives instead

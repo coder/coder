@@ -8,7 +8,7 @@
 
 Cursor private workers are a long-lived process that registers with a
 pool in your Cursor team, binds to one git repository, and serves
-Cursor Background Agent sessions on infrastructure you operate. Each
+Cursor Cloud Agent sessions on infrastructure you operate. Each
 worker needs an OS, an image, an outbound network path to
 `api.cursor.com`, and a lifecycle.
 
@@ -19,11 +19,11 @@ uses to ship developer environments can ship workers.
 
 ## Architecture
 
-<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace is the outer container, managed by Coder. Inside the workspace runs one Cursor private worker, a long-lived cursor-agent process managed by Cursor. The worker serves one Cursor Background Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in." />
+<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace is the outer container, managed by Coder. Inside the workspace runs one Cursor private worker, a long-lived cursor-agent process managed by Cursor. The worker serves one Cursor Cloud Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in." />
 
 The relationship is one to one to one: **one Coder workspace contains
 exactly one `cursor-agent worker` process, which serves exactly one
-Cursor Background Agent session at a time.** That is the unit you size,
+Cursor Cloud Agent session at a time.** That is the unit you size,
 name, and recycle.
 
 - **A Coder workspace** is the outer container: a VM or container built
@@ -33,7 +33,7 @@ name, and recycle.
   lives inside one workspace, registers with your Cursor team, and
   polls for work. The worker is bound to one repository at startup
   (`--worker-dir`). **Cursor manages workers.**
-- **A session** is a single Cursor Background Agent conversation. While
+- **A session** is a single Cursor Cloud Agent conversation. While
   a session is active, the worker is unavailable to anyone else; when
   it ends, the same worker can serve the next session in line.
   **Cursor manages sessions.**
@@ -47,7 +47,7 @@ reach: internal Git, package registries, databases, build tooling.
 
 ### How a session flows
 
-1. A developer starts a Cursor Background Agent session and picks the
+1. A developer starts a Cursor Cloud Agent session and picks the
    private-worker pool that targets Coder, against a specific
    repository.
 2. The session queues on Cursor's side. Cursor's label-based routing

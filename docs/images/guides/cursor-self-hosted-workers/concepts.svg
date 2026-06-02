@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" width="1000" height="480" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="concepts-title concepts-desc">
   <title id="concepts-title">Workspace, worker, session, and who manages each</title>
-  <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs one Cursor private worker, a long-lived process that Cursor manages. The worker serves one Cursor Background Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
+  <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs one Cursor private worker, a long-lived process that Cursor manages. The worker serves one Cursor Cloud Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
 
   <defs>
     <style>
@@ -109,7 +109,7 @@
 
   <!-- Middle: Session -->
   <rect class="session-card" x="298" y="248" width="404" height="116" rx="10"/>
-  <text class="session-title" x="316" y="272">Cursor Background Agent session</text>
+  <text class="session-title" x="316" y="272">Cursor Cloud Agent session</text>
   <text class="session-mono"  x="316" y="296">activeBcId: bc-...</text>
   <text class="session-mono"  x="316" y="316">repo: coder/coder</text>
   <text class="session-mono"  x="316" y="336">branch: cursor/&lt;feature&gt;</text>

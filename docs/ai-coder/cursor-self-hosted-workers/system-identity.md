@@ -394,7 +394,7 @@ Cursor pool, and begins polling.
    - `Ready (idle): idle`
 2. In Cursor's team admin, confirm the same number of workers appear
    under the pool with `IsInUse: false`.
-3. Start a Cursor Background Agent session against one of the
+3. Start a Cursor Cloud Agent session against one of the
    repositories your pool serves. Within seconds, **one** workspace's
    `Ready (idle)` metadata flips to `busy-or-starting`, and the
    corresponding worker's `IsInUse` flips to `true` in the fleet API.
