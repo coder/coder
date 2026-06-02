@@ -259,6 +259,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const typeDefaults =
 		providerDefaults[resolvedType as keyof typeof providerDefaults];
 
+	// Seed Bedrock credentials with the mask when on file; focus clears it,
+	// and a re-submitted "" tells the API mapping to keep the value.
+	const maskedAccessKey = bedrockSavedAccessCredentials
+		? SAVED_CREDENTIAL_MASK
+		: "";
+	const maskedAccessKeySecret = bedrockSavedAccessCredentials
+		? SAVED_CREDENTIAL_MASK
+		: "";
+	// Same pattern for openai/anthropic. Prefer the API-supplied masked
+	// rendering so the user sees the key's identifying suffix.
+	const maskedApiKey = openAiAnthropicSavedApiKey
+		? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
+		: "";
+
+	const didSubmit = useRef(false);
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
@@ -266,21 +281,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			// Edit overrides prefills with server values; create gets them as-is.
 			...(typeDefaults ?? {}),
 			...initialValues,
-			// Seed Bedrock credentials with the mask when on file; focus clears it,
-			// and a re-submitted "" tells the API mapping to keep the value.
-			accessKey: bedrockSavedAccessCredentials ? SAVED_CREDENTIAL_MASK : "",
-			accessKeySecret: bedrockSavedAccessCredentials
-				? SAVED_CREDENTIAL_MASK
-				: "",
-			// Same pattern for openai/anthropic. Prefer the API-supplied masked
-			// rendering so the user sees the key's identifying suffix.
-			apiKey: openAiAnthropicSavedApiKey
-				? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
-				: "",
+			accessKey: maskedAccessKey,
+			accessKeySecret: maskedAccessKeySecret,
+			apiKey: maskedApiKey,
 		},
 		validationSchema: getProviderFormSchema(editing),
 		validateOnMount: true,
-		onSubmit: onSubmit ?? (() => {}),
+		onSubmit: (values) => {
+			didSubmit.current = true;
+			return onSubmit?.(values);
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
@@ -297,17 +307,46 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 	};
 
+	// Restores the mask when the user leaves the field without entering
+	// a new value, keeping the saved-credential appearance.
+	const handleCredentialBlur = (
+		field: "apiKey" | "accessKey" | "accessKeySecret",
+	) => {
+		const initial = form.initialValues[field];
+		if (form.values[field] === "" && initial !== "") {
+			void form.setFieldValue(field, initial);
+		}
+	};
+
 	// When the parent's mutation finishes without an error, treat the just-
 	// submitted values as the new baseline so the unsaved-changes prompt does
 	// not fire on subsequent navigations. React Query reports a missing error
 	// as `null`, so a truthy check covers both null and undefined.
 	const previousIsLoading = useRef(isLoading);
 	useEffect(() => {
-		if (previousIsLoading.current && !isLoading && !submitError) {
-			form.resetForm({ values: form.values });
+		if (previousIsLoading.current && !isLoading) {
+			if (didSubmit.current && !submitError) {
+				// Restore credential fields to their initial masked sentinels so
+				// the raw key is never left visible after a successful save.
+				const remaskedValues = {
+					...form.values,
+					apiKey: maskedApiKey,
+					accessKey: maskedAccessKey,
+					accessKeySecret: maskedAccessKeySecret,
+				};
+				form.resetForm({ values: remaskedValues });
+			}
+			didSubmit.current = false;
 		}
 		previousIsLoading.current = isLoading;
-	}, [isLoading, submitError, form]);
+	}, [
+		isLoading,
+		submitError,
+		form,
+		maskedApiKey,
+		maskedAccessKey,
+		maskedAccessKeySecret,
+	]);
 
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
@@ -367,6 +406,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								label="API key"
 								helpers={getFieldHelpers("apiKey")}
+								onBlur={() => handleCredentialBlur("apiKey")}
 								onFocus={() => handleCredentialFocus("apiKey")}
 								autoComplete="new-password"
 								placeholder={apiKeyPlaceholder(form.values.type)}
@@ -430,12 +470,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
+								onBlur={() => handleCredentialBlur("accessKey")}
 								onFocus={() => handleCredentialFocus("accessKey")}
+								autoComplete="new-password"
 							/>
 							<CredentialField
 								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
+								onBlur={() => handleCredentialBlur("accessKeySecret")}
 								onFocus={() => handleCredentialFocus("accessKeySecret")}
 								autoComplete="new-password"
 							/>
