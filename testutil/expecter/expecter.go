@@ -85,6 +85,18 @@ func NewAttachedToInvocation(t *testing.T, invocation *serpent.Invocation) *Expe
 	return e
 }
 
+func NewPiped(t *testing.T) (*Expecter, io.Writer) {
+	r, w := io.Pipe()
+	e := New(t, r, "cmd")
+
+	t.Cleanup(func() {
+		// Close writer here at the end of the test to ensure we don't leak goroutines reading from the pipe.
+		_ = w.Close()
+		e.Close("test end")
+	})
+	return e, w
+}
+
 type Expecter struct {
 	t    *testing.T
 	out  *stdbuf
