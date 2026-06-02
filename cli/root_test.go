@@ -177,15 +177,17 @@ func TestRoot(t *testing.T) {
 		url = srv.URL
 		buf := new(bytes.Buffer)
 		coderURLEnv := "$CODER_URL"
+		headerCmd := "printf X-Process-Testing=very-wow-" + coderURLEnv + "'\\r\\n'X-Process-Testing2=more-wow"
 		if runtime.GOOS == "windows" {
 			coderURLEnv = "%CODER_URL%"
+			headerCmd = "echo X-Process-Testing=very-wow-" + coderURLEnv + "& echo X-Process-Testing2=more-wow"
 		}
 		inv, _ := clitest.New(t,
 			"--no-feature-warning",
 			"--no-version-warning",
 			"--header", "X-Testing=wow",
 			"--header", "Cool-Header=Dean was Here!",
-			"--header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+			"--header-command", headerCmd,
 			"login", srv.URL,
 		)
 		inv.Stdout = buf
@@ -266,7 +268,7 @@ func TestDERPHeaders(t *testing.T) {
 		"--no-version-warning",
 		"ping", workspace.Name,
 		"-n", "1",
-		"--header-command", "printf X-Process-Testing=very-wow",
+		"--header-command", "echo X-Process-Testing=very-wow",
 	}
 	for k, v := range expectedHeaders {
 		if k != "X-Process-Testing" {

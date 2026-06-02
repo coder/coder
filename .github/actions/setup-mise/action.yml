@@ -166,3 +166,23 @@ runs:
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
         install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"
+
+    - name: Ensure Git usr/bin is in PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      # jdx/mise-action exports "Path" via GITHUB_ENV which may
+      # collide with bash's "PATH". Ensure Git usr/bin is present
+      # and remove any duplicate Path/PATH entries from GITHUB_ENV
+      # by writing both forms.
+      run: | # zizmor: ignore[github-env]
+        $gitdir = "C:\Program Files\Git\usr\bin"
+        $current = $env:Path
+        if ($current -notlike "*$gitdir*") {
+          $current = "$gitdir;$current"
+        }
+        # Write both Path and PATH to GITHUB_ENV so that both
+        # cmd.exe (uses Path) and bash/Go (uses PATH) see the
+        # same value including Git usr/bin.
+        "Path=$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+        "PATH=$current" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+

@@ -48,7 +48,7 @@ jobs:
         uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests go:gotest.tools/gotestsum
 
       - name: Select changed tests
         id: selector

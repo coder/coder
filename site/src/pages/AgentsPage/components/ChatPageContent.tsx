@@ -206,7 +206,7 @@ interface ChatPageInputProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
-	onWorkspaceChange: (workspaceId: string | null) => void;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
