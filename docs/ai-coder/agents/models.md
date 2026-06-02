@@ -17,16 +17,16 @@ upstream provider or proxy.
 
 Coder supports the following provider types:
 
-| Provider          | Description                                                      |
-|-------------------|------------------------------------------------------------------|
-| Anthropic         | Claude models via Anthropic API                                  |
-| OpenAI            | GPT and o-series models via OpenAI API                           |
-| Google            | Gemini models via Google AI API                                  |
-| Azure OpenAI      | OpenAI models hosted on Azure                                    |
-| AWS Bedrock       | Models via AWS Bedrock (bearer token or ambient AWS credentials) |
-| OpenAI Compatible | Any endpoint implementing the OpenAI API                         |
-| OpenRouter        | Multi-model routing via OpenRouter                               |
-| Vercel AI Gateway | Models via Vercel AI SDK                                         |
+| Provider          | Description                              |
+|-------------------|------------------------------------------|
+| Anthropic         | Claude models via Anthropic API          |
+| OpenAI            | GPT and o-series models via OpenAI API   |
+| Google            | Gemini models via Google AI API          |
+| Azure OpenAI      | OpenAI models hosted on Azure            |
+| AWS Bedrock       | Models via AWS Bedrock                   |
+| OpenAI Compatible | Any endpoint implementing the OpenAI API |
+| OpenRouter        | Multi-model routing via OpenRouter       |
+| Vercel AI Gateway | Models via Vercel AI SDK                 |
 
 The **OpenAI Compatible** type is a catch-all for any service that exposes an
 OpenAI-compatible chat completions endpoint. Use it to connect to self-hosted
@@ -50,9 +50,9 @@ settings page.
 1. Click **Save**.
 
 After saving a provider, add an Agents model for it from **Agents** >
-**Settings** > **Manage Agents** > **Models**. For screenshots and general AI
-Gateway provider management, see
-[AI Gateway setup](../ai-gateway/setup.md#dashboard).
+**Settings** > **Manage Agents** > **Models**. For provider-specific setup,
+including AWS Bedrock, see
+[AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
@@ -83,39 +83,12 @@ Examples:
 
 Confirm the exact endpoint/base URL in your provider or proxy documentation.
 
-## Configuring AWS Bedrock
-
-AWS Bedrock supports two credential modes for Agents providers:
-
-- **Bearer token mode**: Enter a Bedrock-compatible bearer token in the
-  **API key** field when you add the provider.
-- **Ambient AWS credentials mode**: Leave the **API key** field empty. The
-  Coder server resolves credentials from the standard AWS SDK credential chain,
-  including IAM instance roles and `AWS_ACCESS_KEY_ID` /
-  `AWS_SECRET_ACCESS_KEY` environment variables.
-
-Region comes from the standard AWS SDK configuration. In most deployments, set
-`AWS_REGION` on the Coder server. Bearer token mode falls back to `us-east-1`
-when no region is configured. Ambient credentials require a region from the
-standard AWS SDK chain, for example `AWS_REGION`.
-
-The **Base URL** field overrides the Bedrock runtime endpoint. Use it for
-custom endpoints or VPC endpoints.
-
-> [!NOTE]
-> Dashboard provider settings are used by Coder Agents, including Agents
-> requests routed through AI Gateway. The `CODER_AI_GATEWAY_BEDROCK_*` flags
-> configure AI Gateway provider instances for external clients.
-
 ## Provider credentials and security
 
 Provider API keys entered in the dashboard are stored encrypted in the Coder
 database. They are never exposed to workspaces, developers, or the browser
 after initial entry. The dashboard shows only whether a key is set, not the
 key itself.
-
-When a provider uses ambient credentials, Coder resolves them from the server
-environment at request time instead of storing a secret in the database.
 
 Because the agent loop runs in the control plane, workspaces never need direct
 access to LLM providers. See
