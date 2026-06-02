@@ -27,6 +27,7 @@ const validFormValues: FormValues = {
 	name: "Name",
 	display_name: "A display name",
 	description: "A description",
+	abstract: "An agent-facing summary",
 	icon: "vscode.png",
 	allow_user_cancel_workspace_jobs: false,
 	allow_user_autostart: false,
@@ -74,6 +75,7 @@ const fillAndSubmitForm = async ({
 	name,
 	display_name,
 	description,
+	abstract,
 	icon,
 	allow_user_cancel_workspace_jobs,
 }: FormValues) => {
@@ -88,6 +90,12 @@ const fillAndSubmitForm = async ({
 	const descriptionField = await screen.findByLabelText("Description");
 	await userEvent.clear(descriptionField);
 	await userEvent.type(descriptionField, description);
+
+	const abstractField = await screen.findByLabelText("Abstract");
+	await userEvent.clear(abstractField);
+	if (abstract !== "") {
+		await userEvent.type(abstractField, abstract);
+	}
 
 	const iconField = await screen.findByLabelText("Icon");
 	await userEvent.clear(iconField);
@@ -118,6 +126,10 @@ describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
 		});
 		await fillAndSubmitForm(validFormValues);
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+		expect(API.updateTemplateMeta).toHaveBeenCalledWith(
+			MockTemplate.id,
+			expect.objectContaining({ abstract: validFormValues.abstract }),
+		);
 	});
 
 	it("displays an error if the name is taken", async () => {
@@ -163,6 +175,22 @@ describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
 		};
 		const validate = () => validationSchema.validateSync(values);
 		expect(validate).toThrowError();
+	});
+
+	it.each<[string, string, boolean]>([
+		["allows the maximum abstract length", "a".repeat(2048), false],
+		["rejects an over-limit abstract", "a".repeat(2049), true],
+	])("%s", (_, abstract, wantError) => {
+		const values: UpdateTemplateMeta = {
+			...validFormValues,
+			abstract,
+		};
+		const validate = () => validationSchema.validateSync(values);
+		if (wantError) {
+			expect(validate).toThrowError();
+		} else {
+			expect(validate).not.toThrowError();
+		}
 	});
 
 	describe("Deprecate template", () => {

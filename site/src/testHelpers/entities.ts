@@ -894,6 +894,7 @@ export const MockTemplate: TypesGen.Template = {
 		},
 	},
 	description: "This is a test description.",
+	abstract: "",
 	default_ttl_ms: 24 * 60 * 60 * 1000,
 	activity_bump_ms: 1 * 60 * 60 * 1000,
 	autostop_requirement: {

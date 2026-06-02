@@ -57,10 +57,17 @@ func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResu
 	}
 	results := make([]SearchResultItem, len(templates))
 	for i, template := range templates {
+		parts := make([]string, 0, 2)
+		if d := strings.TrimSpace(template.Description); d != "" {
+			parts = append(parts, d)
+		}
+		if a := strings.TrimSpace(template.Abstract); a != "" {
+			parts = append(parts, a)
+		}
 		results[i] = SearchResultItem{
 			ID:    createObjectID(ObjectTypeTemplate, template.ID.String()).String(),
 			Title: template.DisplayName,
-			Text:  template.Description,
+			Text:  strings.Join(parts, "\n\n"),
 			URL:   fmt.Sprintf("%s/templates/%s/%s", serverURL, template.OrganizationName, template.Name),
 		}
 	}

@@ -42,6 +42,7 @@ func baselineTemplate() database.Template {
 		UseClassicParameterFlow:       true,
 		CorsBehavior:                  database.CorsBehaviorPassthru,
 		DisableModuleCache:            true,
+		Abstract:                      "Existing abstract.",
 		GroupACL: database.TemplateACL{
 			orgID.String(): {"read"},
 		},
@@ -70,6 +71,7 @@ func baselineResolved() templateMetaUpdate {
 		name:                                 tpl.Name,
 		displayName:                          tpl.DisplayName,
 		description:                          tpl.Description,
+		abstract:                             tpl.Abstract,
 		icon:                                 tpl.Icon,
 		defaultTTLMillis:                     tpl.DefaultTTL / 1e6,
 		activityBumpMillis:                   tpl.ActivityBump / 1e6,
@@ -146,6 +148,20 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			req:  codersdk.UpdateTemplateMeta{Description: ptr.Ref("New description")},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.description = "New description"
+			}},
+		},
+		{
+			name: "Abstract",
+			req:  codersdk.UpdateTemplateMeta{Abstract: ptr.Ref("New abstract.")},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.abstract = "New abstract."
+			}},
+		},
+		{
+			name: "AbstractEmptyStringClears",
+			req:  codersdk.UpdateTemplateMeta{Abstract: ptr.Ref("")},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.abstract = ""
 			}},
 		},
 		{

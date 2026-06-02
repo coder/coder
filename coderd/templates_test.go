@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,50 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[2].Action)
+	})
+
+	t.Run("Abstract", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			abstract  string
+			wantError bool
+		}{
+			{name: "PersistsValid", abstract: strings.Repeat("a", 2048)},
+			{name: "RejectsOverLimit", abstract: strings.Repeat("a", 2049), wantError: true},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				user := coderdtest.CreateFirstUser(t, client)
+				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				created, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+					Name:      "abstract-test",
+					VersionID: version.ID,
+					Abstract:  tc.abstract,
+				})
+				if tc.wantError {
+					var apiErr *codersdk.Error
+					require.ErrorAs(t, err, &apiErr)
+					require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+					require.Len(t, apiErr.Validations, 1)
+					require.Equal(t, "abstract", apiErr.Validations[0].Field)
+					return
+				}
+
+				require.NoError(t, err)
+				assert.Equal(t, tc.abstract, created.Abstract)
+				got, err := client.Template(ctx, created.ID)
+				require.NoError(t, err)
+				assert.Equal(t, tc.abstract, got.Abstract)
+			})
+		}
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -942,6 +987,50 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 
+	t.Run("Abstract", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			abstract  string
+			wantError bool
+		}{
+			{name: "PersistsValid", abstract: strings.Repeat("a", 2048)},
+			{name: "RejectsOverLimit", abstract: strings.Repeat("a", 2049), wantError: true},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				user := coderdtest.CreateFirstUser(t, client)
+				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+				abstract := tc.abstract
+				ctx := testutil.Context(t, testutil.WaitLong)
+				updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+					Abstract: &abstract,
+				})
+				if tc.wantError {
+					var apiErr *codersdk.Error
+					require.ErrorAs(t, err, &apiErr)
+					require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+					require.Len(t, apiErr.Validations, 1)
+					require.Equal(t, "abstract", apiErr.Validations[0].Field)
+					return
+				}
+
+				require.NoError(t, err)
+				assert.Equal(t, tc.abstract, updated.Abstract)
+				got, err := client.Template(ctx, template.ID)
+				require.NoError(t, err)
+				assert.Equal(t, tc.abstract, got.Abstract)
+			})
+		}
+	})
+
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 
@@ -1336,6 +1425,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.Abstract, updated.Abstract)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, template.ActivityBumpMillis, updated.ActivityBumpMillis)
@@ -1371,6 +1461,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.WithinDuration(t, template.UpdatedAt, updated.UpdatedAt, time.Minute)
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.Abstract, updated.Abstract)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
@@ -1665,22 +1756,26 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		displayName := "Test Display Name"
 		description := "test-description"
+		abstract := "test abstract for agents"
 		icon := "/icon/icon.png"
 		defaultTTLMillis := 10 * time.Hour.Milliseconds()
 
 		reference := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = displayName
 			ctr.Description = description
+			ctr.Abstract = abstract
 			ctr.Icon = icon
 			ctr.DefaultTTLMillis = ptr.Ref(defaultTTLMillis)
 		})
 		require.Equal(t, displayName, reference.DisplayName)
 		require.Equal(t, description, reference.Description)
+		require.Equal(t, abstract, reference.Abstract)
 		require.Equal(t, icon, reference.Icon)
 
 		restoreReq := codersdk.UpdateTemplateMeta{
 			DisplayName:      &displayName,
 			Description:      &description,
+			Abstract:         &abstract,
 			Icon:             &icon,
 			DefaultTTLMillis: ptr.Ref(defaultTTLMillis),
 		}
@@ -1688,6 +1783,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		type expected struct {
 			displayName      string
 			description      string
+			abstract         string
 			icon             string
 			defaultTTLMillis int64
 		}
@@ -1702,22 +1798,27 @@ func TestPatchTemplateMeta(t *testing.T) {
 			{
 				name:     "Only update default_ttl_ms",
 				req:      codersdk.UpdateTemplateMeta{DefaultTTLMillis: ptr.Ref(99 * time.Hour.Milliseconds())},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()},
 			},
 			{
 				name:     "Clear display name",
 				req:      codersdk.UpdateTemplateMeta{DisplayName: ptr.Ref("")},
-				expected: expected{displayName: "", description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: "", description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Clear description",
 				req:      codersdk.UpdateTemplateMeta{Description: ptr.Ref("")},
-				expected: expected{displayName: reference.DisplayName, description: "", icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: reference.DisplayName, description: "", abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+			},
+			{
+				name:     "Clear abstract",
+				req:      codersdk.UpdateTemplateMeta{Abstract: ptr.Ref("")},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: "", icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Clear icon",
 				req:      codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: "", defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: "", defaultTTLMillis: defaultTTLMillis},
 			},
 			// A request whose only field is nil is a true no-op under the new
 			// PATCH semantics; the handler returns 304 Not Modified and the
@@ -1725,17 +1826,22 @@ func TestPatchTemplateMeta(t *testing.T) {
 			{
 				name:     "Nil display name is a no-op",
 				req:      codersdk.UpdateTemplateMeta{DisplayName: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Nil description is a no-op",
 				req:      codersdk.UpdateTemplateMeta{Description: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+			},
+			{
+				name:     "Nil abstract is a no-op",
+				req:      codersdk.UpdateTemplateMeta{Abstract: nil},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 			{
 				name:     "Nil icon is a no-op",
 				req:      codersdk.UpdateTemplateMeta{Icon: nil},
-				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, abstract: reference.Abstract, icon: reference.Icon, defaultTTLMillis: defaultTTLMillis},
 			},
 		}
 
@@ -1757,6 +1863,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tc.expected.displayName, updated.DisplayName)
 				assert.Equal(t, tc.expected.description, updated.Description)
+				assert.Equal(t, tc.expected.abstract, updated.Abstract)
 				assert.Equal(t, tc.expected.icon, updated.Icon)
 				assert.Equal(t, tc.expected.defaultTTLMillis, updated.DefaultTTLMillis)
 			})
@@ -1774,6 +1881,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = "Original Display"
 			ctr.Description = "Original description"
+			ctr.Abstract = "Original abstract"
 			ctr.Icon = "/icon/original.png"
 			ctr.DefaultTTLMillis = ptr.Ref((24 * time.Hour).Milliseconds())
 			ctr.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
@@ -1789,6 +1897,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Name, updated.Name)
 		assert.Equal(t, template.DisplayName, updated.DisplayName)
 		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.Abstract, updated.Abstract)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)

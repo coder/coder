@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -309,6 +310,7 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].Abstract, template.Abstract)
 		}
 	})
 
@@ -737,6 +739,27 @@ func TestTools(t *testing.T) {
 				TemplateID: uuid.New().String(),
 			})
 			require.ErrorContains(t, err, "get template")
+		})
+
+		t.Run("Abstract", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			absBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			abstract := strings.Repeat("b", 600)
+			_, err := client.UpdateTemplateMeta(ctx, absBuild.Template.ID, codersdk.UpdateTemplateMeta{
+				Abstract: &abstract,
+			})
+			require.NoError(t, err)
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: absBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, abstract, result.Abstract)
 		})
 	})
 

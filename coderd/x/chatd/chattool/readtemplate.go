@@ -88,6 +88,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if desc := strings.TrimSpace(template.Description); desc != "" {
 				templateInfo["description"] = desc
 			}
+			if abstract := strings.TrimSpace(template.Abstract); abstract != "" {
+				templateInfo["abstract"] = abstract
+			}
 
 			paramList := make([]map[string]any, 0, len(params))
 			for _, p := range params {

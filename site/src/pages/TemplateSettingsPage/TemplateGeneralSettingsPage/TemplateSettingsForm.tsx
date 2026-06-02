@@ -38,6 +38,8 @@ import {
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
+const MAX_ABSTRACT_CHAR_LIMIT = 2048;
+const MAX_ABSTRACT_MESSAGE = `Please enter an abstract that is no longer than ${MAX_ABSTRACT_CHAR_LIMIT} characters.`;
 
 export const validationSchema = Yup.object({
 	name: nameValidator("Name"),
@@ -46,6 +48,7 @@ export const validationSchema = Yup.object({
 		MAX_DESCRIPTION_CHAR_LIMIT,
 		MAX_DESCRIPTION_MESSAGE,
 	),
+	abstract: Yup.string().max(MAX_ABSTRACT_CHAR_LIMIT, MAX_ABSTRACT_MESSAGE),
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
@@ -85,6 +88,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			name: template.name,
 			display_name: template.display_name,
 			description: template.description,
+			abstract: template.abstract,
 			icon: template.icon,
 			allow_user_cancel_workspace_jobs:
 				template.allow_user_cancel_workspace_jobs,
@@ -146,6 +150,19 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						fullWidth
 						label="Description"
 						rows={2}
+					/>
+
+					<TextField
+						{...getFieldHelpers("abstract", {
+							helperText:
+								"Detailed summary for agents to help choose the right template.",
+							maxLength: MAX_ABSTRACT_CHAR_LIMIT,
+						})}
+						multiline
+						disabled={isSubmitting}
+						fullWidth
+						label="Abstract"
+						rows={5}
 					/>
 
 					<IconField

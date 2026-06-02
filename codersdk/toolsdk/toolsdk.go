@@ -621,7 +621,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameListTemplates,
-		Description: "Lists templates for the authenticated user.",
+		Description: "Lists templates for the authenticated user. Description is short UI text; abstract is richer selection context.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
@@ -640,6 +640,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 				ID:              template.ID.String(),
 				Name:            template.Name,
 				Description:     template.Description,
+				Abstract:        template.Abstract,
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			}
@@ -732,7 +733,7 @@ func toPresetView(p codersdk.Preset) presetView {
 var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetTemplate,
-		Description: `Get details about a workspace template, including its configurable parameters and available presets for the active version.
+		Description: `Get details about a workspace template, including its abstract, configurable parameters, and available presets for the active version.
 
 Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
 
@@ -777,6 +778,7 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ID:              template.ID.String(),
 				Name:            template.Name,
 				Description:     template.Description,
+				Abstract:        template.Abstract,
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			},
@@ -1719,6 +1721,7 @@ type MinimalTemplate struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Description     string    `json:"description"`
+	Abstract        string    `json:"abstract,omitempty"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
 }

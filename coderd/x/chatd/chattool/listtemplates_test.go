@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -119,6 +120,120 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		tmplInfo := result["template"].(map[string]any)
 		require.Equal(t, tAlpha.ID.String(), tmplInfo["id"].(string))
 	})
+}
+
+func TestListTemplates_Abstract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		template    database.Template
+		want        string
+		wantPresent bool
+	}{
+		{
+			name: "LongAbstract",
+			template: database.Template{
+				Name:        "with-abstract",
+				Description: "short description",
+				Abstract:    strings.Repeat("a", 1000),
+			},
+			want:        strings.Repeat("a", 1000),
+			wantPresent: true,
+		},
+		{
+			name: "ShortAbstractUntouched",
+			template: database.Template{
+				Name:        "short-abstract",
+				Description: "short description",
+				Abstract:    "a concise abstract",
+			},
+			want:        "a concise abstract",
+			wantPresent: true,
+		},
+		{
+			name: "EmptyAbstractOmitted",
+			template: database.Template{
+				Name:        "no-abstract",
+				Description: "short description",
+				Abstract:    "",
+			},
+		},
+		{
+			name: "WhitespaceOnlyAbstractOmitted",
+			template: database.Template{
+				Name:        "whitespace-abstract",
+				Description: "short description",
+				Abstract:    "   \t  \n  ",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newListTemplatesFixture(t)
+			template := tc.template
+			template.OrganizationID = fixture.org.ID
+			template.CreatedBy = fixture.user.ID
+			tpl := dbgen.Template(t, fixture.db, template)
+
+			items := fixture.listTemplates(t, "{}")
+			require.Len(t, items, 1)
+			require.Equal(t, tpl.ID.String(), items[0]["id"].(string))
+			require.Equal(t, "short description", items[0]["description"].(string))
+
+			got, ok := items[0]["abstract"]
+			require.Equal(t, tc.wantPresent, ok)
+			if tc.wantPresent {
+				require.Equal(t, tc.want, got.(string))
+			}
+		})
+	}
+}
+
+type listTemplatesFixture struct {
+	db   database.Store
+	user database.User
+	org  database.Organization
+}
+
+func newListTemplatesFixture(t *testing.T) listTemplatesFixture {
+	t.Helper()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	return listTemplatesFixture{db: db, user: user, org: org}
+}
+
+func (f listTemplatesFixture) listTemplates(t *testing.T, input string) []map[string]any {
+	t.Helper()
+
+	tool := chattool.ListTemplates(f.db, f.org.ID, chattool.ListTemplatesOptions{
+		OwnerID: f.user.ID,
+	})
+	resp, err := tool.Run(testutil.Context(t, testutil.WaitShort), fantasy.ToolCall{
+		ID:    "list-templates",
+		Name:  "list_templates",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates := result["templates"].([]any)
+	items := make([]map[string]any, 0, len(templates))
+	for _, template := range templates {
+		items = append(items, template.(map[string]any))
+	}
+	return items
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.

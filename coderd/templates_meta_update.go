@@ -19,6 +19,7 @@ type templateMetaUpdate struct {
 	name                                 string
 	displayName                          string
 	description                          string
+	abstract                             string
 	icon                                 string
 	defaultTTLMillis                     int64
 	activityBumpMillis                   int64
@@ -70,6 +71,7 @@ func resolveTemplateMetaUpdate(
 		name:                           ptr.NilToDefault(req.Name, template.Name),
 		displayName:                    ptr.NilToDefault(req.DisplayName, template.DisplayName),
 		description:                    ptr.NilToDefault(req.Description, template.Description),
+		abstract:                       ptr.NilToDefault(req.Abstract, template.Abstract),
 		icon:                           ptr.NilToDefault(req.Icon, template.Icon),
 		defaultTTLMillis:               ptr.NilToDefault(req.DefaultTTLMillis, time.Duration(template.DefaultTTL).Milliseconds()),
 		activityBumpMillis:             ptr.NilToDefault(req.ActivityBumpMillis, time.Duration(template.ActivityBump).Milliseconds()),

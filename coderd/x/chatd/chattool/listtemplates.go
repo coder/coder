@@ -41,7 +41,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+
 			"search query matching template name or description. "+
-			"Use this to find a template before creating a workspace. "+
+			"Results include short UI descriptions and agent-facing abstracts when present. "+
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -127,6 +127,9 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				}
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
+				}
+				if abstract := strings.TrimSpace(t.Abstract); abstract != "" {
+					item["abstract"] = abstract
 				}
 				if count, ok := ownerCounts[t.ID]; ok && count > 0 {
 					item["active_developers"] = count

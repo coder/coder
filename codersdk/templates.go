@@ -27,15 +27,18 @@ type Template struct {
 	Provisioner             ProvisionerType `json:"provisioner" enums:"terraform"`
 	ActiveVersionID         uuid.UUID       `json:"active_version_id" format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount    int                    `json:"active_user_count"`
-	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
-	Description        string                 `json:"description"`
-	Deprecated         bool                   `json:"deprecated"`
-	DeprecationMessage string                 `json:"deprecation_message"`
-	Deleted            bool                   `json:"deleted"`
-	Icon               string                 `json:"icon"`
-	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
-	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
+	ActiveUserCount int                    `json:"active_user_count"`
+	BuildTimeStats  TemplateBuildTimeStats `json:"build_time_stats"`
+	Description     string                 `json:"description"`
+	// Abstract is a longer-form summary surfaced to agents to help them pick
+	// the right template. Up to 2048 characters.
+	Abstract           string `json:"abstract"`
+	Deprecated         bool   `json:"deprecated"`
+	DeprecationMessage string `json:"deprecation_message"`
+	Deleted            bool   `json:"deleted"`
+	Icon               string `json:"icon"`
+	DefaultTTLMillis   int64  `json:"default_ttl_ms"`
+	ActivityBumpMillis int64  `json:"activity_bump_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -218,9 +221,12 @@ type ACLAvailable struct {
 // UpdateTemplateMeta is the request body for the PATCH /templates/{template}
 // endpoint. All fields are optional. Fields that are nil are not modified.
 type UpdateTemplateMeta struct {
-	Name             *string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description *string `json:"description,omitempty"`
+	// Abstract is a longer-form summary surfaced to agents to help them pick
+	// the right template. Up to 2048 characters.
+	Abstract         *string `json:"abstract,omitempty" validate:"omitempty,max=2048"`
 	Icon             *string `json:"icon,omitempty"`
 	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump

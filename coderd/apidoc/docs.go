@@ -17883,6 +17883,11 @@ const docTemplate = `{
                 "template_version_id"
             ],
             "properties": {
+                "abstract": {
+                    "description": "Abstract is a longer-form summary surfaced to agents to help them pick\nthe right template. Up to 2048 characters.",
+                    "type": "string",
+                    "maxLength": 2048
+                },
                 "activity_bump_ms": {
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"
@@ -23315,6 +23320,10 @@ const docTemplate = `{
         "codersdk.Template": {
             "type": "object",
             "properties": {
+                "abstract": {
+                    "description": "Abstract is a longer-form summary surfaced to agents to help them pick\nthe right template. Up to 2048 characters.",
+                    "type": "string"
+                },
                 "active_user_count": {
                     "description": "ActiveUserCount is set to -1 when loading.",
                     "type": "integer"
@@ -24427,6 +24436,11 @@ const docTemplate = `{
         "codersdk.UpdateTemplateMeta": {
             "type": "object",
             "properties": {
+                "abstract": {
+                    "description": "Abstract is a longer-form summary surfaced to agents to help them pick\nthe right template. Up to 2048 characters.",
+                    "type": "string",
+                    "maxLength": 2048
+                },
                 "activity_bump_ms": {
                     "description": "ActivityBumpMillis allows optionally specifying the activity bump\nduration for all workspaces created from this template. Defaults to 1h\nbut can be set to 0 to disable activity bumping.",
                     "type": "integer"

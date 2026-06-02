@@ -181,3 +181,74 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 	_, hasPresets := result["presets"]
 	require.False(t, hasPresets, "presets key should be absent when there are none")
 }
+
+func TestReadTemplate_Abstract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		abstract    string
+		want        string
+		wantPresent bool
+	}{
+		{
+			name:        "Present",
+			abstract:    "A long-form summary used by agents to pick the right template.",
+			want:        "A long-form summary used by agents to pick the right template.",
+			wantPresent: true,
+		},
+		{name: "Empty"},
+		{name: "WhitespaceOnly", abstract: "   \t  \n  "},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmplInfo := readTemplateInfo(t, tc.abstract)
+			got, ok := tmplInfo["abstract"]
+			require.Equal(t, tc.wantPresent, ok)
+			if tc.wantPresent {
+				require.Equal(t, tc.want, got.(string))
+			}
+		})
+	}
+}
+
+func readTemplateInfo(t *testing.T, abstract string) map[string]any {
+	t.Helper()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		CreatedBy:       user.ID,
+		ActiveVersionID: tv.ID,
+		Abstract:        abstract,
+	})
+
+	tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+		OwnerID: user.ID,
+	})
+	resp, err := tool.Run(testutil.Context(t, testutil.WaitShort), fantasy.ToolCall{
+		ID:    "abstract",
+		Name:  "read_template",
+		Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	return result["template"].(map[string]any)
+}
