@@ -14772,52 +14772,52 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 		},
 		{
 			name:           "empty name",
-			params:         aiGatewayKeyParams("", "key_1234567"),
+			params:         aiGatewayKeyParams("", "key_empty__"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with trailing dash",
-			params:         aiGatewayKeyParams("other-name-", "key_1234567"),
+			params:         aiGatewayKeyParams("other-name-", "key_trail__"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with consecutive dashes",
-			params:         aiGatewayKeyParams("other--name", "key_1234567"),
+			params:         aiGatewayKeyParams("other--name", "key_consec_"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with underscore",
-			params:         aiGatewayKeyParams("other_name", "key_1234567"),
+			params:         aiGatewayKeyParams("other_name", "key_undersc"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with space",
-			params:         aiGatewayKeyParams("other name", "key_1234567"),
+			params:         aiGatewayKeyParams("other name", "key_spacen_"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with leading dash",
-			params:         aiGatewayKeyParams("-other-name", "cgw_1234567"),
+			params:         aiGatewayKeyParams("-other-name", "key_leadng_"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name longer than 64 characters",
-			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "cgw_1234567"),
+			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "key_longna_"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "empty secret prefix",
-			params:         aiGatewayKeyParams("other-name", ""),
+			params:         aiGatewayKeyParams("check-empty-pfx", ""),
 			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "invalid secret prefix length",
-			params:         aiGatewayKeyParams("other-name", "key_short"),
+			params:         aiGatewayKeyParams("check-short-pfx", "key_short"),
 			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "empty hashed secret",
-			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567"},
+			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "check-empty-hash", SecretPrefix: "key_ehash__", HashedSecret: []byte{}},
 			expectCheckErr: database.CheckAiGatewayKeysHashedSecretCheck,
 		},
 	}
@@ -14889,7 +14889,7 @@ func aiGatewayKeyParams(name string, secretPrefix string) database.InsertAIGatew
 		ID:           uuid.New(),
 		Name:         name,
 		SecretPrefix: secretPrefix,
-		HashedSecret: []byte("secret"),
+		HashedSecret: []byte("secret-" + name + "-" + secretPrefix),
 	}
 }
 
