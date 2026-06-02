@@ -31,9 +31,7 @@ OpenAI-compatible chat completions endpoint. Use it to connect to self-hosted
 models, internal gateways, or third-party proxies like LiteLLM.
 
 Coder Agents route model requests through AI Gateway automatically by using
-the provider configuration stored in Coder. Configure the provider endpoint/base
-URL as the upstream provider or proxy URL, not Coder's public
-`/api/v2/aibridge/...` client route.
+the provider configuration stored in Coder's database.
 
 ### Add a provider
 
