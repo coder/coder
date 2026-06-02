@@ -84,18 +84,18 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProtectedResourceMetadata](schemas.md#codersdkoauth2protectedresourcemetadata) |
 
-## List AI Gateway coderd keys
+## List AI Gateway keys
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/aibridge/coderd-keys \
+curl -X GET http://coder-server:8080/api/v2/aibridge/keys \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/v2/aibridge/coderd-keys`
+`GET /api/v2/aibridge/keys`
 
 ### Example responses
 
@@ -115,11 +115,11 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/coderd-keys \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                        |
-|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayCoderdKey](schemas.md#codersdkaigatewaycoderdkey) |
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayKey](schemas.md#codersdkaigatewaykey) |
 
-<h3 id="list-ai-gateway-coderd-keys-responseschema">Response Schema</h3>
+<h3 id="list-ai-gateway-keys-responseschema">Response Schema</h3>
 
 Status Code **200**
 
@@ -134,19 +134,19 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Create AI Gateway coderd key
+## Create AI Gateway key
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/aibridge/coderd-keys \
+curl -X POST http://coder-server:8080/api/v2/aibridge/keys \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/v2/aibridge/coderd-keys`
+`POST /api/v2/aibridge/keys`
 
 > Body parameter
 
@@ -158,9 +158,9 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/coderd-keys \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                           | Required | Description                          |
-|--------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------|
-| `body` | body | [codersdk.CreateAIGatewayCoderdKeyRequest](schemas.md#codersdkcreateaigatewaycoderdkeyrequest) | true     | Create AI Gateway coderd key request |
+| Name   | In   | Type                                                                               | Required | Description                   |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
 
 ### Example responses
 
@@ -178,23 +178,23 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/coderd-keys \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                                           |
-|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateAIGatewayCoderdKeyResponse](schemas.md#codersdkcreateaigatewaycoderdkeyresponse) |
+| Status | Meaning                                                      | Description | Schema                                                                               |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateAIGatewayKeyResponse](schemas.md#codersdkcreateaigatewaykeyresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete AI Gateway coderd key
+## Delete AI Gateway key
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/aibridge/coderd-keys/{key} \
+curl -X DELETE http://coder-server:8080/api/v2/aibridge/keys/{key} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/v2/aibridge/coderd-keys/{key}`
+`DELETE /api/v2/aibridge/keys/{key}`
 
 ### Parameters
 

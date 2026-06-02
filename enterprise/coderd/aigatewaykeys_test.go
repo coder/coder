@@ -85,8 +85,10 @@ func TestAIGatewayKeys(t *testing.T) {
 		var raw []map[string]any
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&raw))
 		require.NotEmpty(t, raw)
+		_, hasKey := raw[0]["key"]
 		_, hasSecret := raw[0]["secret"]
 		_, hasHashed := raw[0]["hashed_secret"]
+		require.False(t, hasKey, "LIST response leaked full key")
 		require.False(t, hasSecret, "LIST response leaked plaintext secret")
 		require.False(t, hasHashed, "LIST response leaked hashed_secret")
 	})

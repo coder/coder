@@ -14740,13 +14740,13 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	preExsiting := database.InsertAIGatewayKeyParams{
+	preExisting := database.InsertAIGatewayKeyParams{
 		ID:           uuid.New(),
 		Name:         "name",
 		SecretPrefix: "key_test__1",
 		HashedSecret: []byte("first-secret"),
 	}
-	_, err := db.InsertAIGatewayKey(ctx, preExsiting)
+	_, err := db.InsertAIGatewayKey(ctx, preExisting)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -14757,17 +14757,17 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 	}{
 		{
 			name:            "duplicate name",
-			params:          aiGatewayKeyParams(preExsiting.Name, "key_test002"),
+			params:          aiGatewayKeyParams(preExisting.Name, "key_test002"),
 			expectUniqueErr: database.UniqueAiGatewayKeysNameIndex,
 		},
 		{
 			name:            "duplicate secret prefix",
-			params:          aiGatewayKeyParams("different-key", preExsiting.SecretPrefix),
+			params:          aiGatewayKeyParams("different-key", preExisting.SecretPrefix),
 			expectUniqueErr: database.UniqueAiGatewayKeysSecretPrefixIndex,
 		},
 		{
 			name:            "duplicate hashed secret",
-			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExsiting.HashedSecret},
+			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExisting.HashedSecret},
 			expectUniqueErr: database.UniqueAiGatewayKeysHashedSecretIndex,
 		},
 		{

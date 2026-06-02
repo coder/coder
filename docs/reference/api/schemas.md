@@ -1248,7 +1248,7 @@
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
-## codersdk.AIGatewayCoderdKey
+## codersdk.AIGatewayKey
 
 ```json
 {
@@ -4428,7 +4428,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
-## codersdk.CreateAIGatewayCoderdKeyRequest
+## codersdk.CreateAIGatewayKeyRequest
 
 ```json
 {
@@ -4442,7 +4442,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------|--------|----------|--------------|-------------|
 | `name` | string | true     |              |             |
 
-## codersdk.CreateAIGatewayCoderdKeyResponse
+## codersdk.CreateAIGatewayKeyResponse
 
 ```json
 {
