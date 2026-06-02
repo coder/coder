@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"errors"
 	"net"
 	"net/url"
 	"slices"
@@ -45,25 +46,31 @@ func (p *Pubsub) RefreshPeers() {
 
 func (p *Pubsub) runPeerRefresh() {
 	for {
+		p.mu.Lock()
+		fetcher := p.peerFetcher
+		p.mu.Unlock()
+		if fetcher == nil {
+			continue
+		}
+
+		addrs := fetcher.PrimaryPeerAddresses()
+		if err := p.setPeerAddresses(addrs); err != nil {
+			if errors.Is(err, errClosed) && p.ctx.Err() != nil {
+				return
+			}
+			p.logger.Error(p.ctx, "refresh nats peers", slog.Error(err))
+		}
+
 		select {
 		case <-p.ctx.Done():
 			return
 		case <-p.peerRefresh:
-			p.mu.Lock()
-			fetcher := p.peerFetcher
-			p.mu.Unlock()
-			if fetcher == nil {
-				continue
-			}
-			if err := p.SetPeerAddresses(fetcher.PrimaryPeerAddresses()); err != nil {
-				p.logger.Error(p.ctx, "refresh nats peers", slog.Error(err))
-			}
 		}
 	}
 }
 
-// SetPeerAddresses replaces the configured NATS cluster peer routes.
-func (p *Pubsub) SetPeerAddresses(addresses []string) error {
+// setPeerAddresses replaces the configured NATS cluster peer routes.
+func (p *Pubsub) setPeerAddresses(addresses []string) error {
 	p.clusterMu.Lock()
 	defer p.clusterMu.Unlock()
 

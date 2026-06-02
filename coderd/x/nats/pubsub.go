@@ -259,6 +259,10 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		slog.F("client_url", ns.ClientURL()),
 	)
 
+	if opts.PeerFetcher == nil {
+		opts.PeerFetcher = NopPeerFetcher{}
+	}
+
 	p := newPubsub(ctx, logger, opts)
 	p.Server = ns
 	p.clustered = !opts.disableCluster
@@ -273,6 +277,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
 		p.cancel()
@@ -283,16 +288,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
-	go p.runPeerRefresh()
-	if opts.PeerFetcher != nil {
-		p.RefreshPeers()
+
+	if p.clustered {
+		go p.runPeerRefresh()
 	}
 	go func() {
 		<-p.ctx.Done()
 		_ = p.Close()
 	}()
+
 	return p, nil
 }
 

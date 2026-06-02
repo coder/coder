@@ -3,7 +3,6 @@ package nats
 import (
 	"errors"
 	"net/url"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -118,10 +117,14 @@ func Test_filterSelfRoutes(t *testing.T) {
 func TestPubsub_RefreshPeers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SetPeerFetcherRefreshes", func(t *testing.T) {
+	t.Run("PeersFetchedOnStartup", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
 		b := newTestPubsub(t, opts)
+
+		// Supplying PeerFetcher in Options should be enough to seed routes.
+		// Callers should not need a separate SetPeerFetcher or RefreshPeers call
+		// after New returns.
 		fetcher := &testPeerFetcher{addresses: []string{clusterRouteAddress(t, b)}}
 		aOpts := clusterTestOptions(t)
 		aOpts.PeerFetcher = fetcher
@@ -135,47 +138,29 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 
-	t.Run("RefreshUsesLatestFetcher", func(t *testing.T) {
+	t.Run("SetPeerFetcher", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
 		a := newTestPubsub(t, opts)
-		b := newTestPubsub(t, opts)
-		c := newTestPubsub(t, opts)
-		fetcher := &testPeerFetcher{}
+
+		routes := []string{
+			"nats://127.0.0.1:1234",
+			"nats://127.0.0.1:1235",
+		}
+		fetcher := &testPeerFetcher{routes}
+
+		expectedRoutes := routesWithAuth(mustParsePeerAddresses(t, fetcher.addresses...), opts.ClusterAuthToken)
+
 		a.SetPeerFetcher(fetcher)
-
-		fetcher.set(clusterRouteAddress(t, b))
-		a.RefreshPeers()
 		require.Eventually(t, func() bool {
-			return sortedURLsEqual(currentRouteURLs(a), sortRouteURLs(mustParsePeerAddresses(t,
-				addrWithAuth(t, clusterRouteAddress(t, b), opts.ClusterAuthToken),
-			)))
+			return sortedURLsEqual(currentRouteURLs(a), sortRouteURLs(expectedRoutes))
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		fetcher.set(clusterRouteAddress(t, c))
-		a.RefreshPeers()
+		nop := NopPeerFetcher{}
+		a.SetPeerFetcher(nop)
 		require.Eventually(t, func() bool {
-			return sortedURLsEqual(currentRouteURLs(a), sortRouteURLs(mustParsePeerAddresses(t,
-				addrWithAuth(t, clusterRouteAddress(t, c), opts.ClusterAuthToken),
-			)))
+			return sortedURLsEqual(currentRouteURLs(a), nil)
 		}, testutil.WaitShort, testutil.IntervalFast)
-	})
-
-	t.Run("RefreshCoalescesPendingSignals", func(t *testing.T) {
-		t.Parallel()
-		ps := newTestPubsub(t, clusterTestOptions(t))
-		fetcher := &blockingPeerFetcher{
-			entered: make(chan struct{}),
-			release: make(chan struct{}),
-		}
-		ps.SetPeerFetcher(fetcher)
-		testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, fetcher.entered)
-
-		for range 5 {
-			ps.RefreshPeers()
-		}
-		require.Len(t, ps.peerRefresh, 1)
-		close(fetcher.release)
 	})
 }
 
@@ -197,36 +182,14 @@ func currentRouteURLs(ps *Pubsub) []*url.URL {
 }
 
 type testPeerFetcher struct {
-	mu        sync.Mutex
 	addresses []string
 }
 
-func (f *testPeerFetcher) set(addresses ...string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.addresses = append([]string(nil), addresses...)
-}
-
 func (f *testPeerFetcher) PrimaryPeerAddresses() []string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]string(nil), f.addresses...)
+	return f.addresses
 }
 
-type blockingPeerFetcher struct {
-	once    sync.Once
-	entered chan struct{}
-	release chan struct{}
-}
-
-func (f *blockingPeerFetcher) PrimaryPeerAddresses() []string {
-	f.once.Do(func() { f.entered <- struct{}{} })
-	<-f.release
-	return nil
-}
-
-// Cluster tests bind free ports and reload shared route state.
-func TestPubsub_SetPeerAddresses(t *testing.T) {
+func TestPubsub_setPeerAddresses(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -237,19 +200,19 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
-		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
+		require.NoError(t, a.setPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes,
 			addrWithAuth(t, addrB, opts.ClusterAuthToken),
 			addrWithAuth(t, addrC, opts.ClusterAuthToken),
 		)
 
-		require.NoError(t, a.SetPeerAddresses([]string{addrB, addrC}))
+		require.NoError(t, a.setPeerAddresses([]string{addrB, addrC}))
 		requireRoutesEqual(t, a.currentRoutes,
 			addrWithAuth(t, addrB, opts.ClusterAuthToken),
 			addrWithAuth(t, addrC, opts.ClusterAuthToken),
 		)
 
-		require.NoError(t, a.SetPeerAddresses(nil))
+		require.NoError(t, a.setPeerAddresses(nil))
 		require.Empty(t, a.currentRoutes)
 		require.Empty(t, a.serverOpts.Routes)
 	})
@@ -257,7 +220,7 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
 		ps := newTestPubsub(t, defaultTestOptions())
-		err := ps.SetPeerAddresses(nil)
+		err := ps.setPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})
 
@@ -265,14 +228,14 @@ func TestPubsub_SetPeerAddresses(t *testing.T) {
 		t.Parallel()
 		ps := newTestPubsub(t, clusterTestOptions(t))
 		require.NoError(t, ps.Close())
-		err := ps.SetPeerAddresses(nil)
+		err := ps.setPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
 	})
 
 	t.Run("DropsSelfRoute", func(t *testing.T) {
 		t.Parallel()
 		ps := newTestPubsub(t, clusterTestOptions(t))
-		require.NoError(t, ps.SetPeerAddresses([]string{clusterRouteAddress(t, ps)}))
+		require.NoError(t, ps.setPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
 	})
 }

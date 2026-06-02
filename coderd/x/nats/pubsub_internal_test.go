@@ -351,7 +351,7 @@ func TestPubsubCluster(t *testing.T) {
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
 
-		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
+		require.NoError(t, a.setPeerAddresses([]string{addrB}))
 		requireRoutesEqual(t, a.currentRoutes,
 			addrWithAuth(t, addrB, opts.ClusterAuthToken),
 		)
@@ -386,7 +386,7 @@ func TestPubsubCluster(t *testing.T) {
 
 		// Add C to A's peer list. B and C should both receive global messages,
 		// while the C-only subject should route only to C.
-		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
+		require.NoError(t, a.setPeerAddresses([]string{addrC, addrB}))
 		requireRoutesEqual(t, a.currentRoutes,
 			addrWithAuth(t, addrB, opts.ClusterAuthToken),
 			addrWithAuth(t, addrC, opts.ClusterAuthToken),
@@ -403,7 +403,7 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUnique)))
 
 		// Remove B from A's peer list. Only C should receive the next messages.
-		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
+		require.NoError(t, a.setPeerAddresses([]string{addrC}))
 		requireRoutesEqual(t, a.currentRoutes,
 			addrWithAuth(t, addrC, opts.ClusterAuthToken),
 		)

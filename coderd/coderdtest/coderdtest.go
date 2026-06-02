@@ -289,9 +289,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
-		require.True(t, ok)
-		options.ReplicaSyncPubsub = pgPubsub
 	}
 	if options.ReplicaSyncPubsub == nil {
 		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
