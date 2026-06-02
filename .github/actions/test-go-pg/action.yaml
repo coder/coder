@@ -208,7 +208,6 @@ runs:
             $process.Environment[$entry.Key] = [string]$entry.Value
           }
         }
-        $process.Environment["Path"] = $nativePath
         $process.Environment["PATH"] = $nativePath
         foreach ($arg in ($gotestsumArgs + $goTestArgs)) {
           $process.ArgumentList.Add($arg) | Out-Null
