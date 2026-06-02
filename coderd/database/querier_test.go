@@ -14828,7 +14828,7 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			_, err = db.InsertAIGatewayKey(ctx, tc.params)
+			_, err := db.InsertAIGatewayKey(ctx, tc.params)
 			require.Error(t, err)
 			requireAIGatewayKeysViolation(t, err, tc.expectUniqueErr, tc.expectCheckErr)
 		})
