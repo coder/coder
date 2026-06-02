@@ -1701,43 +1701,6 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
 
-// appendAndDedupEnv appends extra environment variables and
-// deduplicates entries with the same key (case-insensitive on
-// Windows). For the PATH variable specifically, it prefers the
-// value that contains native Windows paths (with backslashes)
-// over MSYS-translated paths (with forward slashes). For all
-// other variables, the last value wins.
-func appendAndDedupEnv(env []string, extra ...string) []string {
-	env = append(env, extra...)
-	if runtime.GOOS != "windows" {
-		return env
-	}
-	seen := make(map[string]int, len(env))
-	result := make([]string, 0, len(env))
-	for _, e := range env {
-		key, val, ok := strings.Cut(e, "=")
-		if !ok {
-			result = append(result, e)
-			continue
-		}
-		upper := strings.ToUpper(key)
-		if idx, exists := seen[upper]; exists {
-			if upper == "PATH" {
-				// Prefer the value with native Windows paths.
-				existingVal := result[idx][len(key)+1:]
-				if strings.Contains(existingVal, "\\") && !strings.Contains(val, "\\") {
-					continue
-				}
-			}
-			result[idx] = e
-			continue
-		}
-		seen[upper] = len(result)
-		result = append(result, e)
-	}
-	return result
-}
-
 // headerTransport creates a new transport that executes `--header-command`
 // if it is set to add headers for all outbound requests.
 func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
@@ -1756,7 +1719,7 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 		var outBuf bytes.Buffer
 		// #nosec
 		cmd := exec.CommandContext(ctx, shell, caller, headerCommand)
-		cmd.Env = appendAndDedupEnv(os.Environ(), "CODER_URL="+serverURL.String())
+		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
 		cmd.Stdout = &outBuf
 		cmd.Stderr = io.Discard
 		err := cmd.Run()

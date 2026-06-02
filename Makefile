@@ -1410,6 +1410,13 @@ else
 GOTESTSUM_RETRY_FLAGS :=
 endif
 
+GOTESTSUM := gotestsum
+ifeq ($(GOOS),windows)
+# Git Bash adds a POSIX PATH alongside native Path. Launch native gotestsum
+# without PATH so Go tests inherit only the native Path from the runner.
+GOTESTSUM := env -u PATH "$$(command -v gotestsum)"
+endif
+
 # Default to 8x8 parallelism to avoid overwhelming our workspaces.
 # Race detection defaults to 4x4 because the detector adds significant
 # CPU overhead. Override via TEST_NUM_PARALLEL_PACKAGES /
@@ -1459,7 +1466,7 @@ endif
 TEST_PACKAGES ?= ./...
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet \
+	$(GIT_FLAGS) $(GOTESTSUM) --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="$(TEST_PACKAGES)" \
 		-- \
@@ -1469,7 +1476,7 @@ test:
 test-race: TEST_PARALLEL_PACKAGES := $(RACE_PARALLEL_PACKAGES)
 test-race: TEST_PARALLEL_TESTS := $(RACE_PARALLEL_TESTS)
 test-race:
-	$(GIT_FLAGS) gotestsum --format standard-quiet \
+	$(GIT_FLAGS) $(GOTESTSUM) --format standard-quiet \
 		--junitfile="gotests.xml" \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="$(TEST_PACKAGES)" \
