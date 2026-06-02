@@ -229,8 +229,15 @@ func Test_sshConfigMatchExecEscape(t *testing.T) {
 
 			// OpenSSH processes %% escape sequences into %
 			escaped = strings.ReplaceAll(escaped, "%%", "%")
-			b, err := exec.Command(cmd, arg, escaped).CombinedOutput() //nolint:gosec
-			require.NoError(t, err)
+			c := exec.Command(cmd, arg, escaped) //nolint:gosec
+			if runtime.GOOS == "windows" {
+				// Deduplicate Path/PATH env vars so cmd.exe
+				// subprocesses (like powershell.exe used for
+				// paths with spaces) resolve correctly.
+				c.Env = appendAndDedupEnv(os.Environ())
+			}
+			b, err := c.CombinedOutput()
+			require.NoError(t, err, "command output: %s", string(b))
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
 		})

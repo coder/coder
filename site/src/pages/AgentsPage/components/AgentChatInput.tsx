@@ -211,10 +211,12 @@ const BadgeDismissButton: FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-content-secondary"
+		className="group -mx-1 -my-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
-		<XIcon className="!size-2.5" />
+		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
+			<XIcon className="!size-2.5" />
+		</span>
 	</button>
 );
 
@@ -233,18 +235,28 @@ const ToolBadge: FC<{
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Link
-						to={badge.route}
-						target="_blank"
-						rel="noreferrer"
+					<span
 						className={cn(
 							badgeCls,
-							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+							"transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 						)}
 					>
-						{badge.statusIcon}
-						<span className="truncate">{badge.name}</span>
-					</Link>
+						<Link
+							to={badge.route}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
+						>
+							{badge.statusIcon}
+							<span className="truncate">{badge.name}</span>
+						</Link>
+						{onRemoveWorkspace && (
+							<BadgeDismissButton
+								onClick={onRemoveWorkspace}
+								ariaLabel={`Remove workspace ${badge.name}`}
+							/>
+						)}
+					</span>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
 			</Tooltip>
@@ -491,10 +503,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
 	);
+	const canUseWorkspacePicker =
+		Boolean(onWorkspaceChange) && !isWorkspaceLoading;
+	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
 
 	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
-		? Boolean(onWorkspaceChange) &&
-			selectedWorkspace.id !== attachedWorkspace?.id
+		? selectedWorkspace.id !== linkedWorkspaceId
 		: false;
 
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
@@ -529,6 +543,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const overflowBadges = allBadges.slice(visibleCount);
 
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const removeWorkspaceHandler = onWorkspaceChange
+		? handleRemoveWorkspace
+		: undefined;
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
 
@@ -1128,7 +1145,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									disabled={isDisabled && !agentSetupNotice}
+									disabled={
+										isDisabled && !agentSetupNotice && !canUseWorkspacePicker
+									}
 									aria-label="More options"
 								>
 									<PlusIcon />
@@ -1197,7 +1216,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
-													disabled={isDisabled || isWorkspaceLoading}
+													disabled={!canUseWorkspacePicker}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1213,7 +1232,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													<PopoverTrigger asChild>
 														<button
 															type="button"
-															disabled={isDisabled || isWorkspaceLoading}
+															disabled={!canUseWorkspacePicker}
 															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 														>
 															<MonitorIcon className="size-3.5 shrink-0" />
@@ -1352,6 +1371,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									chatId={chatId}
 									sshCommand={sshCommand}
 									folder={folder}
+									onRemoveWorkspace={removeWorkspaceHandler}
 								/>
 							</span>
 						)}
@@ -1365,7 +1385,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<ToolBadge
 										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
 										badge={badge}
-										onRemoveWorkspace={handleRemoveWorkspace}
+										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
 										className={isOverflow ? "invisible order-1" : undefined}
 									/>
@@ -1405,7 +1425,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													: `${badge.kind}-overflow`
 											}
 											badge={badge}
-											onRemoveWorkspace={handleRemoveWorkspace}
+											onRemoveWorkspace={removeWorkspaceHandler}
 											onRemoveMcp={handleRemoveMcp}
 										/>
 									))}
@@ -1528,7 +1548,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 /**
  * Shared workspace picker used by both the mobile and desktop
  * "Attach workspace" menus. Workspaces from a different organization
- * than the chat are rendered as disabled items with a tooltip.
+ * than the chat are disabled unless already selected, so stale bindings
+ * can still be cleared.
  */
 interface WorkspacePickerListProps {
 	workspaceOptions:
@@ -1540,7 +1561,7 @@ interface WorkspacePickerListProps {
 		| undefined;
 	selectedWorkspaceId?: string | null;
 	chatOrganizationId?: string;
-	onSelect: (id: string) => void;
+	onSelect: (id: string | null) => void;
 }
 
 const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
@@ -1559,31 +1580,33 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 						const isCrossOrg =
 							!!chatOrganizationId &&
 							workspace.organization_id !== chatOrganizationId;
+						const isSelected = selectedWorkspaceId === workspace.id;
+						const isUnavailable = isCrossOrg && !isSelected;
 
 						const item = (
 							<CommandItem
 								className={cn(
 									"text-xs font-normal",
-									isCrossOrg &&
+									isUnavailable &&
 										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
 								)}
 								key={workspace.id}
 								value={workspace.name}
-								disabled={isCrossOrg}
+								disabled={isUnavailable}
 								onSelect={() => {
-									if (!isCrossOrg) {
-										onSelect(workspace.id);
+									if (!isUnavailable) {
+										onSelect(isSelected ? null : workspace.id);
 									}
 								}}
 							>
 								{workspace.name}
-								{selectedWorkspaceId === workspace.id && (
+								{isSelected && (
 									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 								)}
 							</CommandItem>
 						);
 
-						if (isCrossOrg) {
+						if (isUnavailable) {
 							return (
 								<Tooltip key={workspace.id}>
 									<TooltipTrigger asChild>

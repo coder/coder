@@ -7,8 +7,6 @@ import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
-const RESPONSE_STARTUP_GRACE_MS = 15_000;
-const DELAYED_STARTUP_TEXT = "Response startup is taking longer than expected";
 const THINKING_TEXT = "Thinking...";
 
 type RetryOrFailedStatus = Extract<
@@ -35,25 +33,6 @@ const StatusPlaceholder: FC<{
 				</span>
 			)}
 		</TranscriptRow>
-	);
-};
-
-const StartingPlaceholder: FC = () => {
-	const [isDelayed, setIsDelayed] = useState(false);
-
-	useEffect(() => {
-		const timeout = window.setTimeout(() => {
-			setIsDelayed(true);
-		}, RESPONSE_STARTUP_GRACE_MS);
-		return () => window.clearTimeout(timeout);
-	}, []);
-
-	return (
-		<StatusPlaceholder
-			text={isDelayed ? DELAYED_STARTUP_TEXT : THINKING_TEXT}
-			shimmer={!isDelayed}
-			showThinkingIcon={!isDelayed}
-		/>
 	);
 };
 
@@ -195,14 +174,15 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 
 export const ChatStatusCallout: FC<{
 	status: LiveStatusModel;
-	startingResetKey?: string;
-}> = ({ status, startingResetKey }) => {
+}> = ({ status }) => {
 	switch (status.phase) {
 		case "idle":
 		case "streaming":
 			return null;
 		case "starting":
-			return <StartingPlaceholder key={startingResetKey ?? "starting"} />;
+			return (
+				<StatusPlaceholder text={THINKING_TEXT} shimmer showThinkingIcon />
+			);
 		case "retrying":
 			return (
 				<>
