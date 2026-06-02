@@ -967,7 +967,7 @@ export const SubmitModelConfigExplicitly: Story = {
 		);
 		await expandSection(body, "Provider configuration");
 		const effortGroup = await body.findByRole("radiogroup", {
-			name: "Reasoning effort",
+			name: "Reasoning Effort",
 		});
 		await userEvent.click(within(effortGroup).getByText("High"));
 
@@ -1208,7 +1208,7 @@ const expectReasoningEffort = async (
 	value: string,
 ) => {
 	const reasoningEffortGroup = await body.findByRole("radiogroup", {
-		name: "Reasoning effort",
+		name: "Reasoning Effort",
 	});
 
 	if (value === "") {
@@ -1385,7 +1385,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 
 		await expandSection(body, "Provider configuration");
 		const sendReasoningGroup = await body.findByRole("radiogroup", {
-			name: "Send reasoning",
+			name: "Send Reasoning",
 		});
 		await expect(
 			within(sendReasoningGroup).getByRole("radio", { name: "On" }),

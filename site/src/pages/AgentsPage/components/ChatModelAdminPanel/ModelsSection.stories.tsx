@@ -229,9 +229,9 @@ export const OpensDuplicateFormWithoutCreating: Story = {
 		expect(canvas.getByLabelText(/Compression Threshold/)).toHaveValue("65");
 
 		await userEvent.click(
-			canvas.getByRole("button", { name: /Provider Configuration/ }),
+			canvas.getByRole("button", { name: /Provider configuration/ }),
 		);
-		expect(canvas.getByLabelText("Max tool calls")).toHaveValue("4");
+		expect(canvas.getByLabelText("Max Tool Calls")).toHaveValue("4");
 	},
 };
 

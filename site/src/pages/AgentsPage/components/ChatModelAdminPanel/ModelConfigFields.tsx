@@ -84,8 +84,8 @@ const placeholderOverrides: Record<string, string> = {
  * when available.
  *
  * @example
- * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking budget tokens"
- * snakeToPrettyLabel("reasoning_effort")        // "Reasoning effort"
+ * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
+ * snakeToPrettyLabel("reasoning_effort")        // "Reasoning Effort"
  */
 /** Capitalize the first letter of a string. */
 function capitalize(s: string): string {
@@ -101,9 +101,7 @@ function snakeToPrettyLabel(field: FieldSchema): string {
 	}
 	const words = field.json_name.split(/[._]/);
 	return words
-		.map((word, i) =>
-			i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
-		)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 }
 
