@@ -196,7 +196,8 @@ export interface AttachedWorkspaceInfo {
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "planning" };
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -224,12 +225,37 @@ const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
+	onRemovePlanning?: () => void;
+	isDisabled?: boolean;
 	className?: string;
-}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+}> = ({
+	badge,
+	onRemoveWorkspace,
+	onRemoveMcp,
+	onRemovePlanning,
+	isDisabled,
+	className,
+}) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
+	if (badge.kind === "planning") {
+		return (
+			<span data-testid="planning-badge" className={badgeCls}>
+				<PencilIcon className="size-3" />
+				Planning
+				{onRemovePlanning && (
+					<BadgeDismissButton
+						onClick={onRemovePlanning}
+						ariaLabel="Disable plan mode"
+						isDisabled={isDisabled}
+					/>
+				)}
+			</span>
+		);
+	}
 
 	if (badge.kind === "attached-workspace") {
 		return (
@@ -525,6 +551,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (planModeEnabled) {
+		allBadges.push({ kind: "planning" });
+	}
 	// When workspace data is available, WorkspacePill handles
 	// the display (including app dropdown). Otherwise fall back
 	// to the simple attached-workspace ToolBadge.
@@ -1339,24 +1368,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
 								formatProviderLabel={formatProviderLabel}
+								className="md:shrink"
 								dropdownSide="top"
 								dropdownAlign="center"
 								enableMobileFullWidthDropdown
 							/>
 						)}
-						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
-								<PencilIcon className="size-3" />
-								Planning
-								{onPlanModeToggle && (
-									<BadgeDismissButton
-										onClick={handleDisablePlanMode}
-										ariaLabel="Disable plan mode"
-										isDisabled={isDisabled}
-									/>
-								)}
-							</span>
-						)}{" "}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
@@ -1387,6 +1404,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
+										onRemovePlanning={
+											onPlanModeToggle ? handleDisablePlanMode : undefined
+										}
+										isDisabled={isDisabled}
 										className={isOverflow ? "invisible order-1" : undefined}
 									/>
 								);
@@ -1427,6 +1448,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											badge={badge}
 											onRemoveWorkspace={removeWorkspaceHandler}
 											onRemoveMcp={handleRemoveMcp}
+											onRemovePlanning={
+												onPlanModeToggle ? handleDisablePlanMode : undefined
+											}
+											isDisabled={isDisabled}
 										/>
 									))}
 								</PopoverContent>
