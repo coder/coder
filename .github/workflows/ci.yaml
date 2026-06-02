@@ -573,7 +573,7 @@ jobs:
           test-parallelism-tests: "16"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          test-count: 1  # Temporarily force no-cache to validate PATH fix
           # Only the CLI and Agent are officially supported on Windows; the rest are too flaky.
           test-packages: "./cli/... ./enterprise/cli/... ./agent/..."
           embedded-pg-path: "R:/temp/embedded-pg"

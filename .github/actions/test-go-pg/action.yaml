@@ -85,17 +85,6 @@ runs:
       run: |
         set -euo pipefail
 
-        # Diagnose Path/PATH collision on Windows.
-        if [[ "${RUNNER_OS}" == "Windows" ]]; then
-          echo "=== PATH diagnostic ==="
-          env | grep -i '^path=' | head -5
-          echo "--- cmd.exe printf test ---"
-          cmd.exe /c "printf test-ok" && echo "printf: ok" || echo "printf: FAILED"
-          echo "--- Go env PATH test ---"
-          go run -exec '' ./scripts/win-env-check/main.go 2>/dev/null || true
-          echo "=== end ==="
-        fi
-
         # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
         # of writing a PATH shim. "default" is the historical
         # ${RUNNER_TEMP}/go-test.json location consumed by
