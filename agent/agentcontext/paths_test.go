@@ -3,6 +3,7 @@ package agentcontext_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -29,22 +30,29 @@ func TestCanonicalizePath_RelativeRejected(t *testing.T) {
 
 //nolint:paralleltest,tparallel // Uses t.Setenv.
 func TestCanonicalizePath_TildeExpansion(t *testing.T) {
-	t.Setenv("HOME", "/tmp/home")
+	home := t.TempDir()
+	switchHomeEnv(t, home)
 	got, err := agentcontext.CanonicalizePath("~/.coder")
 	require.NoError(t, err)
-	require.Equal(t, "/tmp/home/.coder", got)
+	require.Equal(t, filepath.Join(home, ".coder"), got)
 }
 
 //nolint:paralleltest,tparallel // Uses t.Setenv.
 func TestCanonicalizePath_BareTildeExpandsToHome(t *testing.T) {
-	t.Setenv("HOME", "/tmp/home")
+	home := t.TempDir()
+	switchHomeEnv(t, home)
 	got, err := agentcontext.CanonicalizePath("~")
 	require.NoError(t, err)
-	require.Equal(t, "/tmp/home", got)
+	want, err := filepath.EvalSymlinks(home)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
 }
 
 func TestCanonicalizePath_FollowsSymlinks(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("os.Symlink requires developer mode or admin on Windows")
+	}
 	dir := t.TempDir()
 	realDir := filepath.Join(dir, "real")
 	link := filepath.Join(dir, "link")
@@ -62,7 +70,12 @@ func TestCanonicalizePath_FollowsSymlinks(t *testing.T) {
 
 func TestValidateSourcePath_RejectsParentSegments(t *testing.T) {
 	t.Parallel()
-	err := agentcontext.ValidateSourcePath("/a/../b", []string{"/a"})
+	root := t.TempDir()
+	// Build /a/../b underneath a real allowed root so the path is
+	// absolute on every platform. Validation must still reject the
+	// embedded ".." segment before it ever touches allowedRoots.
+	bad := filepath.Join(root, "a") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "b"
+	err := agentcontext.ValidateSourcePath(bad, []string{root})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "parent traversal")
 }

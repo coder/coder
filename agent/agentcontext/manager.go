@@ -292,11 +292,15 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 
 // RemoveSource removes the source matching path. Path is
 // canonicalized before matching. Returns ErrSourceNotFound when
-// no such source exists.
+// no such source exists or when the path cannot be canonicalized.
 func (m *Manager) RemoveSource(path string) error {
 	canonical, err := CanonicalizePath(path)
 	if err != nil {
-		return xerrors.Errorf("canonicalize: %w", err)
+		// A path that does not canonicalize cannot match any
+		// existing source. Mirror HasSource semantics by
+		// reporting not-found rather than leaking the
+		// canonicalize error to API callers.
+		return ErrSourceNotFound
 	}
 
 	m.mu.Lock()
