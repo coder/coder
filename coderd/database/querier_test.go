@@ -14796,6 +14796,16 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
+			name:           "name with leading dash",
+			params:         aiGatewayKeyParams("-other-name", "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name longer than 64 characters",
+			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
 			name:           "empty secret prefix",
 			params:         aiGatewayKeyParams("other-name", ""),
 			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
