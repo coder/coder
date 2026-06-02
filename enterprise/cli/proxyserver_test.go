@@ -48,7 +48,7 @@ func Test_ProxyServer_Headers(t *testing.T) {
 		"--access-url", "http://localhost:8080",
 		"--http-address", ":0",
 		"--header", fmt.Sprintf("%s=%s", headerName1, headerVal1),
-		"--header-command", fmt.Sprintf("echo %s=%s", headerName2, headerVal2),
+		"--header-command", fmt.Sprintf("printf %s=%s", headerName2, headerVal2),
 	)
 	pty := ptytest.New(t)
 	inv.Stdout = pty.Output()
