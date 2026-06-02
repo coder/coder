@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
@@ -77,22 +78,6 @@ const setMobileViewport = (isMobile: boolean) => {
 			} as MediaQueryList;
 		}),
 	});
-};
-
-type Deferred<T> = {
-	promise: Promise<T>;
-	resolve: (value: T | PromiseLike<T>) => void;
-	reject: (reason?: unknown) => void;
-};
-
-const createDeferred = <T>(): Deferred<T> => {
-	let resolve!: (value: T | PromiseLike<T>) => void;
-	let reject!: (reason?: unknown) => void;
-	const promise = new Promise<T>((res, rej) => {
-		resolve = res;
-		reject = rej;
-	});
-	return { promise, resolve, reject };
 };
 
 describe("getWorkspaceOptionsWithLinkedWorkspace", () => {
