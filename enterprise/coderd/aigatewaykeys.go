@@ -17,8 +17,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// maxKeyInsertAttempts caps retries when a generated secret collides.
-// Collisions are astronomically unlikely; this is a safety net.
+// maxKeyInsertAttempts defines number of retries when newly created
+// secret collides (unique constraints on hashed_secret and secret_prefix).
 const maxKeyInsertAttempts = 7
 
 // nameFormatDetail is the human-readable description of valid key names.
@@ -116,7 +116,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 				{Field: "name", Detail: "A key with this name already exists."},
 			},
 		})
-	default:
+	default: // secret collisions and other unexpected errors
 		httpapi.InternalServerError(rw, err)
 	}
 }

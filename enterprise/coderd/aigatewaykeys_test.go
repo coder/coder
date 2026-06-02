@@ -29,13 +29,13 @@ import (
 func TestAIGatewayKeys(t *testing.T) {
 	t.Parallel()
 
-	// Single instance shared by all subtests (except FeatureGate).
-	// Subtests run sequentially because they share server state.
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ownerClient, owner := coderdenttest.New(t, aibridgeOpts(t))
-
-	//nolint:paralleltest // Subtests share a single coderdenttest instance.
 	t.Run("CRUD", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Managing AI Gateway keys is owner-only.
 		keys, err := ownerClient.ListAIGatewayKeys(ctx)
 		require.NoError(t, err)
 		require.Empty(t, keys)
@@ -66,15 +66,17 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.Empty(t, keys)
 	})
 
-	//nolint:paralleltest // Subtests share a single coderdenttest instance.
 	t.Run("ListResponseDoesNotLeakSecrets", func(t *testing.T) {
-		created, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
+		t.Parallel()
+
+		ownerClient, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Managing AI Gateway keys is owner-only.
+		_, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
 			Name: uniqueName(t, "leak"),
 		})
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = ownerClient.DeleteAIGatewayKey(ctx, created.ID)
-		})
 
 		// Raw HTTP read of LIST to confirm the JSON shape.
 		resp, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/aibridge/keys", nil)
@@ -93,9 +95,14 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.False(t, hasHashed, "LIST response leaked hashed_secret")
 	})
 
-	//nolint:paralleltest // Subtests share a single coderdenttest instance.
 	t.Run("CreateValidation", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		// Empty name -> 400 (validate:"required" on request struct).
+		//nolint:gocritic // Managing AI Gateway keys is owner-only.
 		_, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: ""})
 		require.ErrorContains(t, err, "Validation failed")
 
@@ -110,39 +117,44 @@ func TestAIGatewayKeys(t *testing.T) {
 
 		// Duplicate name -> 400.
 		name := uniqueName(t, "dup")
-		created, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: name})
+		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: name})
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = ownerClient.DeleteAIGatewayKey(ctx, created.ID)
-		})
 		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: name})
 		require.ErrorContains(t, err, "must be unique")
 	})
 
-	//nolint:paralleltest // Subtests share a single coderdenttest instance.
 	t.Run("DeleteValidation", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		// Invalid UUID -> 400 (raw request; SDK method accepts uuid.UUID).
+		//nolint:gocritic // Managing AI Gateway keys is owner-only.
 		resp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/aibridge/keys/not-a-uuid", nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = resp.Body.Close() })
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-		// Delete existing key -> 204 (SDK returns nil error on 204).
+		// Existing id -> 204 (SDK returns nil error on 204).
 		created, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
 			Name: uniqueName(t, "del"),
 		})
 		require.NoError(t, err)
 		require.NoError(t, ownerClient.DeleteAIGatewayKey(ctx, created.ID))
 
-		// Unknown UUID -> 404.
+		// Not existing id -> 404.
 		err = ownerClient.DeleteAIGatewayKey(ctx, uuid.New())
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	//nolint:paralleltest // Subtests share a single coderdenttest instance.
 	t.Run("ReturnsForbiddenForNonOwners", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, owner := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
 		member, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		_, err := member.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
@@ -161,18 +173,17 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 
-	// FeatureGate needs a separate instance without the AI Bridge entitlement.
-	t.Run("FeatureGate", func(t *testing.T) {
+	t.Run("LicenseEntitlement", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{},
 			},
 		})
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Managing AI Gateway coderd keys is owner-only.
+		//nolint:gocritic // Managing AI Gateway keys is owner-only.
 		_, err := ownerClient.ListAIGatewayKeys(ctx)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
