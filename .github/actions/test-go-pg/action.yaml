@@ -89,6 +89,10 @@ runs:
         if [[ "${RUNNER_OS}" == "Windows" ]]; then
           echo "=== PATH diagnostic ==="
           env | grep -i '^path=' | head -5
+          echo "--- cmd.exe printf test ---"
+          cmd.exe /c "printf test-ok" && echo "printf: ok" || echo "printf: FAILED"
+          echo "--- Go env PATH test ---"
+          go run -exec '' ./scripts/win-env-check/main.go 2>/dev/null || true
           echo "=== end ==="
         fi
 
