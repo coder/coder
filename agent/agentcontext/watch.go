@@ -142,7 +142,10 @@ func (w *Watcher) Degraded() string {
 // basename. Files that are themselves scan roots are handled by
 // watching their parent.
 //
-// Sync is idempotent and safe to call repeatedly.
+// Sync is idempotent and safe to call repeatedly. The lock is
+// released around the recursive directory walk so concurrent
+// Close, schedule, and the run goroutine are not blocked by a
+// slow filesystem.
 func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	w.mu.Lock()
 	if w.closed {
@@ -156,7 +159,19 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 		w.schedule()
 		return
 	}
+	w.mu.Unlock()
+
+	// collectDirs touches the filesystem (filepath.WalkDir on
+	// every scan root). Compute the desired set outside the
+	// mutex so a slow walk does not block the run goroutine,
+	// Close, or schedule.
 	desired := w.collectDirs(roots)
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return
+	}
 
 	// Remove directories no longer wanted.
 	for path := range w.watched {
@@ -166,6 +181,9 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 		_ = w.watcher.Remove(path)
 		delete(w.watched, path)
 	}
+	// Track whether every Add in this pass succeeded so a
+	// recovered ENOSPC clears the degraded marker.
+	addedAll := true
 	// Add directories that are new.
 	for path := range desired {
 		if _, ok := w.watched[path]; ok {
@@ -178,6 +196,7 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 			// the change callback so resync still works.
 			if errors.Is(err, syscall.ENOSPC) {
 				w.degraded = "inotify watch limit exceeded (ENOSPC)"
+				addedAll = false
 				w.logger.Warn(ctx, "context watcher degraded: inotify watch limit exceeded",
 					slog.F("dir", path))
 				break
@@ -188,7 +207,13 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 		}
 		w.watched[path] = struct{}{}
 	}
-	w.mu.Unlock()
+	// Clear a previously-set ENOSPC mark when every Add in this
+	// pass succeeded. A user who bumps the kernel's inotify
+	// limit and re-syncs now sees a clean snapshot instead of a
+	// permanent SnapshotError.
+	if addedAll && w.degraded != "" {
+		w.degraded = ""
+	}
 }
 
 // Close stops the watcher and releases all kernel watch slots.

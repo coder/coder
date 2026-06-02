@@ -365,24 +365,48 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 }
 
 // Resync forces an immediate re-resolve and returns the new
-// Snapshot. Resync is safe to call regardless of whether Run
-// is active; the work is done synchronously under the
-// Manager's mutex either way. When the watcher is active,
-// Resync also re-arms it so newly added scan roots are
-// observed for subsequent edits.
+// Snapshot. Resync is safe to call regardless of whether Run is
+// active. Like resolveAndBroadcast, Resync drops the Manager's
+// mutex around the resolver pass so concurrent Sources,
+// AddSource, RemoveSource, and Snapshot calls do not block on
+// filesystem I/O. When the watcher is active, Resync also
+// re-arms it so newly added scan roots are observed for
+// subsequent edits.
 func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
+
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
 	}
 	roots := m.scanRootsLocked()
-	m.resolveLocked()
-	snap := m.snapshot
+	resolver := m.resolver
 	watcher := m.watcher
+	schemaVersion := m.schemaVersion
+	m.mu.Unlock()
+
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return m.Snapshot(), ctxErr
+	}
+	snap := resolver.ResolveContext(ctx, roots)
+	if snap.SnapshotError == "" && watcher != nil {
+		if d := watcher.Degraded(); d != "" {
+			snap.SnapshotError = d
+		}
+	}
+	snap.SchemaVersion = schemaVersion
+
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return m.Snapshot(), ErrManagerClosed
+	}
+	m.version++
+	snap.Version = m.version
+	m.snapshot = snap
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)

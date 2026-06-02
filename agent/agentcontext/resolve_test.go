@@ -103,6 +103,30 @@ func TestResolver_SkillNameMismatchInvalid(t *testing.T) {
 	require.Contains(t, got.Error, "does not match directory")
 }
 
+// TestResolver_SkillNameNonKebabInvalid exercises the kebab-case
+// validation branch in readSkillMeta. The skill name matches the
+// parent directory (so the mismatch check passes) but contains
+// characters that SkillNamePattern rejects. Without this test
+// the kebab branch could be deleted and the suite would still
+// pass.
+func TestResolver_SkillNameNonKebabInvalid(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, ".agents", "skills", "Make_Coffee")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"),
+		"---\nname: Make_Coffee\ndescription: oops\n---\nBody")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindSkill, got.Kind)
+	require.Equal(t, agentcontext.StatusInvalid, got.Status)
+	require.Contains(t, got.Error, "kebab-case")
+}
+
 func TestResolver_MCPConfigEmitted(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
