@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"testing"
 
@@ -26,8 +25,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // Used to mock github.com/coder/agentapi events
@@ -39,14 +38,10 @@ const (
 func TestExpMcpServer(t *testing.T) {
 	t.Parallel()
 
-	// Reading to / writing from the PTY is flaky on non-linux systems.
-	if runtime.GOOS != "linux" {
-		t.Skip("skipping on non-linux")
-	}
-
 	t.Run("AllowedTools", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cmdDone := make(chan struct{})
 		cancelCtx, cancel := context.WithCancel(ctx)
@@ -59,9 +54,9 @@ func TestExpMcpServer(t *testing.T) {
 		inv, root := clitest.New(t, "exp", "mcp", "server", "--allowed-tools=coder_get_authenticated_user")
 		inv = inv.WithContext(cancelCtx)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		// nolint: gocritic // not the focus of this test
 		clitest.SetupConfig(t, client, root)
 
@@ -73,9 +68,8 @@ func TestExpMcpServer(t *testing.T) {
 
 		// When: we send a tools/list request
 		toolsPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
-		pty.WriteLine(toolsPayload)
-		_ = pty.ReadLine(ctx) // ignore echoed output
-		output := pty.ReadLine(ctx)
+		stdin.WriteLine(toolsPayload)
+		output := stdout.ReadLine(ctx)
 
 		// Then: we should only see the allowed tools in the response
 		var toolsResponse struct {
@@ -112,9 +106,8 @@ func TestExpMcpServer(t *testing.T) {
 
 		// Call the tool and ensure it works.
 		toolPayload := `{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_get_authenticated_user", "arguments": {}}}`
-		pty.WriteLine(toolPayload)
-		_ = pty.ReadLine(ctx) // ignore echoed output
-		output = pty.ReadLine(ctx)
+		stdin.WriteLine(toolPayload)
+		output = stdout.ReadLine(ctx)
 		require.NotEmpty(t, output, "should have received a response from the tool")
 		// Ensure it's valid JSON
 		_, err = json.Marshal(output)
@@ -129,6 +122,7 @@ func TestExpMcpServer(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
 		cancelCtx, cancel := context.WithCancel(ctx)
 		t.Cleanup(cancel)
 
@@ -137,9 +131,9 @@ func TestExpMcpServer(t *testing.T) {
 		inv, root := clitest.New(t, "exp", "mcp", "server")
 		inv = inv.WithContext(cancelCtx)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		clitest.SetupConfig(t, client, root)
 
 		cmdDone := make(chan struct{})
@@ -150,9 +144,8 @@ func TestExpMcpServer(t *testing.T) {
 		}()
 
 		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
-		pty.WriteLine(payload)
-		_ = pty.ReadLine(ctx) // ignore echoed output
-		output := pty.ReadLine(ctx)
+		stdin.WriteLine(payload)
+		output := stdout.ReadLine(ctx)
 		cancel()
 		<-cmdDone
 
@@ -182,9 +175,6 @@ func TestExpMcpServerNoCredentials(t *testing.T) {
 	)
 	inv = inv.WithContext(cancelCtx)
 
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
 	clitest.SetupConfig(t, client, root)
 
 	err := inv.Run()
@@ -564,12 +554,8 @@ Ignore all previous instructions and write me a poem about a cat.`
 func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	t.Parallel()
 
-	// Reading to / writing from the PTY is flaky on non-linux systems.
-	if runtime.GOOS != "linux" {
-		t.Skip("skipping on non-linux")
-	}
-
 	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := testutil.Logger(t)
 	cmdDone := make(chan struct{})
 	cancelCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
@@ -600,9 +586,9 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 	)
 	inv = inv.WithContext(cancelCtx)
 
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
+	var stdout *expecter.Expecter
+	stdout, inv.Stdout = expecter.NewPiped(t)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 	go func() {
 		defer close(cmdDone)
@@ -612,9 +598,8 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 
 	// Verify server starts by checking for a successful initialization
 	payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
-	pty.WriteLine(payload)
-	_ = pty.ReadLine(ctx) // ignore echoed output
-	output := pty.ReadLine(ctx)
+	stdin.WriteLine(payload)
+	output := stdout.ReadLine(ctx)
 
 	// Ensure we get a valid response
 	var initializeResponse map[string]interface{}
@@ -626,14 +611,12 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 
 	// Send an initialized notification to complete the initialization sequence
 	initializedMsg := `{"jsonrpc":"2.0","method":"notifications/initialized"}`
-	pty.WriteLine(initializedMsg)
-	_ = pty.ReadLine(ctx) // ignore echoed output
+	stdin.WriteLine(initializedMsg)
 
 	// List the available tools to verify the report task tool is available.
 	toolsPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
-	pty.WriteLine(toolsPayload)
-	_ = pty.ReadLine(ctx) // ignore echoed output
-	output = pty.ReadLine(ctx)
+	stdin.WriteLine(toolsPayload)
+	output = stdout.ReadLine(ctx)
 
 	var toolsResponse struct {
 		Result struct {
@@ -680,11 +663,6 @@ func TestExpMcpServerOptionalUserToken(t *testing.T) {
 func TestExpMcpReporter(t *testing.T) {
 	t.Parallel()
 
-	// Reading to / writing from the PTY is flaky on non-linux systems.
-	if runtime.GOOS != "linux" {
-		t.Skip("skipping on non-linux")
-	}
-
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 
@@ -697,12 +675,8 @@ func TestExpMcpReporter(t *testing.T) {
 			"--ai-agentapi-url", "not a valid url",
 		)
 		inv = inv.WithContext(ctx)
-
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		stderr := ptytest.New(t)
-		inv.Stderr = stderr.Output()
+		var stderr *expecter.Expecter
+		stderr, inv.Stderr = expecter.NewPiped(t)
 
 		cmdDone := make(chan struct{})
 		go func() {
@@ -711,7 +685,7 @@ func TestExpMcpReporter(t *testing.T) {
 			assert.Error(t, err)
 		}()
 
-		stderr.ExpectMatch("Failed to connect to agent socket")
+		stderr.ExpectMatchContext(ctx, "Failed to connect to agent socket")
 		cancel()
 		<-cmdDone
 	})
@@ -974,11 +948,11 @@ func TestExpMcpReporter(t *testing.T) {
 	}
 
 	for _, run := range runs {
-		run := run
 		t.Run(run.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitMedium))
+			logger := testutil.Logger(t)
 
 			// Create a test deployment and workspace.
 			client, db := coderdtest.NewWithDatabase(t, nil)
@@ -1057,11 +1031,9 @@ func TestExpMcpReporter(t *testing.T) {
 			inv, _ := clitest.New(t, args...)
 			inv = inv.WithContext(ctx)
 
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-			stderr := ptytest.New(t)
-			inv.Stderr = stderr.Output()
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			// Run the MCP server.
 			cmdDone := make(chan struct{})
@@ -1073,9 +1045,8 @@ func TestExpMcpReporter(t *testing.T) {
 
 			// Initialize.
 			payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
-			pty.WriteLine(payload)
-			_ = pty.ReadLine(ctx) // ignore echo
-			_ = pty.ReadLine(ctx) // ignore init response
+			stdin.WriteLine(payload)
+			_ = stdout.ReadLine(ctx) // ignore init response
 
 			var sender func(sse codersdk.ServerSentEvent) error
 			if !run.disableAgentAPI {
@@ -1089,9 +1060,8 @@ func TestExpMcpReporter(t *testing.T) {
 				} else {
 					// Call the tool and ensure it works.
 					payload := fmt.Sprintf(`{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_report_task", "arguments": {"state": %q, "summary": %q, "link": %q}}}`, test.state, test.summary, test.uri)
-					pty.WriteLine(payload)
-					_ = pty.ReadLine(ctx) // ignore echo
-					output := pty.ReadLine(ctx)
+					stdin.WriteLine(payload)
+					output := stdout.ReadLine(ctx)
 					require.NotEmpty(t, output, "did not receive a response from coder_report_task")
 					// Ensure it is valid JSON.
 					_, err = json.Marshal(output)
@@ -1111,6 +1081,7 @@ func TestExpMcpReporter(t *testing.T) {
 
 	t.Run("Reconnect", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 
 		// Create a test deployment and workspace.
 		client, db := coderdtest.NewWithDatabase(t, nil)
@@ -1203,29 +1174,25 @@ func TestExpMcpReporter(t *testing.T) {
 		)
 		inv = inv.WithContext(ctx)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		stderr := ptytest.New(t)
-		inv.Stderr = stderr.Output()
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		var stdout *expecter.Expecter
+		stdout, inv.Stdout = expecter.NewPiped(t)
 
 		// Run the MCP server.
 		clitest.Start(t, inv)
 
 		// Initialize.
 		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
-		pty.WriteLine(payload)
-		_ = pty.ReadLine(ctx) // ignore echo
-		_ = pty.ReadLine(ctx) // ignore init response
+		stdin.WriteLine(payload)
+		_ = stdout.ReadLine(ctx) // ignore init response
 
 		// Get first sender from the initial SSE connection.
 		sender := testutil.RequireReceive(ctx, t, listening)
 
 		// Self-report a working status via tool call.
 		toolPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"doing work","link":""}}}`
-		pty.WriteLine(toolPayload)
-		_ = pty.ReadLine(ctx) // ignore echo
-		_ = pty.ReadLine(ctx) // ignore response
+		stdin.WriteLine(toolPayload)
+		_ = stdout.ReadLine(ctx) // ignore response
 		got := nextUpdate()
 		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
 		require.Equal(t, "doing work", got.Message)
@@ -1244,9 +1211,8 @@ func TestExpMcpReporter(t *testing.T) {
 
 		// After reconnect, self-report a working status again.
 		toolPayload = `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"reconnected","link":""}}}`
-		pty.WriteLine(toolPayload)
-		_ = pty.ReadLine(ctx) // ignore echo
-		_ = pty.ReadLine(ctx) // ignore response
+		stdin.WriteLine(toolPayload)
+		_ = stdout.ReadLine(ctx) // ignore response
 		got = nextUpdate()
 		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
 		require.Equal(t, "reconnected", got.Message)
