@@ -39,6 +39,7 @@ import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
+	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
@@ -248,6 +249,40 @@ const AgentTopBarRouteElement = () => {
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
+};
+
+const ChatPaneMinimumRouteElement = () => (
+	<div
+		data-testid="agents-chat-panel"
+		className="flex h-full min-h-0 flex-1 flex-col bg-surface-primary"
+		style={{ minWidth: AGENTS_MAIN_PANEL_MIN_WIDTH }}
+	>
+		<div className="mt-auto px-4 pb-3">
+			<div
+				data-testid="chat-composer"
+				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+			>
+				<span className="truncate text-xs text-content-secondary">
+					Chat message
+				</span>
+				<button
+					type="button"
+					className="size-7 shrink-0 rounded-full border-0 bg-content-link text-content-invert"
+				>
+					Send
+				</button>
+			</div>
+		</div>
+	</div>
+);
+
+const agentsWithChatPaneMinimumRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <ChatPaneMinimumRouteElement /> }
+			: route,
+	),
 };
 
 const agentsWithChatTopBarRouting = {
@@ -585,6 +620,62 @@ export const PersistedResizableSidebarWidth: Story = {
 			String(persistedLeftSidebarWidth),
 		);
 		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
+	},
+};
+
+export const WideSidebarPreservesChatPaneWidth: Story = {
+	args: {
+		agentId: "chat-wide-sidebar",
+		chatList: [
+			buildChat({
+				id: "chat-wide-sidebar",
+				title: "Wide sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	decorators: [
+		(Story) => {
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
+			return <Story />;
+		},
+	],
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-wide-sidebar" },
+			routing: agentsWithChatPaneMinimumRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const maxSidebarWidth = getLeftSidebarMaxWidth();
+			const layoutRect = layout.getBoundingClientRect();
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+
+			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
+			expect(mainRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
+		});
 	},
 };
 
