@@ -110,3 +110,4 @@ runs:
         else
           make test
         fi
+
