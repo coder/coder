@@ -49,8 +49,8 @@ const unsetSelectValue = "__unset__";
 const shortLabelOverrides: Record<string, string> = {
 	"cost.input_price_per_million_tokens": "Input",
 	"cost.output_price_per_million_tokens": "Output",
-	"cost.cache_read_price_per_million_tokens": "Cache Read",
-	"cost.cache_write_price_per_million_tokens": "Cache Write",
+	"cost.cache_read_price_per_million_tokens": "Cache read",
+	"cost.cache_write_price_per_million_tokens": "Cache write",
 };
 
 /**

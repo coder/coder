@@ -1071,7 +1071,7 @@ export const SettingsViewResets: Story = {
 
 		// Step back to the top-level settings panel, then back to conversations.
 		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to Settings",
+			name: "Back to settings",
 		});
 		await userEvent.click(backToSettingsButton);
 		const backToAgentsButton = await screen.findByRole("link", {

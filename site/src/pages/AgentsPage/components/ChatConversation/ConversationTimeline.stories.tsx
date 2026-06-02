@@ -476,7 +476,7 @@ export const UserMessageWithSingleImage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(1);
 		expectNoCopyMessageButtonForElement(images[0]);
 	},
@@ -514,7 +514,7 @@ export const UserMessageWithMultipleImages: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(3);
 		expectNoCopyMessageButtonForElement(images[0]);
 	},
@@ -530,7 +530,7 @@ export const UserMessageWithFileIdImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(1);
 		// Verify file_id path is used, not a base64 data URI.
 		expect(images[0]).toHaveAttribute(
@@ -551,12 +551,12 @@ export const UserMessageWithExpiredImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const image = canvas.getByRole("img", { name: "Attached image" });
+		const image = canvas.getByRole("img", { name: "attached image" });
 		fireEvent.error(image);
 		const expiredTile = await findAttachmentTile(canvas, "Image expired");
 		expect(canvas.getByText("This upload has expired")).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "View Attached image" }),
+			canvas.queryByRole("button", { name: "View attached image" }),
 		).not.toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(expiredTile);
 
@@ -585,7 +585,7 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(2);
 		fireEvent.error(images[0]);
 		fireEvent.error(images[1]);
@@ -596,7 +596,7 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		);
 		expect(getAttachmentFetchCount("storybook-expired-image")).toBe(1);
 		expect(
-			canvas.queryByRole("button", { name: "View Attached image" }),
+			canvas.queryByRole("button", { name: "View attached image" }),
 		).not.toBeInTheDocument();
 		for (const tile of canvas.getAllByRole("img", { name: "Image expired" })) {
 			expectNoCopyMessageButtonForElement(tile);
@@ -620,7 +620,7 @@ export const UserMessageWithRepeatedFailedImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(2);
 		fireEvent.error(images[0]);
 		fireEvent.error(images[1]);
@@ -631,7 +631,7 @@ export const UserMessageWithRepeatedFailedImage: Story = {
 		);
 		expect(getAttachmentFetchCount("storybook-failed-image")).toBe(1);
 		expect(
-			canvas.queryByRole("button", { name: "View Attached image" }),
+			canvas.queryByRole("button", { name: "View attached image" }),
 		).not.toBeInTheDocument();
 
 		const tiles = await waitFor(() => {
@@ -658,12 +658,12 @@ export const UserMessageWithFailedRemoteImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const image = canvas.getByRole("img", { name: "Attached image" });
+		const image = canvas.getByRole("img", { name: "attached image" });
 		fireEvent.error(image);
 		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(canvas.getByText("This image failed to load")).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "View Attached image" }),
+			canvas.queryByRole("button", { name: "View attached image" }),
 		).not.toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(failedTile);
 
@@ -691,7 +691,7 @@ export const UserMessageWithUndisplayableRemoteImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const image = canvas.getByRole("img", { name: "Attached image" });
+		const image = canvas.getByRole("img", { name: "attached image" });
 		fireEvent.error(image);
 		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expectNoCopyMessageButtonForElement(failedTile);
@@ -712,14 +712,14 @@ export const UserMessageWithInvalidInlineImage: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const image = canvas.getByRole("img", { name: "Attached image" });
+		const image = canvas.getByRole("img", { name: "attached image" });
 		fireEvent.error(image);
 		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(
 			canvas.getByText("Inline image data is corrupt"),
 		).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "View Attached image" }),
+			canvas.queryByRole("button", { name: "View attached image" }),
 		).not.toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(failedTile);
 	},
@@ -1010,7 +1010,7 @@ export const UserMessageWithMixedAttachments: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(1);
 		const textButtons = await canvas.findAllByRole("button", {
 			name: "View text attachment",
@@ -1035,7 +1035,7 @@ export const UserMessageTextOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.queryAllByRole("img", { name: "Attached image" });
+		const images = canvas.queryAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(0);
 		expect(canvas.getByText("Just a plain text message")).toBeInTheDocument();
 	},
@@ -1111,11 +1111,11 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const downloadLink = canvas.getByRole("link", {
-			name: "Download Attached file",
+			name: "Download attached file",
 		});
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
-		expect(canvas.getByText("Attached file")).toBeInTheDocument();
+		expect(canvas.getByText("attached file")).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "Copy message" }),
 		).not.toBeInTheDocument();
@@ -1151,7 +1151,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		const images = canvas.getAllByRole("img", { name: "attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
 		expectNoCopyMessageButtonForElement(images[0]);

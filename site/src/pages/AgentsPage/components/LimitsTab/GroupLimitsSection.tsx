@@ -103,7 +103,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 							<TableRow>
 								<TableHead>Group</TableHead>
 								<TableHead>Members</TableHead>
-								<TableHead>Spend Limit</TableHead>
+								<TableHead>Spend limit</TableHead>
 								<TableHead className="w-[160px]">Actions</TableHead>
 							</TableRow>
 						</TableHeader>
@@ -253,7 +253,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 								)}
 							</div>
 							<div className="flex-1 space-y-1">
-								<Label htmlFor={groupAmountId}>Spend Limit ($)</Label>
+								<Label htmlFor={groupAmountId}>Spend limit ($)</Label>
 								<Input
 									id={groupAmountId}
 									type="number"

@@ -67,7 +67,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						size="icon"
 						aria-label={
 							settingsPanel === "settings-admin"
-								? "Back to Settings"
+								? "Back to settings"
 								: "Back to Agents"
 						}
 						className="relative z-10 size-7 min-w-0 text-content-secondary hover:text-content-primary"
@@ -76,7 +76,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							<Link
 								to="/agents/settings/general"
 								state={location.state}
-								aria-label="Back to Settings"
+								aria-label="Back to settings"
 							>
 								<ArrowLeftIcon />
 							</Link>

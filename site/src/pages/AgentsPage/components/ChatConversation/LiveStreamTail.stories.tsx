@@ -97,7 +97,6 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.getByText(/usage quota for openai has been exceeded/i),
 		).toBeVisible();
-		// The "View usage" link must NOT appear for provider-originated quota errors.
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();

@@ -94,7 +94,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 						<TableHeader>
 							<TableRow>
 								<TableHead>User</TableHead>
-								<TableHead>Spend Limit</TableHead>
+								<TableHead>Spend limit</TableHead>
 								<TableHead className="w-[160px]">Actions</TableHead>
 							</TableRow>
 						</TableHeader>
@@ -190,7 +190,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 								)}
 							</div>
 							<div className="flex-1 space-y-1">
-								<Label htmlFor={userOverrideAmountId}>Spend Limit ($)</Label>
+								<Label htmlFor={userOverrideAmountId}>Spend limit ($)</Label>
 								<Input
 									id={userOverrideAmountId}
 									type="number"

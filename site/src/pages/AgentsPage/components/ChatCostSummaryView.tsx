@@ -174,7 +174,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Read
+						Cache read
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
 						{formatTokenCount(summary.total_cache_read_tokens)}
@@ -182,7 +182,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Write
+						Cache write
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
 						{formatTokenCount(summary.total_cache_creation_tokens)}
@@ -206,7 +206,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 							<div>
 								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									{usageLimitPeriodLabel} Spend Limit
+									{usageLimitPeriodLabel} Spend limit
 								</p>
 								{usageLimitCurrentPeriod && (
 									<p className="mt-1 text-sm text-content-secondary">
@@ -288,8 +288,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead className="text-right">Messages</TableHead>
 									<TableHead className="text-right">Input</TableHead>
 									<TableHead className="text-right">Output</TableHead>
-									<TableHead className="text-right">Cache Read</TableHead>
-									<TableHead className="text-right">Cache Write</TableHead>
+									<TableHead className="text-right">Cache read</TableHead>
+									<TableHead className="text-right">Cache write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -344,8 +344,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead className="text-right">Messages</TableHead>
 									<TableHead className="text-right">Input</TableHead>
 									<TableHead className="text-right">Output</TableHead>
-									<TableHead className="text-right">Cache Read</TableHead>
-									<TableHead className="text-right">Cache Write</TableHead>
+									<TableHead className="text-right">Cache read</TableHead>
+									<TableHead className="text-right">Cache write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
