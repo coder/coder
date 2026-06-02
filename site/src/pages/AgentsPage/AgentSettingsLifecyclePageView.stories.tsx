@@ -46,7 +46,7 @@ export const Default: Story = {};
 export const DefaultAutostopDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Workspace Autostop Fallback");
+		await canvas.findByText("Workspace autostop fallback");
 		await canvas.findByText(
 			/Set a default autostop for agent-created workspaces/i,
 		);

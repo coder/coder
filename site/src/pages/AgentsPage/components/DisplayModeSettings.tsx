@@ -102,7 +102,7 @@ export const ThinkingDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Thinking display"
-			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Always Expanded' shows full content. 'Always Collapsed' keeps them collapsed."
+			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Always expanded' shows full content. 'Always collapsed' keeps them collapsed."
 			ariaLabel="Thinking display mode"
 			errorMessage="Failed to save your thinking display preference."
 			defaultValue="auto"
@@ -119,7 +119,7 @@ export const ShellToolDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Shell output display"
-			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. 'Always Expanded' opens shell output by default. 'Always Collapsed' keeps it collapsed."
+			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. 'Always expanded' opens shell output by default. 'Always collapsed' keeps it collapsed."
 			ariaLabel="Shell output display mode"
 			errorMessage="Failed to save your shell output display preference."
 			defaultValue="auto"
@@ -136,7 +136,7 @@ export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Code diff display"
-			description="Controls how code edit diffs appear. Auto starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. Always Expanded opens diffs by default; Always Collapsed keeps them collapsed."
+			description="Controls how code edit diffs appear. Auto starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. Always expanded opens diffs by default; Always collapsed keeps them collapsed."
 			ariaLabel="Code diff display mode"
 			errorMessage="Failed to save your code diff display preference."
 			defaultValue="auto"
