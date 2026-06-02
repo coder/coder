@@ -98,7 +98,7 @@ export const LiveStreamTailContent = ({
 					severity="info"
 					actions={
 						<Button asChild size="sm">
-							<Link to="/agents/analytics">View Usage</Link>
+							<Link to="/agents/analytics">View usage</Link>
 						</Button>
 					}
 				>

@@ -112,7 +112,7 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
-						Auto-Archive Inactive Conversations
+						Auto-archive inactive conversations
 					</h3>
 				</div>
 				<Switch

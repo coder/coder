@@ -46,7 +46,7 @@ export const Default: Story = {};
 export const DefaultAutostopDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Workspace Autostop Fallback");
+		await canvas.findByText("Workspace autostop fallback");
 		await canvas.findByText(
 			/Set a default autostop for agent-created workspaces/i,
 		);
@@ -55,7 +55,7 @@ export const DefaultAutostopDefault: Story = {
 			name: "Enable default autostop",
 		});
 		expect(toggle).not.toBeChecked();
-		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
+		expect(canvas.queryByLabelText("Autostop fallback")).toBeNull();
 	},
 };
 
@@ -70,7 +70,7 @@ export const DefaultAutostopCustomValue: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 	},
 };
@@ -90,7 +90,7 @@ export const DefaultAutostopSave: Story = {
 			);
 		});
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("1");
 
 		await userEvent.clear(durationInput);
@@ -126,7 +126,7 @@ export const DefaultAutostopExceedsMax: Story = {
 		});
 		await userEvent.click(toggle);
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		const ttlForm = durationInput.closest("form");
 		if (!(ttlForm instanceof HTMLFormElement)) {
 			throw new Error(
@@ -180,7 +180,7 @@ export const DefaultAutostopSaveDisabled: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 
 		const ttlForm = durationInput.closest("form");
@@ -229,7 +229,7 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		});
 		expect(toggle).toBeChecked();
 
-		const durationInput = await canvas.findByLabelText("Autostop Fallback");
+		const durationInput = await canvas.findByLabelText("Autostop fallback");
 		expect(durationInput).toHaveValue("2");
 
 		await userEvent.click(toggle);
@@ -634,7 +634,7 @@ export const RetentionBelowMin: Story = {
 export const DebugRetentionLoadedDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Chat Debug Data Retention");
+		await canvas.findByText("Chat debug data retention");
 		await canvas.findByText(/debug runs and debug steps/i);
 		await canvas.findByText(/does not control chat message retention/i);
 
