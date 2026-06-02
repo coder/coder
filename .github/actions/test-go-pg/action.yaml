@@ -177,9 +177,9 @@ runs:
         $nativePathParts = @(
           "$env:SystemRoot\System32"
           "$env:SystemRoot\System32\WindowsPowerShell\v1.0"
-          "$env:SystemRoot\System32\OpenSSH"
           "C:\Program Files\Git\usr\bin"
           "C:\Program Files\Git\cmd"
+          "$env:SystemRoot\System32\OpenSSH"
         )
         $nativePathParts += $env:Path -split ";"
         $dedupedNativePathParts = @()
@@ -194,6 +194,7 @@ runs:
         }
         $nativePath = $dedupedNativePathParts -join ";"
         $env:Path = $nativePath
+        $env:PATH = $nativePath
 
         $gotestsum = (mise which gotestsum).Trim()
         $envBlock = [Environment]::GetEnvironmentVariables()
@@ -208,6 +209,7 @@ runs:
           }
         }
         $process.Environment["Path"] = $nativePath
+        $process.Environment["PATH"] = $nativePath
         foreach ($arg in ($gotestsumArgs + $goTestArgs)) {
           $process.ArgumentList.Add($arg) | Out-Null
         }
