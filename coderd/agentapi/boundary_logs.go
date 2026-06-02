@@ -2,6 +2,8 @@ package agentapi
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
+
+// maxBoundaryLogsPerBatch limits the number of log entries a single
+// ReportBoundaryLogs request may contain.
+const maxBoundaryLogsPerBatch = 1000
 
 type BoundaryLogsAPI struct {
 	Log                  slog.Logger
@@ -27,6 +33,15 @@ type BoundaryLogsAPI struct {
 
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
 	var allowed, denied int64
+
+	if len(req.Logs) == 0 {
+		a.Log.Debug(ctx, "empty boundary logs request, skipping")
+		return &agentproto.ReportBoundaryLogsResponse{}, nil
+	}
+
+	if len(req.Logs) > maxBoundaryLogsPerBatch {
+		return nil, xerrors.Errorf("batch size %d exceeds maximum of %d", len(req.Logs), maxBoundaryLogsPerBatch)
+	}
 
 	sessionID, err := uuid.Parse(req.GetSessionId())
 	if err != nil {
@@ -60,7 +75,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	}
 
 	for _, l := range req.Logs {
-		var logTime time.Time
+		logTime := now
 		if l.Time != nil {
 			logTime = l.Time.AsTime()
 		}
@@ -141,6 +156,9 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 	_, err := a.Database.GetBoundarySessionByID(ctx, sessionID)
 	if err == nil {
 		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("check boundary session existence: %w", err)
 	}
 
 	// Session does not exist; create it. started_at is the time
