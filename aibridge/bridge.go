@@ -236,6 +236,9 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
 		ctx = tracing.WithInterceptionAttributesInContext(ctx, traceAttrs)
+		// Attach the interception ID to the context so every log line
+		// emitted with this context can be correlated to the interception.
+		ctx = slog.With(ctx, slog.F("interception_id", interceptor.ID()))
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
@@ -272,7 +275,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		log := logger.With(
 			slog.F("route", route),
 			slog.F("provider", p.Name()),
-			slog.F("interception_id", interceptor.ID()),
 			slog.F("user_agent", r.UserAgent()),
 			slog.F("streaming", interceptor.Streaming()),
 			slog.F("credential_kind", string(cred.Kind)),
