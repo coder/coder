@@ -1413,8 +1413,8 @@ endif
 GOTESTSUM := gotestsum
 ifeq ($(GOOS),windows)
 # Resolve gotestsum before dropping PATH. The shim needs mise in PATH, but
-# native test subprocesses should not inherit Git Bash's POSIX PATH.
-GOTESTSUM := env -u PATH "$$(cygpath -u "$$(mise which gotestsum)")"
+# native test subprocesses should inherit only the GitHub runner's native Path.
+GOTESTSUM := env -u PATH Path="$${Path}" "$$(cygpath -u "$$(mise which gotestsum)")"
 endif
 
 # Default to 8x8 parallelism to avoid overwhelming our workspaces.
