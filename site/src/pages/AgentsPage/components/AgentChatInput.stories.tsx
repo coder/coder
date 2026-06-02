@@ -829,29 +829,16 @@ export const PlanningIndicator: Story = {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
 	},
-	decorators: [
-		(Story) => (
-			<div style={{ width: 480 }}>
-				<Story />
-			</div>
-		),
-	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const planningBadge = await canvas.findByTestId("planning-badge");
-
-		await waitFor(() => {
-			expect(planningBadge).toBeVisible();
-			expect(
-				within(planningBadge).getByRole("button", {
-					name: "Disable plan mode",
-				}),
-			).toBeVisible();
-		});
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Disable plan mode" }),
+		).toBeVisible();
 	},
 };
 
