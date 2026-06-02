@@ -63,16 +63,18 @@ func effectiveDelay(attempt int, classified ClassifiedError) time.Duration {
 }
 
 func contextError(ctx context.Context) error {
-	if ctx.Err() == nil {
-		return nil
-	}
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
 	return ctx.Err()
 }
 
-func normalizeAttemptError(err error, classified ClassifiedError) (error, ClassifiedError) {
+// classifyProviderAttemptError normalizes provider errors after the caller's
+// context has been checked. A bare context.Canceled is treated as a provider
+// transport reset because provider clients can surface remote stream resets
+// that way.
+func classifyProviderAttemptError(err error) (error, ClassifiedError) {
+	classified := chaterror.Classify(err)
 	if classified.Retryable || classified.StatusCode != 0 || !errors.Is(err, context.Canceled) {
 		return err, classified
 	}
@@ -110,21 +112,15 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			return nil
 		}
 
-		// The attempt runs with ctx. If ctx is done after fn returns, its
-		// cancellation is the authoritative error, and a bare context.Canceled
-		// from fn must not be normalized as a provider transport reset.
+		// fn runs with ctx. If it canceled the caller's context, that cause
+		// wins over the provider error returned from fn.
 		if ctxErr := contextError(ctx); ctxErr != nil {
 			return ctxErr
 		}
 
-		classified := chaterror.Classify(err)
-		err, classified = normalizeAttemptError(err, classified)
+		err, classified := classifyProviderAttemptError(err)
 		if !classified.Retryable {
 			return chaterror.WithClassification(err, classified)
-		}
-
-		if ctxErr := contextError(ctx); ctxErr != nil {
-			return ctxErr
 		}
 
 		attempt++
