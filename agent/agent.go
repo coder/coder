@@ -40,6 +40,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
@@ -131,6 +132,15 @@ type Client interface {
 	// use role "agent" to enable connection monitoring.
 	ConnectRPC29WithRole(ctx context.Context, role string) (
 		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+	)
+	ConnectRPC210(ctx context.Context) (
+		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	)
+	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
+	// role query parameter to the server. The workspace agent should
+	// use role "agent" to enable connection monitoring.
+	ConnectRPC210WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -343,6 +353,8 @@ type agent struct {
 	mcpManager       *agentmcp.Manager
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
+	contextManager   *agentcontext.Manager
+	contextAPI       *agentcontext.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -440,6 +452,37 @@ func (a *agent) init() {
 		return ""
 	}, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
+
+	// agentcontext.Manager is the new consolidated resolver,
+	// watcher, and pusher. It coexists with contextConfigAPI
+	// and the MCP manager during rollout. Initial sources are
+	// seeded from the existing CODER_AGENT_EXP_* env vars and
+	// from the agent's working directory at scan time.
+	workingDirFn := func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	}
+	ctxMgr, ctxMgrErr := agentcontext.NewManager(agentcontext.ManagerOptions{
+		Logger:         a.logger.Named("agentcontext"),
+		Clock:          a.clock,
+		WorkingDir:     workingDirFn,
+		BuiltinRoots:   defaultContextRoots(a.contextConfig, workingDirFn),
+		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		AllowedRoots:   defaultContextAllowedRoots(workingDirFn),
+	})
+	if ctxMgrErr != nil {
+		// NewManager only errors on programmer mistakes today.
+		// Log loudly so a future regression surfaces fast, and
+		// fall back to a no-op manager so the rest of init can
+		// proceed.
+		a.logger.Critical(a.gracefulCtx, "agentcontext manager init failed", slog.Error(ctxMgrErr))
+	}
+	a.contextManager = ctxMgr
+	if a.contextManager != nil {
+		a.contextAPI = agentcontext.NewAPI(a.contextManager)
+	}
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -455,6 +498,18 @@ func (a *agent) init() {
 
 	a.initSocketServer()
 	a.startBoundaryLogProxyServer()
+
+	// Start the agentcontext manager's resolver/watcher loop.
+	// It runs for the lifetime of the agent and is closed in
+	// agent.Close. The push goroutine is started per-connection
+	// inside run() so it picks up the right drpc client.
+	if a.contextManager != nil {
+		go func() {
+			if err := a.contextManager.Run(a.gracefulCtx); err != nil && !errors.Is(err, context.Canceled) {
+				a.logger.Warn(a.gracefulCtx, "agentcontext manager run exited", slog.Error(err))
+			}
+		}()
+	}
 
 	go a.runLoop()
 }
@@ -1080,7 +1135,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC29WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1173,6 +1228,21 @@ func (a *agent) run() (retErr error) {
 	// Connection reports are part of auditing, we should keep sending them via
 	// gracefulShutdownBehaviorRemain.
 	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
+
+	// Push resolved workspace context (instructions, skills, MCP
+	// configs, MCP server tool lists) to coderd. The push loop
+	// uses gracefulShutdownBehaviorStop because the snapshot is
+	// only useful while chats are alive, and a stale snapshot at
+	// shutdown costs nothing.
+	if a.contextManager != nil {
+		connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
+			func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+				pusher := agentcontext.NewDRPCPusher(aAPI)
+				return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
+					Logger: a.logger.Named("agentcontext-push"),
+				})
+			})
+	}
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -1320,6 +1390,17 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+		// Manifest just landed; the agentcontext manager now has
+		// a working directory to scan and a known set of scan
+		// roots. Trigger a resync so the snapshot reflects the
+		// workspace immediately instead of waiting for the next
+		// filesystem event.
+		if a.contextManager != nil {
+			if _, resyncErr := a.contextManager.Resync(ctx); resyncErr != nil {
+				a.logger.Debug(ctx, "agentcontext resync after manifest failed", slog.Error(resyncErr))
+			}
+		}
 
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as
@@ -2274,6 +2355,12 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
+	if a.contextManager != nil {
+		if err := a.contextManager.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
+		}
+	}
+
 	if a.boundaryLogProxy != nil {
 		err = a.boundaryLogProxy.Close()
 		if err != nil {
@@ -2409,7 +2496,7 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	aAPI      proto.DRPCAgentClient28
+	aAPI      proto.DRPCAgentClient210
 	tAPI      tailnetproto.DRPCTailnetClient28
 	eg        *errgroup.Group
 	stopCtx   context.Context
@@ -2418,7 +2505,7 @@ type apiConnRoutineManager struct {
 
 func newAPIConnRoutineManager(
 	gracefulCtx, hardCtx context.Context, logger slog.Logger,
-	aAPI proto.DRPCAgentClient28, tAPI tailnetproto.DRPCTailnetClient28,
+	aAPI proto.DRPCAgentClient210, tAPI tailnetproto.DRPCTailnetClient28,
 ) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
@@ -2452,6 +2539,35 @@ func newAPIConnRoutineManager(
 func (a *apiConnRoutineManager) startAgentAPI(
 	name string, behavior gracefulShutdownBehavior,
 	f func(context.Context, proto.DRPCAgentClient28) error,
+) {
+	logger := a.logger.With(slog.F("name", name))
+	var ctx context.Context
+	switch behavior {
+	case gracefulShutdownBehaviorStop:
+		ctx = a.stopCtx
+	case gracefulShutdownBehaviorRemain:
+		ctx = a.remainCtx
+	default:
+		panic("unknown behavior")
+	}
+	a.eg.Go(func() error {
+		logger.Debug(ctx, "starting agent routine")
+		err := f(ctx, a.aAPI)
+		err = shouldPropagateError(ctx, logger, err)
+		logger.Debug(ctx, "routine exited", slog.Error(err))
+		if err != nil {
+			return xerrors.Errorf("error in routine %s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// startAgentAPI210 is identical to startAgentAPI but passes the
+// full v2.10 Agent API client. Use it for routines that need
+// RPCs introduced after v2.8 (notably PushContextState).
+func (a *apiConnRoutineManager) startAgentAPI210(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient210) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context

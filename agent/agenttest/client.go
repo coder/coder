@@ -158,6 +158,30 @@ func (c *Client) ConnectRPC29WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC29(ctx)
 }
 
+func (c *Client) ConnectRPC210(ctx context.Context) (
+	agentproto.DRPCAgentClient210, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC29(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The concrete drpcAgentClient implements every method on
+	// the generated DRPCAgentClient interface, including
+	// PushContextState, so the assertion always succeeds for
+	// the fixture's own connections.
+	client, ok := aAPI.(agentproto.DRPCAgentClient210)
+	if !ok {
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient210; got %T", aAPI)
+	}
+	return client, tAPI, nil
+}
+
+func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient210, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC210(ctx)
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -239,6 +263,12 @@ func (c *Client) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAgentRequ
 	return c.fakeAgentAPI.GetSubAgentApps(id)
 }
 
+// ContextStatePushes returns every PushContextState request the
+// agent has issued to the fake server so far.
+func (c *Client) ContextStatePushes() []*agentproto.PushContextStateRequest {
+	return c.fakeAgentAPI.ContextStatePushes()
+}
+
 type FakeAgentAPI struct {
 	sync.Mutex
 	t      testing.TB
@@ -266,10 +296,32 @@ type FakeAgentAPI struct {
 	getAnnouncementBannersFunc              func() ([]codersdk.BannerConfig, error)
 	getResourcesMonitoringConfigurationFunc func() (*agentproto.GetResourcesMonitoringConfigurationResponse, error)
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
+
+	contextStatePushes []*agentproto.PushContextStateRequest
 }
 
 func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
 	panic("unimplemented")
+}
+
+// PushContextState records the incoming snapshot and returns
+// Accepted=true. Tests that need to assert against the captured
+// pushes can read them via ContextStatePushes.
+func (f *FakeAgentAPI) PushContextState(_ context.Context, req *agentproto.PushContextStateRequest) (*agentproto.PushContextStateResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+	f.contextStatePushes = append(f.contextStatePushes, req)
+	return &agentproto.PushContextStateResponse{Accepted: true}, nil
+}
+
+// ContextStatePushes returns a snapshot of every
+// PushContextState request received so far.
+func (f *FakeAgentAPI) ContextStatePushes() []*agentproto.PushContextStateRequest {
+	f.Lock()
+	defer f.Unlock()
+	out := make([]*agentproto.PushContextStateRequest, len(f.contextStatePushes))
+	copy(out, f.contextStatePushes)
+	return out
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
