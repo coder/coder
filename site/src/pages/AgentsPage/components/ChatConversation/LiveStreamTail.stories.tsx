@@ -257,14 +257,14 @@ export const RetryingTimeoutAnthropic: Story = {
 	},
 };
 
-/** Terminal startup timeouts get a specific heading without provider metadata. */
-export const TerminalStartupTimeoutError: Story = {
+/** Terminal stream-silence timeouts get a specific heading without provider metadata. */
+export const TerminalStreamSilenceTimeoutError: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
-				kind: "startup_timeout",
-				message: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				message: "Anthropic did not send response data in time.",
 				provider: "anthropic",
 				retryable: true,
 			},
@@ -276,7 +276,7 @@ export const TerminalStartupTimeoutError: Story = {
 			canvas.getByRole("heading", { name: /startup timed out/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time./i),
+			canvas.getByText(/anthropic did not send response data in time./i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();

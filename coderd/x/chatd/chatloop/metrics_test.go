@@ -293,7 +293,7 @@ func TestRecordStreamRetry(t *testing.T) {
 		{name: "overloaded", kind: codersdk.ChatErrorKindOverloaded},
 		{name: "rate_limit", kind: codersdk.ChatErrorKindRateLimit},
 		{name: "timeout", kind: codersdk.ChatErrorKindTimeout},
-		{name: "startup_timeout", kind: codersdk.ChatErrorKindStartupTimeout},
+		{name: "stream_silence_timeout", kind: codersdk.ChatErrorKindStreamSilenceTimeout},
 		{name: "auth", kind: codersdk.ChatErrorKindAuth},
 		{name: "config", kind: codersdk.ChatErrorKindConfig},
 		{name: "missing_key", kind: codersdk.ChatErrorKindMissingKey},

@@ -225,15 +225,15 @@ export const RetryTimeout: Story = {
 	},
 };
 
-/** Startup timeouts explain the first-token delay before retrying. */
-export const RetryStartupTimeout: Story = {
+/** Stream-silence timeouts explain the first-token delay before retrying. */
+export const RetryStreamSilenceTimeout: Story = {
 	args: {
 		streamState: null,
 		streamTools: [],
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
-				kind: "startup_timeout",
-				error: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				error: "Anthropic did not send response data in time.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -244,7 +244,7 @@ export const RetryStartupTimeout: Story = {
 			canvas.getByRole("heading", { name: /startup timed out/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time/i),
+			canvas.getByText(/anthropic did not send response data in time/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();

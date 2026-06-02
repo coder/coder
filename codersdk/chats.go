@@ -1525,16 +1525,16 @@ type ChatStreamStatus struct {
 type ChatErrorKind string
 
 const (
-	ChatErrorKindGeneric          ChatErrorKind = "generic"
-	ChatErrorKindOverloaded       ChatErrorKind = "overloaded"
-	ChatErrorKindRateLimit        ChatErrorKind = "rate_limit"
-	ChatErrorKindTimeout          ChatErrorKind = "timeout"
-	ChatErrorKindStartupTimeout   ChatErrorKind = "startup_timeout"
-	ChatErrorKindAuth             ChatErrorKind = "auth"
-	ChatErrorKindConfig           ChatErrorKind = "config"
-	ChatErrorKindUsageLimit       ChatErrorKind = "usage_limit"
-	ChatErrorKindMissingKey       ChatErrorKind = "missing_key"
-	ChatErrorKindProviderDisabled ChatErrorKind = "provider_disabled"
+	ChatErrorKindGeneric              ChatErrorKind = "generic"
+	ChatErrorKindOverloaded           ChatErrorKind = "overloaded"
+	ChatErrorKindRateLimit            ChatErrorKind = "rate_limit"
+	ChatErrorKindTimeout              ChatErrorKind = "timeout"
+	ChatErrorKindStreamSilenceTimeout ChatErrorKind = "stream_silence_timeout"
+	ChatErrorKindAuth                 ChatErrorKind = "auth"
+	ChatErrorKindConfig               ChatErrorKind = "config"
+	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
+	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
+	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1544,7 +1544,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindOverloaded,
 	ChatErrorKindRateLimit,
 	ChatErrorKindTimeout,
-	ChatErrorKindStartupTimeout,
+	ChatErrorKindStreamSilenceTimeout,
 	ChatErrorKindAuth,
 	ChatErrorKindConfig,
 	ChatErrorKindUsageLimit,

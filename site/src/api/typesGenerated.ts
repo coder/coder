@@ -1992,7 +1992,7 @@ export type ChatErrorKind =
 	| "overloaded"
 	| "provider_disabled"
 	| "rate_limit"
-	| "startup_timeout"
+	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
 
@@ -2004,7 +2004,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"overloaded",
 	"provider_disabled",
 	"rate_limit",
-	"startup_timeout",
+	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
 ];
