@@ -241,7 +241,7 @@ export const RetryStreamSilenceTimeout: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /startup timed out/i }),
+			canvas.getByRole("heading", { name: /response stalled/i }),
 		).toBeVisible();
 		expect(
 			canvas.getByText(/anthropic did not send response data in time/i),
