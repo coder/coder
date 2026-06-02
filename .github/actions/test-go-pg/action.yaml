@@ -144,10 +144,6 @@ runs:
         $env:GIT_CONFIG_GLOBAL = $emptyGitConfig
         $env:GIT_CONFIG_SYSTEM = $emptyGitConfig
 
-        # Go deduplicates environment keys case-insensitively on Windows and keeps the last value.
-        # Keep both common spellings native before gotestsum starts test subprocesses.
-        $env:PATH = $env:Path
-
         $gotestsumArgs = @("--format", "standard-quiet")
         if ($env:RACE_DETECTION -eq "true") {
           $gotestsumArgs += "--junitfile=gotests.xml"
@@ -178,4 +174,23 @@ runs:
           $goTestArgs += "-shuffle=$env:TEST_SHUFFLE"
         }
 
-        gotestsum @gotestsumArgs @goTestArgs
+        $gotestsum = (mise which gotestsum).Trim()
+        $envBlock = [Environment]::GetEnvironmentVariables()
+        $process = [System.Diagnostics.ProcessStartInfo]::new()
+        $process.FileName = $gotestsum
+        $process.UseShellExecute = $false
+        $process.WorkingDirectory = (Get-Location).ProviderPath
+        $process.Environment.Clear()
+        foreach ($entry in $envBlock.GetEnumerator()) {
+          if ($entry.Key -ine "Path") {
+            $process.Environment[$entry.Key] = [string]$entry.Value
+          }
+        }
+        $process.Environment["Path"] = $env:Path
+        foreach ($arg in ($gotestsumArgs + $goTestArgs)) {
+          $process.ArgumentList.Add($arg) | Out-Null
+        }
+
+        $child = [System.Diagnostics.Process]::Start($process)
+        $child.WaitForExit()
+        exit $child.ExitCode
