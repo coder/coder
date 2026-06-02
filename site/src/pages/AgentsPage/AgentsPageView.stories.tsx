@@ -234,6 +234,23 @@ const agentsRouting = {
 	],
 };
 
+const setInnerWidthForStory = (width: number) => {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "innerWidth");
+	Object.defineProperty(globalThis, "innerWidth", {
+		configurable: true,
+		value: width,
+	});
+
+	return () => {
+		if (descriptor) {
+			Object.defineProperty(globalThis, "innerWidth", descriptor);
+			return;
+		}
+
+		Reflect.deleteProperty(globalThis, "innerWidth");
+	};
+};
+
 const AgentTopBarRouteElement = () => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsOutletContext>();
@@ -623,6 +640,8 @@ export const PersistedResizableSidebarWidth: Story = {
 	},
 };
 
+const narrowAgentsLayoutWidth = 720;
+
 export const WideSidebarPreservesChatPaneWidth: Story = {
 	args: {
 		agentId: "chat-wide-sidebar",
@@ -634,11 +653,22 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 			}),
 		],
 	},
+	beforeEach: () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
+		return setInnerWidthForStory(narrowAgentsLayoutWidth);
+	},
 	decorators: [
-		(Story) => {
-			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
-			return <Story />;
-		},
+		(Story) => (
+			<div
+				style={{
+					height: "100vh",
+					overflow: "hidden",
+					width: narrowAgentsLayoutWidth,
+				}}
+			>
+				<Story />
+			</div>
+		),
 	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -655,17 +685,18 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 		const main = await canvas.findByTestId("agents-main-panel");
 		const chatPanel = await canvas.findByTestId("agents-chat-panel");
 		const composer = await canvas.findByTestId("chat-composer");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
+		const sendButton = within(composer).getByRole("button", { name: "Send" });
 
 		await waitFor(() => {
-			const maxSidebarWidth = getLeftSidebarMaxWidth();
 			const layoutRect = layout.getBoundingClientRect();
 			const sidebarRect = sidebar.getBoundingClientRect();
 			const mainRect = main.getBoundingClientRect();
 			const chatPanelRect = chatPanel.getBoundingClientRect();
 			const composerRect = composer.getBoundingClientRect();
 			const sendButtonRect = sendButton.getBoundingClientRect();
+			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
 
+			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
 			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
 			expect(mainRect.width).toBeGreaterThanOrEqual(
 				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
