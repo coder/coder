@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
+	aiProviderKeyFor,
 	deleteAIProviderMutation,
 	updateAIProviderMutation,
 } from "#/api/queries/aiProviders";
@@ -171,6 +172,10 @@ const UpdateProviderPageView: React.FC = () => {
 									{ enabled: checked },
 									{
 										onSuccess: (updated) => {
+											queryClient.setQueryData(
+												aiProviderKeyFor(providerId),
+												updated,
+											);
 											toast.success(
 												`Provider "${updated.display_name || updated.name}" ${checked ? "enabled" : "disabled"}.`,
 											);
@@ -200,6 +205,7 @@ const UpdateProviderPageView: React.FC = () => {
 							const request = providerFormValuesToUpdate(values, provider);
 							try {
 								const updated = await updateMutation.mutateAsync(request);
+								queryClient.setQueryData(aiProviderKeyFor(providerId), updated);
 								toast.success(
 									`Provider "${updated.display_name || updated.name}" updated.`,
 								);

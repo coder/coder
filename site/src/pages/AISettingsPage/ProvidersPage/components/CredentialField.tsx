@@ -10,6 +10,7 @@ type CredentialFieldProps = {
 	placeholder?: string;
 	description?: React.ReactNode;
 	required?: boolean;
+	onBlur?: () => void;
 	onFocus?: () => void;
 };
 
@@ -20,6 +21,7 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 	placeholder,
 	description,
 	required = false,
+	onBlur,
 	onFocus,
 }) => {
 	const inputId = useId();
@@ -62,9 +64,13 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 		<Input
 			id={inputId}
 			name={helpers.name}
+			className="font-mono text-[13px]"
 			value={helpers.value}
 			onChange={helpers.onChange}
-			onBlur={helpers.onBlur}
+			onBlur={(event) => {
+				helpers.onBlur(event);
+				onBlur?.();
+			}}
 			onFocus={onFocus}
 			autoComplete={autoComplete}
 			placeholder={placeholder}
