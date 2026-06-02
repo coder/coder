@@ -70,20 +70,6 @@ var skipDirNames = map[string]struct{}{
 	"__pycache__":  {},
 }
 
-// skillsParentNames are directory basenames that signal a
-// skills container; their immediate children are scanned for
-// SKILL.md files.
-var skillsParentNames = map[string]struct{}{
-	"skills":     {},
-	".agents":    {}, // covers ".agents/skills/<name>"
-	"agents":     {},
-	"plugins":    {}, // claude code plugin cache layout
-	"cache":      {},
-	".coder":     {},
-	".claude":    {},
-	"skills-dir": {},
-}
-
 // recognizedInstructionFile reports whether name is one of the
 // instruction-file conventions, case-insensitively.
 func recognizedInstructionFile(name string) bool {
@@ -541,18 +527,11 @@ func excluded(r Resource, reason string) Resource {
 
 // isSkillsContainer reports whether dir is a recognized skills
 // container directory whose immediate children carry SKILL.md
-// files.
+// files. Both bare "skills" and nested "<parent>/skills"
+// directories qualify (e.g. ".agents/skills",
+// "plugins/foo/skills").
 func isSkillsContainer(dir string) bool {
-	base := filepath.Base(dir)
-	_, ok := skillsParentNames[base]
-	if ok && base == "skills" {
-		return true
-	}
-	// "<x>/skills" form (e.g. ".agents/skills", "plugins/foo/skills").
-	if strings.HasSuffix(filepath.ToSlash(dir), "/skills") {
-		return true
-	}
-	return false
+	return filepath.Base(dir) == "skills"
 }
 
 // resourceID builds a stable resource ID. Kind plus canonical

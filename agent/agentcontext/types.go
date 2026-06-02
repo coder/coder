@@ -2,7 +2,6 @@ package agentcontext
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"sort"
 	"strconv"
 )
@@ -205,12 +204,6 @@ func ComputeAggregateHash(resources []Resource) [32]byte {
 	var out [32]byte
 	copy(out[:], h.Sum(nil))
 	return out
-}
-
-// AggregateHashHex returns the hex-encoded aggregate hash.
-// Convenience for log lines and HTTP responses.
-func (s Snapshot) AggregateHashHex() string {
-	return hex.EncodeToString(s.AggregateHash[:])
 }
 
 // writeLengthPrefixed writes a uvarint length prefix followed

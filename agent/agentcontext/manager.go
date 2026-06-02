@@ -90,10 +90,11 @@ type Manager struct {
 	trigger chan struct{}
 
 	// running tracks Run lifetime.
-	running   bool
-	closed    bool
-	closedCh  chan struct{}
-	runDoneCh chan struct{}
+	running      bool
+	closed       bool
+	closedCh     chan struct{}
+	runDoneCh    chan struct{}
+	runStartedCh chan struct{}
 
 	watcher *Watcher
 }
@@ -135,6 +136,7 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		trigger:       make(chan struct{}, 1),
 		closedCh:      make(chan struct{}),
 		runDoneCh:     make(chan struct{}),
+		runStartedCh:  make(chan struct{}),
 	}
 
 	for _, s := range opts.InitialSources {
@@ -179,6 +181,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		return xerrors.New("agentcontext: Manager already closed")
 	}
 	m.running = true
+	close(m.runStartedCh)
 	m.mu.Unlock()
 
 	watcher, err := NewWatcher(WatcherOptions{
@@ -216,6 +219,14 @@ func (m *Manager) Run(ctx context.Context) error {
 			m.resolveAndBroadcast(ctx)
 		}
 	}
+}
+
+// Started returns a channel that is closed once Run has
+// claimed the running flag. Callers waiting to coordinate with
+// the watcher loop can select on it; a closed channel never
+// blocks, so this is safe to call repeatedly.
+func (m *Manager) Started() <-chan struct{} {
+	return m.runStartedCh
 }
 
 // Close stops the Manager. Close is idempotent; subsequent

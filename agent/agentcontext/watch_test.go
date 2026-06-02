@@ -33,11 +33,11 @@ func TestWatcher_FiresOnAgentsMdEdit(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir}})
 
-	// Edit the file. Use a slight delay so fsnotify is ready.
-	time.Sleep(50 * time.Millisecond)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
-
+	// Rewrite the file inside Eventually so the test does not race
+	// fsnotify's watch-setup window. As soon as the watch is live,
+	// the next write fires the debounce timer.
 	require.Eventually(t, func() bool {
+		_ = os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600)
 		return atomic.LoadInt32(&fires) >= 1
 	}, testutil.WaitShort, testutil.IntervalFast, "expected at least one fire after AGENTS.md edit")
 }
@@ -60,12 +60,14 @@ func TestWatcher_FiresOnNewSkillFile(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir}})
 
-	time.Sleep(50 * time.Millisecond)
+	// Create SKILL.md inside Eventually so the test does not race
+	// fsnotify's watch-setup window. The Manager pre-creates the
+	// skill dir, then rewrites SKILL.md each tick until the watcher
+	// fires at least once.
 	skillDir := filepath.Join(skillsRoot, "foo")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: foo\ndescription: bar\n---\nbody"), 0o600))
-
 	require.Eventually(t, func() bool {
+		_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: foo\ndescription: bar\n---\nbody"), 0o600)
 		return atomic.LoadInt32(&fires) >= 1
 	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after SKILL.md create")
 }

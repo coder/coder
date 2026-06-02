@@ -223,8 +223,15 @@ func TestManager_RunOnce(t *testing.T) {
 	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 	defer cancel()
 	go func() { _ = m.Run(ctx) }()
-	// Brief wait so Run has a chance to set running=true.
-	time.Sleep(50 * time.Millisecond)
+
+	// Wait for Run to claim the running flag, then verify the
+	// second call rejects with a deterministic error rather than
+	// racing the scheduler.
+	select {
+	case <-m.Started():
+	case <-ctx.Done():
+		t.Fatalf("manager never started: %v", ctx.Err())
+	}
 
 	err := m.Run(ctx)
 	require.Error(t, err)

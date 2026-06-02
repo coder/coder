@@ -87,13 +87,3 @@ func TestComputeAggregateHash_ChangesOnContent(t *testing.T) {
 	hash3 := agentcontext.ComputeAggregateHash([]agentcontext.Resource{withStatus})
 	require.NotEqual(t, hash1, hash3)
 }
-
-func TestSnapshotAggregateHashHex(t *testing.T) {
-	t.Parallel()
-	snap := agentcontext.Snapshot{
-		AggregateHash: [32]byte{0xde, 0xad, 0xbe, 0xef},
-	}
-	require.Equal(t,
-		"deadbeef0000000000000000000000000000000000000000000000000000000000000000"[:64],
-		snap.AggregateHashHex())
-}

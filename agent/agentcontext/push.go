@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 )
 
 // PushRequest is the wire-format-independent payload the
@@ -58,6 +59,10 @@ type PushOptions struct {
 	InitialBackoff time.Duration
 	// MaxBackoff caps the retry wait. Default 30s.
 	MaxBackoff time.Duration
+	// Clock is the time source for retry backoffs. Optional;
+	// defaults to the Manager's clock so tests can trap waits
+	// with quartz instead of real sleeps.
+	Clock quartz.Clock
 }
 
 // RunPush ships the current snapshot to the Pusher, then ships
@@ -81,6 +86,10 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	if maxBackoff <= 0 {
 		maxBackoff = 30 * time.Second
 	}
+	clock := opts.Clock
+	if clock == nil {
+		clock = m.clock
+	}
 
 	changes, unsub := m.SubscribeChanges()
 	defer unsub()
@@ -91,7 +100,7 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 		snap := m.Snapshot()
 		req := snapshotToPushRequest(snap, initial)
 
-		err := pushWithRetry(ctx, p, req, initialBackoff, maxBackoff, logger)
+		err := pushWithRetry(ctx, p, req, initialBackoff, maxBackoff, clock, logger)
 		switch {
 		case err == nil:
 			initial = false
@@ -130,6 +139,7 @@ func pushWithRetry(
 	p Pusher,
 	req *PushRequest,
 	initialBackoff, maxBackoff time.Duration,
+	clock quartz.Clock,
 	logger slog.Logger,
 ) error {
 	backoff := initialBackoff
@@ -155,10 +165,12 @@ func pushWithRetry(
 			slog.F("version", req.Version),
 			slog.F("backoff", backoff),
 			slog.Error(err))
+		timer := clock.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return ctx.Err()
-		case <-time.After(backoff):
+		case <-timer.C:
 		}
 		backoff *= 2
 		if backoff > maxBackoff {

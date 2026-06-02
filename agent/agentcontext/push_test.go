@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // fakePusher records every push and lets the test control the
@@ -156,6 +157,10 @@ func TestRunPush_StopsOnUnimplemented(t *testing.T) {
 
 func TestRunPush_RetriesTransientError(t *testing.T) {
 	t.Parallel()
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().NewTimer()
+	defer trap.Close()
+
 	m := newTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return t.TempDir() },
 	})
@@ -169,11 +174,17 @@ func TestRunPush_RetriesTransientError(t *testing.T) {
 	go func() {
 		pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{
 			Logger:         testutil.Logger(t).Named("push"),
-			InitialBackoff: 10 * time.Millisecond,
+			InitialBackoff: time.Second,
+			Clock:          mClock,
 		})
 	}()
 
-	// First push hits transient, second succeeds.
+	// First push hits transient and arms the retry timer. Wait for
+	// the timer creation, then advance the clock past the backoff.
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	mClock.Advance(time.Second).MustWait(ctx)
+
 	select {
 	case <-p.signal:
 	case <-time.After(testutil.WaitShort):

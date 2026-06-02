@@ -13,7 +13,7 @@ import (
 // The slice is intentionally tolerant of missing entries; the
 // resolver silently skips canonicalization failures and
 // non-existent paths.
-func defaultContextRoots(_ agentcontextconfig.Config, _ func() string) []string {
+func defaultContextRoots() []string {
 	roots := make([]string, 0, 8)
 
 	// Working directory is added by the manager itself via the
