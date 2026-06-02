@@ -40,7 +40,7 @@ type ManagerOptions struct {
 	InitialSources []Source
 	// AllowedRoots restricts which paths may be added as
 	// sources at runtime. Defaults to [~, ~/.coder, ~/.claude,
-	// workingDir]. Empty disables validation.
+	// workingDir]. Empty falls back to the home directory.
 	AllowedRoots []string
 	// Resolver, when non-nil, replaces the default resolver.
 	// Tests use this to inject MCP providers and tighten
@@ -232,11 +232,11 @@ func (m *Manager) Run(ctx context.Context) error {
 	}
 }
 
-// Started returns a channel that is closed once Run has
-// claimed the running flag. Callers waiting to coordinate with
-// the watcher loop can select on it; a closed channel never
+// started returns a channel that is closed once Run has
+// claimed the running flag. Tests use it to coordinate with
+// the watcher loop without polling; a closed channel never
 // blocks, so this is safe to call repeatedly.
-func (m *Manager) Started() <-chan struct{} {
+func (m *Manager) started() <-chan struct{} {
 	return m.runStartedCh
 }
 
@@ -405,6 +405,14 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ctxErr
 	}
 	snap := resolver.ResolveContext(ctx, roots)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// Cancellation mid-walk yields a partial or empty
+		// Snapshot whose SnapshotError is set to
+		// "context canceled". Publishing it would replace
+		// the live Snapshot with empty resources until the
+		// next trigger, so bail without touching state.
+		return m.Snapshot(), ctxErr
+	}
 	if snap.SnapshotError == "" && watcher != nil {
 		if d := watcher.Degraded(); d != "" {
 			snap.SnapshotError = d
@@ -545,6 +553,15 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 		return
 	}
 	snap := resolver.ResolveContext(ctx, roots)
+	if err := ctx.Err(); err != nil {
+		// Cancellation mid-walk yields a partial or empty
+		// Snapshot. Publishing it would replace the live
+		// Snapshot with empty resources, so bail without
+		// touching state. The Run loop's gracefulCtx is
+		// canceled only at shutdown, but defensive checks
+		// keep the publish contract uniform with Resync.
+		return
+	}
 	// Surface watcher degradation as a snapshot-level error
 	// when the resolver did not already emit one.
 	if snap.SnapshotError == "" && watcher != nil {

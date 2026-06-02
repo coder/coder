@@ -217,6 +217,44 @@ func TestManager_ResyncReturnsLatestSnapshot(t *testing.T) {
 	require.Equal(t, "second content edit", string(snap.Resources[0].Payload))
 }
 
+// TestManager_ResyncCanceledKeepsLiveSnapshot guards CRF-44:
+// a context cancellation mid-walk must not replace the live
+// Snapshot with an empty one. Resync returns the existing
+// Snapshot and ctx.Err() instead of publishing a stub.
+func TestManager_ResyncCanceledKeepsLiveSnapshot(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	mustWriteFile(t, filepath.Join(wd, "AGENTS.md"), "live content")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+
+	// Capture the live snapshot the Manager populated at
+	// construction time.
+	live := m.Snapshot()
+	require.Len(t, live.Resources, 1)
+	require.Equal(t, "live content", string(live.Resources[0].Payload))
+
+	// Cancel the context before calling Resync so
+	// ResolveContext observes the cancellation.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	snap, err := m.Resync(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+	// The returned snapshot must still expose the live
+	// resources, not an empty result from the canceled walk.
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, "live content", string(snap.Resources[0].Payload))
+
+	// The next Snapshot call must also return live content;
+	// no stub was published.
+	after := m.Snapshot()
+	require.Equal(t, live.Version, after.Version)
+	require.Len(t, after.Resources, 1)
+}
+
 func TestManager_InitialSourcesSeeded(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
@@ -260,7 +298,7 @@ func TestManager_RunOnce(t *testing.T) {
 	// second call rejects with a deterministic error rather than
 	// racing the scheduler.
 	select {
-	case <-m.Started():
+	case <-agentcontext.ManagerStarted(m):
 	case <-ctx.Done():
 		t.Fatalf("manager never started: %v", ctx.Err())
 	}

@@ -385,9 +385,8 @@ func (r *Resolver) readInstructionFile(path string, info fs.FileInfo, userSource
 
 // readMCPConfig reads a .mcp.json file and produces a
 // KindMCPConfig resource. Parsing is left to consumers; the
-// resolver only enforces JSON shape lightly via size and Unix
-// newline conversion. Future work: detect malformed JSON and
-// surface StatusInvalid.
+// resolver only enforces the per-resource size cap. Future
+// work: detect malformed JSON and surface StatusInvalid.
 func (r *Resolver) readMCPConfig(path string, info fs.FileInfo, userSource string) Resource {
 	return r.readFileResource(KindMCPConfig, path, info, userSource)
 }
