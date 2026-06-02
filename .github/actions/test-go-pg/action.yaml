@@ -89,8 +89,10 @@ runs:
         if [[ "${RUNNER_OS}" == "Windows" ]]; then
           echo "=== printf resolution ==="
           cmd.exe /c "where printf" || true
-          echo "=== mise shims ==="
-          ls -la "$LOCALAPPDATA/mise/shims/printf"* 2>/dev/null || echo "no printf shims"
+          echo "=== PATH from cmd ==="
+          cmd.exe /c "echo %PATH%" | tr ';' '\n' | grep -i git | head -5
+          echo "=== PATH from bash ==="
+          echo "$PATH" | tr ':' '\n' | grep -i git | head -5
           echo "=== end ==="
         fi
 
