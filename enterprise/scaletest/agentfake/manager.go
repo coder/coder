@@ -170,9 +170,14 @@ func (m *Manager) Run(ctx context.Context) error {
 		if len(durations) == 0 {
 			return
 		}
+		// Mean is order-independent and is computed before the sort so the
+		// dependency between the two percentile calls and sortedness is
+		// localized here.
+		mean := meanDuration(durations)
+		sort.Slice(durations, func(i, j int) bool { return durations[i] < durations[j] })
 		m.logger.Info(collectorCtx, "all agents connected",
 			slog.F("count", len(durations)),
-			slog.F("mean", meanDuration(durations)),
+			slog.F("mean", mean),
 			slog.F("pct_ninety_five", percentileDuration(durations, 95)),
 			slog.F("pct_ninety_nine", percentileDuration(durations, 99)),
 		)
@@ -443,12 +448,12 @@ func meanDuration(d []time.Duration) time.Duration {
 }
 
 // percentileDuration returns the p-th percentile (0-100) using nearest-rank.
-// Sorts d in place; callers that care about preserving order should pass a copy.
+// Expects d to be sorted ascending; callers sort once before invoking this
+// for multiple percentiles.
 func percentileDuration(d []time.Duration, p float64) time.Duration {
 	if len(d) == 0 {
 		return 0
 	}
-	sort.Slice(d, func(i, j int) bool { return d[i] < d[j] })
 	idx := int(p/100*float64(len(d))+0.5) - 1
 	if idx < 0 {
 		idx = 0
