@@ -1306,7 +1306,7 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 
 // TestModelFromConfig_AnthropicPDFFilePartReachesProvider pins the end-to-end
 // path that lets a user-uploaded PDF actually reach Claude/Bedrock: a
-// fantasy.FilePart with MediaType "application/pdf" must be serialised as an
+// fantasy.FilePart with MediaType "application/pdf" must be serialized as an
 // Anthropic "document" content block with a base64 source carrying the PDF
 // bytes. Older fantasy versions silently dropped PDF FileParts in the
 // Anthropic provider, so the user message ended up empty and the model never
