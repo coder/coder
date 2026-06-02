@@ -85,6 +85,15 @@ runs:
       run: |
         set -euo pipefail
 
+        # Diagnose printf resolution on Windows.
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+          echo "=== printf resolution ==="
+          cmd.exe /c "where printf" || true
+          echo "=== mise shims ==="
+          ls -la "$LOCALAPPDATA/mise/shims/printf"* 2>/dev/null || echo "no printf shims"
+          echo "=== end ==="
+        fi
+
         # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
         # of writing a PATH shim. "default" is the historical
         # ${RUNNER_TEMP}/go-test.json location consumed by
