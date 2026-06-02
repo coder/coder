@@ -56,13 +56,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -899,6 +899,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
+
 			telemetryReporter, err := telemetry.New(telemetry.Options{
 				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
@@ -1006,24 +1007,30 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 			defer notificationReportGenerator.Close()
 
-			// Seed providers before newAPI so the aibridgeproxyd inside
-			// the enterprise closure observes env-configured providers
-			// at init.
-			if err := coderd.SeedAIProvidersFromEnv(
-				ctx,
-				options.Database,
-				vals.AI.BridgeConfig,
-				logger.Named("aibridge.envseed"),
-			); err != nil {
-				return xerrors.Errorf("seed ai providers from env: %w", err)
-			}
-
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have its own close functions. This is cleaner
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
+			}
+			var aibridgeDaemon *aibridged.Server
+
+			// Both seed (writes) and build (reads) of AI providers need
+			// options.Database to be dbcrypt-wrapped, which only happens
+			// inside newAPI. The context is detached: the shutdown
+			// sequence below is not deferred, so a ctx-canceled early
+			// return here would orphan newAPI's goroutines.
+			//nolint:gocritic // Production timeout, not a test wait.
+			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer aibridgeInitCancel()
+			if err := coderd.SeedAIProvidersFromEnv(
+				aibridgeInitCtx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
@@ -1034,11 +1041,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				providers, err := BuildProviders(vals.AI.BridgeConfig)
+				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
-				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
+				var unsubscribeProviderReload func()
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1047,6 +1055,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// daemon does not affect in-flight requests but is needed to
 				// release pool/recorder resources at shutdown.
 				defer aibridgeDaemon.Close()
+				defer unsubscribeProviderReload()
 			}
 
 			if vals.Prometheus.Enable {
@@ -1304,6 +1313,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
+			// The in-memory aibridge server participates in the websocket
+			// wait group, so close its client before waiting for that group.
+			if aibridgeDaemon != nil {
+				_ = aibridgeDaemon.Close()
+			}
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
@@ -2965,6 +2979,11 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
+const (
+	aiGatewayProviderEnvPrefix = "CODER_AI_GATEWAY_PROVIDER_"
+	aiBridgeProviderEnvPrefix  = "CODER_AIBRIDGE_PROVIDER_"
+)
+
 // ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIProviderConfig.
 // Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
@@ -2972,16 +2991,22 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 //
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
-	providers, err := readAIProvidersForPrefix(logger, environ, "CODER_AIBRIDGE_PROVIDER_")
+	providers, err := readAIProvidersForPrefix(logger, environ, aiBridgeProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
-	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, aiGatewayProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
 	if len(providers) > 0 && len(gatewayProviders) > 0 {
-		return nil, xerrors.New("cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*")
+		return nil, xerrors.Errorf("cannot mix %s* and %s* environment variables, please consolidate onto %s*", aiBridgeProviderEnvPrefix, aiGatewayProviderEnvPrefix, aiGatewayProviderEnvPrefix)
+	}
+	var activePrefix string
+	if len(providers) > 0 {
+		activePrefix = aiBridgeProviderEnvPrefix
+	} else if len(gatewayProviders) > 0 {
+		activePrefix = aiGatewayProviderEnvPrefix
 	}
 	providers = append(providers, gatewayProviders...)
 
@@ -2993,11 +3018,10 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
 		}
 
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		providerType := database.AIProviderType(p.Type)
+		if !providerType.Valid() {
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %v)",
+				i, p.Type, database.AllAIProviderTypeValues())
 		}
 
 		var bedrockKey, bedrockSecret string
@@ -3013,21 +3037,36 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		)
 		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
 
-		if p.Type != aibridge.ProviderAnthropic && isBedrock {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
+		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
+		// with KEYS) and required on bedrock. Any other TYPE rejecting
+		// them prevents silently-ignored credentials.
+		isBedrockType := providerType == database.AiProviderTypeBedrock
+		isAnthropicType := providerType == database.AiProviderTypeAnthropic
+		if !isAnthropicType && !isBedrockType && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
+				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
 		}
 
-		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
+		if isBedrockType && !isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires BEDROCK_* fields to be configured",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if isBedrockType && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use BEDROCK_* fields)",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if providerType == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, aibridge.ProviderCopilot)
+				i, p.Type, database.AiProviderTypeCopilot)
 		}
 
 		// An Anthropic provider authenticates either via a bearer
 		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
 		// the conflict here so misconfigured deployments fail before
 		// any DB work happens at server startup.
-		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && isBedrock {
+		if isAnthropicType && len(p.Keys) > 0 && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 				i, p.Type)
 		}
@@ -3049,7 +3088,25 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		names[p.Name] = i
 	}
 
+	warnIfAIProvidersConfiguredFromEnv(context.Background(), logger, activePrefix, providers)
+
 	return providers, nil
+}
+
+func warnIfAIProvidersConfiguredFromEnv(ctx context.Context, logger slog.Logger, prefix string, providers []codersdk.AIProviderConfig) {
+	if len(providers) == 0 {
+		return
+	}
+
+	if prefix == "" {
+		return
+	}
+
+	logger.Warn(ctx,
+		"ai provider environment variables are deprecated for provider management and only seed provider configuration at startup",
+		slog.F("env_prefix", prefix),
+		slog.F("replacement", "Manage AI Providers from the Coder UI or HTTP API."),
+	)
 }
 
 // readAIProvidersForPrefix parses provider env vars under a single
@@ -3114,8 +3171,6 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			}
 		case "BASE_URL":
 			provider.BaseURL = v.Value
-		case "DUMP_DIR":
-			provider.DumpDir = v.Value
 		case "BEDROCK_BASE_URL":
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":

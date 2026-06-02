@@ -84,6 +84,8 @@ func (p *OpenAI) Name() string {
 	return p.cfg.Name
 }
 
+func (*OpenAI) Enabled() bool { return true }
+
 func (p *OpenAI) RoutePrefix() string {
 	// Route prefix includes version to match default OpenAI base URL.
 	// More detailed explanation: https://github.com/coder/aibridge/pull/174#discussion_r2782320152
@@ -141,14 +143,10 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		cfg.KeyPool = nil
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
-			credSecret = key.Value()
-		}
 	}
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())

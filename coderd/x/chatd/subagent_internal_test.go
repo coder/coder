@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -231,6 +232,163 @@ func insertInternalAIProvider(
 	})
 }
 
+func TestCreateChildSubagentChatPropagatesActiveTurnAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+
+	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	child, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: child.ID})
+	require.NoError(t, err)
+	var childUserMessage database.ChatMessage
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleUser {
+			childUserMessage = message
+			break
+		}
+	}
+	require.NotZero(t, childUserMessage.ID)
+	require.True(t, childUserMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, childUserMessage.APIKeyID.String)
+}
+
+func TestSendSubagentMessagePropagatesActiveTurnAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-send-subagent-key",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		APIKeyID:           apiKey.ID,
+	})
+	require.NoError(t, err)
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
+		Title:          "child-send-subagent-key",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("do work"),
+		},
+	})
+	require.NoError(t, err)
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+	_, err = server.sendSubagentMessage(
+		ctx,
+		parent.ID,
+		child.ID,
+		"follow up",
+		SendMessageBusyBehaviorInterrupt,
+	)
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: child.ID})
+	require.NoError(t, err)
+	var latestUserMessage database.ChatMessage
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleUser && message.ID > latestUserMessage.ID {
+			latestUserMessage = message
+		}
+	}
+	require.NotZero(t, latestUserMessage.ID)
+	require.True(t, latestUserMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, latestUserMessage.APIKeyID.String)
+}
+
+func TestCreateChildSubagentChatRequiresActiveTurnAPIKeyIDForAIGateway(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	parent := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	server := &Server{
+		db:                      db,
+		logger:                  slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		aiGatewayRoutingEnabled: true,
+	}
+	_, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
+	require.ErrorContains(t, err, "AI Gateway routing requires the active turn API key ID for subagent messages")
+}
+
+func TestSendSubagentMessageRequiresActiveTurnAPIKeyIDForAIGateway(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	server.aiGatewayRoutingEnabled = true
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-send-subagent-missing-key",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
+		Title:          "child-send-subagent-missing-key",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("do work"),
+		},
+	})
+	require.NoError(t, err)
+
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+	_, err = server.sendSubagentMessage(
+		ctx,
+		parent.ID,
+		child.ID,
+		"follow up",
+		SendMessageBusyBehaviorInterrupt,
+	)
+	require.ErrorContains(t, err, "AI Gateway routing requires the active turn API key ID for subagent messages")
+}
+
 func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 	t.Parallel()
 
@@ -351,7 +509,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 	})
 
-	model, config, keys, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat)
+	model, config, keys, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
 	require.ErrorContains(t, err, "is disabled")
 	require.Nil(t, model)
 	require.Equal(t, database.ChatModelConfig{}, config)
@@ -3186,6 +3344,26 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		user, org, model := seedInternalChatDeps(t, db)
 
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		// signalWake from CreateChat triggers background processing. Wait
+		// for those runs to finish, then reset both chats so this test owns
+		// the state transition observed by the poll loop.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			parentChat, err := db.GetChatByID(ctx, parent.ID)
+			if err != nil {
+				return false
+			}
+			childChat, err := db.GetChatByID(ctx, child.ID)
+			if err != nil {
+				return false
+			}
+			return parentChat.Status != database.ChatStatusPending &&
+				parentChat.Status != database.ChatStatusRunning &&
+				childChat.Status != database.ChatStatusPending &&
+				childChat.Status != database.ChatStatusRunning
+		}, testutil.IntervalFast)
+		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
 		// Set the trap BEFORE starting the goroutine so we
 		// deterministically catch the ticker creation.

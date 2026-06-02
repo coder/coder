@@ -27,7 +27,7 @@ import {
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { ReadFileTool } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -231,12 +231,15 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -245,7 +248,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
@@ -315,22 +318,12 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
-}) => {
-	const parsedArgs = parseArgs(args);
-	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(result);
-	const content = rec ? asString(rec.content).trim() : "";
-
-	return (
-		<ReadFileTool
-			path={path || "file"}
-			content={content}
-			status={status}
-			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-		/>
-	);
-};
+}) => (
+	<ReadFileTool
+		{...getReadFileToolData({ args, result, isError })}
+		status={status}
+	/>
+);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -948,6 +941,10 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					mcpSlug={mcpServer?.slug}
 				/>
 			)}
+		</>
+	);
+	const toolHeaderStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -973,7 +970,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 
 	return (
-		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={toolHeader}
+			headerStatus={toolHeaderStatus}
+		>
 			{toolContent}
 		</ToolCollapsible>
 	);

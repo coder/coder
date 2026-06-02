@@ -8,7 +8,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/serpent"
 )
 
@@ -16,10 +15,9 @@ func TestSelect(t *testing.T) {
 	t.Parallel()
 	t.Run("Select", func(t *testing.T) {
 		t.Parallel()
-		ptty := ptytest.New(t)
 		msgChan := make(chan string)
 		go func() {
-			resp, err := newSelect(ptty, cliui.SelectOptions{
+			resp, err := newSelect(cliui.SelectOptions{
 				Options: []string{"First", "Second"},
 			})
 			assert.NoError(t, err)
@@ -29,7 +27,7 @@ func TestSelect(t *testing.T) {
 	})
 }
 
-func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
+func newSelect(opts cliui.SelectOptions) (string, error) {
 	value := ""
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
@@ -39,7 +37,6 @@ func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 		},
 	}
 	inv := cmd.Invoke()
-	ptty.Attach(inv)
 	return value, inv.Run()
 }
 
@@ -47,10 +44,10 @@ func TestRichSelect(t *testing.T) {
 	t.Parallel()
 	t.Run("RichSelect", func(t *testing.T) {
 		t.Parallel()
-		ptty := ptytest.New(t)
+
 		msgChan := make(chan string)
 		go func() {
-			resp, err := newRichSelect(ptty, cliui.RichSelectOptions{
+			resp, err := newRichSelect(cliui.RichSelectOptions{
 				Options: []codersdk.TemplateVersionParameterOption{
 					{Name: "A-Name", Value: "A-Value", Description: "A-Description."},
 					{Name: "B-Name", Value: "B-Value", Description: "B-Description."},
@@ -63,7 +60,7 @@ func TestRichSelect(t *testing.T) {
 	})
 }
 
-func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, error) {
+func newRichSelect(opts cliui.RichSelectOptions) (string, error) {
 	value := ""
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
@@ -75,7 +72,6 @@ func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, err
 		},
 	}
 	inv := cmd.Invoke()
-	ptty.Attach(inv)
 	return value, inv.Run()
 }
 
@@ -181,11 +177,10 @@ func TestMultiSelect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ptty := ptytest.New(t)
 			msgChan := make(chan []string)
 
 			go func() {
-				resp, err := newMultiSelect(ptty, tt.items, tt.allowCustom)
+				resp, err := newMultiSelect(tt.items, tt.allowCustom)
 				assert.NoError(t, err)
 				msgChan <- resp
 			}()
@@ -195,7 +190,7 @@ func TestMultiSelect(t *testing.T) {
 	}
 }
 
-func newMultiSelect(pty *ptytest.PTY, items []string, custom bool) ([]string, error) {
+func newMultiSelect(items []string, custom bool) ([]string, error) {
 	var values []string
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
@@ -211,6 +206,5 @@ func newMultiSelect(pty *ptytest.PTY, items []string, custom bool) ([]string, er
 		},
 	}
 	inv := cmd.Invoke()
-	pty.Attach(inv)
 	return values, inv.Run()
 }

@@ -31,6 +31,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -43,6 +44,7 @@ interface ChatTreeNodeProps {
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const location = useLocation();
+	const locationSearch = normalizeLocationSearch(location.search);
 	const {
 		chatTree,
 		chatById,
@@ -206,7 +208,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col">
+		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
 					<div
@@ -261,7 +263,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<NavLink
 							to={{
 								pathname: `/agents/${chat.id}`,
-								search: location.search,
+								search: locationSearch,
 							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
@@ -327,7 +329,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
-												className="size-2 shrink-0 rounded-full bg-content-link"
+												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
 												data-testid={`unread-indicator-${chat.id}`}
 												aria-hidden="true"
 											/>
@@ -372,7 +374,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;

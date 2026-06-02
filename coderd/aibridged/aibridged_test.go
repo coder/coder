@@ -196,6 +196,10 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 		expectAbsent  []string
 	}{
 		{
+			// Delegated + centralized: identity comes from the
+			// api key ID on the context, in lieu of a session
+			// token. No header credentials are sent and SessionKey
+			// is empty downstream.
 			name: "valid centralized",
 			applyMocks: func(t *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -208,7 +212,12 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 							Username: "u",
 						}, nil
 					})
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+						assert.Empty(t, req.SessionKey,
+							"delegated centralized request carries no session token")
+						return mockH, nil
+					})
 			},
 			expectStatus:  http.StatusOK,
 			expectHandled: true,
@@ -222,18 +231,25 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 			name: "valid BYOK preserves user credentials",
 			reqHeaders: map[string]string{
 				// Marks BYOK; this header must be stripped before
-				// forwarding upstream.
-				agplaibridge.HeaderCoderToken: "should-not-be-present",
+				// forwarding upstream. Its value is what gets
+				// surfaced downstream as the SessionKey because
+				// ExtractAuthToken prefers HeaderCoderToken.
+				agplaibridge.HeaderCoderToken: "coder-token-byok",
 				// The user's own LLM credential; must be preserved.
 				"Authorization": "Bearer sk-ant-oat01-user-token",
 			},
-			applyMocks: func(_ *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
+			applyMocks: func(t *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
 					OwnerId:  uuid.NewString(),
 					ApiKeyId: testKeyID,
 					Username: "u",
 				}, nil)
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+						assert.Equal(t, "coder-token-byok", req.SessionKey,
+							"BYOK delegated request must still surface the extracted Coder token as SessionKey")
+						return mockH, nil
+					})
 			},
 			expectStatus:  http.StatusOK,
 			expectHandled: true,

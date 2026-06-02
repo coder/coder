@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sort"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -21,6 +21,20 @@ import (
 	"github.com/coder/quartz"
 )
 
+// ExternalAgentClient is the subset of *codersdk.Client the Manager uses to
+// resolve the template/owner the operator named on the command line and to
+// poll the workspace count gate. The actual external-agent auth tokens are
+// fetched in-process via a direct database query (see
+// GetExternalAgentTokensByTemplateID), not via this client. *codersdk.Client
+// satisfies this interface, so production callers pass their client
+// directly; tests substitute a fake without standing up a real coderd.
+type ExternalAgentClient interface {
+	User(ctx context.Context, userIdent string) (codersdk.User, error)
+	Template(ctx context.Context, id uuid.UUID) (codersdk.Template, error)
+	TemplatesByOrganization(ctx context.Context, orgID uuid.UUID) ([]codersdk.Template, error)
+	Workspaces(ctx context.Context, filter codersdk.WorkspaceFilter) (codersdk.WorkspacesResponse, error)
+}
+
 const (
 	maxEnumerateRetries        = 5
 	initialEnumerateBackoff    = 1 * time.Second
@@ -31,10 +45,11 @@ const (
 // TokenInfo is a single workspace-agent auth token retrieved for a coder external agent, along with the identifying
 // metadata needed to report the agent in metrics and logs.
 type TokenInfo struct {
-	WorkspaceID uuid.UUID
-	AgentID     uuid.UUID
-	AgentName   string
-	Token       string
+	WorkspaceID   uuid.UUID
+	WorkspaceName string
+	AgentID       uuid.UUID
+	AgentName     string
+	Token         string
 }
 
 // ManagerOptions configures a Manager. Authentication is supplied via the *codersdk.Client passed to NewManager rather
@@ -61,10 +76,11 @@ type ManagerOptions struct {
 // (via coder_external_agent tokens on workspaces matching opts.Template), then opens a dRPC stream per agent and keeps
 // them connected until ctx is canceled.
 type Manager struct {
-	client *codersdk.Client
-	db     database.Store
-	logger slog.Logger
-	opts   ManagerOptions
+	coderURL *url.URL
+	client   ExternalAgentClient
+	db       database.Store
+	logger   slog.Logger
+	opts     ManagerOptions
 
 	// templateID + ownerID are resolved once during Run from opts.Template /
 	// opts.Owner (names). ownerID stays uuid.Nil when opts.Owner is empty, which
@@ -76,18 +92,23 @@ type Manager struct {
 	agents []*Agent
 }
 
-// NewManager returns an Agent Manager. The provided client must already be authenticated with sufficient privilege
-// to list workspaces by template (template-admin or higher). db must be a database.Store connected to the same
-// Postgres database as the target coderd; it is used to bulk-fetch external-agent tokens for the enumerated workspaces.
-func NewManager(client *codersdk.Client, db database.Store, logger slog.Logger, opts ManagerOptions) *Manager {
+// NewManager returns an Agent Manager. The provided client must already be
+// authenticated with sufficient privilege to list workspaces, look up the
+// configured template, and (when --owner is set) look up the named user
+// (template-admin or higher). db must be a database.Store connected to the
+// same Postgres database as the target coderd; it is used to bulk-fetch
+// external-agent tokens for the enumerated workspaces. coderURL is the URL
+// the spawned fake agents will dial.
+func NewManager(logger slog.Logger, coderURL *url.URL, client ExternalAgentClient, db database.Store, opts ManagerOptions) *Manager {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
 	return &Manager{
-		client: client,
-		db:     db,
-		logger: logger,
-		opts:   opts,
+		coderURL: coderURL,
+		client:   client,
+		db:       db,
+		logger:   logger,
+		opts:     opts,
 	}
 }
 
@@ -118,9 +139,9 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	agents := make([]*Agent, 0, len(tokens))
 	for i, ti := range tokens {
-		agents = append(agents, NewAgent(
+		agents = append(agents, NewAgent(m.coderURL, ti.Token,
 			m.logger.Named("agent-"+strconv.Itoa(i)),
-			m.client.URL, ti.Token, m.opts.Metrics))
+			WithMetrics(m.opts.Metrics)))
 	}
 	m.mu.Lock()
 	m.agents = agents
@@ -132,29 +153,6 @@ func (m *Manager) Run(ctx context.Context) error {
 			return a.Run(egCtx)
 		})
 	}
-
-	// Log connection-time stats once all agents have reported their first connect.
-	// Run in a goroutine so agents that never connect don't block Run from returning.
-	go func() {
-		durations := make([]time.Duration, 0, len(agents))
-		for _, a := range agents {
-			select {
-			case d := <-a.firstConnectDuration:
-				durations = append(durations, d)
-			case <-egCtx.Done():
-				return
-			}
-		}
-		if len(durations) == 0 {
-			return
-		}
-		m.logger.Info(egCtx, "all agents connected",
-			slog.F("count", len(durations)),
-			slog.F("mean", meanDuration(durations)),
-			slog.F("pct_ninety_five", percentileDuration(durations, 95)),
-			slog.F("pct_ninety_nine", percentileDuration(durations, 99)),
-		)
-	}()
 
 	err = eg.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -226,10 +224,11 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 	tokens := make([]TokenInfo, 0, len(rows))
 	for _, row := range rows {
 		tokens = append(tokens, TokenInfo{
-			WorkspaceID: row.WorkspaceID,
-			AgentID:     row.AgentID,
-			AgentName:   row.AgentName,
-			Token:       row.AgentToken.String(),
+			WorkspaceID:   row.WorkspaceID,
+			WorkspaceName: row.WorkspaceName,
+			AgentID:       row.AgentID,
+			AgentName:     row.AgentName,
+			Token:         row.AgentToken.String(),
 		})
 	}
 	m.logger.Info(ctx, "enumerated external-agent workspaces",
@@ -277,7 +276,7 @@ func (m *Manager) ResolveTemplateAndOwner(ctx context.Context) error {
 // sole benefit of this enterprise consumer. Keep behavior in sync with the
 // original: accept either a UUID or a template name, search all of the user's
 // organizations for a name match.
-func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
+func parseTemplate(ctx context.Context, client ExternalAgentClient, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
 	if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
 		tpl, err = client.Template(ctx, id)
 		if err != nil {
@@ -386,32 +385,4 @@ func IsFatalEnumerationError(err error) bool {
 		return true
 	}
 	return false
-}
-
-// meanDuration returns the mean of d.
-func meanDuration(d []time.Duration) time.Duration {
-	if len(d) == 0 {
-		return 0
-	}
-	var total time.Duration
-	for _, v := range d {
-		total += v
-	}
-	return total / time.Duration(len(d))
-}
-
-// percentileDuration returns the p-th percentile (0-100) using nearest-rank. Sorts d in place.
-func percentileDuration(d []time.Duration, p float64) time.Duration {
-	if len(d) == 0 {
-		return 0
-	}
-	sort.Slice(d, func(i, j int) bool { return d[i] < d[j] })
-	idx := int(p/100*float64(len(d))+0.5) - 1
-	if idx < 0 {
-		idx = 0
-	}
-	if idx >= len(d) {
-		idx = len(d) - 1
-	}
-	return d[idx]
 }

@@ -53,6 +53,8 @@ type Provider interface {
 	// Name returns the provider instance name.
 	// Defaults to Type() when not explicitly configured.
 	Name() string
+	// Enabled reports whether the provider should serve requests.
+	Enabled() bool
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string
 

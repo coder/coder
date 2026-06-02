@@ -49,7 +49,7 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 		<section className="space-y-4">
 			{!hideHeader && (
 				<SectionHeader
-					label="Default Spend Limit"
+					label="Default spend limit"
 					description="Set a deployment-wide spend cap that applies to all users by default."
 					badge={adminBadge}
 				/>

@@ -363,6 +363,7 @@ WHERE
 -- that user.
 SELECT
 	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
 	workspace_agents.id         AS agent_id,
 	workspace_agents.name       AS agent_name,
 	workspace_agents.auth_token AS agent_token

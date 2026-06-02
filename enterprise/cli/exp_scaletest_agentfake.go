@@ -116,7 +116,7 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 
 			metrics := agentfake.NewMetrics(prometheus.DefaultRegisterer)
 
-			mgr := agentfake.NewManager(client, db, logger, agentfake.ManagerOptions{
+			mgr := agentfake.NewManager(logger, client.URL, client, db, agentfake.ManagerOptions{
 				Template:                template,
 				Owner:                   owner,
 				Metrics:                 metrics,

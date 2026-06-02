@@ -1,5 +1,6 @@
 import {
 	ArrowLeftIcon,
+	ArrowUpRightIcon,
 	BotIcon,
 	BoxesIcon,
 	ChevronRightIcon,
@@ -44,7 +45,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 	onCollapse,
 }) => {
 	const subNavTitle =
-		settingsPanel === "settings-admin" ? "Manage Agents" : "Settings";
+		settingsPanel === "settings-admin" ? "Manage agents" : "Settings";
 
 	return (
 		<div
@@ -66,8 +67,8 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						size="icon"
 						aria-label={
 							settingsPanel === "settings-admin"
-								? "Back to Settings"
-								: "Back to Agents"
+								? "Back to settings"
+								: "Back to agents"
 						}
 						className="relative z-10 size-7 min-w-0 text-content-secondary hover:text-content-primary"
 					>
@@ -75,7 +76,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							<Link
 								to="/agents/settings/general"
 								state={location.state}
-								aria-label="Back to Settings"
+								aria-label="Back to settings"
 							>
 								<ArrowLeftIcon />
 							</Link>
@@ -121,7 +122,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					)}
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
-						label="Personal Skills"
+						label="Personal skills"
 						active={settingsSection === "personal-skills"}
 						to="/agents/settings/personal-skills"
 						state={location.state}
@@ -145,7 +146,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					{isAdmin && (
 						<SettingsNavItem
 							icon={Settings2Icon}
-							label="Manage Agents"
+							label="Manage agents"
 							active={false}
 							to="/agents/settings/admin"
 							state={location.state}
@@ -165,9 +166,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={PlugIcon}
 						label="Providers"
-						active={settingsSection === "providers"}
-						to="/agents/settings/providers"
-						state={location.state}
+						active={false}
+						to="/ai/settings"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={BoxesIcon}
@@ -178,7 +179,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					/>
 					<SettingsNavItem
 						icon={ServerIcon}
-						label="MCP Servers"
+						label="MCP servers"
 						active={settingsSection === "mcp-servers"}
 						to="/agents/settings/mcp-servers"
 						state={location.state}

@@ -5,6 +5,7 @@ type RBACResource string
 
 const (
 	ResourceWildcard                      RBACResource = "*"
+	ResourceAIGatewayKey                  RBACResource = "ai_gateway_key"
 	ResourceAiModelPrice                  RBACResource = "ai_model_price"
 	ResourceAIProvider                    RBACResource = "ai_provider"
 	ResourceAiSeat                        RBACResource = "ai_seat"
@@ -13,6 +14,7 @@ const (
 	ResourceAssignOrgRole                 RBACResource = "assign_org_role"
 	ResourceAssignRole                    RBACResource = "assign_role"
 	ResourceAuditLog                      RBACResource = "audit_log"
+	ResourceBoundaryLog                   RBACResource = "boundary_log"
 	ResourceBoundaryUsage                 RBACResource = "boundary_usage"
 	ResourceChat                          RBACResource = "chat"
 	ResourceConnectionLog                 RBACResource = "connection_log"
@@ -81,6 +83,7 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
+	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
 	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},
@@ -89,6 +92,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},
 	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
+	ResourceBoundaryLog:                   {ActionCreate, ActionDelete, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
