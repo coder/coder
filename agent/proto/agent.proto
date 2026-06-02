@@ -538,6 +538,59 @@ message UpdateAppStatusRequest {
 
 message UpdateAppStatusResponse {}
 
+// ContextResource is a single resolved workspace context
+// resource (instruction file, skill meta, MCP config, or live
+// MCP server tool list) pushed from the agent to coderd as part
+// of a PushContextStateRequest snapshot.
+//
+// Reserved kinds (PLUGIN, HOOK, SUBAGENT, COMMAND) are not
+// emitted by v2.10 agents; they are forward-compatible slots
+// for the Claude Code plugin RFC.
+message ContextResource {
+	string id = 1;
+	enum Kind {
+		KIND_UNSPECIFIED = 0;
+		INSTRUCTION_FILE = 1;
+		SKILL = 2;
+		MCP_CONFIG = 3;
+		MCP_SERVER = 4;
+		PLUGIN = 5;
+		HOOK = 6;
+		SUBAGENT = 7;
+		COMMAND = 8;
+	}
+	enum Status {
+		STATUS_UNSPECIFIED = 0;
+		OK = 1;
+		OVERSIZE = 2;
+		UNREADABLE = 3;
+		INVALID = 4;
+		EXCLUDED = 5;
+	}
+	Kind kind = 2;
+	string source = 3;
+	bytes content_hash = 4;
+	bytes payload = 5;
+	optional string source_path = 6;
+	Status status = 7;
+	uint64 size_bytes = 8;
+	string error = 9;
+	string description = 10;
+}
+
+message PushContextStateRequest {
+	uint64 version = 1;
+	bytes aggregate_hash = 2;
+	repeated ContextResource resources = 3;
+	bool initial = 4;
+	uint64 schema_version = 5;
+	string snapshot_error = 6;
+}
+
+message PushContextStateResponse {
+	bool accepted = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -557,4 +610,5 @@ service Agent {
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
+	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
 }

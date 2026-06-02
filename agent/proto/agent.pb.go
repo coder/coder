@@ -828,6 +828,131 @@ func (UpdateAppStatusRequest_AppStatusState) EnumDescriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{46, 0}
 }
 
+type ContextResource_Kind int32
+
+const (
+	ContextResource_KIND_UNSPECIFIED ContextResource_Kind = 0
+	ContextResource_INSTRUCTION_FILE ContextResource_Kind = 1
+	ContextResource_SKILL            ContextResource_Kind = 2
+	ContextResource_MCP_CONFIG       ContextResource_Kind = 3
+	ContextResource_MCP_SERVER       ContextResource_Kind = 4
+	ContextResource_PLUGIN           ContextResource_Kind = 5
+	ContextResource_HOOK             ContextResource_Kind = 6
+	ContextResource_SUBAGENT         ContextResource_Kind = 7
+	ContextResource_COMMAND          ContextResource_Kind = 8
+)
+
+// Enum value maps for ContextResource_Kind.
+var (
+	ContextResource_Kind_name = map[int32]string{
+		0: "KIND_UNSPECIFIED",
+		1: "INSTRUCTION_FILE",
+		2: "SKILL",
+		3: "MCP_CONFIG",
+		4: "MCP_SERVER",
+		5: "PLUGIN",
+		6: "HOOK",
+		7: "SUBAGENT",
+		8: "COMMAND",
+	}
+	ContextResource_Kind_value = map[string]int32{
+		"KIND_UNSPECIFIED": 0,
+		"INSTRUCTION_FILE": 1,
+		"SKILL":            2,
+		"MCP_CONFIG":       3,
+		"MCP_SERVER":       4,
+		"PLUGIN":           5,
+		"HOOK":             6,
+		"SUBAGENT":         7,
+		"COMMAND":          8,
+	}
+)
+
+func (x ContextResource_Kind) Enum() *ContextResource_Kind {
+	p := new(ContextResource_Kind)
+	*p = x
+	return p
+}
+
+func (x ContextResource_Kind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContextResource_Kind) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_proto_agent_proto_enumTypes[15].Descriptor()
+}
+
+func (ContextResource_Kind) Type() protoreflect.EnumType {
+	return &file_agent_proto_agent_proto_enumTypes[15]
+}
+
+func (x ContextResource_Kind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContextResource_Kind.Descriptor instead.
+func (ContextResource_Kind) EnumDescriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{48, 0}
+}
+
+type ContextResource_Status int32
+
+const (
+	ContextResource_STATUS_UNSPECIFIED ContextResource_Status = 0
+	ContextResource_OK                 ContextResource_Status = 1
+	ContextResource_OVERSIZE           ContextResource_Status = 2
+	ContextResource_UNREADABLE         ContextResource_Status = 3
+	ContextResource_INVALID            ContextResource_Status = 4
+	ContextResource_EXCLUDED           ContextResource_Status = 5
+)
+
+// Enum value maps for ContextResource_Status.
+var (
+	ContextResource_Status_name = map[int32]string{
+		0: "STATUS_UNSPECIFIED",
+		1: "OK",
+		2: "OVERSIZE",
+		3: "UNREADABLE",
+		4: "INVALID",
+		5: "EXCLUDED",
+	}
+	ContextResource_Status_value = map[string]int32{
+		"STATUS_UNSPECIFIED": 0,
+		"OK":                 1,
+		"OVERSIZE":           2,
+		"UNREADABLE":         3,
+		"INVALID":            4,
+		"EXCLUDED":           5,
+	}
+)
+
+func (x ContextResource_Status) Enum() *ContextResource_Status {
+	p := new(ContextResource_Status)
+	*p = x
+	return p
+}
+
+func (x ContextResource_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContextResource_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_proto_agent_proto_enumTypes[16].Descriptor()
+}
+
+func (ContextResource_Status) Type() protoreflect.EnumType {
+	return &file_agent_proto_agent_proto_enumTypes[16]
+}
+
+func (x ContextResource_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContextResource_Status.Descriptor instead.
+func (ContextResource_Status) EnumDescriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{48, 1}
+}
+
 type WorkspaceApp struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3818,6 +3943,267 @@ func (*UpdateAppStatusResponse) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{47}
 }
 
+// ContextResource is a single resolved workspace context
+// resource (instruction file, skill meta, MCP config, or live
+// MCP server tool list) pushed from the agent to coderd as part
+// of a PushContextStateRequest snapshot.
+//
+// Reserved kinds (PLUGIN, HOOK, SUBAGENT, COMMAND) are not
+// emitted by v2.10 agents; they are forward-compatible slots
+// for the Claude Code plugin RFC.
+type ContextResource struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id          string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Kind        ContextResource_Kind   `protobuf:"varint,2,opt,name=kind,proto3,enum=coder.agent.v2.ContextResource_Kind" json:"kind,omitempty"`
+	Source      string                 `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
+	ContentHash []byte                 `protobuf:"bytes,4,opt,name=content_hash,json=contentHash,proto3" json:"content_hash,omitempty"`
+	Payload     []byte                 `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	SourcePath  *string                `protobuf:"bytes,6,opt,name=source_path,json=sourcePath,proto3,oneof" json:"source_path,omitempty"`
+	Status      ContextResource_Status `protobuf:"varint,7,opt,name=status,proto3,enum=coder.agent.v2.ContextResource_Status" json:"status,omitempty"`
+	SizeBytes   uint64                 `protobuf:"varint,8,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Error       string                 `protobuf:"bytes,9,opt,name=error,proto3" json:"error,omitempty"`
+	Description string                 `protobuf:"bytes,10,opt,name=description,proto3" json:"description,omitempty"`
+}
+
+func (x *ContextResource) Reset() {
+	*x = ContextResource{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_proto_agent_proto_msgTypes[48]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ContextResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextResource) ProtoMessage() {}
+
+func (x *ContextResource) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[48]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextResource.ProtoReflect.Descriptor instead.
+func (*ContextResource) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ContextResource) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ContextResource) GetKind() ContextResource_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return ContextResource_KIND_UNSPECIFIED
+}
+
+func (x *ContextResource) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ContextResource) GetContentHash() []byte {
+	if x != nil {
+		return x.ContentHash
+	}
+	return nil
+}
+
+func (x *ContextResource) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ContextResource) GetSourcePath() string {
+	if x != nil && x.SourcePath != nil {
+		return *x.SourcePath
+	}
+	return ""
+}
+
+func (x *ContextResource) GetStatus() ContextResource_Status {
+	if x != nil {
+		return x.Status
+	}
+	return ContextResource_STATUS_UNSPECIFIED
+}
+
+func (x *ContextResource) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ContextResource) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ContextResource) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type PushContextStateRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Version       uint64             `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	AggregateHash []byte             `protobuf:"bytes,2,opt,name=aggregate_hash,json=aggregateHash,proto3" json:"aggregate_hash,omitempty"`
+	Resources     []*ContextResource `protobuf:"bytes,3,rep,name=resources,proto3" json:"resources,omitempty"`
+	Initial       bool               `protobuf:"varint,4,opt,name=initial,proto3" json:"initial,omitempty"`
+	SchemaVersion uint64             `protobuf:"varint,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	SnapshotError string             `protobuf:"bytes,6,opt,name=snapshot_error,json=snapshotError,proto3" json:"snapshot_error,omitempty"`
+}
+
+func (x *PushContextStateRequest) Reset() {
+	*x = PushContextStateRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_proto_agent_proto_msgTypes[49]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PushContextStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushContextStateRequest) ProtoMessage() {}
+
+func (x *PushContextStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[49]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushContextStateRequest.ProtoReflect.Descriptor instead.
+func (*PushContextStateRequest) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *PushContextStateRequest) GetVersion() uint64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *PushContextStateRequest) GetAggregateHash() []byte {
+	if x != nil {
+		return x.AggregateHash
+	}
+	return nil
+}
+
+func (x *PushContextStateRequest) GetResources() []*ContextResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *PushContextStateRequest) GetInitial() bool {
+	if x != nil {
+		return x.Initial
+	}
+	return false
+}
+
+func (x *PushContextStateRequest) GetSchemaVersion() uint64 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *PushContextStateRequest) GetSnapshotError() string {
+	if x != nil {
+		return x.SnapshotError
+	}
+	return ""
+}
+
+type PushContextStateResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Accepted bool `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+}
+
+func (x *PushContextStateResponse) Reset() {
+	*x = PushContextStateResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_proto_agent_proto_msgTypes[50]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PushContextStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushContextStateResponse) ProtoMessage() {}
+
+func (x *PushContextStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[50]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushContextStateResponse.ProtoReflect.Descriptor instead.
+func (*PushContextStateResponse) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *PushContextStateResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
 type WorkspaceApp_Healthcheck struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3831,7 +4217,7 @@ type WorkspaceApp_Healthcheck struct {
 func (x *WorkspaceApp_Healthcheck) Reset() {
 	*x = WorkspaceApp_Healthcheck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[48]
+		mi := &file_agent_proto_agent_proto_msgTypes[51]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3844,7 +4230,7 @@ func (x *WorkspaceApp_Healthcheck) String() string {
 func (*WorkspaceApp_Healthcheck) ProtoMessage() {}
 
 func (x *WorkspaceApp_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[48]
+	mi := &file_agent_proto_agent_proto_msgTypes[51]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3895,7 +4281,7 @@ type WorkspaceAgentMetadata_Result struct {
 func (x *WorkspaceAgentMetadata_Result) Reset() {
 	*x = WorkspaceAgentMetadata_Result{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[49]
+		mi := &file_agent_proto_agent_proto_msgTypes[52]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3908,7 +4294,7 @@ func (x *WorkspaceAgentMetadata_Result) String() string {
 func (*WorkspaceAgentMetadata_Result) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Result) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[49]
+	mi := &file_agent_proto_agent_proto_msgTypes[52]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3967,7 +4353,7 @@ type WorkspaceAgentMetadata_Description struct {
 func (x *WorkspaceAgentMetadata_Description) Reset() {
 	*x = WorkspaceAgentMetadata_Description{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[50]
+		mi := &file_agent_proto_agent_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3980,7 +4366,7 @@ func (x *WorkspaceAgentMetadata_Description) String() string {
 func (*WorkspaceAgentMetadata_Description) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Description) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_agent_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4045,7 +4431,7 @@ type Stats_Metric struct {
 func (x *Stats_Metric) Reset() {
 	*x = Stats_Metric{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[53]
+		mi := &file_agent_proto_agent_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4058,7 +4444,7 @@ func (x *Stats_Metric) String() string {
 func (*Stats_Metric) ProtoMessage() {}
 
 func (x *Stats_Metric) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_agent_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4114,7 +4500,7 @@ type Stats_Metric_Label struct {
 func (x *Stats_Metric_Label) Reset() {
 	*x = Stats_Metric_Label{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[54]
+		mi := &file_agent_proto_agent_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4127,7 +4513,7 @@ func (x *Stats_Metric_Label) String() string {
 func (*Stats_Metric_Label) ProtoMessage() {}
 
 func (x *Stats_Metric_Label) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_agent_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4169,7 +4555,7 @@ type BatchUpdateAppHealthRequest_HealthUpdate struct {
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) Reset() {
 	*x = BatchUpdateAppHealthRequest_HealthUpdate{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[55]
+		mi := &file_agent_proto_agent_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4182,7 +4568,7 @@ func (x *BatchUpdateAppHealthRequest_HealthUpdate) String() string {
 func (*BatchUpdateAppHealthRequest_HealthUpdate) ProtoMessage() {}
 
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_agent_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4224,7 +4610,7 @@ type GetResourcesMonitoringConfigurationResponse_Config struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Config) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Config{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[56]
+		mi := &file_agent_proto_agent_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4237,7 +4623,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Config) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Config) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Config) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_agent_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4278,7 +4664,7 @@ type GetResourcesMonitoringConfigurationResponse_Memory struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Memory{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[57]
+		mi := &file_agent_proto_agent_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4291,7 +4677,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Memory) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Memory) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_agent_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4326,7 +4712,7 @@ type GetResourcesMonitoringConfigurationResponse_Volume struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Volume{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[58]
+		mi := &file_agent_proto_agent_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4339,7 +4725,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Volume) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Volume) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_agent_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4382,7 +4768,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[59]
+		mi := &file_agent_proto_agent_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4395,7 +4781,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint) String() string {
 func (*PushResourcesMonitoringUsageRequest_Datapoint) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4444,7 +4830,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[60]
+		mi := &file_agent_proto_agent_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4457,7 +4843,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_agent_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4500,7 +4886,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[61]
+		mi := &file_agent_proto_agent_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4513,7 +4899,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[61]
+	mi := &file_agent_proto_agent_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4573,7 +4959,7 @@ type CreateSubAgentRequest_App struct {
 func (x *CreateSubAgentRequest_App) Reset() {
 	*x = CreateSubAgentRequest_App{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[62]
+		mi := &file_agent_proto_agent_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4586,7 +4972,7 @@ func (x *CreateSubAgentRequest_App) String() string {
 func (*CreateSubAgentRequest_App) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[62]
+	mi := &file_agent_proto_agent_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4706,7 +5092,7 @@ type CreateSubAgentRequest_App_Healthcheck struct {
 func (x *CreateSubAgentRequest_App_Healthcheck) Reset() {
 	*x = CreateSubAgentRequest_App_Healthcheck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[63]
+		mi := &file_agent_proto_agent_proto_msgTypes[66]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4719,7 +5105,7 @@ func (x *CreateSubAgentRequest_App_Healthcheck) String() string {
 func (*CreateSubAgentRequest_App_Healthcheck) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[63]
+	mi := &file_agent_proto_agent_proto_msgTypes[66]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4769,7 +5155,7 @@ type CreateSubAgentResponse_AppCreationError struct {
 func (x *CreateSubAgentResponse_AppCreationError) Reset() {
 	*x = CreateSubAgentResponse_AppCreationError{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[64]
+		mi := &file_agent_proto_agent_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4782,7 +5168,7 @@ func (x *CreateSubAgentResponse_AppCreationError) String() string {
 func (*CreateSubAgentResponse_AppCreationError) ProtoMessage() {}
 
 func (x *CreateSubAgentResponse_AppCreationError) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[64]
+	mi := &file_agent_proto_agent_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4835,7 +5221,7 @@ type BoundaryLog_HttpRequest struct {
 func (x *BoundaryLog_HttpRequest) Reset() {
 	*x = BoundaryLog_HttpRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[65]
+		mi := &file_agent_proto_agent_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4848,7 +5234,7 @@ func (x *BoundaryLog_HttpRequest) String() string {
 func (*BoundaryLog_HttpRequest) ProtoMessage() {}
 
 func (x *BoundaryLog_HttpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[65]
+	mi := &file_agent_proto_agent_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5584,14 +5970,73 @@ var file_agent_proto_agent_proto_rawDesc = []byte{
 	0x0a, 0x04, 0x49, 0x44, 0x4c, 0x45, 0x10, 0x01, 0x12, 0x0c, 0x0a, 0x08, 0x43, 0x4f, 0x4d, 0x50,
 	0x4c, 0x45, 0x54, 0x45, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x46, 0x41, 0x49, 0x4c, 0x55, 0x52,
 	0x45, 0x10, 0x03, 0x22, 0x19, 0x0a, 0x17, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70,
-	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2a, 0x63,
+	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0xf1,
+	0x04, 0x0a, 0x0f, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72,
+	0x63, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
+	0x69, 0x64, 0x12, 0x38, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e,
+	0x32, 0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x2e, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x12, 0x16, 0x0a, 0x06,
+	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x5f,
+	0x68, 0x61, 0x73, 0x68, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x74,
+	0x65, 0x6e, 0x74, 0x48, 0x61, 0x73, 0x68, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f,
+	0x61, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61,
+	0x64, 0x12, 0x24, 0x0a, 0x0b, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x61, 0x74, 0x68,
+	0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x0a, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65,
+	0x50, 0x61, 0x74, 0x68, 0x88, 0x01, 0x01, 0x12, 0x3e, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x18, 0x07, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74,
+	0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52,
+	0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x69, 0x7a, 0x65, 0x5f,
+	0x62, 0x79, 0x74, 0x65, 0x73, 0x18, 0x08, 0x20, 0x01, 0x28, 0x04, 0x52, 0x09, 0x73, 0x69, 0x7a,
+	0x65, 0x42, 0x79, 0x74, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18,
+	0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x20, 0x0a, 0x0b,
+	0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x0a, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x8e,
+	0x01, 0x0a, 0x04, 0x4b, 0x69, 0x6e, 0x64, 0x12, 0x14, 0x0a, 0x10, 0x4b, 0x49, 0x4e, 0x44, 0x5f,
+	0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x14, 0x0a,
+	0x10, 0x49, 0x4e, 0x53, 0x54, 0x52, 0x55, 0x43, 0x54, 0x49, 0x4f, 0x4e, 0x5f, 0x46, 0x49, 0x4c,
+	0x45, 0x10, 0x01, 0x12, 0x09, 0x0a, 0x05, 0x53, 0x4b, 0x49, 0x4c, 0x4c, 0x10, 0x02, 0x12, 0x0e,
+	0x0a, 0x0a, 0x4d, 0x43, 0x50, 0x5f, 0x43, 0x4f, 0x4e, 0x46, 0x49, 0x47, 0x10, 0x03, 0x12, 0x0e,
+	0x0a, 0x0a, 0x4d, 0x43, 0x50, 0x5f, 0x53, 0x45, 0x52, 0x56, 0x45, 0x52, 0x10, 0x04, 0x12, 0x0a,
+	0x0a, 0x06, 0x50, 0x4c, 0x55, 0x47, 0x49, 0x4e, 0x10, 0x05, 0x12, 0x08, 0x0a, 0x04, 0x48, 0x4f,
+	0x4f, 0x4b, 0x10, 0x06, 0x12, 0x0c, 0x0a, 0x08, 0x53, 0x55, 0x42, 0x41, 0x47, 0x45, 0x4e, 0x54,
+	0x10, 0x07, 0x12, 0x0b, 0x0a, 0x07, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x10, 0x08, 0x22,
+	0x61, 0x0a, 0x06, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x16, 0x0a, 0x12, 0x53, 0x54, 0x41,
+	0x54, 0x55, 0x53, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10,
+	0x00, 0x12, 0x06, 0x0a, 0x02, 0x4f, 0x4b, 0x10, 0x01, 0x12, 0x0c, 0x0a, 0x08, 0x4f, 0x56, 0x45,
+	0x52, 0x53, 0x49, 0x5a, 0x45, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a, 0x55, 0x4e, 0x52, 0x45, 0x41,
+	0x44, 0x41, 0x42, 0x4c, 0x45, 0x10, 0x03, 0x12, 0x0b, 0x0a, 0x07, 0x49, 0x4e, 0x56, 0x41, 0x4c,
+	0x49, 0x44, 0x10, 0x04, 0x12, 0x0c, 0x0a, 0x08, 0x45, 0x58, 0x43, 0x4c, 0x55, 0x44, 0x45, 0x44,
+	0x10, 0x05, 0x42, 0x0e, 0x0a, 0x0c, 0x5f, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x70, 0x61,
+	0x74, 0x68, 0x22, 0x81, 0x02, 0x0a, 0x17, 0x50, 0x75, 0x73, 0x68, 0x43, 0x6f, 0x6e, 0x74, 0x65,
+	0x78, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18,
+	0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52,
+	0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x25, 0x0a, 0x0e, 0x61, 0x67, 0x67, 0x72,
+	0x65, 0x67, 0x61, 0x74, 0x65, 0x5f, 0x68, 0x61, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c,
+	0x52, 0x0d, 0x61, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x65, 0x48, 0x61, 0x73, 0x68, 0x12,
+	0x3d, 0x0a, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x18, 0x03, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x2e, 0x76, 0x32, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75,
+	0x72, 0x63, 0x65, 0x52, 0x09, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x12, 0x18,
+	0x0a, 0x07, 0x69, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52,
+	0x07, 0x69, 0x6e, 0x69, 0x74, 0x69, 0x61, 0x6c, 0x12, 0x25, 0x0a, 0x0e, 0x73, 0x63, 0x68, 0x65,
+	0x6d, 0x61, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01, 0x28, 0x04,
+	0x52, 0x0d, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12,
+	0x25, 0x0a, 0x0e, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+	0x74, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x22, 0x36, 0x0a, 0x18, 0x50, 0x75, 0x73, 0x68, 0x43, 0x6f,
+	0x6e, 0x74, 0x65, 0x78, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x61, 0x63, 0x63, 0x65, 0x70, 0x74, 0x65, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x61, 0x63, 0x63, 0x65, 0x70, 0x74, 0x65, 0x64, 0x2a, 0x63,
 	0x0a, 0x09, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x12, 0x1a, 0x0a, 0x16, 0x41,
 	0x50, 0x50, 0x5f, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43,
 	0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x44, 0x49, 0x53, 0x41, 0x42,
 	0x4c, 0x45, 0x44, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c,
 	0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x48, 0x45, 0x41, 0x4c, 0x54,
 	0x48, 0x59, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x55, 0x4e, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48,
-	0x59, 0x10, 0x04, 0x32, 0xe2, 0x0e, 0x0a, 0x05, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x4b, 0x0a,
+	0x59, 0x10, 0x04, 0x32, 0xc9, 0x0f, 0x0a, 0x05, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x4b, 0x0a,
 	0x0b, 0x47, 0x65, 0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x12, 0x22, 0x2e, 0x63,
 	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65,
 	0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
@@ -5709,10 +6154,16 @@ var file_agent_proto_agent_proto_rawDesc = []byte{
 	0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
 	0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32,
 	0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68,
-	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64,
-	0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x65, 0x0a, 0x10, 0x50, 0x75, 0x73, 0x68,
+	0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x27, 0x2e, 0x63,
+	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x50, 0x75,
+	0x73, 0x68, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x50, 0x75, 0x73, 0x68, 0x43, 0x6f, 0x6e, 0x74, 0x65,
+	0x78, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
+	0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f,
+	0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -5727,8 +6178,8 @@ func file_agent_proto_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_agent_proto_rawDescData
 }
 
-var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
-var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
+var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 17)
+var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_agent_proto_agent_proto_goTypes = []interface{}{
 	(AppHealth)(0),                                      // 0: coder.agent.v2.AppHealth
 	(WorkspaceApp_SharingLevel)(0),                      // 1: coder.agent.v2.WorkspaceApp.SharingLevel
@@ -5745,183 +6196,193 @@ var file_agent_proto_agent_proto_goTypes = []interface{}{
 	(CreateSubAgentRequest_App_OpenIn)(0),               // 12: coder.agent.v2.CreateSubAgentRequest.App.OpenIn
 	(CreateSubAgentRequest_App_SharingLevel)(0),         // 13: coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
 	(UpdateAppStatusRequest_AppStatusState)(0),          // 14: coder.agent.v2.UpdateAppStatusRequest.AppStatusState
-	(*WorkspaceApp)(nil),                                // 15: coder.agent.v2.WorkspaceApp
-	(*WorkspaceAgentScript)(nil),                        // 16: coder.agent.v2.WorkspaceAgentScript
-	(*WorkspaceAgentMetadata)(nil),                      // 17: coder.agent.v2.WorkspaceAgentMetadata
-	(*Manifest)(nil),                                    // 18: coder.agent.v2.Manifest
-	(*WorkspaceSecret)(nil),                             // 19: coder.agent.v2.WorkspaceSecret
-	(*WorkspaceAgentDevcontainer)(nil),                  // 20: coder.agent.v2.WorkspaceAgentDevcontainer
-	(*GetManifestRequest)(nil),                          // 21: coder.agent.v2.GetManifestRequest
-	(*ServiceBanner)(nil),                               // 22: coder.agent.v2.ServiceBanner
-	(*GetServiceBannerRequest)(nil),                     // 23: coder.agent.v2.GetServiceBannerRequest
-	(*Stats)(nil),                                       // 24: coder.agent.v2.Stats
-	(*UpdateStatsRequest)(nil),                          // 25: coder.agent.v2.UpdateStatsRequest
-	(*UpdateStatsResponse)(nil),                         // 26: coder.agent.v2.UpdateStatsResponse
-	(*Lifecycle)(nil),                                   // 27: coder.agent.v2.Lifecycle
-	(*UpdateLifecycleRequest)(nil),                      // 28: coder.agent.v2.UpdateLifecycleRequest
-	(*BatchUpdateAppHealthRequest)(nil),                 // 29: coder.agent.v2.BatchUpdateAppHealthRequest
-	(*BatchUpdateAppHealthResponse)(nil),                // 30: coder.agent.v2.BatchUpdateAppHealthResponse
-	(*Startup)(nil),                                     // 31: coder.agent.v2.Startup
-	(*UpdateStartupRequest)(nil),                        // 32: coder.agent.v2.UpdateStartupRequest
-	(*Metadata)(nil),                                    // 33: coder.agent.v2.Metadata
-	(*BatchUpdateMetadataRequest)(nil),                  // 34: coder.agent.v2.BatchUpdateMetadataRequest
-	(*BatchUpdateMetadataResponse)(nil),                 // 35: coder.agent.v2.BatchUpdateMetadataResponse
-	(*Log)(nil),                                         // 36: coder.agent.v2.Log
-	(*BatchCreateLogsRequest)(nil),                      // 37: coder.agent.v2.BatchCreateLogsRequest
-	(*BatchCreateLogsResponse)(nil),                     // 38: coder.agent.v2.BatchCreateLogsResponse
-	(*GetAnnouncementBannersRequest)(nil),               // 39: coder.agent.v2.GetAnnouncementBannersRequest
-	(*GetAnnouncementBannersResponse)(nil),              // 40: coder.agent.v2.GetAnnouncementBannersResponse
-	(*BannerConfig)(nil),                                // 41: coder.agent.v2.BannerConfig
-	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 42: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 43: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	(*Timing)(nil),                                      // 44: coder.agent.v2.Timing
-	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 45: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	(*GetResourcesMonitoringConfigurationResponse)(nil), // 46: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	(*PushResourcesMonitoringUsageRequest)(nil),         // 47: coder.agent.v2.PushResourcesMonitoringUsageRequest
-	(*PushResourcesMonitoringUsageResponse)(nil),        // 48: coder.agent.v2.PushResourcesMonitoringUsageResponse
-	(*Connection)(nil),                                  // 49: coder.agent.v2.Connection
-	(*ReportConnectionRequest)(nil),                     // 50: coder.agent.v2.ReportConnectionRequest
-	(*SubAgent)(nil),                                    // 51: coder.agent.v2.SubAgent
-	(*CreateSubAgentRequest)(nil),                       // 52: coder.agent.v2.CreateSubAgentRequest
-	(*CreateSubAgentResponse)(nil),                      // 53: coder.agent.v2.CreateSubAgentResponse
-	(*DeleteSubAgentRequest)(nil),                       // 54: coder.agent.v2.DeleteSubAgentRequest
-	(*DeleteSubAgentResponse)(nil),                      // 55: coder.agent.v2.DeleteSubAgentResponse
-	(*ListSubAgentsRequest)(nil),                        // 56: coder.agent.v2.ListSubAgentsRequest
-	(*ListSubAgentsResponse)(nil),                       // 57: coder.agent.v2.ListSubAgentsResponse
-	(*BoundaryLog)(nil),                                 // 58: coder.agent.v2.BoundaryLog
-	(*ReportBoundaryLogsRequest)(nil),                   // 59: coder.agent.v2.ReportBoundaryLogsRequest
-	(*ReportBoundaryLogsResponse)(nil),                  // 60: coder.agent.v2.ReportBoundaryLogsResponse
-	(*UpdateAppStatusRequest)(nil),                      // 61: coder.agent.v2.UpdateAppStatusRequest
-	(*UpdateAppStatusResponse)(nil),                     // 62: coder.agent.v2.UpdateAppStatusResponse
-	(*WorkspaceApp_Healthcheck)(nil),                    // 63: coder.agent.v2.WorkspaceApp.Healthcheck
-	(*WorkspaceAgentMetadata_Result)(nil),               // 64: coder.agent.v2.WorkspaceAgentMetadata.Result
-	(*WorkspaceAgentMetadata_Description)(nil),          // 65: coder.agent.v2.WorkspaceAgentMetadata.Description
-	nil,                        // 66: coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	nil,                        // 67: coder.agent.v2.Stats.ConnectionsByProtoEntry
-	(*Stats_Metric)(nil),       // 68: coder.agent.v2.Stats.Metric
-	(*Stats_Metric_Label)(nil), // 69: coder.agent.v2.Stats.Metric.Label
-	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 70: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
-	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 71: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 72: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 73: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 74: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
-	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 75: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 76: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	(*CreateSubAgentRequest_App)(nil),                                 // 77: coder.agent.v2.CreateSubAgentRequest.App
-	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 78: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 79: coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	(*BoundaryLog_HttpRequest)(nil),                                   // 80: coder.agent.v2.BoundaryLog.HttpRequest
-	(*durationpb.Duration)(nil),                                       // 81: google.protobuf.Duration
-	(*proto.DERPMap)(nil),                                             // 82: coder.tailnet.v2.DERPMap
-	(*timestamppb.Timestamp)(nil),                                     // 83: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                                             // 84: google.protobuf.Empty
+	(ContextResource_Kind)(0),                           // 15: coder.agent.v2.ContextResource.Kind
+	(ContextResource_Status)(0),                         // 16: coder.agent.v2.ContextResource.Status
+	(*WorkspaceApp)(nil),                                // 17: coder.agent.v2.WorkspaceApp
+	(*WorkspaceAgentScript)(nil),                        // 18: coder.agent.v2.WorkspaceAgentScript
+	(*WorkspaceAgentMetadata)(nil),                      // 19: coder.agent.v2.WorkspaceAgentMetadata
+	(*Manifest)(nil),                                    // 20: coder.agent.v2.Manifest
+	(*WorkspaceSecret)(nil),                             // 21: coder.agent.v2.WorkspaceSecret
+	(*WorkspaceAgentDevcontainer)(nil),                  // 22: coder.agent.v2.WorkspaceAgentDevcontainer
+	(*GetManifestRequest)(nil),                          // 23: coder.agent.v2.GetManifestRequest
+	(*ServiceBanner)(nil),                               // 24: coder.agent.v2.ServiceBanner
+	(*GetServiceBannerRequest)(nil),                     // 25: coder.agent.v2.GetServiceBannerRequest
+	(*Stats)(nil),                                       // 26: coder.agent.v2.Stats
+	(*UpdateStatsRequest)(nil),                          // 27: coder.agent.v2.UpdateStatsRequest
+	(*UpdateStatsResponse)(nil),                         // 28: coder.agent.v2.UpdateStatsResponse
+	(*Lifecycle)(nil),                                   // 29: coder.agent.v2.Lifecycle
+	(*UpdateLifecycleRequest)(nil),                      // 30: coder.agent.v2.UpdateLifecycleRequest
+	(*BatchUpdateAppHealthRequest)(nil),                 // 31: coder.agent.v2.BatchUpdateAppHealthRequest
+	(*BatchUpdateAppHealthResponse)(nil),                // 32: coder.agent.v2.BatchUpdateAppHealthResponse
+	(*Startup)(nil),                                     // 33: coder.agent.v2.Startup
+	(*UpdateStartupRequest)(nil),                        // 34: coder.agent.v2.UpdateStartupRequest
+	(*Metadata)(nil),                                    // 35: coder.agent.v2.Metadata
+	(*BatchUpdateMetadataRequest)(nil),                  // 36: coder.agent.v2.BatchUpdateMetadataRequest
+	(*BatchUpdateMetadataResponse)(nil),                 // 37: coder.agent.v2.BatchUpdateMetadataResponse
+	(*Log)(nil),                                         // 38: coder.agent.v2.Log
+	(*BatchCreateLogsRequest)(nil),                      // 39: coder.agent.v2.BatchCreateLogsRequest
+	(*BatchCreateLogsResponse)(nil),                     // 40: coder.agent.v2.BatchCreateLogsResponse
+	(*GetAnnouncementBannersRequest)(nil),               // 41: coder.agent.v2.GetAnnouncementBannersRequest
+	(*GetAnnouncementBannersResponse)(nil),              // 42: coder.agent.v2.GetAnnouncementBannersResponse
+	(*BannerConfig)(nil),                                // 43: coder.agent.v2.BannerConfig
+	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 44: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 45: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	(*Timing)(nil),                                      // 46: coder.agent.v2.Timing
+	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 47: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	(*GetResourcesMonitoringConfigurationResponse)(nil), // 48: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	(*PushResourcesMonitoringUsageRequest)(nil),         // 49: coder.agent.v2.PushResourcesMonitoringUsageRequest
+	(*PushResourcesMonitoringUsageResponse)(nil),        // 50: coder.agent.v2.PushResourcesMonitoringUsageResponse
+	(*Connection)(nil),                                  // 51: coder.agent.v2.Connection
+	(*ReportConnectionRequest)(nil),                     // 52: coder.agent.v2.ReportConnectionRequest
+	(*SubAgent)(nil),                                    // 53: coder.agent.v2.SubAgent
+	(*CreateSubAgentRequest)(nil),                       // 54: coder.agent.v2.CreateSubAgentRequest
+	(*CreateSubAgentResponse)(nil),                      // 55: coder.agent.v2.CreateSubAgentResponse
+	(*DeleteSubAgentRequest)(nil),                       // 56: coder.agent.v2.DeleteSubAgentRequest
+	(*DeleteSubAgentResponse)(nil),                      // 57: coder.agent.v2.DeleteSubAgentResponse
+	(*ListSubAgentsRequest)(nil),                        // 58: coder.agent.v2.ListSubAgentsRequest
+	(*ListSubAgentsResponse)(nil),                       // 59: coder.agent.v2.ListSubAgentsResponse
+	(*BoundaryLog)(nil),                                 // 60: coder.agent.v2.BoundaryLog
+	(*ReportBoundaryLogsRequest)(nil),                   // 61: coder.agent.v2.ReportBoundaryLogsRequest
+	(*ReportBoundaryLogsResponse)(nil),                  // 62: coder.agent.v2.ReportBoundaryLogsResponse
+	(*UpdateAppStatusRequest)(nil),                      // 63: coder.agent.v2.UpdateAppStatusRequest
+	(*UpdateAppStatusResponse)(nil),                     // 64: coder.agent.v2.UpdateAppStatusResponse
+	(*ContextResource)(nil),                             // 65: coder.agent.v2.ContextResource
+	(*PushContextStateRequest)(nil),                     // 66: coder.agent.v2.PushContextStateRequest
+	(*PushContextStateResponse)(nil),                    // 67: coder.agent.v2.PushContextStateResponse
+	(*WorkspaceApp_Healthcheck)(nil),                    // 68: coder.agent.v2.WorkspaceApp.Healthcheck
+	(*WorkspaceAgentMetadata_Result)(nil),               // 69: coder.agent.v2.WorkspaceAgentMetadata.Result
+	(*WorkspaceAgentMetadata_Description)(nil),          // 70: coder.agent.v2.WorkspaceAgentMetadata.Description
+	nil,                        // 71: coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	nil,                        // 72: coder.agent.v2.Stats.ConnectionsByProtoEntry
+	(*Stats_Metric)(nil),       // 73: coder.agent.v2.Stats.Metric
+	(*Stats_Metric_Label)(nil), // 74: coder.agent.v2.Stats.Metric.Label
+	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 75: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 76: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 77: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 78: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 79: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 80: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 81: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	(*CreateSubAgentRequest_App)(nil),                                 // 82: coder.agent.v2.CreateSubAgentRequest.App
+	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 83: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 84: coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	(*BoundaryLog_HttpRequest)(nil),                                   // 85: coder.agent.v2.BoundaryLog.HttpRequest
+	(*durationpb.Duration)(nil),                                       // 86: google.protobuf.Duration
+	(*proto.DERPMap)(nil),                                             // 87: coder.tailnet.v2.DERPMap
+	(*timestamppb.Timestamp)(nil),                                     // 88: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                                             // 89: google.protobuf.Empty
 }
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
-	63, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
+	68, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
 	2,  // 2: coder.agent.v2.WorkspaceApp.health:type_name -> coder.agent.v2.WorkspaceApp.Health
-	81, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
-	64, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	65, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	66, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	82, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
-	16, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
-	15, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
-	65, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	20, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
-	19, // 12: coder.agent.v2.Manifest.secrets:type_name -> coder.agent.v2.WorkspaceSecret
-	67, // 13: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
-	68, // 14: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
-	24, // 15: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
-	81, // 16: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
+	86, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
+	69, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	70, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	71, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	87, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
+	18, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
+	17, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
+	70, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	22, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
+	21, // 12: coder.agent.v2.Manifest.secrets:type_name -> coder.agent.v2.WorkspaceSecret
+	72, // 13: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
+	73, // 14: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
+	26, // 15: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
+	86, // 16: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
 	4,  // 17: coder.agent.v2.Lifecycle.state:type_name -> coder.agent.v2.Lifecycle.State
-	83, // 18: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
-	27, // 19: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
-	70, // 20: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	88, // 18: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
+	29, // 19: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
+	75, // 20: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
 	5,  // 21: coder.agent.v2.Startup.subsystems:type_name -> coder.agent.v2.Startup.Subsystem
-	31, // 22: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
-	64, // 23: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	33, // 24: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
-	83, // 25: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
+	33, // 22: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
+	69, // 23: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	35, // 24: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
+	88, // 25: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 26: coder.agent.v2.Log.level:type_name -> coder.agent.v2.Log.Level
-	36, // 27: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
-	41, // 28: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
-	44, // 29: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
-	83, // 30: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
-	83, // 31: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
+	38, // 27: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
+	43, // 28: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
+	46, // 29: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
+	88, // 30: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
+	88, // 31: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
 	7,  // 32: coder.agent.v2.Timing.stage:type_name -> coder.agent.v2.Timing.Stage
 	8,  // 33: coder.agent.v2.Timing.status:type_name -> coder.agent.v2.Timing.Status
-	71, // 34: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	72, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	73, // 36: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	74, // 37: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	76, // 34: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	77, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	78, // 36: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	79, // 37: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
 	9,  // 38: coder.agent.v2.Connection.action:type_name -> coder.agent.v2.Connection.Action
 	10, // 39: coder.agent.v2.Connection.type:type_name -> coder.agent.v2.Connection.Type
-	83, // 40: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
-	49, // 41: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
-	77, // 42: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
+	88, // 40: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
+	51, // 41: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
+	82, // 42: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
 	11, // 43: coder.agent.v2.CreateSubAgentRequest.display_apps:type_name -> coder.agent.v2.CreateSubAgentRequest.DisplayApp
-	51, // 44: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
-	79, // 45: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	51, // 46: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
-	83, // 47: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
-	80, // 48: coder.agent.v2.BoundaryLog.http_request:type_name -> coder.agent.v2.BoundaryLog.HttpRequest
-	58, // 49: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
+	53, // 44: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
+	84, // 45: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	53, // 46: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
+	88, // 47: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
+	85, // 48: coder.agent.v2.BoundaryLog.http_request:type_name -> coder.agent.v2.BoundaryLog.HttpRequest
+	60, // 49: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
 	14, // 50: coder.agent.v2.UpdateAppStatusRequest.state:type_name -> coder.agent.v2.UpdateAppStatusRequest.AppStatusState
-	81, // 51: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
-	83, // 52: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
-	81, // 53: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
-	81, // 54: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
-	3,  // 55: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
-	69, // 56: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
-	0,  // 57: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
-	83, // 58: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
-	75, // 59: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	76, // 60: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	78, // 61: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	12, // 62: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
-	13, // 63: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
-	21, // 64: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
-	23, // 65: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
-	25, // 66: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
-	28, // 67: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
-	29, // 68: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
-	32, // 69: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
-	34, // 70: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
-	37, // 71: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
-	39, // 72: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
-	42, // 73: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	45, // 74: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	47, // 75: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
-	50, // 76: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
-	52, // 77: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
-	54, // 78: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
-	56, // 79: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
-	59, // 80: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
-	61, // 81: coder.agent.v2.Agent.UpdateAppStatus:input_type -> coder.agent.v2.UpdateAppStatusRequest
-	18, // 82: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
-	22, // 83: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
-	26, // 84: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
-	27, // 85: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
-	30, // 86: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
-	31, // 87: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
-	35, // 88: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
-	38, // 89: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
-	40, // 90: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
-	43, // 91: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	46, // 92: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	48, // 93: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
-	84, // 94: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
-	53, // 95: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
-	55, // 96: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
-	57, // 97: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
-	60, // 98: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
-	62, // 99: coder.agent.v2.Agent.UpdateAppStatus:output_type -> coder.agent.v2.UpdateAppStatusResponse
-	82, // [82:100] is the sub-list for method output_type
-	64, // [64:82] is the sub-list for method input_type
-	64, // [64:64] is the sub-list for extension type_name
-	64, // [64:64] is the sub-list for extension extendee
-	0,  // [0:64] is the sub-list for field type_name
+	15, // 51: coder.agent.v2.ContextResource.kind:type_name -> coder.agent.v2.ContextResource.Kind
+	16, // 52: coder.agent.v2.ContextResource.status:type_name -> coder.agent.v2.ContextResource.Status
+	65, // 53: coder.agent.v2.PushContextStateRequest.resources:type_name -> coder.agent.v2.ContextResource
+	86, // 54: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
+	88, // 55: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
+	86, // 56: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
+	86, // 57: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
+	3,  // 58: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
+	74, // 59: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
+	0,  // 60: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
+	88, // 61: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
+	80, // 62: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	81, // 63: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	83, // 64: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	12, // 65: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
+	13, // 66: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
+	23, // 67: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
+	25, // 68: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
+	27, // 69: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
+	30, // 70: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
+	31, // 71: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
+	34, // 72: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
+	36, // 73: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
+	39, // 74: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
+	41, // 75: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
+	44, // 76: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	47, // 77: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	49, // 78: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
+	52, // 79: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
+	54, // 80: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
+	56, // 81: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
+	58, // 82: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
+	61, // 83: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
+	63, // 84: coder.agent.v2.Agent.UpdateAppStatus:input_type -> coder.agent.v2.UpdateAppStatusRequest
+	66, // 85: coder.agent.v2.Agent.PushContextState:input_type -> coder.agent.v2.PushContextStateRequest
+	20, // 86: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
+	24, // 87: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
+	28, // 88: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
+	29, // 89: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
+	32, // 90: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
+	33, // 91: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
+	37, // 92: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
+	40, // 93: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
+	42, // 94: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
+	45, // 95: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	48, // 96: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	50, // 97: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
+	89, // 98: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
+	55, // 99: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
+	57, // 100: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
+	59, // 101: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
+	62, // 102: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
+	64, // 103: coder.agent.v2.Agent.UpdateAppStatus:output_type -> coder.agent.v2.UpdateAppStatusResponse
+	67, // 104: coder.agent.v2.Agent.PushContextState:output_type -> coder.agent.v2.PushContextStateResponse
+	86, // [86:105] is the sub-list for method output_type
+	67, // [67:86] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_agent_proto_agent_proto_init() }
@@ -6507,7 +6968,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkspaceApp_Healthcheck); i {
+			switch v := v.(*ContextResource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6519,7 +6980,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkspaceAgentMetadata_Result); i {
+			switch v := v.(*PushContextStateRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6531,7 +6992,31 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkspaceAgentMetadata_Description); i {
+			switch v := v.(*PushContextStateResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WorkspaceApp_Healthcheck); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WorkspaceAgentMetadata_Result); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6543,31 +7028,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Stats_Metric); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_agent_proto_agent_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Stats_Metric_Label); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_agent_proto_agent_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BatchUpdateAppHealthRequest_HealthUpdate); i {
+			switch v := v.(*WorkspaceAgentMetadata_Description); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6579,7 +7040,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Config); i {
+			switch v := v.(*Stats_Metric); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6591,7 +7052,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Memory); i {
+			switch v := v.(*Stats_Metric_Label); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6603,7 +7064,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Volume); i {
+			switch v := v.(*BatchUpdateAppHealthRequest_HealthUpdate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6615,7 +7076,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint); i {
+			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Config); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6627,7 +7088,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage); i {
+			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Memory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6639,7 +7100,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage); i {
+			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Volume); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6651,7 +7112,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSubAgentRequest_App); i {
+			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6663,7 +7124,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSubAgentRequest_App_Healthcheck); i {
+			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6675,7 +7136,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSubAgentResponse_AppCreationError); i {
+			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6687,6 +7148,42 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CreateSubAgentRequest_App); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CreateSubAgentRequest_App_Healthcheck); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CreateSubAgentResponse_AppCreationError); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BoundaryLog_HttpRequest); i {
 			case 0:
 				return &v.state
@@ -6707,16 +7204,17 @@ func file_agent_proto_agent_proto_init() {
 	file_agent_proto_agent_proto_msgTypes[43].OneofWrappers = []interface{}{
 		(*BoundaryLog_HttpRequest_)(nil),
 	}
-	file_agent_proto_agent_proto_msgTypes[59].OneofWrappers = []interface{}{}
+	file_agent_proto_agent_proto_msgTypes[48].OneofWrappers = []interface{}{}
 	file_agent_proto_agent_proto_msgTypes[62].OneofWrappers = []interface{}{}
-	file_agent_proto_agent_proto_msgTypes[64].OneofWrappers = []interface{}{}
+	file_agent_proto_agent_proto_msgTypes[65].OneofWrappers = []interface{}{}
+	file_agent_proto_agent_proto_msgTypes[67].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_agent_proto_agent_proto_rawDesc,
-			NumEnums:      15,
-			NumMessages:   66,
+			NumEnums:      17,
+			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
