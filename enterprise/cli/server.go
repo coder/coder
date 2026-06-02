@@ -4,11 +4,9 @@ package cli
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"net/url"
 	"time"
@@ -19,8 +17,6 @@ import (
 
 	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
-	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -28,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
-	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -133,40 +128,9 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 
 		closers := &multiCloser{}
 
-		meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
-		}
-		replicaManager, err := replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-			ID:           options.ID,
-			RelayAddress: options.DeploymentValues.DERP.Server.RelayURL.String(),
-			// #nosec G115 - DERP region IDs are small and fit in int32
-			RegionID:       int32(options.DeploymentValues.DERP.Server.RegionID.Value()),
-			TLSConfig:      meshTLSConfig,
-			UpdateInterval: o.ReplicaSyncUpdateInterval,
-		})
-		if err != nil {
-			return nil, nil, xerrors.Errorf("initialize replica: %w", err)
-		}
-		o.ReplicaManager = replicaManager
-
-		if agplcoderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value()).Enabled(codersdk.ExperimentNATSPubsub) {
-			token := fmt.Sprintf("%x", sha256.Sum256([]byte(options.DeploymentValues.PostgresURL.String())))
-			natsPubsub, err := natspubsub.New(ctx, options.Logger.Named("pubsub"), natspubsub.Options{
-				ClusterAuthToken: token,
-			})
-			if err != nil {
-				return nil, nil, xerrors.Errorf("create nats pubsub: %w", err)
-			}
-			options.Pubsub = natsPubsub
-			closers.Add(natsPubsub)
-		}
-
 		// Create the enterprise API.
 		api, err := coderd.New(ctx, o)
 		if err != nil {
-			_ = replicaManager.Close()
-			_ = closers.Close()
 			return nil, nil, err
 		}
 		closers.Add(api)

@@ -116,8 +116,8 @@ func Test_New(t *testing.T) {
 			}
 		})
 
-		require.Equal(t, 2, ps.ns.NumClients(),
-			"expected exactly 2 client connections (pubConn + subConn), got %d", ps.ns.NumClients())
+		require.Equal(t, 2, ps.Server.NumClients(),
+			"expected exactly 2 client connections (pubConn + subConn), got %d", ps.Server.NumClients())
 		require.Len(t, ps.publishPool, 1, "default PublishConns must be 1")
 		require.Len(t, ps.subscribePool, 1, "default SubscribeConns must be 1")
 		require.NotSame(t, ps.publishPool[0], ps.subscribePool[0], "pubConn and subConn must be distinct")
@@ -330,7 +330,7 @@ func Test_localSub_init(t *testing.T) {
 		require.Len(t, ps.subscribePool, 1)
 		require.False(t, ps.subscribePool[0].IsClosed(), "subConn must not be closed by slow consumer")
 		require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
-		require.Equal(t, 2, ps.ns.NumClients(), "slow consumer must not disconnect subConn")
+		require.Equal(t, 2, ps.Server.NumClients(), "slow consumer must not disconnect subConn")
 	})
 }
 
@@ -451,7 +451,7 @@ func TestPubsubCluster(t *testing.T) {
 
 		opts := clusterTestOptions(t)
 		ps := newTestPubsub(t, opts)
-		clientURL := ps.ns.ClientURL()
+		clientURL := ps.Server.ClientURL()
 
 		_, err := natsgo.Connect(clientURL,
 			natsgo.MaxReconnects(0),
@@ -498,7 +498,7 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 
 func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	t.Helper()
-	addr := ps.ns.ClusterAddr()
+	addr := ps.Server.ClusterAddr()
 	require.NotNil(t, addr)
 	return "nats://" + addr.String()
 }
@@ -514,7 +514,7 @@ func addrWithAuth(t *testing.T, addr string, authToken string) string {
 func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		routes, err := ps.ns.Routez(&natsserver.RoutezOptions{Subscriptions: true})
+		routes, err := ps.Server.Routez(&natsserver.RoutezOptions{Subscriptions: true})
 		if err != nil {
 			return false
 		}

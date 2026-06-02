@@ -31,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	entprebuilds "github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
-	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -74,7 +73,6 @@ type Options struct {
 	LicenseOptions             *LicenseOptions
 	DontAddLicense             bool
 	DontAddFirstUser           bool
-	ReplicaManager             *replicasync.Manager
 	ReplicaSyncUpdateInterval  time.Duration
 	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
@@ -105,29 +103,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 	}
 	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
-	if oop.ID == uuid.Nil {
-		oop.ID = uuid.New()
-	}
-	replicaManager := options.ReplicaManager
-	if replicaManager != nil {
-		oop.ID = replicaManager.ID()
-	}
-	if replicaManager == nil {
-		meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(serverURL.Hostname(), oop.TLSCertificates)
-		require.NoError(t, err)
-		replicaManager, err = replicasync.New(context.Background(), oop.Logger, oop.Database, oop.Pubsub, &replicasync.Options{
-			ID:           oop.ID,
-			RelayAddress: serverURL.String(),
-			// #nosec G115 - DERP region IDs are small and fit in int32.
-			RegionID:       int32(oop.DeploymentValues.DERP.Server.RegionID.Value()),
-			TLSConfig:      meshTLSConfig,
-			UpdateInterval: options.ReplicaSyncUpdateInterval,
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = replicaManager.Close()
-		})
-	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		ConnectionLogging:          options.ConnectionLogging,
@@ -137,7 +112,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 		UseLegacySCIM:              options.UseLegacySCIM,
 		DERPServerRelayAddress:     serverURL.String(),
 		DERPServerRegionID:         int(oop.DeploymentValues.DERP.Server.RegionID.Value()),
-		ReplicaManager:             replicaManager,
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,

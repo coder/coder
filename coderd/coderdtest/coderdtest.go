@@ -168,6 +168,9 @@ type Options struct {
 	// test instances are running against the same database.
 	Database database.Store
 	Pubsub   pubsub.Pubsub
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// It should always point to the same pubsub instance as Options.Pubsub unless NATS is explicitly being tested.
+	ReplicaSyncPubsub *pubsub.PGPubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -286,6 +289,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
+		require.True(t, ok)
+		options.ReplicaSyncPubsub = pgPubsub
+	}
+	if options.ReplicaSyncPubsub == nil {
+		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
+		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
+		options.ReplicaSyncPubsub = pgPubsub
 	}
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
@@ -596,6 +607,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
+			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 			UsageInserter:                  usageInserter,
 

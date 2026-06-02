@@ -214,8 +214,7 @@ func TestReplica(t *testing.T) {
 		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		db, pubsub := dbtestutil.NewDB(t)
-		ctx, cancelCtx := context.WithCancel(context.Background())
-		defer cancelCtx()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: srv.URL,
 		})
@@ -240,8 +239,7 @@ func TestReplica(t *testing.T) {
 		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		db, pubsub := dbtestutil.NewDB(t)
-		ctx, cancelCtx := context.WithCancel(context.Background())
-		defer cancelCtx()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: srv.URL,
 		})
@@ -266,8 +264,7 @@ func TestReplica(t *testing.T) {
 		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		db, pubsub := dbtestutil.NewDB(t)
-		ctx, cancelCtx := context.WithCancel(context.Background())
-		defer cancelCtx()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: srv.URL,
 		})
@@ -281,6 +278,47 @@ func TestReplica(t *testing.T) {
 		server.SetCallback("same", nil)
 		require.NoError(t, server.UpdateNow(ctx))
 		requireNoCallback(t, called)
+	})
+	t.Run("PrimaryPeerAddresses", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		primary, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    dbtime.Now(),
+			StartedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			RelayAddress: "nats://primary.example:6222",
+			Primary:      true,
+		})
+		require.NoError(t, err)
+		_, err = db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    dbtime.Now(),
+			StartedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			RelayAddress: "nats://proxy.example:6222",
+			Primary:      false,
+		})
+		require.NoError(t, err)
+		_, err = db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:        uuid.New(),
+			CreatedAt: dbtime.Now(),
+			StartedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
+			Primary:   true,
+		})
+		require.NoError(t, err)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: "nats://self.example:6222",
+		})
+		require.NoError(t, err)
+		defer server.Close()
+		require.Contains(t, server.PrimaryPeerAddresses(), primary.RelayAddress)
+		require.ElementsMatch(t, []string{
+			"nats://primary.example:6222",
+			"nats://self.example:6222",
+		}, server.PrimaryPeerAddresses())
 	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all

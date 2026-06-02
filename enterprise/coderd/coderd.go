@@ -45,7 +45,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
+	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -178,12 +178,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			return relayAddress, true
 		}
 		return "", false
-	}
-
-	// The API replica ID must match the replica manager ID because other
-	// replicas use this ID to relay work back to the owning API instance.
-	if options.Options.ID != options.ReplicaManager.ID() {
-		return nil, xerrors.Errorf("replica manager ID %s does not match coderd ID %s", options.ReplicaManager.ID(), options.Options.ID)
 	}
 
 	api := &API{
@@ -650,15 +644,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
-	api.replicaManager = options.ReplicaManager
-	replicaManagerPtr.Store(api.replicaManager)
-	if api.AGPL.Experiments.Enabled(codersdk.ExperimentNATSPubsub) {
-		if natsPubsub, ok := api.Pubsub.(*natspubsub.Pubsub); ok {
-			setNATSPeers(api.ctx, api.Logger, api.replicaManager, natsPubsub)
-		} else {
-			api.Logger.Critical(ctx, "nats pubsub experiment enabled but pubsub is not *nats.Pubsub")
-		}
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.ReplicaSyncPubsub, &replicasync.Options{
+		ID:           api.AGPL.ID,
+		RelayAddress: options.DERPServerRelayAddress,
+		// #nosec G115 - DERP region IDs are small and fit in int32
+		RegionID:       int32(options.DERPServerRegionID),
+		TLSConfig:      meshTLSConfig,
+		UpdateInterval: options.ReplicaSyncUpdateInterval,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
+	replicaManagerPtr.Store(api.replicaManager)
 	if api.DERPServer != nil {
 		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 	}
@@ -961,7 +958,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.SetCallback(replicaCallbackEnterprise, func() {
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(api.replicaManager)
+					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
+				}
+
+				api.replicaManager.SetCallback("derp", func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
@@ -981,11 +983,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.SetCallback(replicaCallbackEnterprise, func() {
+				api.replicaManager.SetCallback("derp", func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)
 				})
+
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					api.replicaManager.SetCallback("nats", nil)
+				}
 			}
 
 			// Recheck changed in case the HA coordinator failed to set up.
@@ -1397,48 +1404,4 @@ func (api *API) setupPrebuilds(featureEnabled bool) (agplprebuilds.Reconciliatio
 		api.AGPL.WorkspaceBuilderMetrics,
 	)
 	return reconciler, prebuilds.NewEnterpriseClaimer()
-}
-
-const (
-	replicaCallbackNATSPeers  = "nats_peers"
-	replicaCallbackEnterprise = "enterprise"
-)
-
-func setNATSPeers(ctx context.Context, logger slog.Logger, rm *replicasync.Manager, ps *natspubsub.Pubsub) {
-	updates := make(chan struct{}, 1)
-	signal := func() {
-		select {
-		case updates <- struct{}{}:
-		default:
-		}
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-updates:
-				if err := ps.SetPeerAddresses(replicaNATSPeerAddresses(rm)); err != nil {
-					logger.Warn(ctx, "set nats peer addresses", slog.Error(err))
-				}
-			}
-		}
-	}()
-
-	rm.SetCallback(replicaCallbackNATSPeers, signal)
-}
-
-func replicaNATSPeerAddresses(rm *replicasync.Manager) []string {
-	addresses := make([]string, 0)
-	for _, replica := range rm.AllPrimary() {
-		if replica.ID == rm.ID() {
-			continue
-		}
-		if replica.RelayAddress == "" {
-			continue
-		}
-		addresses = append(addresses, replica.RelayAddress)
-	}
-	return addresses
 }

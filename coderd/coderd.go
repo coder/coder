@@ -150,8 +150,6 @@ var expDERPOnce = sync.Once{}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
-	// ID is the unique API replica ID. Empty generates a new ID.
-	ID        uuid.UUID
 	AccessURL *url.URL
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
@@ -165,7 +163,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub *pubsub.PGPubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -621,10 +622,9 @@ func New(options *Options) *API {
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          ensureID(options.ID),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -2347,13 +2347,6 @@ func (api *API) Close() error {
 	}
 
 	return nil
-}
-
-func ensureID(id uuid.UUID) uuid.UUID {
-	if id != uuid.Nil {
-		return id
-	}
-	return uuid.New()
 }
 
 func compressHandler(h http.Handler) http.Handler {

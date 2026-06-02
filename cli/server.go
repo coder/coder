@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -97,6 +98,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -653,7 +655,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options := &coderd.Options{
-				ID:                          uuid.New(),
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
@@ -778,15 +779,32 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.Database = database.New(sqlDB)
-			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
-			options.Pubsub = ps
+			options.Pubsub = pgPubsub
+			options.ReplicaSyncPubsub = pgPubsub
+			defer pgPubsub.Close()
+
 			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(ps)
+				options.PrometheusRegistry.MustRegister(pgPubsub)
 			}
-			defer options.Pubsub.Close()
+
+			// Use NATS for pubsub if the experiment is enabled.
+			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
+				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+					ClusterAuthToken: token,
+				})
+				if err != nil {
+					return xerrors.Errorf("create nats pubsub: %w", err)
+				}
+				options.Pubsub = natsps
+				defer natsps.Close()
+			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
 			pubsubWatchdogTimeout = psWatchdog.Timeout()

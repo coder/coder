@@ -8,9 +8,59 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 const defaultClusterTokenUsername = "coder"
+
+// PeerFetcher fetches NATS peer route addresses.
+type PeerFetcher interface {
+	PrimaryPeerAddresses() []string
+}
+
+type NopPeerFetcher struct{}
+
+func (NopPeerFetcher) PrimaryPeerAddresses() []string {
+	return nil
+}
+
+// SetPeerFetcher replaces the peer fetcher used by RefreshPeers and triggers
+// an immediate peer refresh.
+func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
+	p.mu.Lock()
+	p.peerFetcher = fetcher
+	p.mu.Unlock()
+	p.RefreshPeers()
+}
+
+// RefreshPeers signals the peer refresh worker to fetch and apply the latest
+// peer route addresses. Multiple pending refreshes are coalesced.
+func (p *Pubsub) RefreshPeers() {
+	select {
+	case p.peerRefresh <- struct{}{}:
+	default:
+	}
+}
+
+func (p *Pubsub) runPeerRefresh() {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-p.peerRefresh:
+			p.mu.Lock()
+			fetcher := p.peerFetcher
+			p.mu.Unlock()
+			if fetcher == nil {
+				continue
+			}
+			if err := p.SetPeerAddresses(fetcher.PrimaryPeerAddresses()); err != nil {
+				p.logger.Error(p.ctx, "refresh nats peers", slog.Error(err))
+			}
+		}
+	}
+}
 
 // SetPeerAddresses replaces the configured NATS cluster peer routes.
 func (p *Pubsub) SetPeerAddresses(addresses []string) error {
@@ -24,12 +74,12 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 		return xerrors.New("nats pubsub was not started with clustering enabled")
 	}
 
-	routes, err := parsePeerAddresses(addresses)
+	routes, err := p.parsePeerAddresses(addresses)
 	if err != nil {
 		return err
 	}
 
-	self := &url.URL{Scheme: "nats", Host: p.ns.ClusterAddr().String()}
+	self := &url.URL{Scheme: "nats", Host: p.Server.ClusterAddr().String()}
 	routes = filterSelfRoutes(routes, self)
 
 	if p.opts.ClusterAuthToken != "" {
@@ -44,7 +94,7 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 
 	newOpts := p.serverOpts.Clone()
 	newOpts.Routes = cloneRouteURLs(routes)
-	if err := p.ns.ReloadOptions(newOpts); err != nil {
+	if err := p.Server.ReloadOptions(newOpts); err != nil {
 		return xerrors.Errorf("reload nats peer addresses: %w", err)
 	}
 	p.serverOpts = newOpts.Clone()
@@ -52,7 +102,7 @@ func (p *Pubsub) SetPeerAddresses(addresses []string) error {
 	return nil
 }
 
-func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
+func (p *Pubsub) parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 	routesByAddress := make(map[string]*url.URL, len(addresses))
 	for i, address := range addresses {
 		trimmed := strings.TrimSpace(address)
@@ -60,14 +110,25 @@ func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 			return nil, xerrors.Errorf("peer address %d is empty", i)
 		}
 
-		normalizedHost, err := normalizeHostPort(trimmed)
+		host, port, err := normalizeHostPort(trimmed)
 		if err != nil {
 			return nil, err
 		}
 
-		routesByAddress[normalizedHost] = &url.URL{
+		// This is a hack to enable testing with an arbitrary port. The logic here
+		// is to presume if the default port is being used then we are running in prod
+		// and all peers are using the same port. If the port is not the default then
+		// we are running a test in which case we should pass through the custom port.
+		// This hack will be removed when https://github.com/coder/scaletest/issues/149
+		// is resolved.
+		if p.opts.ClusterPort == defaultClusterPort {
+			port = defaultClusterPort
+		}
+
+		hostPort := net.JoinHostPort(host, strconv.Itoa(port))
+		routesByAddress[hostPort] = &url.URL{
 			Scheme: "nats",
-			Host:   normalizedHost,
+			Host:   hostPort,
 		}
 	}
 
@@ -89,34 +150,34 @@ func filterSelfRoutes(routes []*url.URL, self *url.URL) []*url.URL {
 	return filtered
 }
 
-func normalizeHostPort(address string) (string, error) {
+func normalizeHostPort(address string) (string, int, error) {
 	route, err := url.Parse(address)
 	if err != nil {
-		return "", xerrors.Errorf("parse peer address %q: %w", address, err)
+		return "", 0, xerrors.Errorf("parse peer address %q: %w", address, err)
 	}
 	if route.User != nil {
-		return "", xerrors.Errorf("peer address %q must not include userinfo", address)
+		return "", 0, xerrors.Errorf("peer address %q must not include userinfo", address)
 	}
 	if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
-		return "", xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+		return "", 0, xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
 	}
 
 	host, port, err := net.SplitHostPort(route.Host)
 	if err != nil {
-		return "", xerrors.Errorf("split %q host port: %w", address, err)
+		return "", 0, xerrors.Errorf("split %q host port: %w", address, err)
 	}
 	if host == "" || port == "" {
-		return "", xerrors.Errorf("%q must include host and port", address)
+		return "", 0, xerrors.Errorf("%q must include host and port", address)
 	}
 
 	portNumber, err := strconv.Atoi(port)
 	if err != nil {
-		return "", xerrors.Errorf("parse %q port: %w", address, err)
+		return "", 0, xerrors.Errorf("parse %q port: %w", address, err)
 	}
 	if portNumber <= 0 || portNumber > 65535 {
-		return "", xerrors.Errorf("peer address %q must include a valid port", address)
+		return "", 0, xerrors.Errorf("peer address %q must include a valid port", address)
 	}
-	return net.JoinHostPort(host, strconv.Itoa(portNumber)), nil
+	return host, portNumber, nil
 }
 
 func sortRouteURLs(routes []*url.URL) []*url.URL {

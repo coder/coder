@@ -414,6 +414,14 @@ func (m *Manager) AllPrimary() []database.Replica {
 	return replicas
 }
 
+func (m *Manager) PrimaryPeerAddresses() []string {
+	addresses := make([]string, 0, len(m.AllPrimary()))
+	for _, replica := range m.AllPrimary() {
+		addresses = append(addresses, replica.RelayAddress)
+	}
+	return addresses
+}
+
 // InRegion returns every replica in the given DERP region excluding itself.
 func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
