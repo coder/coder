@@ -206,7 +206,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 							<div>
 								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									{usageLimitPeriodLabel} Spend limit
+									{usageLimitPeriodLabel} spend limit
 								</p>
 								{usageLimitCurrentPeriod && (
 									<p className="mt-1 text-sm text-content-secondary">

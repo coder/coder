@@ -68,7 +68,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						aria-label={
 							settingsPanel === "settings-admin"
 								? "Back to settings"
-								: "Back to Agents"
+								: "Back to agents"
 						}
 						className="relative z-10 size-7 min-w-0 text-content-secondary hover:text-content-primary"
 					>

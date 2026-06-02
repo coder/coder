@@ -111,12 +111,12 @@ const getAttachmentDisplayName = (
 		return name;
 	}
 	if (block.media_type.startsWith("image/")) {
-		return "attached image";
+		return "Attached image";
 	}
 	if (isTextPreviewAttachmentMediaType(block.media_type)) {
 		return "Pasted text";
 	}
-	return "attached file";
+	return "Attached file";
 };
 
 const getAttachmentDownloadName = (

@@ -1075,7 +1075,7 @@ export const SettingsViewResets: Story = {
 		});
 		await userEvent.click(backToSettingsButton);
 		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to Agents",
+			name: "Back to agents",
 		});
 		await userEvent.click(backToAgentsButton);
 
