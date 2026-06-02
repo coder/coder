@@ -166,3 +166,16 @@ runs:
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
         install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"
+
+    - name: Normalize PATH on Windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      # jdx/mise-action writes "Path" to GITHUB_ENV. Git Bash
+      # maintains a separate "PATH" with MSYS-translated paths.
+      # Go's os.Environ() inherits both, and cmd.exe subprocesses
+      # pick whichever appears first in the environment block,
+      # which may be the MSYS one (forward slashes). Rewrite the
+      # variable as "PATH" so subsequent bash steps see a single
+      # consistent value. PowerShell reads the native Windows Path.
+      run: | # zizmor: ignore[github-env]
+        "PATH=$($env:Path)" >> $env:GITHUB_ENV
