@@ -86,12 +86,11 @@ runs:
         set -euo pipefail
 
         if [[ "${RUNNER_OS}" == "Windows" ]]; then
-          # Prevent MSYS2 from translating path-like strings in
-          # arguments and environment values passed to child
-          # processes. Without this, Go's os.Environ() can end up
-          # with MSYS-translated paths that cmd.exe cannot resolve.
-          export MSYS_NO_PATHCONV=1
-          export MSYS2_ARG_CONV_EXCL='*'
+          echo "=== bash PATH (first 5) ==="
+          echo "$PATH" | tr ':' '\n' | head -5
+          echo "=== Go PATH + cmd.exe printf test ==="
+          go run ./scripts/pathcheck/main.go
+          echo "=== end ==="
         fi
 
         # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
