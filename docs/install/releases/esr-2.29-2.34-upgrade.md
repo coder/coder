@@ -66,9 +66,6 @@ around AI usage:
 
 - License and seat visibility.
 - AI session auditing.
-- Usage limits and group AI budgets.
-- Spend views and model price tracking.
-- User or model-level controls.
 
 These features help administrators understand who is using AI tools, which
 providers are being used, and how spend changes over time.
