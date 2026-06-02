@@ -84,6 +84,7 @@ var (
 		"malformed configuration",
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
+	imageTooLargePatterns    = []string{"image dimensions exceed", "max allowed size for many-image"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}
 	providerDisabledPatterns = []string{aibridge.ErrorCodeProviderDisabled}
 )

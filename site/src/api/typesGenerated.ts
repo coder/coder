@@ -1967,6 +1967,7 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "generic"
+	| "image_too_large"
 	| "missing_key"
 	| "overloaded"
 	| "provider_disabled"
@@ -1979,6 +1980,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"generic",
+	"image_too_large",
 	"missing_key",
 	"overloaded",
 	"provider_disabled",

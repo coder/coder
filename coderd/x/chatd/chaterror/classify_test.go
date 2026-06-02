@@ -298,6 +298,28 @@ func TestClassify(t *testing.T) {
 				StatusCode: 503,
 			},
 		},
+		{
+			name: "AnthropicImageDimensionsTooLarge",
+			err:  xerrors.New("provider request failed: anthropic error 400: messages.112.content.1.image.source.base64.data: At least one of the image dimensions exceed max allowed size for many-image requests: 2000 pixels"),
+			want: chaterror.ClassifiedError{
+				Message:    "One or more images in the conversation exceed the provider's maximum allowed dimensions. Edit the message containing the oversized image and remove or resize it to continue.",
+				Kind:       codersdk.ChatErrorKindImageTooLarge,
+				Provider:   "anthropic",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "GenericImageDimensionsError",
+			err:  xerrors.New("image dimensions exceed limit"),
+			want: chaterror.ClassifiedError{
+				Message:    "One or more images in the conversation exceed the provider's maximum allowed dimensions. Edit the message containing the oversized image and remove or resize it to continue.",
+				Kind:       codersdk.ChatErrorKindImageTooLarge,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -444,6 +466,8 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "Status408", err: "status 408", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "Status500", err: "status 500", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: true},
 		{name: "ProviderDisabledLiteral", err: "provider_disabled", wantKind: codersdk.ChatErrorKindProviderDisabled, wantRetry: false},
+		{name: "ImageDimensionsExceedLiteral", err: "image dimensions exceed", wantKind: codersdk.ChatErrorKindImageTooLarge, wantRetry: false},
+		{name: "MaxAllowedSizeForManyImageLiteral", err: "max allowed size for many-image", wantKind: codersdk.ChatErrorKindImageTooLarge, wantRetry: false},
 	}
 
 	for _, tt := range tests {

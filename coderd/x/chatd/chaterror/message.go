@@ -64,6 +64,9 @@ func terminalMessage(classified ClassifiedError) string {
 				" Contact your Coder administrator.",
 			displayName,
 		)
+	case codersdk.ChatErrorKindImageTooLarge:
+		return "One or more images in the conversation exceed the provider's maximum allowed dimensions." +
+			" Edit the message containing the oversized image and remove or resize it to continue."
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
@@ -109,6 +112,8 @@ func retryMessage(classified ClassifiedError) string {
 			"The %s provider has been disabled by an administrator.",
 			displayName,
 		)
+	case codersdk.ChatErrorKindImageTooLarge:
+		return "An image exceeds the maximum allowed dimensions."
 	default:
 		return stringutil.Capitalize(fmt.Sprintf(
 			"%s returned an unexpected error.", subject,

@@ -97,6 +97,13 @@ func TestTerminalMessage(t *testing.T) {
 			retryable: false,
 			want:      "This conversation was started with an API key that is no longer available. Send your message again to continue.",
 		},
+		{
+			name:      "ImageTooLarge",
+			kind:      codersdk.ChatErrorKindImageTooLarge,
+			provider:  "",
+			retryable: false,
+			want:      "One or more images in the conversation exceed the provider's maximum allowed dimensions. Edit the message containing the oversized image and remove or resize it to continue.",
+		},
 	}
 
 	for _, tt := range tests {

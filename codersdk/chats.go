@@ -1535,6 +1535,7 @@ const (
 	ChatErrorKindUsageLimit       ChatErrorKind = "usage_limit"
 	ChatErrorKindMissingKey       ChatErrorKind = "missing_key"
 	ChatErrorKindProviderDisabled ChatErrorKind = "provider_disabled"
+	ChatErrorKindImageTooLarge    ChatErrorKind = "image_too_large"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1550,6 +1551,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,
 	ChatErrorKindProviderDisabled,
+	ChatErrorKindImageTooLarge,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the

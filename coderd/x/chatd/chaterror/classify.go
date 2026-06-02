@@ -201,6 +201,7 @@ func Classify(err error) ClassifiedError {
 	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
+	imageTooLargeMatch := containsAny(lower, imageTooLargePatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
 	rateLimitMatch := statusCode == 429 || containsAny(lower, rateLimitPatterns...)
 	timeoutPatternMatch := containsAny(lower, timeoutPatterns...)
@@ -263,6 +264,11 @@ func Classify(err error) ClassifiedError {
 			match:     timeoutMatch && !configMatch,
 			kind:      codersdk.ChatErrorKindTimeout,
 			retryable: !deadline,
+		},
+		{
+			match:     imageTooLargeMatch,
+			kind:      codersdk.ChatErrorKindImageTooLarge,
+			retryable: false,
 		},
 		{
 			match:     configMatch,

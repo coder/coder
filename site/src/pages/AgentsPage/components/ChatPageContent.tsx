@@ -28,6 +28,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectStreamError,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
@@ -71,6 +72,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const streamError = useChatSelector(store, selectStreamError);
+	const imageErrorKind = persistedError?.kind ?? streamError?.kind;
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -127,6 +130,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
+					imageErrorKind={imageErrorKind}
 				/>
 				<LiveStreamTail
 					store={store}

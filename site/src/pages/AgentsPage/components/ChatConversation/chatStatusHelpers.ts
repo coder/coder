@@ -46,6 +46,8 @@ export const getErrorTitle = (
 			return "Chat interrupted";
 		case "provider_disabled":
 			return "Provider disabled";
+		case "image_too_large":
+			return "Image too large";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}

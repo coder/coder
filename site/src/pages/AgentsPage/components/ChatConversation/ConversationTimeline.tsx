@@ -4,6 +4,7 @@ import {
 	Fragment,
 	memo,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -532,6 +533,7 @@ const ChatMessageItem = memo<{
 	hideActions?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
+	hasImageError?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -561,6 +563,7 @@ const ChatMessageItem = memo<{
 		hideActions = false,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
+		hasImageError = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -611,6 +614,7 @@ const ChatMessageItem = memo<{
 							markdown={parsed.markdown}
 							isEditing={editingMessageId === message.id}
 							fadeFromBottom={fadeFromBottom}
+							hasImageError={hasImageError}
 							onImageClick={setPreviewImage}
 							onTextFileClick={setPreviewText}
 						/>
@@ -776,6 +780,7 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	hasImageError?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
@@ -787,6 +792,7 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		hasImageError = false,
 		prevUserMessageId,
 		nextUserMessageId,
 		onJumpToUserMessage,
@@ -1020,6 +1026,7 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							hasImageError={hasImageError}
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
@@ -1065,6 +1072,7 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									hasImageError={hasImageError}
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
@@ -1112,6 +1120,7 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
+	imageErrorKind?: string;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1129,7 +1138,26 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		imageErrorKind,
 	}) => {
+		// Identify user messages that contain image file parts so they
+		// can be highlighted when an image_too_large error occurs.
+		const imageErrorMessageIds = useMemo(() => {
+			if (imageErrorKind !== "image_too_large") return new Set<number>();
+			const ids = new Set<number>();
+			for (const { message } of parsedMessages) {
+				if (message.role !== "user") continue;
+				const hasImage = message.content?.some(
+					(part) =>
+						part.type === "file" && part.media_type?.startsWith("image/"),
+				);
+				if (hasImage) {
+					ids.add(message.id);
+				}
+			}
+			return ids;
+		}, [imageErrorKind, parsedMessages]);
+
 		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
 		const registerSentinel = (messageId: number, el: HTMLDivElement | null) => {
 			if (el) {
@@ -1258,6 +1286,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hasImageError={imageErrorMessageIds.has(message.id)}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}

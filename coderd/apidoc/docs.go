@@ -16603,7 +16603,8 @@ const docTemplate = `{
                 "config",
                 "usage_limit",
                 "missing_key",
-                "provider_disabled"
+                "provider_disabled",
+                "image_too_large"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16615,7 +16616,8 @@ const docTemplate = `{
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
-                "ChatErrorKindProviderDisabled"
+                "ChatErrorKindProviderDisabled",
+                "ChatErrorKindImageTooLarge"
             ]
         },
         "codersdk.ChatFileMetadata": {

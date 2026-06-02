@@ -32,6 +32,7 @@ export const UserMessageContent: FC<{
 	markdown: string;
 	isEditing?: boolean;
 	fadeFromBottom?: boolean;
+	hasImageError?: boolean;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
@@ -39,6 +40,7 @@ export const UserMessageContent: FC<{
 	markdown,
 	isEditing = false,
 	fadeFromBottom = false,
+	hasImageError = false,
 	onImageClick,
 	onTextFileClick,
 }) => {
@@ -49,6 +51,9 @@ export const UserMessageContent: FC<{
 					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 					isEditing &&
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+					hasImageError &&
+						!isEditing &&
+						"border-border-error shadow-[0_0_0_2px_hsla(var(--border-error),0.4)]",
 					fadeFromBottom && "relative overflow-hidden",
 				)}
 				style={
