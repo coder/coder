@@ -443,6 +443,13 @@ func (r *Resolver) readSkillMeta(path string, info fs.FileInfo, userSource strin
 	if safeUint64(info.Size()) > r.MaxResourceBytes {
 		res.Status = StatusOversize
 		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", info.Size(), r.MaxResourceBytes)
+		// Hash the (capped) prefix so an edit that keeps
+		// the file oversize still shifts the aggregate
+		// hash and triggers a re-broadcast. Mirrors the
+		// behavior in readFileResource.
+		if data, err := readFileCapped(path, safeInt64(r.MaxResourceBytes)); err == nil {
+			res.ContentHash = sha256.Sum256(data)
+		}
 		return res, true
 	}
 	data, err := os.ReadFile(path)

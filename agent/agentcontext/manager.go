@@ -78,6 +78,14 @@ type Manager struct {
 	snapshot Snapshot
 	// version monotonically increases per resolve pass.
 	version uint64
+	// resolveEpoch increments at the start of every resolver
+	// pass that drops m.mu around the filesystem walk. Each
+	// pass captures the epoch it claimed; at publish time it
+	// compares its captured epoch against the current epoch and
+	// skips the publish if a newer pass has started, preventing
+	// an old walk's stale result from overwriting a newer one's
+	// fresh result at a higher version number.
+	resolveEpoch uint64
 
 	// subscribers receive a non-blocking signal whenever the
 	// snapshot changes. Subscribers must drain their channel
@@ -182,6 +190,10 @@ func (m *Manager) Run(ctx context.Context) error {
 	m.running = true
 	close(m.runStartedCh)
 	m.mu.Unlock()
+	// Close any early-exit path so Close does not block on
+	// runDoneCh after Run already set running=true. The deferred
+	// close runs even when NewWatcher fails.
+	defer close(m.runDoneCh)
 
 	watcher, err := NewWatcher(WatcherOptions{
 		Logger:   m.logger.Named("watcher"),
@@ -202,7 +214,6 @@ func (m *Manager) Run(ctx context.Context) error {
 	m.mu.Unlock()
 	watcher.Sync(ctx, roots)
 
-	defer close(m.runDoneCh)
 	defer watcher.Close()
 
 	for {
@@ -386,6 +397,8 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	resolver := m.resolver
 	watcher := m.watcher
 	schemaVersion := m.schemaVersion
+	m.resolveEpoch++
+	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
 
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -403,6 +416,20 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if m.closed {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
+	}
+	if m.resolveEpoch != myEpoch {
+		// A newer resolve pass started while this one was
+		// walking the filesystem. The newer pass's data
+		// strictly supersedes ours, so skip the publish to
+		// avoid overwriting a fresher Snapshot at a higher
+		// version. Return the currently published Snapshot,
+		// which is at least as fresh as ours.
+		published := m.snapshot
+		m.mu.Unlock()
+		if watcher != nil {
+			watcher.Sync(ctx, roots)
+		}
+		return published, nil
 	}
 	m.version++
 	snap.Version = m.version
@@ -510,6 +537,8 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	resolver := m.resolver
 	watcher := m.watcher
 	schemaVersion := m.schemaVersion
+	m.resolveEpoch++
+	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
 
 	if err := ctx.Err(); err != nil {
@@ -526,6 +555,15 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	snap.SchemaVersion = schemaVersion
 
 	m.mu.Lock()
+	if m.resolveEpoch != myEpoch {
+		// A newer resolve pass started while this one was
+		// walking the filesystem. Skip the publish so a
+		// stale-epoch result does not overwrite a fresher
+		// Snapshot at a higher version number. The newer
+		// pass will broadcast its own result.
+		m.mu.Unlock()
+		return
+	}
 	m.version++
 	snap.Version = m.version
 	m.snapshot = snap
