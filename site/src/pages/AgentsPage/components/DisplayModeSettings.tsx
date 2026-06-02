@@ -136,7 +136,7 @@ export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Code diff display"
-			description="Controls how code edit diffs appear. Auto starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. Always expanded opens diffs by default; Always collapsed keeps them collapsed."
+			description="Controls how code edit diffs appear. 'Auto' starts single-file writes collapsed and opens multi-file edits with a height-constrained preview. 'Always expanded' opens diffs by default; 'Always collapsed' keeps them collapsed."
 			ariaLabel="Code diff display mode"
 			errorMessage="Failed to save your code diff display preference."
 			defaultValue="auto"

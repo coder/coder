@@ -965,10 +965,9 @@ export const SubmitModelConfigExplicitly: Story = {
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
-		// Reasoning Effort is a provider option under "Provider configuration".
 		await expandSection(body, "Provider configuration");
 		const effortGroup = await body.findByRole("radiogroup", {
-			name: "Reasoning Effort",
+			name: "Reasoning effort",
 		});
 		await userEvent.click(within(effortGroup).getByText("High"));
 
@@ -1209,7 +1208,7 @@ const expectReasoningEffort = async (
 	value: string,
 ) => {
 	const reasoningEffortGroup = await body.findByRole("radiogroup", {
-		name: "Reasoning Effort",
+		name: "Reasoning effort",
 	});
 
 	if (value === "") {
@@ -1386,7 +1385,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 
 		await expandSection(body, "Provider configuration");
 		const sendReasoningGroup = await body.findByRole("radiogroup", {
-			name: "Send Reasoning",
+			name: "Send reasoning",
 		});
 		await expect(
 			within(sendReasoningGroup).getByRole("radio", { name: "On" }),

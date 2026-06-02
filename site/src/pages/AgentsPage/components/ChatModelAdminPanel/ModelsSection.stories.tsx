@@ -231,7 +231,7 @@ export const OpensDuplicateFormWithoutCreating: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Provider Configuration/ }),
 		);
-		expect(canvas.getByLabelText("Max Tool Calls")).toHaveValue("4");
+		expect(canvas.getByLabelText("Max tool calls")).toHaveValue("4");
 	},
 };
 
