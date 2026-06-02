@@ -166,3 +166,18 @@ runs:
         mise_dir: ${{ steps.mise-data-dir.outputs.path }}
         install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"
+        # Do not export mise's resolved env (every tool install dir) into
+        # GITHUB_ENV. Tools resolve through the shims dir on GITHUB_PATH, so
+        # the export only bloats PATH. On Windows the mise go shim re-prepends
+        # those dirs at invocation, and the resulting PATH crosses cmd.exe's
+        # ~8191 character limit, which makes cmd.exe drop PATH entirely and
+        # fail to resolve native executables in subprocesses spawned by tests.
+        env: false
+
+    - name: Add Git usr/bin to PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      # GITHUB_PATH is the casing-safe channel and keeps the entry short.
+      # cmd.exe subprocesses spawned by Go tests need MSYS coreutils such as
+      # printf, which live here.
+      run: echo "C:\Program Files\Git\usr\bin" >> "$GITHUB_PATH"
