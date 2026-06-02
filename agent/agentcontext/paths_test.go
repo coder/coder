@@ -43,7 +43,11 @@ func TestCanonicalizePath_BareTildeExpandsToHome(t *testing.T) {
 	switchHomeEnv(t, home)
 	got, err := agentcontext.CanonicalizePath("~")
 	require.NoError(t, err)
-	want, err := filepath.EvalSymlinks(home)
+	// Canonicalize the same home path through the function under
+	// test so the comparison handles platform-specific behavior of
+	// EvalSymlinks (Windows can fail to resolve directories that
+	// Linux/macOS resolve cleanly).
+	want, err := agentcontext.CanonicalizePath(home)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 }
