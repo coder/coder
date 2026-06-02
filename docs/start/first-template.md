@@ -67,7 +67,7 @@ This starter template lets you connect to your workspace in a few ways:
 - VS Code Desktop: Loads your workspace into
   [VS Code Desktop](https://code.visualstudio.com/Download) installed on your
   local computer.
-- code-server: Opens [browser-based VS Code](../ides/web-ides.md) with your
+- code-server: Opens [browser-based VS Code](../user-guides/workspace-access/web-ides.md) with your
   workspace.
 - Terminal: Opens a browser-based terminal with a shell in the workspace's
   Docker instance.
@@ -77,7 +77,7 @@ This starter template lets you connect to your workspace in a few ways:
 
 > [!TIP]
 > You can edit the template to let developers connect to a workspace in
-> [a few more ways](../ides.md).
+> [a few more ways](../user-guides/workspace-access/index.md).
 
 When you're done, you can stop the workspace. -->
 

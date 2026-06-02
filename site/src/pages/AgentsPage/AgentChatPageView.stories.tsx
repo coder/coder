@@ -673,7 +673,22 @@ export const WorkspaceAgentStartTimeout: Story = {
 };
 
 export const WorkspaceNoAgent: Story = {
-	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceOptions={[MockWorkspace]}
+			selectedWorkspaceId={MockWorkspace.id}
+			onWorkspaceChange={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).toBeVisible();
+	},
 };
 
 // ---------------------------------------------------------------------------

@@ -405,13 +405,61 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "SkipsModelOnlyUserMessages",
+			name: "SkipsUncompressedModelOnlyUserMessages",
 			messages: []database.ChatMessage{
 				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
 				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
 			},
 			wantKey: oldKeyID,
 			wantOK:  true,
+		},
+		{
+			name: "CompressedSummaryFallback",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "LatestCompressedSummaryWins",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 3, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "VisibleUserWinsOverCompressedSummary",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(currentKeyID)},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "MissingVisibleUserKeyDoesNotFallBackToCompressedSummary",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+			},
+		},
+		{
+			name: "UncompressedModelOnlyUserIgnored",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
+			},
+		},
+		{
+			name: "CompressedSummaryMissingKeyDoesNotFallBack",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -421,15 +469,11 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
 			require.Equal(t, tt.wantOK, gotOK)
 			require.Equal(t, tt.wantKey, gotKey)
-			ctx := contextWithActiveTurnAPIKeyID(t.Context(), tt.messages)
-			ctxKey, ctxOK := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-			require.Equal(t, tt.wantOK, ctxOK)
-			require.Equal(t, tt.wantKey, ctxKey)
 		})
 	}
 }
 
-func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
+func TestPromptMessagesForVisibleUserPreserveActiveAPIKeyID(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -477,10 +521,68 @@ func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
-	gotKey, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
 	require.True(t, ok)
 	require.Equal(t, currentKey.ID, gotKey)
+}
+
+func TestPromptMessagesForCompactedChatPreserveActiveAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := t.Context()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	visibleUser := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+	compressedSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityModel,
+		Compressed:    true,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	afterSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	ids := make(map[int64]struct{}, len(messages))
+	for _, message := range messages {
+		ids[message.ID] = struct{}{}
+	}
+	_, hasVisibleUser := ids[visibleUser.ID]
+	require.False(t, hasVisibleUser)
+	_, hasSummary := ids[compressedSummary.ID]
+	require.True(t, hasSummary)
+	_, hasAfterSummary := ids[afterSummary.ID]
+	require.True(t, hasAfterSummary)
+
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
+	require.True(t, ok)
+	require.Equal(t, key.ID, gotKey)
 }
 
 func sqlNullString(value string) sql.NullString {

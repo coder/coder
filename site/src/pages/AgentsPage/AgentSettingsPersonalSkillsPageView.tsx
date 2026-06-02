@@ -224,7 +224,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 	return (
 		<div className="flex flex-col gap-8">
 			<SectionHeader
-				label="Personal Skills"
+				label="Personal skills"
 				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
 				action={addSkillAction}
 			/>

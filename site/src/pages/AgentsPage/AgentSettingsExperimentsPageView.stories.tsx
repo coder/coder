@@ -153,7 +153,7 @@ export const ForcedByDeployment: Story = {
 export const DesktopSetting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Virtual Desktop");
+		await canvas.findByText("Virtual desktop");
 		await canvas.findByText(
 			/Allow agents to use a virtual, graphical desktop within workspaces./i,
 		);

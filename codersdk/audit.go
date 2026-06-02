@@ -48,6 +48,7 @@ const (
 	ResourceTypeAISeat        ResourceType = "ai_seat"
 	ResourceTypeAIProvider    ResourceType = "ai_provider"
 	ResourceTypeAIProviderKey ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey  ResourceType = "ai_gateway_key"
 	ResourceTypeGroupAIBudget ResourceType = "group_ai_budget"
 	ResourceTypeChat          ResourceType = "chat"
 	ResourceTypeUserSecret    ResourceType = "user_secret"
@@ -116,6 +117,8 @@ func (r ResourceType) FriendlyString() string {
 		return "ai provider"
 	case ResourceTypeAIProviderKey:
 		return "ai provider key"
+	case ResourceTypeAIGatewayKey:
+		return "ai gateway key"
 	case ResourceTypeGroupAIBudget:
 		return "group ai budget"
 	case ResourceTypeChat:

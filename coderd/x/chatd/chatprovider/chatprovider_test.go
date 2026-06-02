@@ -1304,6 +1304,80 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 	})
 }
 
+// TestModelFromConfig_AnthropicPDFFilePartReachesProvider pins the end-to-end
+// path that lets a user-uploaded PDF actually reach Claude/Bedrock: a
+// fantasy.FilePart with MediaType "application/pdf" must be serialized as an
+// Anthropic "document" content block with a base64 source carrying the PDF
+// bytes. Older fantasy versions silently dropped PDF FileParts in the
+// Anthropic provider, so the user message ended up empty and the model never
+// saw the document. See coder/fantasy#37 (cherry-pick of upstream
+// charmbracelet/fantasy#197). The Generate call would fail outright on the
+// regressed code path because the dropped FilePart leaves the request with
+// zero messages.
+func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	pdfData := []byte("%PDF-1.7\nfake pdf bytes for regression test")
+	wantData := base64.StdEncoding.EncodeToString(pdfData)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		defer close(called)
+
+		require.Len(t, req.Messages, 1, "PDF FilePart should produce one Anthropic message, not be dropped as empty")
+		require.Equal(t, "user", req.Messages[0].Role)
+
+		var blocks []struct {
+			Type   string `json:"type"`
+			Source struct {
+				Type      string `json:"type"`
+				MediaType string `json:"media_type"`
+				Data      string `json:"data"`
+			} `json:"source"`
+		}
+		require.NoError(t, json.Unmarshal(req.Messages[0].Content, &blocks),
+			"user content should be a structured block array, got: %s", string(req.Messages[0].Content))
+
+		var found bool
+		for _, block := range blocks {
+			if block.Type != "document" {
+				continue
+			}
+			assert.Equal(t, "base64", block.Source.Type, "PDF document block must use a base64 source")
+			assert.Equal(t, wantData, block.Source.Data, "PDF bytes must round-trip base64 unchanged")
+			if block.Source.MediaType != "" {
+				assert.Equal(t, "application/pdf", block.Source.MediaType)
+			}
+			found = true
+		}
+		require.True(t, found, "expected an Anthropic document block carrying the PDF, got: %s", string(req.Messages[0].Content))
+
+		return chattest.AnthropicNonStreamingResponse("ok")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"anthropic": "test-key"},
+		BaseURLByProvider: map[string]string{"anthropic": serverURL},
+	}
+
+	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.FilePart{Data: pdfData, MediaType: "application/pdf"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
 func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

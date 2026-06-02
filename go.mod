@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260519043957-6f014ff9434f
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260529105257-b7c5fc6e6399
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -90,8 +90,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    streams close before their terminal events.
 // 9) coder/fantasy#35, preserve Anthropic replay fidelity for signed
 //    reasoning and provider-executed web_search error results.
-// See: https://github.com/coder/fantasy/commits/cfca5fd82c5dd
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260514123132-cfca5fd82c5d
+// 10) coder/fantasy#37, cherry-pick of upstream charmbracelet/fantasy#197:
+//     emit a Base64 PDF document block for application/pdf FileParts on the
+//     Anthropic provider so user-uploaded PDFs actually reach Claude/Bedrock
+//     instead of being silently dropped.
+// See: https://github.com/coder/fantasy/commits/7d46e640327a
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260602023814-7d46e640327a
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -571,7 +575,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/coder/paralleltestctx v0.0.2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -618,7 +621,6 @@ require (
 	github.com/lestrrat-go/httprc/v3 v3.0.5 // indirect
 	github.com/lestrrat-go/jwx/v3 v3.1.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
-	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
 	github.com/moby/moby/api v1.54.0 // indirect
 	github.com/moby/moby/client v0.3.0 // indirect
@@ -632,7 +634,6 @@ require (
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
-	github.com/rhysd/actionlint v1.7.10 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/samber/lo v1.52.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
@@ -664,9 +665,7 @@ require (
 )
 
 tool (
-	github.com/coder/paralleltestctx/cmd/paralleltestctx
 	github.com/daixiang0/gci
-	github.com/rhysd/actionlint/cmd/actionlint
 	github.com/swaggo/swag/cmd/swag
 	go.uber.org/mock/mockgen
 	golang.org/x/tools/cmd/goimports

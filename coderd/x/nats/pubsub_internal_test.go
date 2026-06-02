@@ -1,18 +1,20 @@
-package nats //nolint:testpackage // Exercises internal pubsub state and helpers.
+package nats
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
@@ -82,7 +84,7 @@ func Test_pickConn(t *testing.T) {
 func subjectForConn(t *testing.T, pool []*natsgo.Conn, conn *natsgo.Conn, prefix string) string {
 	t.Helper()
 
-	for i := 0; i < 10_000; i++ {
+	for i := range 10_000 {
 		subject := fmt.Sprintf("%s_%d", prefix, i)
 		if pickConn(pool, subject) == conn {
 			return subject
@@ -97,17 +99,13 @@ func Test_New(t *testing.T) {
 
 	t.Run("ConnectionCount", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		ps, err := New(ctx, logger, Options{})
-		require.NoError(t, err)
+		ps := newTestPubsub(t, defaultTestOptions())
 		t.Cleanup(func() { _ = ps.Close() })
 
 		const n = 50
 		cancels := make([]func(), 0, n)
-		for i := 0; i < n; i++ {
-			c, err := ps.Subscribe(fmt.Sprintf("cc_evt_%d", i), func(context.Context, []byte) {})
+		for i := range n {
+			c, err := ps.Subscribe(fmt.Sprintf("cc_evt_%d", i), func(_ context.Context, _ []byte) {})
 			require.NoError(t, err)
 			cancels = append(cancels, c)
 		}
@@ -130,10 +128,9 @@ func Test_SubscribeWithErr(t *testing.T) {
 
 	t.Run("SameSubjectSharesSubscription", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		ps, err := New(ctx, logger, Options{})
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps, err := New(ctx, logger, defaultTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -155,10 +152,10 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 
 	t.Run("DisconnectSignalsDropsForMatchingSubscriberConn", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		ps := newPubsub(ctx, logger, Options{})
+
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps := newPubsub(ctx, logger, defaultTestOptions())
 
 		var subConnA, subConnB, pubConn natsgo.Conn
 		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
@@ -205,8 +202,7 @@ func Test_localSub_init(t *testing.T) {
 
 	t.Run("SerializesCallbacks", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		dataStarted := make(chan struct{})
 		dropDelivered := make(chan struct{})
@@ -219,7 +215,7 @@ func Test_localSub_init(t *testing.T) {
 
 		s := &localSub{
 			ctx:    ctx,
-			cancel: cancel,
+			cancel: func() {},
 			listener: func(_ context.Context, _ []byte, ferr error) {
 				if active.Add(1) != 1 {
 					concurrent.Store(true)
@@ -279,10 +275,9 @@ func Test_localSub_init(t *testing.T) {
 
 	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		ps, err := New(ctx, logger, Options{})
+		logger := slogtest.Make(t, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ps, err := New(ctx, logger, defaultTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
@@ -312,7 +307,7 @@ func Test_localSub_init(t *testing.T) {
 
 		total := defaultListenerQueueSize + 256
 		payload := make([]byte, 4*1024)
-		for i := 0; i < total; i++ {
+		for range total {
 			require.NoError(t, ps.Publish("iso_slow", payload))
 			require.NoError(t, ps.Publish("iso_fast", []byte("ping")))
 		}
@@ -336,4 +331,162 @@ func Test_localSub_init(t *testing.T) {
 		require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
 		require.Equal(t, 2, ps.ns.NumClients(), "slow consumer must not disconnect subConn")
 	})
+}
+
+func TestPubsubCluster(t *testing.T) {
+	t.Parallel()
+
+	// OK verifies that SetPeerAddresses changes the active cluster topology.
+	// A starts connected to B, then C is added and receives both global and
+	// C-only messages. B is then removed from A's peers, while C continues to
+	// receive global and C-only messages.
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		a := newTestPubsub(t, clusterTestOptions(t))
+		b := newTestPubsub(t, clusterTestOptions(t))
+		c := newTestPubsub(t, clusterTestOptions(t))
+
+		addrB := clusterRouteAddress(t, b)
+		addrC := clusterRouteAddress(t, c)
+
+		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
+		requireRoutesEqual(t, a.currentRoutes, addrB)
+
+		globalEvent := "global"
+		bGlobal := make(chan []byte, 8)
+		cancelBGlobal, err := b.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
+			bGlobal <- msg
+		})
+		require.NoError(t, err)
+		defer cancelBGlobal()
+
+		waitForRouteSubscription(t, a, globalEvent)
+		publishAndFlush(t, a, globalEvent, "from-a-to-b")
+		require.Equal(t, "from-a-to-b", string(receiveMessage(t, bGlobal)))
+
+		// Add C's subscriptions before adding C as an extra peer to A.
+		cGlobal := make(chan []byte, 8)
+		cancelCGlobal, err := c.Subscribe(globalEvent, func(_ context.Context, msg []byte) {
+			cGlobal <- msg
+		})
+		require.NoError(t, err)
+		defer cancelCGlobal()
+
+		cSubject := "c-only-subscriber"
+		cUnique := make(chan []byte, 8)
+		cancelCUnique, err := c.Subscribe(cSubject, func(_ context.Context, msg []byte) {
+			cUnique <- msg
+		})
+		require.NoError(t, err)
+		defer cancelCUnique()
+
+		// Add C to A's peer list. B and C should both receive global messages,
+		// while the C-only subject should route only to C.
+		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
+		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
+
+		waitForRouteSubscription(t, a, globalEvent)
+		waitForRouteSubscription(t, a, cSubject)
+
+		publishAndFlush(t, a, globalEvent, "new-global-msg")
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, bGlobal)))
+		require.Equal(t, "new-global-msg", string(receiveMessage(t, cGlobal)))
+
+		publishAndFlush(t, a, cSubject, "c-unique-msg")
+		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUnique)))
+
+		// Remove B from A's peer list. Only C should receive the next messages.
+		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
+		requireRoutesEqual(t, a.currentRoutes, addrC)
+
+		publishAndFlush(t, a, globalEvent, "no-b-peer")
+		require.Equal(t, "no-b-peer", string(receiveMessage(t, cGlobal)))
+
+		publishAndFlush(t, a, cSubject, "c-messages-still-work")
+		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
+	})
+}
+
+func defaultTestOptions() Options {
+	return Options{disableCluster: true}
+}
+
+func clusterTestOptions(t *testing.T) Options {
+	t.Helper()
+	return Options{
+		ClusterHost:    "127.0.0.1",
+		ClusterPort:    natsserver.RANDOM_PORT,
+		disableCluster: false,
+	}
+}
+
+func newTestPubsub(t *testing.T, opts Options) *Pubsub {
+	t.Helper()
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ps, err := New(ctx, logger, opts)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Close()
+	})
+	return ps
+}
+
+func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
+	t.Helper()
+	addr := ps.ns.ClusterAddr()
+	require.NotNil(t, addr)
+	return "nats://" + addr.String()
+}
+
+func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		routes, err := ps.ns.Routez(&natsserver.RoutezOptions{Subscriptions: true})
+		if err != nil {
+			return false
+		}
+		for _, route := range routes.Routes {
+			for _, sub := range route.Subs {
+				if sub == subject {
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func publishAndFlush(t *testing.T, ps *Pubsub, event, message string) {
+	t.Helper()
+	require.NoError(t, ps.Publish(event, []byte(message)))
+	require.NoError(t, ps.Flush())
+}
+
+func receiveMessage(t *testing.T, got <-chan []byte) []byte {
+	t.Helper()
+	select {
+	case msg := <-got:
+		return msg
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for message")
+		return nil
+	}
+}
+
+func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
+	t.Helper()
+	want, err := parsePeerAddresses(addresses)
+	require.NoError(t, err)
+	want = sortRouteURLs(want)
+	require.True(t, sortedURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
+}
+
+func routeStrings(routes []*url.URL) []string {
+	strings := make([]string, 0, len(routes))
+	for _, route := range routes {
+		strings = append(strings, route.String())
+	}
+	return strings
 }

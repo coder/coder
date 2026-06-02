@@ -275,6 +275,32 @@ export const filterWorkspaceOptionsByOrganization = (
 	);
 };
 
+/** @internal Exported for testing. */
+export const getWorkspaceOptionsWithLinkedWorkspace = (
+	workspaceOptions: readonly TypesGen.Workspace[],
+	workspace: TypesGen.Workspace | undefined,
+	ownerID: string,
+): readonly TypesGen.Workspace[] => {
+	if (!workspace || workspace.owner_id !== ownerID) {
+		return workspaceOptions;
+	}
+
+	const existingIndex = workspaceOptions.findIndex(
+		(candidate) => candidate.id === workspace.id,
+	);
+	if (existingIndex === -1) {
+		return [workspace, ...workspaceOptions];
+	}
+
+	if (workspaceOptions[existingIndex] === workspace) {
+		return workspaceOptions;
+	}
+
+	const nextWorkspaceOptions = [...workspaceOptions];
+	nextWorkspaceOptions[existingIndex] = workspace;
+	return nextWorkspaceOptions;
+};
+
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
@@ -723,6 +749,7 @@ const AgentChatPage: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+	const workspace = workspaceQuery.data;
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -736,7 +763,11 @@ const AgentChatPage: FC = () => {
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -835,7 +866,6 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
@@ -1130,6 +1160,7 @@ const AgentChatPage: FC = () => {
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
 		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1163,9 +1194,11 @@ const AgentChatPage: FC = () => {
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
+			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
 				kind: "generic",
-				message: error.message || "An unexpected error occurred.",
+				message: getErrorMessage(error, "An unexpected error occurred."),
+				...(detail ? { detail } : {}),
 			};
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
@@ -1601,7 +1634,9 @@ const AgentChatPage: FC = () => {
 			isInterruptPending={isInterruptPending}
 			workspaceOptions={workspaceOptions}
 			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={handleWorkspaceChange}
+			onWorkspaceChange={
+				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+			}
 			isWorkspaceLoading={isWorkspaceLoading}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}

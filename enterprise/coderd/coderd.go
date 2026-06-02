@@ -596,6 +596,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.userAIBudgetOverride)
+			r.Put("/", api.upsertUserAIBudgetOverride)
+			r.Delete("/", api.deleteUserAIBudgetOverride)
+		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

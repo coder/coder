@@ -282,7 +282,7 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
 
 		const executeButton = canvas.getByRole("button", {
-			name: /collapse command/i,
+			name: /expand command/i,
 		});
 		const readFileLabel = canvas.getByText(/reading README\.md/i);
 		const thinkingText = canvas.getAllByText("Thinking").at(-1);

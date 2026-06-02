@@ -76,7 +76,7 @@ export const UsageLimitExceeded: Story = {
 
 /**
  * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * "View usage" CTA (which links to Coder's analytics, not the provider's
  * billing page).
  */
 export const ProviderQuotaExceeded: Story = {
@@ -97,7 +97,6 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.getByText(/usage quota for openai has been exceeded/i),
 		).toBeVisible();
-		// The "View Usage" link must NOT appear for provider-originated quota errors.
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();
@@ -288,6 +287,40 @@ export const TerminalStartupTimeoutError: Story = {
 	},
 };
 
+/** Disabled provider errors render an admin-oriented message without retry. */
+export const TerminalProviderDisabledError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "provider_disabled",
+				message:
+					"The OpenAI provider has been disabled. Contact your Coder administrator.",
+				provider: "openai",
+				retryable: false,
+				statusCode: 503,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /provider disabled/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				/the openai provider has been disabled.*contact your coder administrator/i,
+			),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 503$/)).toBeVisible();
+		// No retry or status link for administrative disablement.
+		expect(canvas.queryByText(/retrying/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Generic failures do not show usage or provider CTAs. */
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {
@@ -317,7 +350,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 	},
 };
 
-/** Provider detail renders as a muted secondary line under the main error. */
+/** Provider detail renders in a monospace block for generic errors. */
 export const GenericErrorShowsProviderDetail: Story = {
 	args: {
 		...defaultArgs,

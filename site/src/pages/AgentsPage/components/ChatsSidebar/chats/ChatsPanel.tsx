@@ -30,11 +30,6 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getOSKey } from "#/utils/platform";
 import {
@@ -350,8 +345,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			aria-hidden={isSettingsPanel}
 			inert={isSettingsPanel ? true : undefined}
 		>
-			<div className="hidden border-b border-border-default px-2 py-1.5 sm:block">
-				<div className="flex items-center justify-between mb-2.5">
+			<nav
+				aria-label="Sidebar"
+				className="hidden border-b border-border-default px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
+			>
+				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
@@ -391,16 +389,56 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				</div>
 				<SettingsNavItem
 					icon={SquarePenIcon}
-					label="New Agent"
+					label="New chat"
 					active={isChatsActive}
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
-			</div>
-			<div className="relative min-h-0 flex-1">
+				{onOpenSearchDialog && (
+					<SettingsNavItem
+						icon={SearchIcon}
+						label="Search"
+						active={false}
+						ariaLabel="Search chats"
+						onClick={onOpenSearchDialog}
+						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
+						trailing={
+							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+								<Kbd>{getOSKey()}</Kbd>
+								<Kbd>K</Kbd>
+							</KbdGroup>
+						}
+					/>
+				)}
+			</nav>
+			<div className="relative min-h-0 flex-1 flex flex-col">
+				<div className="mx-2 pt-6 mb-1.5">
+					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
+							Chats
+						</h2>
+						<div className="flex items-center gap-1">
+							{onOpenSearchDialog && (
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Search chats"
+									onClick={onOpenSearchDialog}
+									className="h-7 w-7 sm:hidden"
+								>
+									<SearchIcon />
+								</Button>
+							)}
+							<FilterPopover
+								filters={sidebarFilters}
+								onFiltersChange={onSidebarFiltersChange}
+							/>
+						</div>
+					</div>
+				</div>
 				<ScrollArea
-					className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"
 					viewportClassName={cn(
 						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
@@ -408,40 +446,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 					)}
 				>
-					<div className="flex flex-col gap-2 px-2 pb-3 pt-6">
-						<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-							<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
-								Chats
-							</h2>
-							<div className="flex flex-row -space-x-1">
-								<Tooltip delayDuration={500}>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Search chats"
-											onClick={onOpenSearchDialog}
-											className="size-7 justify-end px-0"
-										>
-											<SearchIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom" align="end">
-										<span className="flex items-center gap-1">
-											<KbdGroup>
-												<Kbd>{getOSKey()}</Kbd>
-												<Kbd>K</Kbd>
-											</KbdGroup>
-											<span>Search chats</span>
-										</span>
-									</TooltipContent>
-								</Tooltip>
-								<FilterPopover
-									filters={sidebarFilters}
-									onFiltersChange={onSidebarFiltersChange}
-								/>
-							</div>
-						</div>
+					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">
 								<ErrorAlert error={loadError} />

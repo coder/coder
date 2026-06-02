@@ -211,6 +211,18 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 			"expected provider %q to stop routing", providerName)
 	}
 
+	// requireDisabledSentinel polls until the provider name yields a
+	// 503 with the provider_disabled body, indicating the disabled
+	// handler is wired up for the row.
+	requireDisabledSentinel := func(t *testing.T, providerName string) {
+		t.Helper()
+		require.Eventuallyf(t, func() bool {
+			status, _ := sendRequest(providerName)
+			return status == http.StatusServiceUnavailable
+		}, testutil.WaitShort, testutil.IntervalFast,
+			"expected provider %q to serve the disabled sentinel", providerName)
+	}
+
 	// 1. Create: provider points at upstream A.
 	created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 		Type:    codersdk.AIProviderTypeOpenAI,
@@ -233,14 +245,14 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	requireRoutesTo(t, "primary", upstreamB)
 	requireProviderStatus(t, "primary", "enabled")
 
-	// 3. Disable: the provider drops out of the snapshot, requests
-	// stop reaching any upstream. The metric flips to "disabled".
+	// 3. Disable: requests stop reaching upstream and the bridge
+	// answers with the 503 sentinel. The metric flips to "disabled".
 	disabled := false
 	_, err = client.UpdateAIProvider(ctx, "primary", codersdk.UpdateAIProviderRequest{
 		Enabled: &disabled,
 	})
 	require.NoError(t, err)
-	requireRoutingGone(t, "primary")
+	requireDisabledSentinel(t, "primary")
 	requireProviderStatus(t, "primary", "disabled")
 
 	// 4. Re-enable: routing comes back at the most recent BaseURL.

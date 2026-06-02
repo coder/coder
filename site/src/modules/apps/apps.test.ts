@@ -129,7 +129,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 
@@ -145,7 +145,7 @@ describe("getAppHref", () => {
 			path: "",
 		});
 		expect(href).toBe(
-			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?app=${app.slug}`,
+			`/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/terminal?app=${app.slug}`,
 		);
 	});
 
@@ -177,7 +177,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 });

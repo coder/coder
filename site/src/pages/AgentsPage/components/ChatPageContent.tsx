@@ -46,7 +46,6 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface ChatPageTimelineProps {
-	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -62,7 +61,6 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
-	chatID,
 	store,
 	persistedError,
 	onEditUserMessage,
@@ -106,7 +104,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			<div
 				data-testid="chat-timeline-wrapper"
 				className={cn(
-					"mx-auto flex w-full flex-col gap-2 py-6",
+					"mx-auto flex w-full flex-col py-6",
 					chatWidthClass(chatFullWidth),
 				)}
 			>
@@ -133,7 +131,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<LiveStreamTail
 					store={store}
 					persistedError={persistedError}
-					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
@@ -209,7 +206,7 @@ interface ChatPageInputProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
-	onWorkspaceChange: (workspaceId: string | null) => void;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;

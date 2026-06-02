@@ -944,23 +944,26 @@ func TestRecordInterceptionEnded(t *testing.T) {
 			{
 				name: "ok",
 				request: &proto.RecordInterceptionEndedRequest{
-					Id:      uuid.UUID{1}.String(),
-					EndedAt: timestamppb.Now(),
+					Id:             uuid.UUID{1}.String(),
+					EndedAt:        timestamppb.Now(),
+					CredentialHint: "sk-a...efgh",
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
 					assert.NoError(t, err, "parse interception UUID")
 
 					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
-						ID:      interceptionID,
-						EndedAt: req.EndedAt.AsTime(),
+						ID:             interceptionID,
+						EndedAt:        req.EndedAt.AsTime(),
+						CredentialHint: req.CredentialHint,
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						InitiatorID: uuid.UUID{2},
-						Provider:    "prov",
-						Model:       "mod",
-						StartedAt:   time.Now(),
-						EndedAt:     sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+						ID:             interceptionID,
+						InitiatorID:    uuid.UUID{2},
+						Provider:       "prov",
+						Model:          "mod",
+						StartedAt:      time.Now(),
+						EndedAt:        sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+						CredentialHint: req.CredentialHint,
 					}, nil)
 				},
 			},
