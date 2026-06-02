@@ -41,8 +41,8 @@ Administrators have the following levers to configure appropriate access to vari
 - Observability via AI Gateway, part of Coder's AI Governance Add-On
 
 > [!CAUTION]
-> Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR window
-> (into 2026) but receives no new features. Coder recommends migrating to Coder Agents
+> Coder Tasks is officially deprecated in 2.34. It remains supported through the 2.34 ESR support window
+> but receives no new features. Coder recommends migrating to Coder Agents
 > and the Chats API now. See the [Tasks to Chats migration guide](../../ai-coder/agents/tasks-to-chats-migration.md)
 > for API migration details.
 
