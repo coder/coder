@@ -145,8 +145,9 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	agents := make([]*Agent, 0, numAgents)
 	for i, ti := range tokens {
-		agents = append(agents, NewAgent(m.coderURL, ti.Token,
+		agents = append(agents, NewAgent(
 			m.logger.Named("agent-"+strconv.Itoa(i)),
+			m.coderURL, ti.Token,
 			WithMetrics(m.opts.Metrics),
 			WithFirstConnect(firstConnectCh)))
 	}

@@ -108,7 +108,7 @@ func WithFirstConnect(ch chan<- time.Duration) Option {
 	}
 }
 
-func NewAgent(coderURL *url.URL, token string, logger slog.Logger, opts ...Option) *Agent {
+func NewAgent(logger slog.Logger, coderURL *url.URL, token string, opts ...Option) *Agent {
 	a := &Agent{
 		coderURL: coderURL,
 		token:    token,
