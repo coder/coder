@@ -12,6 +12,19 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontext"
 )
 
+// switchHomeEnv overrides the platform-specific environment
+// variable consulted by os.UserHomeDir for the duration of the
+// test. Windows reads USERPROFILE; Linux and macOS read HOME.
+func switchHomeEnv(t *testing.T, dir string) {
+	t.Helper()
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("USERPROFILE", dir)
+	default:
+		t.Setenv("HOME", dir)
+	}
+}
+
 func TestCanonicalizePath_AbsoluteCleansAndResolves(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

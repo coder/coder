@@ -54,6 +54,15 @@ type ManagerOptions struct {
 	SchemaVersion uint64
 }
 
+// Source is a user-declared scan root added to the agent's
+// in-memory list via the HTTP API or boot-time env seeding.
+// Identity is the canonical absolute path.
+type Source struct {
+	// Path is the canonical absolute path (symlinks resolved,
+	// ~ expanded). Empty means the zero value.
+	Path string
+}
+
 // Manager orchestrates source CRUD, resolution, watching, and
 // Pusher fan-out. Construct with NewManager; start its lifecycle
 // goroutines with Run; tear down with Close.
