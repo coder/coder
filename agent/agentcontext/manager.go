@@ -439,6 +439,17 @@ func (m *Manager) signal() {
 	}
 }
 
+// Trigger queues an asynchronous re-resolve. Trigger returns
+// immediately; the Run goroutine performs the filesystem walk
+// in the background and broadcasts when it finishes. Use
+// Trigger when the caller wants the watcher to pick up an
+// updated working directory or scan-root set but does not need
+// the new Snapshot synchronously. Trigger is a no-op when Run
+// has not started or the Manager is closed.
+func (m *Manager) Trigger() {
+	m.signal()
+}
+
 // scanRootsLocked returns the list of ScanRoots to feed the
 // resolver and watcher. The Manager's mutex must be held.
 func (m *Manager) scanRootsLocked() []ScanRoot {

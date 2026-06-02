@@ -1393,13 +1393,13 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 		// Manifest just landed; the agentcontext manager now has
 		// a working directory to scan and a known set of scan
-		// roots. Trigger a resync so the snapshot reflects the
-		// workspace immediately instead of waiting for the next
-		// filesystem event.
+		// roots. Queue an asynchronous re-resolve so the snapshot
+		// reflects the workspace immediately instead of waiting
+		// for the next filesystem event. The result is handled
+		// by the Manager.Run loop, which respects gracefulCtx
+		// cancellation during shutdown.
 		if a.contextManager != nil {
-			if _, resyncErr := a.contextManager.Resync(ctx); resyncErr != nil {
-				a.logger.Debug(ctx, "agentcontext resync after manifest failed", slog.Error(resyncErr))
-			}
+			a.contextManager.Trigger()
 		}
 
 		// Write secret files after signaling manifest readiness so that network

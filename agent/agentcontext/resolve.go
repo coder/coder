@@ -242,7 +242,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 			}
 			continue
 		}
-		walkErr := r.walkDir(root, &resources, seenID)
+		walkErr := r.walkDir(ctx, root, &resources, seenID)
 		if walkErr != nil {
 			snapErrs = append(snapErrs, fmt.Sprintf("walk %q: %s", root.Path, walkErr))
 		}
@@ -251,12 +251,17 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 }
 
 // walkDir performs the recursive descent for a single scan
-// directory. It honors r.MaxDepth and skipDirNames.
-func (r *Resolver) walkDir(root ScanRoot, out *[]Resource, seenID map[string]struct{}) error {
+// directory. It honors r.MaxDepth and skipDirNames. The ctx is
+// checked inside the WalkDir callback so cancellation
+// terminates the walk even mid-root.
+func (r *Resolver) walkDir(ctx context.Context, root ScanRoot, out *[]Resource, seenID map[string]struct{}) error {
 	rootDepth := strings.Count(filepath.Clean(root.Path), string(os.PathSeparator))
 	maxDepth := rootDepth + r.MaxDepth
 
 	return filepath.WalkDir(root.Path, func(path string, d fs.DirEntry, err error) error {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		if err != nil {
 			// Surface the error as Unreadable when we can
 			// associate it with a single recognized file;
