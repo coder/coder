@@ -6,6 +6,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "#/utils/cn";
+import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 const STORAGE_KEY = "agents.right-panel-width";
 const MIN_WIDTH = 360;
@@ -168,6 +169,8 @@ function useResizableDrag({
 	};
 }
 
+const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
+
 export const RightPanel = ({
 	isOpen,
 	isExpanded,
@@ -225,8 +228,73 @@ export const RightPanel = ({
 		localStorage.setItem(STORAGE_KEY, String(width));
 	}, [width]);
 
+	const panelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (
+			!visualOpen ||
+			visualExpanded ||
+			isSidebarCollapsed ||
+			!onToggleSidebarCollapsed
+		) {
+			return;
+		}
+
+		const parent = panelRef.current?.parentElement;
+		if (!parent) {
+			return;
+		}
+
+		let frame = 0;
+		let collapseRequested = false;
+		const maybeCollapseSidebar = () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => {
+				if (
+					collapseRequested ||
+					innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH
+				) {
+					return;
+				}
+
+				const rawChatMinWidth = getComputedStyle(parent).getPropertyValue(
+					"--agents-chat-panel-min-width",
+				);
+				const chatMinWidth = Number.parseFloat(rawChatMinWidth);
+				const requiredMainWidth =
+					(Number.isFinite(chatMinWidth) && chatMinWidth > 0
+						? chatMinWidth
+						: AGENTS_MAIN_PANEL_MIN_WIDTH) + MIN_WIDTH;
+
+				if (parent.clientWidth >= requiredMainWidth) {
+					return;
+				}
+
+				collapseRequested = true;
+				onToggleSidebarCollapsed();
+			});
+		};
+
+		maybeCollapseSidebar();
+		const resizeObserver = new ResizeObserver(maybeCollapseSidebar);
+		resizeObserver.observe(parent);
+		addEventListener("resize", maybeCollapseSidebar);
+
+		return () => {
+			cancelAnimationFrame(frame);
+			resizeObserver.disconnect();
+			removeEventListener("resize", maybeCollapseSidebar);
+		};
+	}, [
+		visualOpen,
+		visualExpanded,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+	]);
+
 	return (
 		<div
+			ref={panelRef}
 			data-testid="agents-right-panel"
 			style={
 				visualOpen && !visualExpanded
