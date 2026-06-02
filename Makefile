@@ -1410,13 +1410,6 @@ else
 GOTESTSUM_RETRY_FLAGS :=
 endif
 
-GOTESTSUM := gotestsum
-ifeq ($(GOOS),windows)
-# Resolve gotestsum before dropping PATH. The shim needs mise in PATH, but
-# native test subprocesses should inherit only the GitHub runner's native Path.
-GOTESTSUM := env -u PATH Path="$${Path}" "$$(cygpath -u "$$(mise which gotestsum)")"
-endif
-
 # Default to 8x8 parallelism to avoid overwhelming our workspaces.
 # Race detection defaults to 4x4 because the detector adds significant
 # CPU overhead. Override via TEST_NUM_PARALLEL_PACKAGES /
@@ -1466,7 +1459,7 @@ endif
 TEST_PACKAGES ?= ./...
 
 test:
-	$(GIT_FLAGS) $(GOTESTSUM) --format standard-quiet \
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="$(TEST_PACKAGES)" \
 		-- \
@@ -1476,7 +1469,7 @@ test:
 test-race: TEST_PARALLEL_PACKAGES := $(RACE_PARALLEL_PACKAGES)
 test-race: TEST_PARALLEL_TESTS := $(RACE_PARALLEL_TESTS)
 test-race:
-	$(GIT_FLAGS) $(GOTESTSUM) --format standard-quiet \
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		--junitfile="gotests.xml" \
 		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="$(TEST_PACKAGES)" \

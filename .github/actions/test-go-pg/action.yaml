@@ -57,8 +57,8 @@ runs:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
       run: make test-postgres-docker
 
-    - name: Setup Embedded Postgres (Windows/macOS)
-      if: runner.os != 'Linux'
+    - name: Setup Embedded Postgres (macOS)
+      if: runner.os == 'macOS'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
@@ -67,7 +67,18 @@ runs:
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
 
+    - name: Setup Embedded Postgres (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+        EMBEDDED_PG_CACHE_DIR: ${{ inputs.embedded-pg-cache }}
+      run: |
+        go run scripts/embedded-pg/main.go -path "$env:EMBEDDED_PG_PATH" -cache "$env:EMBEDDED_PG_CACHE_DIR"
+
     - name: Run tests
+      if: runner.os != 'Windows'
       shell: bash
       env:
         TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
@@ -102,3 +113,65 @@ runs:
         else
           make test
         fi
+
+    - name: Run tests (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
+        TEST_NUM_PARALLEL_TESTS: ${{ inputs.test-parallelism-tests }}
+        TEST_COUNT: ${{ inputs.test-count }}
+        RUN: ${{ inputs.run-regex }}
+        TEST_SHUFFLE: ${{ inputs.test-shuffle }}
+        TEST_PACKAGES: ${{ inputs.test-packages }}
+        RACE_DETECTION: ${{ inputs.race-detection }}
+        GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
+        TS_DEBUG_DISCO: "true"
+        TS_DEBUG_DERP: "true"
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        if ($env:GOTESTSUM_JSONFILE_INPUT) {
+          if ($env:GOTESTSUM_JSONFILE_INPUT -eq "default") {
+            $env:GOTESTSUM_JSONFILE = Join-Path $env:RUNNER_TEMP "go-test.json"
+          } else {
+            $env:GOTESTSUM_JSONFILE = $env:GOTESTSUM_JSONFILE_INPUT
+          }
+        }
+
+        $emptyGitConfig = Join-Path $env:RUNNER_TEMP "empty-gitconfig"
+        New-Item -ItemType File -Path $emptyGitConfig -Force | Out-Null
+        $env:GIT_CONFIG_GLOBAL = $emptyGitConfig
+        $env:GIT_CONFIG_SYSTEM = $emptyGitConfig
+
+        $gotestsumArgs = @("--format", "standard-quiet")
+        if ($env:RACE_DETECTION -eq "true") {
+          $gotestsumArgs += "--junitfile=gotests.xml"
+        }
+        if ($env:TEST_RETRIES) {
+          $gotestsumArgs += "--rerun-fails=$env:TEST_RETRIES"
+        }
+        $gotestsumArgs += "--packages=$env:TEST_PACKAGES"
+        $gotestsumArgs += "--"
+
+        $goTestArgs = @(
+          "-tags=testsmallbatch",
+          "-v",
+          "-timeout", "20m",
+          "-p", $env:TEST_NUM_PARALLEL_PACKAGES,
+          "-parallel=$env:TEST_NUM_PARALLEL_TESTS"
+        )
+        if ($env:RACE_DETECTION -eq "true") {
+          $goTestArgs += "-race"
+        }
+        if ($env:TEST_COUNT) {
+          $goTestArgs += "-count=$env:TEST_COUNT"
+        }
+        if ($env:RUN) {
+          $goTestArgs += @("-run", $env:RUN)
+        }
+        if ($env:TEST_SHUFFLE) {
+          $goTestArgs += "-shuffle=$env:TEST_SHUFFLE"
+        }
+
+        gotestsum @gotestsumArgs @goTestArgs
