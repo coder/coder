@@ -24,10 +24,16 @@ func main() {
 			}
 		}
 	}
-	// Try to run printf via cmd.exe exactly like headerTransport does.
+
+	// Reproduce exactly what headerTransport does.
 	cmd := exec.Command("cmd.exe", "/c", "printf test-from-go")
 	cmd.Env = append(os.Environ(), "CODER_URL=http://test")
-	cmd.Stderr = os.Stderr
-	out, err := cmd.CombinedOutput()
-	_, _ = fmt.Printf("cmd.exe /c printf: out=%q err=%v\n", string(out), err)
+	// headerTransport sets: cmd.Stdout = &outBuf, cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	_, _ = fmt.Printf("cmd.exe /c printf (with Env): out=%q err=%v\n", string(out), err)
+
+	// Also try without setting Env (inherit parent).
+	cmd2 := exec.Command("cmd.exe", "/c", "printf test-inherit")
+	out2, err2 := cmd2.Output()
+	_, _ = fmt.Printf("cmd.exe /c printf (inherit):  out=%q err=%v\n", string(out2), err2)
 }
