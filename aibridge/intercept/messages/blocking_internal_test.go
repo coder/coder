@@ -443,10 +443,10 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 
 			// Mock proxy with a tool the upstream's tool_use
 			// response will reference.
-			proxy := &mockServerProxier{
-				tools: []*mcp.Tool{
+			proxy := &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{
-						Client:     stubToolCaller{},
+						Client:     testutil.StubToolCaller{},
 						ID:         "test_tool",
 						Name:       "test_tool",
 						ServerName: "coder",

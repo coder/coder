@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -367,14 +365,6 @@ data: {"type":"message_stop"}
 `
 )
 
-// stubToolCaller is a minimal mcp.ToolCaller that returns a fixed
-// text result, so the agentic continuation can proceed.
-type stubToolCaller struct{}
-
-func (stubToolCaller) CallTool(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("tool result"), nil
-}
-
 // TestStreamingInterception_AgenticLoopFailover covers the
 // scenarios that span an agentic-loop continuation: the initial
 // client request and the subsequent tool-call continuation can
@@ -537,10 +527,10 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			// Mock proxy with a tool the upstream's tool_use event
 			// will reference. The stub caller returns a fixed
 			// text result.
-			proxy := &mockServerProxier{
-				tools: []*mcp.Tool{
+			proxy := &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{
-						Client:     stubToolCaller{},
+						Client:     testutil.StubToolCaller{},
 						ID:         "test_tool",
 						Name:       "test_tool",
 						ServerName: "coder",
