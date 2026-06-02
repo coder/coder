@@ -86,11 +86,12 @@ runs:
         set -euo pipefail
 
         if [[ "${RUNNER_OS}" == "Windows" ]]; then
-          # MSYS2 bash translates Path to forward-slash MSYS format.
-          # Subprocesses started by Go (cmd.exe, powershell.exe) need
-          # native Windows paths. Export PATH converted back to Windows
-          # format via cygpath so os.Environ() returns usable paths.
-          export PATH="$(cygpath -w -p "$PATH")"
+          # Prevent MSYS2 from translating path-like strings in
+          # arguments and environment values passed to child
+          # processes. Without this, Go's os.Environ() can end up
+          # with MSYS-translated paths that cmd.exe cannot resolve.
+          export MSYS_NO_PATHCONV=1
+          export MSYS2_ARG_CONV_EXCL='*'
         fi
 
         # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
