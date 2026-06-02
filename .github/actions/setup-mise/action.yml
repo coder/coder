@@ -167,12 +167,16 @@ runs:
         install_args: ${{ steps.cache-key.outputs.install-args }}
         cache: "false"
 
-    - name: Ensure Git usr/bin is in PATH (Windows)
+    - name: Ensure Windows subprocess tools are in PATH
       if: runner.os == 'Windows'
       shell: pwsh
-      run: |
-        $gitdir = "C:\Program Files\Git\usr\bin"
-        if ($env:Path -notlike "*$gitdir*") {
-          $gitdir | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+      run: | # zizmor: ignore[github-env] These are fixed Windows runner paths.
+        @(
+          "$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+          "C:\Program Files\Git\usr\bin"
+        ) | ForEach-Object {
+          if ($env:Path -notlike "*$_*") {
+            $_ | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+          }
         }
 

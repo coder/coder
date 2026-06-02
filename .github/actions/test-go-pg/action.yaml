@@ -144,6 +144,10 @@ runs:
         $env:GIT_CONFIG_GLOBAL = $emptyGitConfig
         $env:GIT_CONFIG_SYSTEM = $emptyGitConfig
 
+        # Go deduplicates environment keys case-insensitively on Windows and keeps the last value.
+        # Keep both common spellings native before gotestsum starts test subprocesses.
+        $env:PATH = $env:Path
+
         $gotestsumArgs = @("--format", "standard-quiet")
         if ($env:RACE_DETECTION -eq "true") {
           $gotestsumArgs += "--junitfile=gotests.xml"
