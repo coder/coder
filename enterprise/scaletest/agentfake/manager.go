@@ -68,6 +68,11 @@ type ManagerOptions struct {
 	// before enumerating.
 	ExpectedAgents          int64
 	ExpectedAgentsTolerance int64
+	// ConnectionReportInterval is the idle gap between synthetic SSH
+	// sessions per fake agent. Zero disables connection reporting.
+	ConnectionReportInterval time.Duration
+	// ConnectionReportDuration is the length of each synthetic SSH session.
+	ConnectionReportDuration time.Duration
 	// Clock is used for the workspace-count polling interval.
 	// Defaults to the real clock; override in tests with quartz.NewMock.
 	Clock quartz.Clock
@@ -149,7 +154,8 @@ func (m *Manager) Run(ctx context.Context) error {
 			m.logger.Named("agent-"+strconv.Itoa(i)),
 			m.coderURL, ti.Token,
 			WithMetrics(m.opts.Metrics),
-			WithFirstConnect(firstConnectCh)))
+			WithFirstConnect(firstConnectCh),
+			WithConnectionReports(m.opts.ConnectionReportInterval, m.opts.ConnectionReportDuration)))
 	}
 	m.mu.Lock()
 	m.agents = agents

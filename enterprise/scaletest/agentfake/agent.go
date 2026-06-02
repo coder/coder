@@ -62,6 +62,12 @@ type Agent struct {
 	firstConnect   chan<- time.Duration
 	firstConnected atomic.Bool
 
+	// connReportInterval is the idle gap between synthetic SSH sessions.
+	// Zero disables connection reporting. connReportDuration is the length
+	// of each synthetic SSH session.
+	connReportInterval time.Duration
+	connReportDuration time.Duration
+
 	start time.Time
 
 	cancel context.CancelFunc
@@ -105,6 +111,16 @@ func WithMetrics(m *Metrics) Option {
 func WithFirstConnect(ch chan<- time.Duration) Option {
 	return func(a *Agent) {
 		a.firstConnect = ch
+	}
+}
+
+// WithConnectionReports enables periodic synthetic SSH connection reporting.
+// interval is the idle gap between sessions; a zero interval disables
+// reporting. duration is the length of each synthetic SSH session.
+func WithConnectionReports(interval, duration time.Duration) Option {
+	return func(a *Agent) {
+		a.connReportInterval = interval
+		a.connReportDuration = duration
 	}
 }
 
@@ -225,6 +241,11 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 		go a.runMetadata(connCtx, rpc, workspaceID, descs)
 	}
 
+	// Emit synthetic SSH connection events for the lifetime of this dRPC
+	// connection. Bound to connCtx so the goroutine exits on reconnect,
+	// matching runMetadata.
+	go a.runConnectionReports(connCtx, rpc)
+
 	select {
 	case <-ctx.Done():
 		return nil
@@ -324,6 +345,70 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 		}
 		return nil
 	}, "agentfake", "runMetadata").Wait()
+}
+
+// runConnectionReports emits a periodic synthetic SSH session (CONNECT then
+// DISCONNECT) via ReportConnection. Each session uses one connection_id so
+// coderd pairs the two halves onto a single connection_log row.
+//
+// The TickerFunc wakes every min(interval, duration) and the switch gates
+// which action (if any) fires on each tick; the goroutine is scoped to the
+// connection's ctx and exits cleanly on disconnect or shutdown.
+func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentClient29) {
+	if a.connReportInterval <= 0 {
+		return
+	}
+
+	// Wake often enough to honor both interval and duration. The branches
+	// inside the tick func gate which action (if any) fires on each tick.
+	tick := a.connReportInterval
+	if a.connReportDuration > 0 && a.connReportDuration < tick {
+		tick = a.connReportDuration
+	}
+
+	var (
+		openID   uuid.UUID
+		closeAt  time.Time
+		nextOpen = a.clock.Now().Add(a.connReportInterval)
+	)
+	_ = a.clock.TickerFunc(ctx, tick, func() error {
+		now := a.clock.Now()
+		switch {
+		case openID != uuid.Nil && !now.Before(closeAt):
+			a.sendConnection(ctx, rpc, openID, proto.Connection_DISCONNECT, now)
+			openID = uuid.Nil
+			nextOpen = now.Add(a.connReportInterval)
+		case openID == uuid.Nil && !now.Before(nextOpen):
+			id := uuid.New()
+			closeAt = now.Add(a.connReportDuration)
+			if a.sendConnection(ctx, rpc, id, proto.Connection_CONNECT, now) {
+				openID = id
+			} else {
+				// CONNECT failed; try again next interval. No dangling
+				// openID means we won't desync.
+				nextOpen = now.Add(a.connReportInterval)
+			}
+		}
+		return nil
+	}, "agentfake", "connectionReports").Wait()
+}
+
+func (a *Agent) sendConnection(ctx context.Context, rpc proto.DRPCAgentClient29, id uuid.UUID, action proto.Connection_Action, now time.Time) bool {
+	_, err := rpc.ReportConnection(ctx, &proto.ReportConnectionRequest{
+		Connection: &proto.Connection{
+			Id:        id[:],
+			Action:    action,
+			Type:      proto.Connection_SSH,
+			Timestamp: timestamppb.New(now),
+		},
+	})
+	if err != nil && ctx.Err() == nil {
+		a.logger.Debug(ctx, "report connection failed",
+			slog.F("action", action.String()),
+			slog.Error(err))
+		return false
+	}
+	return true
 }
 
 // Close stops the agent. Safe to call multiple times.

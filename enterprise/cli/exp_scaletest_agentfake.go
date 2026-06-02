@@ -4,6 +4,7 @@ package cli
 
 import (
 	"os/signal"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -40,6 +41,8 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 		expectedAgentsTolerance int64
 		postgresURL             string
 		postgresAuth            string
+		connReportInterval      time.Duration
+		connReportDuration      time.Duration
 	)
 
 	cmd := &serpent.Command{
@@ -117,11 +120,13 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			metrics := agentfake.NewMetrics(prometheus.DefaultRegisterer)
 
 			mgr := agentfake.NewManager(logger, client.URL, client, db, agentfake.ManagerOptions{
-				Template:                template,
-				Owner:                   owner,
-				Metrics:                 metrics,
-				ExpectedAgents:          expectedAgents,
-				ExpectedAgentsTolerance: expectedAgentsTolerance,
+				Template:                 template,
+				Owner:                    owner,
+				Metrics:                  metrics,
+				ExpectedAgents:           expectedAgents,
+				ExpectedAgentsTolerance:  expectedAgentsTolerance,
+				ConnectionReportInterval: connReportInterval,
+				ConnectionReportDuration: connReportDuration,
 			})
 			defer mgr.Close()
 
@@ -165,6 +170,20 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 			Default:     "0",
 			Description: "Acceptable variance around --expected-agents. Ignored when --expected-agents is 0.",
 			Value:       serpent.Int64Of(&expectedAgentsTolerance),
+		},
+		{
+			Flag:        "connection-report-interval",
+			Env:         "CODER_SCALETEST_AGENTFAKE_CONNECTION_REPORT_INTERVAL",
+			Description: "Idle gap between synthetic SSH connect events per fake agent. Zero disables connection reporting.",
+			Default:     "30s",
+			Value:       serpent.DurationOf(&connReportInterval),
+		},
+		{
+			Flag:        "connection-report-duration",
+			Env:         "CODER_SCALETEST_AGENTFAKE_CONNECTION_REPORT_DURATION",
+			Description: "Synthetic SSH session length per fake agent. Ignored when --connection-report-interval is zero.",
+			Default:     "5s",
+			Value:       serpent.DurationOf(&connReportDuration),
 		},
 		{
 			Flag:        "postgres-url",
