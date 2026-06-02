@@ -8,17 +8,6 @@ import (
 )
 
 const (
-	// MaxSecretValueSize is the maximum size of a user secret value
-	// in bytes. This limit applies uniformly to both env var and
-	// file-destined secrets because the value field is shared and
-	// the destination can change after creation. 32KB is generous
-	// for env vars (most are under 1KB) but necessary for file
-	// content like SSH keys, TLS certificate chains, and JSON
-	// configs. We are not trying to be overly restrictive here;
-	// users can use the full 32KB for env var values even though
-	// it would be unusual.
-	MaxSecretValueSize = 32 * 1024 // 32KB
-
 	// maxFilePathLength is the maximum length of a file path for
 	// a user secret. Matches Linux PATH_MAX, which is the common
 	// case since workspace agents almost always run on Linux.
@@ -27,6 +16,94 @@ const (
 	// runtime error if the write fails.
 	maxFilePathLength = 4096
 )
+
+// MaxUserSecretsPerUserCount caps the number of secrets a single user
+// may own.
+//
+// Why a cap exists at all: user_secrets is user-scoped, so every
+// workspace the user owns loads the same set into its agent
+// manifest, and env-injected ones land in the workspace agent's
+// process env. Without a cap, a user can overflow one of three
+// external limits by accumulating enough secrets, or by making
+// them large enough. The failure surfaces at workspace start (or
+// as a truncated env), not at create-time.
+//
+// What drives each cap, and the rough math:
+//
+//   - Count (50): backstops row-count growth from many small
+//     secrets. The total-bytes cap binds first for large secrets;
+//     this cap binds first for typical-sized ones (~few KB).
+//
+//   - Total bytes (200 KiB): sized to cover realistic credential
+//     storage (API keys, SSH keys, kubeconfigs, cert bundles)
+//     with headroom. Well under the 4 MiB DRPC agent manifest
+//     budget (codersdk/drpcsdk.MaxMessageSize).
+//
+//   - Env bytes (24 KiB): an approximate budget for the value
+//     bytes of env-injected secrets. Leaves ~8 KiB of headroom
+//     under the ~32 KiB Windows process env block
+//     (CreateProcessW's lpEnvironment is capped at 32,767
+//     characters) for what this aggregate does not count:
+//     env_name bytes, per-entry overhead, agent-injected vars
+//     (CODER_*, PATH, HOME, ...), and template-defined env. Not
+//     a strict overflow guarantee. Linux/macOS ARG_MAX (~2 MiB)
+//     is far above this, so one Windows-safe cap works
+//     everywhere.
+//
+// Byte caps measure stored bytes (octet_length of encrypted+base64).
+// Plaintext is slightly tighter in encrypted deployments. That is
+// fine: the limits we defend all measure transmitted bytes, and
+// stored bytes upper-bound those.
+//
+// The Postgres trigger enforce_user_secrets_per_user_limits is the
+// source of truth; the HTTP handler maps its check_violation to a
+// 400. TestUserSecretLimits in coderd/usersecrets_test.go exercises
+// off-by-one at each cap across POST and PATCH, so any drift
+// between these constants and the trigger's literals fails an
+// assertion.
+const MaxUserSecretsPerUserCount = 50
+
+// MaxUserSecretsTotalValueBytes caps the sum of stored value bytes
+// per user. See MaxUserSecretsPerUserCount for the full rationale and
+// math behind all three caps.
+const MaxUserSecretsTotalValueBytes = 200 * 1024 // 200 KiB
+
+// MaxUserSecretValueBytes is the maximum number of bytes for a
+// single secret value. It is enforced in two places:
+//
+//   - The HTTP handler validates the raw (plaintext) value with
+//     UserSecretValueValid before the row is written.
+//   - The Postgres trigger enforce_user_secrets_per_user_limits
+//     enforces the same number as an aggregate on stored bytes
+//     across a user's env-injected secrets. This defends the
+//     ~32 KiB Windows process env block.
+//
+// On deployments with secret encryption enabled, stored bytes
+// exceed plaintext by ~1.33x (AES-GCM + base64), so the trigger's
+// env-aggregate budget can be reached at less plaintext than the
+// handler's per-value check would suggest. The trigger is
+// authoritative; the handler's check is a fast pre-flight that
+// catches the common "one value is too big" case before the row
+// is encrypted and sent to the DB.
+//
+// One number serves both roles because the per-value cap can't
+// usefully exceed the smallest aggregate cap any single row could
+// trip: a value bigger than the env aggregate would be rejected
+// the moment its env_name was set, so allowing it at the per-value
+// layer would just move the failure later.
+//
+// See MaxUserSecretsPerUserCount for the rationale behind the other
+// two caps (count, total bytes).
+const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
+
+// MaxUserSecretEnvNameLength caps the length of an env_name when one
+// is provided. 256 is a generous round number that should allow any
+// realistic env name while still bounding inputs.
+//
+// This is a per-row syntactic check, not an aggregate. It does not
+// interact with the env_bytes aggregate (which is itself an
+// approximate budget; see MaxUserSecretsPerUserCount).
+const MaxUserSecretEnvNameLength = 256
 
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
@@ -157,6 +234,13 @@ func UserSecretEnvNameValid(s string) error {
 		return nil
 	}
 
+	if len(s) > MaxUserSecretEnvNameLength {
+		return xerrors.Errorf(
+			"environment variable name must not exceed %d bytes",
+			MaxUserSecretEnvNameLength,
+		)
+	}
+
 	if !posixEnvNameRegex.MatchString(s) {
 		return xerrors.New("must start with a letter or underscore, followed by letters, digits, or underscores")
 	}
@@ -204,15 +288,20 @@ func UserSecretFilePathValid(s string) error {
 	return nil
 }
 
-// UserSecretValueValid validates a user secret value. The value must
-// not contain null bytes and must not exceed MaxSecretValueSize.
+// UserSecretValueValid validates a user secret value as bytes
+// submitted by the user (plaintext). The value must not contain
+// null bytes and must not exceed MaxUserSecretValueBytes. The DB
+// trigger separately enforces a stored-bytes env aggregate at the
+// same numeric cap; under encryption the trigger may reject values
+// that pass this check. See MaxUserSecretValueBytes for the
+// dual-enforcement explanation.
 func UserSecretValueValid(value string) error {
 	if strings.Contains(value, "\x00") {
 		return xerrors.New("secret value must not contain null bytes")
 	}
 
-	if len(value) > MaxSecretValueSize {
-		return xerrors.Errorf("secret value must not exceed %d bytes", MaxSecretValueSize)
+	if len(value) > MaxUserSecretValueBytes {
+		return xerrors.Errorf("secret value must not exceed %d bytes", MaxUserSecretValueBytes)
 	}
 
 	return nil

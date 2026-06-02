@@ -320,6 +320,14 @@ const (
 	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
 	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
 	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
+	ApiKeyScopeBoundaryLog                         APIKeyScope = "boundary_log:*"
+	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
+	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -580,7 +588,15 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeUserSkillRead,
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
-		ApiKeyScopeUserSkill:
+		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead:
 		return true
 	}
 	return false
@@ -810,6 +826,14 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
 		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead,
 	}
 }
 
@@ -3341,6 +3365,7 @@ const (
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3412,7 +3437,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
-		ResourceTypeUserSkill:
+		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey:
 		return true
 	}
 	return false
@@ -3453,6 +3479,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
 	}
 }
 
@@ -4423,6 +4450,17 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
+type AIGatewayKey struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4543,6 +4581,8 @@ type BoundarySession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// Time when the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// The ID of the user who owns the workspace. NULL if the user has been deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.
@@ -4699,6 +4739,7 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
+	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatModelConfig struct {
@@ -4726,6 +4767,7 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatTable struct {
@@ -5712,6 +5754,15 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+}
+
+// Per-user AI spend override that supersedes group budget resolution.
+type UserAiBudgetOverride struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.

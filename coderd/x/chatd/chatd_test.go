@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,6 +33,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -65,6 +67,88 @@ type recordedOpenAIRequest struct {
 	Store              *bool
 	PreviousResponseID *string
 	ContentLength      int64
+}
+
+type chatAIGatewayRecordedRequest struct {
+	ProviderName  string
+	Source        aibridge.Source
+	APIKeyID      string
+	Path          string
+	Authorization string
+	XAPIKey       string
+	CoderToken    string
+}
+
+type chatAIGatewayTestFactory struct {
+	target    *url.URL
+	transport http.RoundTripper
+	mu        sync.Mutex
+	requests  []chatAIGatewayRecordedRequest
+}
+
+func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
+	t.Helper()
+
+	target, err := url.Parse(targetBaseURL)
+	require.NoError(t, err)
+	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
+}
+
+func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
+}
+
+func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.requests)
+}
+
+type chatAIGatewayRoundTripper struct {
+	factory      *chatAIGatewayTestFactory
+	providerName string
+	source       aibridge.Source
+}
+
+func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+	t.factory.mu.Lock()
+	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
+		ProviderName:  t.providerName,
+		Source:        t.source,
+		APIKeyID:      apiKeyID,
+		Path:          req.URL.Path,
+		Authorization: req.Header.Get("Authorization"),
+		XAPIKey:       req.Header.Get("X-Api-Key"),
+		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
+	})
+	t.factory.mu.Unlock()
+
+	targetURL := *t.factory.target
+	targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
+	if targetURL.Path == "" {
+		targetURL.Path = "/"
+	}
+	targetURL.RawQuery = req.URL.RawQuery
+
+	cloned := req.Clone(req.Context())
+	cloned.URL = &targetURL
+	cloned.Host = t.factory.target.Host
+	return t.factory.transport.RoundTrip(cloned)
+}
+
+func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
+	var ptr atomic.Pointer[aibridge.TransportFactory]
+	ptr.Store(&factory)
+	return &ptr
+}
+
+func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	t.Helper()
+
+	values := coderdtest.DeploymentValues(t)
+	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+	return values
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
@@ -231,7 +315,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -388,7 +472,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -555,7 +639,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -1796,6 +1880,73 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	require.Equal(t, chat.ID, ids[0])
 }
 
+func TestCreateChatPersistsAPIKeyIDOnInitialUserMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "create-chat-api-key-id",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		APIKeyID:           apiKey.ID,
+	})
+	require.NoError(t, err)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+	require.True(t, messages[0].APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, messages[0].APIKeyID.String)
+}
+
+func TestSendMessagePersistsAPIKeyIDOnUserMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "send-message-api-key-id",
+	})
+
+	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("message with api key id"),
+		},
+		APIKeyID: apiKey.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, result.Queued)
+	require.True(t, result.Message.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, result.Message.APIKeyID.String)
+
+	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
+	require.NoError(t, err)
+	require.True(t, stored.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, stored.APIKeyID.String)
+}
+
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	t.Parallel()
 
@@ -2143,15 +2294,20 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	apiKeyID := apiKey.ID
 	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		EditedMessageID: editedMessageID,
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		APIKeyID:        apiKeyID,
 	})
 	require.NoError(t, err)
 	// The edited message is soft-deleted and a new message is inserted,
 	// so the returned message ID will differ from the original.
 	require.NotEqual(t, editedMessageID, editResult.Message.ID)
+	require.True(t, editResult.Message.APIKeyID.Valid)
+	require.Equal(t, apiKeyID, editResult.Message.APIKeyID.String)
 	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
 	require.False(t, editResult.Chat.WorkerID.Valid)
 
@@ -2166,6 +2322,8 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, editResult.Message.ID, messages[0].ID)
+	require.True(t, messages[0].APIKeyID.Valid)
+	require.Equal(t, apiKeyID, messages[0].APIKeyID.String)
 	onlyMessage := db2sdk.ChatMessage(messages[0])
 	require.Len(t, onlyMessage.Content, 1)
 	require.Equal(t, "edited", onlyMessage.Content[0].Text)
@@ -2366,6 +2524,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 
 	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
 		Enabled:            true,
@@ -2400,11 +2559,14 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		APIKeyID:     apiKey.ID,
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
+	require.True(t, queuedResult.QueuedMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, queuedResult.QueuedMessage.APIKeyID.String)
 
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("assistant"),
@@ -2437,6 +2599,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
+	require.True(t, result.PromotedMessage.APIKeyID.Valid)
+	require.Equal(t, apiKey.ID, result.PromotedMessage.APIKeyID.String)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -4782,18 +4946,30 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
 
-	// Create a chat. This inserts one initial "user" message.
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "after-id-test",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "after-id-test",
+		Status:            database.ChatStatusWaiting,
+	})
+
+	// Seed all messages directly so this subscription test is independent
+	// of chat processing lifecycle behavior.
+	firstContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("first"),
 	})
 	require.NoError(t, err)
 
-	// Insert two more messages so we have three total visible
-	// messages (the initial user message plus these two).
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         chat.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content:        firstContent,
+	})
+
 	secondContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("second"),
 	})
@@ -4814,6 +4990,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:         chat.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
 		Role:           database.ChatMessageRoleUser,
 		ContentVersion: chatprompt.CurrentContentVersion,
@@ -4851,7 +5028,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -5016,7 +5193,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
@@ -7239,6 +7416,100 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 	require.Contains(t, recordedAuthHeaders, "Bearer "+userAPIKey)
 }
 
+func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("hello through AI Gateway")...,
+			)
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
+	})
+	factory := newChatAIGatewayTestFactory(t, openAIURL)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AiProviderTypeOpenai,
+		Name:    "primary-openai-" + uuid.NewString(),
+		BaseUrl: openAIURL,
+	})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     string(database.AiProviderTypeOpenai),
+		Model:        "gpt-4o-mini",
+		IsDefault:    true,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: provider.ID,
+		APIKey:       "sk-user-aibridge",
+	})
+	require.NoError(t, err)
+
+	creator := newTestServer(t, db, ps, uuid.New())
+	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "aigateway-routing",
+		ModelConfigID:  model.ID,
+		APIKeyID:       apiKey.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AIGatewayRoutingEnabled = true
+		cfg.AllowBYOK = true
+		cfg.AllowBYOKSet = true
+	})
+
+	terminalStatus := waitForTerminalChatStatusEvent(ctx, t, events)
+	require.Equal(t, codersdk.ChatStatusWaiting, terminalStatus)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+	require.False(t, chatResult.LastError.Valid)
+
+	requests := factory.requestsSnapshot()
+	require.NotEmpty(t, requests)
+	require.Contains(t, requests, chatAIGatewayRecordedRequest{
+		ProviderName:  provider.Name,
+		Source:        aibridge.SourceAgents,
+		APIKeyID:      apiKey.ID,
+		Path:          "/v1/responses",
+		Authorization: "Bearer sk-user-aibridge",
+		CoderToken:    "delegated",
+	})
+	for _, req := range requests {
+		require.Equal(t, provider.Name, req.ProviderName)
+		require.Equal(t, aibridge.SourceAgents, req.Source)
+		require.Equal(t, apiKey.ID, req.APIKeyID)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
+		require.Empty(t, req.XAPIKey)
+		require.Equal(t, "delegated", req.CoderToken)
+		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+	}
+}
+
 func TestProcessChat_UserProviderKey_MissingKeyError(t *testing.T) {
 	t.Parallel()
 
@@ -8480,7 +8751,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues := directChatRoutingDeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:              deploymentValues,
 		IncludeProvisionerDaemon:      true,

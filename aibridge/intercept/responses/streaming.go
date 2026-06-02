@@ -134,16 +134,21 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 			var currentKey *keypool.Key
 			if walker != nil {
-				key, err := walker.Next()
-				if respErr := ProcessKeyPoolError(err); respErr != nil {
+				key, keyPoolErr := walker.Next()
+				if keyPoolErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the
 					// SSE connection has not been opened yet.
-					i.writeUpstreamError(w, respErr)
-					return xerrors.Errorf("key pool exhausted: %w", err)
+					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
+					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
 				currentKey = key
+				// Record the key in use so the hint reflects the last attempted key.
+				i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+				i.logger.Debug(ctx, "using centralized api key",
+					slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
 					// Disable SDK retries because the failover

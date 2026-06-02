@@ -40,3 +40,20 @@ RETURNING *;
 
 -- name: DeleteGroupAIBudget :one
 DELETE FROM group_ai_budgets WHERE group_id = @group_id RETURNING *;
+
+-- name: GetUserAIBudgetOverride :one
+SELECT *
+FROM user_ai_budget_overrides
+WHERE user_id = @user_id;
+
+-- name: UpsertUserAIBudgetOverride :one
+INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
+VALUES (@user_id, @group_id, @spend_limit_micros)
+ON CONFLICT (user_id) DO UPDATE SET
+	group_id           = EXCLUDED.group_id,
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
+	updated_at         = NOW()
+RETURNING *;
+
+-- name: DeleteUserAIBudgetOverride :one
+DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;

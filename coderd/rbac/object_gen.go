@@ -15,6 +15,15 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAIGatewayKey
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI Gateway key
+	//  - "ActionDelete" :: delete an AI Gateway key
+	//  - "ActionRead" :: read AI Gateway keys
+	ResourceAIGatewayKey = Object{
+		Type: "ai_gateway_key",
+	}
+
 	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
@@ -87,6 +96,15 @@ var (
 	//  - "ActionRead" :: read audit logs
 	ResourceAuditLog = Object{
 		Type: "audit_log",
+	}
+
+	// ResourceBoundaryLog
+	// Valid Actions
+	//  - "ActionCreate" :: create boundary log records
+	//  - "ActionDelete" :: delete boundary logs
+	//  - "ActionRead" :: read boundary logs and session metadata
+	ResourceBoundaryLog = Object{
+		Type: "boundary_log",
 	}
 
 	// ResourceBoundaryUsage
@@ -470,6 +488,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAIGatewayKey,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
 		ResourceAiSeat,
@@ -478,6 +497,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
 		ResourceConnectionLog,

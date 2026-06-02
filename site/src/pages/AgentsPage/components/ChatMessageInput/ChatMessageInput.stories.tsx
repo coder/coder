@@ -76,6 +76,13 @@ const expectNoVisibleText = async (text: string) => {
 	});
 };
 
+const expectNoVisibleTextImmediately = (text: string) => {
+	const matches = within(document.body).queryAllByText(text);
+	expect(
+		matches.every((element) => element.getClientRects().length === 0),
+	).toBe(true);
+};
+
 const editorFromCanvas = (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	return canvas.getByTestId("chat-message-input");
@@ -188,6 +195,18 @@ export const EmptyDescriptionInsertsNameOnly: Story = {
 export const SlashInsideUrlDoesNotOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "https://");
+		await expectNoVisibleText("/reviewer");
+	},
+};
+
+export const BackspaceClosesWithoutEmptyStateFlash: Story = {
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		await userEvent.keyboard("{Backspace}");
+
+		expect(editor.textContent).toBe("");
+		expectNoVisibleTextImmediately("No personal skills found.");
 		await expectNoVisibleText("/reviewer");
 	},
 };

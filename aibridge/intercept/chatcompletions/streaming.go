@@ -143,8 +143,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		var opts []option.RequestOption
 		var currentKey *keypool.Key
 		if walker != nil {
-			key, err := walker.Next()
-			if respErr := ProcessKeyPoolError(err); respErr != nil {
+			key, keyPoolErr := walker.Next()
+			if keyPoolErr != nil {
+				respErr := intercept.ResponseErrorFromKeyPool(keyPoolErr)
 				// Pool exhausted in this iteration. Relay the
 				// error to the client: as an SSE event if events
 				// have already been sent, or by direct write
@@ -163,6 +164,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover
@@ -470,17 +476,17 @@ func (i *StreamingInterception) newStream(ctx context.Context, svc openai.ChatCo
 }
 
 // mapStreamError converts a mid-stream upstream error or
-// processing error into a relayable responseError. Returns nil
+// processing error into a relayable ResponseError. Returns nil
 // when the error is unrecoverable, in which case nothing can be
 // relayed back.
-func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *ResponseError {
+func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *intercept.ResponseError {
 	if streamErr != nil {
 		if eventstream.IsUnrecoverableError(streamErr) {
 			logger.Debug(ctx, "stream terminated", slog.Error(streamErr))
 			// We can't reflect an error back if there's a connection error or the request context was canceled.
 			return nil
 		}
-		if oaiErr := getErrorResponse(streamErr); oaiErr != nil {
+		if oaiErr := intercept.ResponseErrorFromAPIError(streamErr); oaiErr != nil {
 			logger.Warn(ctx, "openai stream error", slog.Error(streamErr))
 			return oaiErr
 		}
@@ -489,11 +495,11 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		// into known types (i.e. [shared.OverloadedError]).
 		// See https://github.com/openai/openai-go/blob/v2.7.0/packages/ssestream/ssestream.go#L171
 		// All it does is wrap the payload in an error - which is all we can return, currently.
-		return newErrorResponse(fmt.Sprintf("unknown stream error: %s", streamErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
+		return intercept.NewResponseError(fmt.Sprintf("unknown stream error: %s", streamErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
 	}
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-		return newErrorResponse(fmt.Sprintf("processing error: %s", lastErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
+		return intercept.NewResponseError(fmt.Sprintf("processing error: %s", lastErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
 	}
 	return nil
 }

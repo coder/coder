@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func sshConfigFileName(t *testing.T) (sshConfig string) {
@@ -64,6 +64,8 @@ func TestConfigSSH(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
+	logger := testutil.Logger(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	const removeKey = "ConnectTimeout"
@@ -131,9 +133,8 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -143,8 +144,8 @@ func TestConfigSSH(t *testing.T) {
 		{match: "Continue?", write: "yes"},
 	}
 	for _, m := range matches {
-		pty.ExpectMatch(m.match)
-		pty.WriteLine(m.write)
+		stdout.ExpectMatchContext(ctx, m.match)
+		stdin.WriteLine(m.write)
 	}
 
 	waiter.RequireSuccess()
@@ -157,10 +158,8 @@ func TestConfigSSH(t *testing.T) {
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
 	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+r.Workspace.Name, "echo", "test")
-	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
-	inv.Stderr = pty.Output()
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
@@ -693,6 +692,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
@@ -718,8 +719,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
 
-			pty := ptytest.New(t)
-			pty.Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			done := tGo(t, func() {
 				err := inv.Run()
 				if !tt.wantErr {
@@ -730,8 +731,8 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			})
 
 			for _, m := range tt.matches {
-				pty.ExpectMatch(m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatchContext(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			<-done

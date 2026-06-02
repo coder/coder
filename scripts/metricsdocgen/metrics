@@ -208,3 +208,21 @@ coder_aibridgeproxyd_mitm_requests_total{provider=""} 0
 # HELP coder_aibridgeproxyd_mitm_responses_total Total number of MITM responses by HTTP status code class.
 # TYPE coder_aibridgeproxyd_mitm_responses_total counter
 coder_aibridgeproxyd_mitm_responses_total{code="",provider=""} 0
+# HELP coder_aibridged_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# TYPE coder_aibridged_provider_info gauge
+coder_aibridged_provider_info{provider_name="",provider_type="",status=""} 0
+# HELP coder_aibridged_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
+# TYPE coder_aibridged_providers_last_reload_timestamp_seconds gauge
+coder_aibridged_providers_last_reload_timestamp_seconds 0
+# HELP coder_aibridged_providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against coder_aibridged_providers_last_reload_timestamp_seconds means the loop is firing but the refresh function is failing.
+# TYPE coder_aibridged_providers_last_reload_success_timestamp_seconds gauge
+coder_aibridged_providers_last_reload_success_timestamp_seconds 0
+# HELP coder_aibridgeproxyd_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# TYPE coder_aibridgeproxyd_provider_info gauge
+coder_aibridgeproxyd_provider_info{provider_name="",provider_type="",status=""} 0
+# HELP coder_aibridgeproxyd_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
+# TYPE coder_aibridgeproxyd_providers_last_reload_timestamp_seconds gauge
+coder_aibridgeproxyd_providers_last_reload_timestamp_seconds 0
+# HELP coder_aibridgeproxyd_providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the router. A gap against coder_aibridgeproxyd_providers_last_reload_timestamp_seconds means the loop is firing but the refresh function is failing.
+# TYPE coder_aibridgeproxyd_providers_last_reload_success_timestamp_seconds gauge
+coder_aibridgeproxyd_providers_last_reload_success_timestamp_seconds 0
