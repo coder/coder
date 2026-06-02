@@ -369,6 +369,41 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 	return a.network
 }
 
+// initialContextSources translates the boot-time
+// CODER_AGENT_EXP_*_DIRS env vars into agentcontext.Source
+// entries. This preserves the "set it on the template" workflow
+// while the user-facing CLI for source CRUD ships in a
+// follow-up.
+func initialContextSources(cfg agentcontextconfig.Config, workingDir func() string) []agentcontext.Source {
+	base := ""
+	if workingDir != nil {
+		base = workingDir()
+	}
+
+	seen := make(map[string]struct{})
+	var sources []agentcontext.Source
+	add := func(path string) {
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		sources = append(sources, agentcontext.Source{Path: path})
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.InstructionsDirs, base) {
+		add(p)
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.SkillsDirs, base) {
+		add(p)
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.MCPConfigFiles, base) {
+		add(p)
+	}
+	return sources
+}
+
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.execer, &agentssh.Config{
@@ -464,25 +499,15 @@ func (a *agent) init() {
 		}
 		return ""
 	}
-	ctxMgr, ctxMgrErr := agentcontext.NewManager(agentcontext.ManagerOptions{
+	a.contextManager = agentcontext.NewManager(agentcontext.ManagerOptions{
 		Logger:         a.logger.Named("agentcontext"),
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
-		BuiltinRoots:   defaultContextRoots(),
+		BuiltinRoots:   agentcontext.DefaultBuiltinRoots(),
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
-		AllowedRoots:   defaultContextAllowedRoots(),
+		AllowedRoots:   agentcontext.DefaultAllowedRoots(),
 	})
-	if ctxMgrErr != nil {
-		// NewManager only errors on programmer mistakes today.
-		// Log loudly so a future regression surfaces fast, and
-		// fall back to a no-op manager so the rest of init can
-		// proceed.
-		a.logger.Critical(a.gracefulCtx, "agentcontext manager init failed", slog.Error(ctxMgrErr))
-	}
-	a.contextManager = ctxMgr
-	if a.contextManager != nil {
-		a.contextAPI = agentcontext.NewAPI(a.contextManager)
-	}
+	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -503,13 +528,11 @@ func (a *agent) init() {
 	// It runs for the lifetime of the agent and is closed in
 	// agent.Close. The push goroutine is started per-connection
 	// inside run() so it picks up the right drpc client.
-	if a.contextManager != nil {
-		go func() {
-			if err := a.contextManager.Run(a.gracefulCtx); err != nil && !errors.Is(err, context.Canceled) {
-				a.logger.Warn(a.gracefulCtx, "agentcontext manager run exited", slog.Error(err))
-			}
-		}()
-	}
+	go func() {
+		if err := a.contextManager.Run(a.gracefulCtx); err != nil && !errors.Is(err, context.Canceled) {
+			a.logger.Warn(a.gracefulCtx, "agentcontext manager run exited", slog.Error(err))
+		}
+	}()
 
 	go a.runLoop()
 }
@@ -1234,15 +1257,13 @@ func (a *agent) run() (retErr error) {
 	// uses gracefulShutdownBehaviorStop because the snapshot is
 	// only useful while chats are alive, and a stale snapshot at
 	// shutdown costs nothing.
-	if a.contextManager != nil {
-		connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
-			func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
-				pusher := agentcontext.NewDRPCPusher(aAPI)
-				return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
-					Logger: a.logger.Named("agentcontext-push"),
-				})
+	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+			pusher := agentcontext.NewDRPCPusher(aAPI)
+			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
+				Logger: a.logger.Named("agentcontext-push"),
 			})
-	}
+		})
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -1398,9 +1419,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		// for the next filesystem event. The result is handled
 		// by the Manager.Run loop, which respects gracefulCtx
 		// cancellation during shutdown.
-		if a.contextManager != nil {
-			a.contextManager.Trigger()
-		}
+		a.contextManager.Trigger()
 
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as
@@ -2355,10 +2374,8 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
-	if a.contextManager != nil {
-		if err := a.contextManager.Close(); err != nil {
-			a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
-		}
+	if err := a.contextManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

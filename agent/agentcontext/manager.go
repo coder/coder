@@ -110,7 +110,7 @@ type Manager struct {
 // performs the first resolver pass synchronously, and returns
 // the resulting Manager. Run must be called separately to start
 // the watcher and re-resolve goroutine.
-func NewManager(opts ManagerOptions) (*Manager, error) {
+func NewManager(opts ManagerOptions) *Manager {
 	clock := opts.Clock
 	if clock == nil {
 		clock = quartz.NewReal()
@@ -171,7 +171,7 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 	// populated immediately after NewManager returns.
 	m.resolveLocked()
 
-	return m, nil
+	return m
 }
 
 // Run starts the watcher and the re-resolve goroutine. Run

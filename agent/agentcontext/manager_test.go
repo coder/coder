@@ -17,8 +17,7 @@ import (
 func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
 	opts.Logger = testutil.Logger(t).Named("agentcontext-test")
-	m, err := agentcontext.NewManager(opts)
-	require.NoError(t, err)
+	m := agentcontext.NewManager(opts)
 	t.Cleanup(func() { _ = m.Close() })
 	return m
 }
