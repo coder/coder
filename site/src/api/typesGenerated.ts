@@ -518,6 +518,10 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_gateway_key:*"
+	| "ai_gateway_key:create"
+	| "ai_gateway_key:delete"
+	| "ai_gateway_key:read"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -748,6 +752,10 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_gateway_key:*",
+	"ai_gateway_key:create",
+	"ai_gateway_key:delete",
+	"ai_gateway_key:read",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -6873,6 +6881,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -6924,6 +6933,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
@@ -7080,6 +7090,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_provider_key"
 	| "ai_seat"
@@ -7115,6 +7126,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_provider_key",
 	"ai_seat",

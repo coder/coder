@@ -253,7 +253,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'boundary_log:*',
     'boundary_log:create',
     'boundary_log:delete',
-    'boundary_log:read'
+    'boundary_log:read',
+    'ai_gateway_key:*',
+    'ai_gateway_key:create',
+    'ai_gateway_key:delete',
+    'ai_gateway_key:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -564,7 +568,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider',
     'ai_provider_key',
     'group_ai_budget',
-    'user_skill'
+    'user_skill',
+    'ai_gateway_key'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1286,6 +1291,22 @@ BEGIN
 	RETURN OLD;
 END;
 $$;
+
+CREATE TABLE ai_gateway_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    name text NOT NULL,
+    secret_prefix character varying(11) NOT NULL,
+    hashed_secret bytea NOT NULL,
+    last_used_at timestamp with time zone,
+    CONSTRAINT ai_gateway_keys_hashed_secret_check CHECK ((length(hashed_secret) > 0)),
+    CONSTRAINT ai_gateway_keys_name_check CHECK (((length(name) <= 64) AND (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))),
+    CONSTRAINT ai_gateway_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))
+);
+
+COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
+
+COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -3763,6 +3784,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_gateway_keys
+    ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
@@ -4146,6 +4170,12 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
+
+CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
+
+CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
