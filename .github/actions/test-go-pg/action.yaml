@@ -196,23 +196,7 @@ runs:
         $env:Path = $nativePath
         $env:PATH = $nativePath
 
-        $gotestsum = (mise which gotestsum).Trim()
-        $envBlock = [Environment]::GetEnvironmentVariables()
-        $process = [System.Diagnostics.ProcessStartInfo]::new()
-        $process.FileName = $gotestsum
-        $process.UseShellExecute = $false
-        $process.WorkingDirectory = (Get-Location).ProviderPath
-        $process.Environment.Clear()
-        foreach ($entry in $envBlock.GetEnumerator()) {
-          if ($entry.Key -ine "Path") {
-            $process.Environment[$entry.Key] = [string]$entry.Value
-          }
-        }
-        $process.Environment["PATH"] = $nativePath
-        foreach ($arg in ($gotestsumArgs + $goTestArgs)) {
-          $process.ArgumentList.Add($arg) | Out-Null
-        }
+        cmd.exe /d /c "where powershell.exe && where printf.exe && where ssh.exe"
 
-        $child = [System.Diagnostics.Process]::Start($process)
-        $child.WaitForExit()
-        exit $child.ExitCode
+        $gotestsum = (mise which gotestsum).Trim()
+        & $gotestsum @gotestsumArgs @goTestArgs
