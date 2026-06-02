@@ -332,13 +332,13 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.Len(t, logs, 2, "logs from both batches must be persisted")
 	})
 
-	t.Run("MissingSessionIDReturnsError", func(t *testing.T) {
+	t.Run("MissingSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a request with no session_id.
+		// Given: a request with no session_id (old boundary client).
 		api := &agentapi.BoundaryLogsAPI{
 			Log: testutil.Logger(t),
-			// Database intentionally nil; the error must fire before any DB call.
+			// Database intentionally nil; persistence is skipped.
 		}
 
 		// When: boundary logs are reported without a session_id.
@@ -357,9 +357,9 @@ func TestReportBoundaryLogs(t *testing.T) {
 			},
 		})
 
-		// Then: an error is returned.
-		require.Error(t, err)
-		require.Nil(t, resp)
+		// Then: the request succeeds (log-only mode), no error.
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("EmptyHTTPRequestSkipped", func(t *testing.T) {
@@ -397,13 +397,13 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.Empty(t, logs, "nil HttpRequest must not produce a log row")
 	})
 
-	t.Run("InvalidSessionIDReturnsError", func(t *testing.T) {
+	t.Run("InvalidSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
 		// Given: a request with a session_id that is not a valid UUID.
 		api := &agentapi.BoundaryLogsAPI{
 			Log: testutil.Logger(t),
-			// Database intentionally nil; the error must fire before any DB call.
+			// Database intentionally nil; persistence is skipped.
 		}
 
 		// When: boundary logs are reported with an invalid session_id.
@@ -423,9 +423,9 @@ func TestReportBoundaryLogs(t *testing.T) {
 			},
 		})
 
-		// Then: an error is returned.
-		require.Error(t, err)
-		require.Nil(t, resp)
+		// Then: the request succeeds (log-only mode), no error.
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("PersistsLogsAndTracksBoundaryUsage", func(t *testing.T) {

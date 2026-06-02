@@ -43,22 +43,36 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 		return nil, xerrors.Errorf("batch size %d exceeds maximum of %d", len(req.Logs), maxBoundaryLogsPerBatch)
 	}
 
-	sessionID, err := uuid.Parse(req.GetSessionId())
-	if err != nil {
-		return nil, xerrors.Errorf("parse session_id: %w", err)
-	}
-
 	now := dbtime.Now()
 
-	// Lazy-create the boundary session on first log arrival.
-	// If this fails (transient DB error), we continue so that
-	// logs are still persisted. The session will be created on
-	// a subsequent batch since every request carries the session
-	// details.
-	if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
-		a.Log.Error(ctx, "failed to ensure boundary session",
-			slog.F("session_id", sessionID.String()),
-			slog.Error(sessionErr))
+	// Parse session_id if present. Old boundary clients may not send it,
+	// so a missing or invalid session_id disables DB persistence but
+	// structured logging and usage tracking still run.
+	var sessionID uuid.UUID
+	persistEnabled := false
+	if raw := req.GetSessionId(); raw != "" {
+		parsed, parseErr := uuid.Parse(raw)
+		if parseErr != nil {
+			a.Log.Warn(ctx, "invalid session_id, persistence disabled for this batch",
+				slog.F("raw_session_id", raw),
+				slog.Error(parseErr))
+		} else {
+			sessionID = parsed
+			persistEnabled = true
+		}
+	}
+
+	if persistEnabled {
+		// Lazy-create the boundary session on first log arrival.
+		// If this fails (transient DB error), we continue so that
+		// logs are still persisted. The session will be created on
+		// a subsequent batch since every request carries the session
+		// details.
+		if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
+			a.Log.Error(ctx, "failed to ensure boundary session",
+				slog.F("session_id", sessionID.String()),
+				slog.Error(sessionErr))
+		}
 	}
 
 	// Collect batch insert params while iterating.
@@ -128,7 +142,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	}
 
 	// Batch-insert all collected logs in a single query.
-	if len(batch.ID) > 0 {
+	if persistEnabled && len(batch.ID) > 0 {
 		if insertErr := a.insertLogs(ctx, batch); insertErr != nil {
 			a.Log.Error(ctx, "failed to insert boundary logs",
 				slog.F("session_id", sessionID.String()),
