@@ -40,7 +40,7 @@ interface PortsData {
 	protocol: "http" | "https";
 }
 
-const usePortsData = (
+export const usePortsData = (
 	workspace: Workspace,
 	agent: WorkspaceAgent,
 	enabled: boolean,
@@ -86,7 +86,7 @@ export const PortsMenuItem: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
-	isOpen: boolean;
+	portsData: PortsData;
 	isRunning: boolean;
 	isBelowMd: boolean;
 	focusOnMount: boolean;
@@ -96,18 +96,14 @@ export const PortsMenuItem: FC<{
 	workspace,
 	agent,
 	host,
-	isOpen,
+	portsData,
 	isRunning,
 	isBelowMd,
 	focusOnMount,
 	onFocusApplied,
 	onSelectInline,
 }) => {
-	const isConnected = agent.status === "connected";
-	const enabled = isOpen && isConnected;
 	const itemRef = useRef<HTMLDivElement>(null);
-
-	const portsData = usePortsData(workspace, agent, enabled);
 
 	const label =
 		portsData.totalCount !== undefined
@@ -161,13 +157,10 @@ export const MobilePortsPanel: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
-	isOpen: boolean;
+	portsData: PortsData;
 	onBack: () => void;
-}> = ({ workspace, agent, host, isOpen, onBack }) => {
-	const isConnected = agent.status === "connected";
-	const enabled = isOpen && isConnected;
+}> = ({ workspace, agent, host, portsData, onBack }) => {
 	const backRef = useRef<HTMLDivElement>(null);
-	const portsData = usePortsData(workspace, agent, enabled);
 
 	useEffect(() => {
 		backRef.current?.focus();

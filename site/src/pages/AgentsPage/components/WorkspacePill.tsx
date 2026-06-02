@@ -46,7 +46,11 @@ import {
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { cn } from "#/utils/cn";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
-import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
+import {
+	MobilePortsPanel,
+	PortsMenuItem,
+	usePortsData,
+} from "./WorkspacePillPorts";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -99,6 +103,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useIsBelowMdViewport();
 	const showPortsView = view === "ports" && isBelowMd;
+
+	const portsData = usePortsData(
+		workspace,
+		agent,
+		open && agent.status === "connected" && portForwardingEnabled,
+	);
 
 	useEffect(() => {
 		if (!isBelowMd && view === "ports") {
@@ -165,7 +175,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 						workspace={workspace}
 						agent={agent}
 						host={host}
-						isOpen={open}
+						portsData={portsData}
 						onBack={() => {
 							setFocusPortsOnMain(true);
 							setView("main");
@@ -220,7 +230,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								workspace={workspace}
 								agent={agent}
 								host={host}
-								isOpen={open}
+								portsData={portsData}
 								isRunning={isRunning}
 								isBelowMd={isBelowMd}
 								focusOnMount={focusPortsOnMain}
