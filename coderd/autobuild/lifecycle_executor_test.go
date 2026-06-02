@@ -654,7 +654,13 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Given: agent reports "working" status.
+	// Given: agent reports "working" status. This calls
+	// workspacestats.ActivityBumpWorkspace, which uses the database's NOW()
+	// (not the test's `now`) to compute the new deadline. We must therefore
+	// derive subsequent tick times from the bumped deadline read back from
+	// the database, otherwise the executor's t.Truncate(time.Minute) in
+	// runOnce can place currentTick before the deadline when `now` happens
+	// to land near a minute boundary.
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 		AppSlug: "test-app",
@@ -663,12 +669,19 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Read the bumped deadline so tick times are anchored to the real
+	// workspace_builds.deadline rather than to the test process clock.
+	bumpedBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+	require.NoError(t, err)
+	require.True(t, bumpedBuild.Deadline.After(now),
+		"expected activity bump to push deadline into the future, got %s", bumpedBuild.Deadline)
+
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), r.Workspace.OrganizationID, nil)
 	require.NoError(t, err)
 
-	// When: the autobuild executor ticks after the past deadline.
+	// When: the autobuild executor ticks before the bumped deadline.
 	go func() {
-		tickTime := now.Add(30 * time.Minute)
+		tickTime := bumpedBuild.Deadline.Add(-30 * time.Minute)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 	}()
@@ -678,7 +691,9 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.Len(t, stats.Errors, 0)
 	require.Len(t, stats.Transitions, 0)
 
-	// Given: agent reports "complete" status.
+	// Given: agent reports "complete" status. This invokes ActivityBumpWorkspace
+	// again, but the SQL's 5%-elapsed guard rejects the UPDATE because we are
+	// still ~1h away from the bumped deadline, so the deadline does not change.
 	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 		AppSlug: "test-app",
 		State:   codersdk.WorkspaceAppStatusStateComplete,
@@ -687,8 +702,11 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the bumped deadline.
+	// bumpedBuild.Deadline.Add(time.Minute) survives t.Truncate(time.Minute)
+	// in Executor.runOnce: the truncated tick is always strictly greater
+	// than the deadline, regardless of where Deadline falls within a minute.
 	go func() {
-		tickTime := now.Add(time.Hour).Add(time.Minute)
+		tickTime := bumpedBuild.Deadline.Add(time.Minute)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
