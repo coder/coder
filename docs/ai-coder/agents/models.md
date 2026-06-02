@@ -298,18 +298,6 @@ Personal API keys are encrypted at rest using the same database encryption
 used for deployment-managed provider secrets. The dashboard never displays a
 saved key, only whether one is set.
 
-### How key selection works
-
-When you start a chat, the control plane resolves which credential source to
-use for each provider:
-
-1. If BYOK is enabled and you have a personal key for the provider, Coder uses
-   your key.
-1. Otherwise, Coder uses deployment-managed credentials when they are configured
-   for the provider.
-1. If neither credential source is available, models from that provider are
-   unavailable to you.
-
 ### Removing a personal key
 
 Click **Remove** on the provider card in the API Keys settings tab. Subsequent
