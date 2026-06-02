@@ -237,7 +237,7 @@ export const RightPanel = ({
 				visualExpanded
 					? "absolute inset-0 z-30 flex flex-col"
 					: visualOpen
-						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:border-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[var(--panel-width)] lg:min-w-[360px] lg:max-w-[70vw]"
+						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:min-w-0 lg:overflow-hidden lg:border-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[min(var(--panel-width),max(0px,calc(100%_-_var(--agents-chat-panel-min-width,0px))))] lg:max-w-[70vw]"
 						: "relative min-h-0 min-w-0 hidden",
 			)}
 		>

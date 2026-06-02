@@ -445,7 +445,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			<DesktopPanelContext value={desktopPanelCtx}>
 				<div
 					className={cn(
-						"relative flex min-h-0 min-w-0 flex-1",
+						"relative flex min-h-0 min-w-0 flex-1 lg:[--agents-chat-panel-min-width:360px]",
 						shouldShowSidebar && !visualExpanded && "flex-row",
 					)}
 				>
@@ -453,7 +453,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<div
 						data-testid="agents-chat-panel"
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:min-w-[360px]",
+							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:min-w-[var(--agents-chat-panel-min-width)]",
 							visualExpanded && "hidden",
 							shouldShowSidebar && "max-lg:hidden",
 						)}
@@ -672,12 +672,12 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1",
+				"relative flex h-full min-h-0 min-w-0 flex-1 lg:[--agents-chat-panel-min-width:360px]",
 				showRightPanel && "flex-row",
 			)}
 		>
 			{titleElement}
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col lg:min-w-[360px]">
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col lg:min-w-[var(--agents-chat-panel-min-width)]">
 				<ChatTopBar
 					panel={{
 						showSidebarPanel: false,
