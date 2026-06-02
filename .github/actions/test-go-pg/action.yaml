@@ -85,15 +85,12 @@ runs:
       run: |
         set -euo pipefail
 
-        # Diagnose printf resolution on Windows.
         if [[ "${RUNNER_OS}" == "Windows" ]]; then
-          echo "=== printf resolution ==="
-          cmd.exe /c "where printf" || true
-          echo "=== PATH from cmd ==="
-          cmd.exe /c "echo %PATH%" | tr ';' '\n' | grep -i git | head -5
-          echo "=== PATH from bash ==="
-          echo "$PATH" | tr ':' '\n' | grep -i git | head -5
-          echo "=== end ==="
+          # MSYS2 bash translates Path to forward-slash MSYS format.
+          # Subprocesses started by Go (cmd.exe, powershell.exe) need
+          # native Windows paths. Export PATH converted back to Windows
+          # format via cygpath so os.Environ() returns usable paths.
+          export PATH="$(cygpath -w -p "$PATH")"
         fi
 
         # gotestsum natively reads GOTESTSUM_JSONFILE; set it directly instead
