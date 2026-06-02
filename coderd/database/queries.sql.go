@@ -111,6 +111,112 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
+DELETE FROM ai_gateway_keys WHERE id = $1
+RETURNING id, name, secret_prefix, created_at, last_used_at
+`
+
+type DeleteAIGatewayKeyRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIGatewayKey, id)
+	var i DeleteAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayKey = `-- name: InsertAIGatewayKey :one
+INSERT INTO ai_gateway_keys (id, name, secret_prefix, hashed_secret, created_at)
+VALUES ($1, $4, $2, $3, NOW())
+RETURNING id, name, secret_prefix, created_at
+`
+
+type InsertAIGatewayKeyParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name         string    `db:"name" json:"name"`
+}
+
+type InsertAIGatewayKeyRow struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	Name         string    `db:"name" json:"name"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayKey,
+		arg.ID,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.Name,
+	)
+	var i InsertAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
+SELECT id, name, secret_prefix, created_at, last_used_at
+FROM ai_gateway_keys
+ORDER BY created_at ASC
+`
+
+type ListAIGatewayKeysRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIGatewayKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIGatewayKeysRow
+	for rows.Next() {
+		var i ListAIGatewayKeysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SecretPrefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
