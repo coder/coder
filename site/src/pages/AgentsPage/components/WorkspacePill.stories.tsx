@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
 	MockListeningPortsResponse,
@@ -139,7 +139,7 @@ export const WithAllApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -168,6 +168,51 @@ export const WithAllApps: Story = {
 	},
 };
 
+export const WithRemoveAction: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: agentWithApps,
+		onRemoveWorkspace: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspaceMenuButton = canvas.getByRole("button", {
+			name: `${MockWorkspace.name} workspace menu`,
+		});
+		expect(
+			canvas.queryByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(workspaceMenuButton);
+		let detachWorkspaceItem: HTMLElement | null = null;
+		await waitFor(() => {
+			const menuId = workspaceMenuButton.getAttribute("aria-controls");
+			if (!menuId) {
+				throw new Error("Expected workspace pill to control a menu.");
+			}
+
+			const menu = canvasElement.ownerDocument.getElementById(menuId);
+			if (!(menu instanceof HTMLElement)) {
+				throw new Error("Expected workspace menu to render.");
+			}
+
+			detachWorkspaceItem = within(menu).getByRole("menuitem", {
+				name: "Detach workspace",
+			});
+			expect(detachWorkspaceItem).toBeVisible();
+		});
+		if (!detachWorkspaceItem) {
+			throw new Error("Expected detach workspace menu item to render.");
+		}
+
+		await userEvent.click(detachWorkspaceItem);
+		expect(args.onRemoveWorkspace).toHaveBeenCalledTimes(1);
+	},
+};
+
 export const WithBuiltinAppsOnly: Story = {
 	args: {
 		...defaultProps,
@@ -176,7 +221,7 @@ export const WithBuiltinAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -198,7 +243,7 @@ export const WithExternalAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -221,7 +266,7 @@ export const NoApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -239,7 +284,7 @@ export const WithHiddenApp: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -324,7 +369,7 @@ export const WithListeningPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);
@@ -374,7 +419,7 @@ export const WithSharedPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);
@@ -418,7 +463,7 @@ export const EmptyPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);

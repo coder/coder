@@ -101,13 +101,7 @@ export const StreamingToolCallGapRegression: Story = {
 		store.setStreamState(streamState);
 		store.setChatStatus("pending");
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -120,13 +114,7 @@ export const StartingPhaseToolCallGapRegression: Story = {
 		const store = buildRegressionStore();
 		store.setChatStatus("running");
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -139,13 +127,7 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
 		const store = buildThinkingSpacerStore();
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -165,13 +147,7 @@ export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
 		]);
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

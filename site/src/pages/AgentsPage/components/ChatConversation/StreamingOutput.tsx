@@ -52,7 +52,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
@@ -62,7 +61,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -113,10 +111,7 @@ export const StreamingOutput: FC<{
 						)}
 						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
-							<ChatStatusCallout
-								status={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
+							<ChatStatusCallout status={liveStatus} />
 						)}
 					</div>
 				</MessageContent>

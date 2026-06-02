@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -575,6 +576,58 @@ func TestValidateLegacyAIBridgeConfig(t *testing.T) {
 	}
 }
 
+func TestWarnIfAIProvidersConfiguredFromEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoProviders", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, nil)
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("EmptyPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), "", []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("AIGatewayPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiGatewayProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+
+	t.Run("AIBridgePrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiBridgeProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiBridgeProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+}
+
 func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 	t.Parallel()
 
@@ -720,4 +773,15 @@ func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
 		panic(err)
 	}
 	return sql.NullString{String: string(data), Valid: true}
+}
+
+func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			assert.Equal(t, expected, f.Value)
+			return
+		}
+	}
+	t.Errorf("field %q not found", name)
 }

@@ -31,6 +31,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AiSeatState":            {codersdk.AuditActionCreate},
 	"AIProvider":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":          {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AIGatewayKey":           {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableGroupAiBudget": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -399,6 +400,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":     ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
+	},
+	&database.AIGatewayKey{}: {
+		"id":            ActionTrack,
+		"name":          ActionTrack,
+		"secret_prefix": ActionTrack,
+		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
+		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
+		"last_used_at":  ActionIgnore, // Bumped on every use.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,

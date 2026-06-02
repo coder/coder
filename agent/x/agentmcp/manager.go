@@ -975,15 +975,19 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 			}),
 		), nil
 	case "http", "":
-		return transport.NewStreamableHTTP(
-			cfg.URL,
-			transport.WithHTTPHeaders(cfg.Headers),
-		)
+		var opts []transport.StreamableHTTPCOption
+		opts = append(opts, transport.WithHTTPHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			opts = append(opts, transport.WithHTTPBasicClient(c))
+		}
+		return transport.NewStreamableHTTP(cfg.URL, opts...)
 	case "sse":
-		return transport.NewSSE(
-			cfg.URL,
-			transport.WithHeaders(cfg.Headers),
-		)
+		var sseOpts []transport.ClientOption
+		sseOpts = append(sseOpts, transport.WithHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			sseOpts = append(sseOpts, transport.WithHTTPClient(c))
+		}
+		return transport.NewSSE(cfg.URL, sseOpts...)
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}
