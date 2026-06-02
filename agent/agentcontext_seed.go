@@ -72,14 +72,10 @@ func initialContextSources(cfg agentcontextconfig.Config, workingDir func() stri
 
 // defaultContextAllowedRoots returns the allow-list applied to
 // runtime AddSource calls. The set matches the RFC's authorization
-// section: the home directory's Coder + Claude config trees plus
-// the workspace's working directory.
-func defaultContextAllowedRoots(workingDir func() string) []string {
-	roots := []string{"~", "~/.coder", "~/.claude"}
-	if workingDir != nil {
-		if wd := workingDir(); wd != "" {
-			roots = append(roots, wd)
-		}
-	}
-	return roots
+// section: the home directory's Coder + Claude config trees. The
+// Manager appends the working directory lazily on every check,
+// which picks up the workspace's resolved path even when the
+// manifest is loaded after agent init.
+func defaultContextAllowedRoots() []string {
+	return []string{"~", "~/.coder", "~/.claude"}
 }

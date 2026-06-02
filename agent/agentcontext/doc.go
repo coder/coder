@@ -20,6 +20,5 @@
 //
 // The package is purely additive: existing agent code paths
 // (agent/agentcontextconfig and agent/x/agentmcp) continue to
-// operate unchanged. Wiring the Manager into the agent's HTTP
-// router and the drpc client lives in a follow-up change.
+// operate unchanged.
 package agentcontext

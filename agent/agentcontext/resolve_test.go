@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -273,4 +274,60 @@ type fakeMCPProvider struct {
 
 func (f *fakeMCPProvider) MCPResources() []agentcontext.Resource {
 	return f.resources
+}
+
+// TestResolver_UnreadableInstructionFile verifies the
+// permission-denied walk path produces a StatusUnreadable
+// resource classified with the correct kind, matching the
+// classification the resolver would emit on a successful read.
+func TestResolver_UnreadableInstructionFile(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode 0o000 does not deny reads on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file mode permissions")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "AGENTS.md")
+	mustWriteFile(t, path, "hello")
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindInstructionFile, got.Kind)
+	require.Equal(t, agentcontext.StatusUnreadable, got.Status)
+	require.NotEmpty(t, got.Error)
+}
+
+// TestResolver_UnreadableMCPConfig confirms the walk-error path
+// uses the file's real kind, not a hardcoded fallback. Without
+// this, a permission flip on .mcp.json would produce a phantom
+// resource ID swap when the permission is later restored.
+func TestResolver_UnreadableMCPConfig(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode 0o000 does not deny reads on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file mode permissions")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mcp.json")
+	mustWriteFile(t, path, `{"mcpServers": {}}`)
+	require.NoError(t, os.Chmod(path, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindMCPConfig, got.Kind)
+	require.Equal(t, agentcontext.StatusUnreadable, got.Status)
+	require.NotEmpty(t, got.Error)
 }

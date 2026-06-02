@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -91,6 +92,37 @@ func TestManager_AddSourceRejectsOutsideAllowedRoots(t *testing.T) {
 
 	_, err := m.AddSource(agentcontext.Source{Path: outside})
 	require.Error(t, err)
+}
+
+// TestManager_AddSourceAcceptsLateWorkingDir mirrors the agent's
+// real boot order: AllowedRoots is configured before the
+// manifest provides the workspace working directory. The Manager
+// must consult WorkingDir on every check so paths under the
+// resolved working dir validate once the manifest lands.
+func TestManager_AddSourceAcceptsLateWorkingDir(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	var resolved atomic.Pointer[string]
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string {
+			if p := resolved.Load(); p != nil {
+				return *p
+			}
+			return ""
+		},
+		AllowedRoots: []string{"/never-used-home"},
+	})
+
+	// Before the manifest "loads", workingDir is empty; sources
+	// under wd must be rejected.
+	_, err := m.AddSource(agentcontext.Source{Path: wd})
+	require.Error(t, err)
+
+	// After the manifest "loads", workingDir resolves and the
+	// same path validates without restarting the Manager.
+	resolved.Store(&wd)
+	_, err = m.AddSource(agentcontext.Source{Path: wd})
+	require.NoError(t, err)
 }
 
 func TestManager_AddSourceIsIdempotent(t *testing.T) {

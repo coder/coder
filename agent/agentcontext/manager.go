@@ -2,7 +2,6 @@ package agentcontext
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -146,7 +145,7 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			// time; log and skip rather than abort the
 			// agent.
 			m.logger.Warn(context.Background(),
-				"agentcontext: skipping invalid initial source",
+				"skipping invalid initial source",
 				slog.F("path", s.Path),
 				slog.Error(err))
 			continue
@@ -188,6 +187,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		Logger:   m.logger.Named("watcher"),
 		Clock:    m.clock,
 		Debounce: m.debounce,
+		MaxDepth: m.resolver.MaxDepth,
 		OnChange: m.signal,
 	})
 	if err != nil {
@@ -352,15 +352,15 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 	m.subscribers[ch] = struct{}{}
 	m.mu.Unlock()
 
-	var once sync.Once
-	unsub := func() {
-		once.Do(func() {
-			m.mu.Lock()
-			delete(m.subscribers, ch)
-			m.mu.Unlock()
-			// Don't close ch: readers may still be in flight.
-		})
-	}
+	// OnceFunc returns a closure that runs the underlying
+	// function at most once. Subsequent invocations are no-ops,
+	// matching the idempotency contract callers rely on.
+	unsub := sync.OnceFunc(func() {
+		m.mu.Lock()
+		delete(m.subscribers, ch)
+		m.mu.Unlock()
+		// Don't close ch: readers may still be in flight.
+	})
 	return ch, unsub
 }
 
@@ -437,14 +437,19 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 	return out
 }
 
-// effectiveAllowedRoots returns the AllowedRoots augmented with
-// a sensible fallback (~ and the working directory) when the
-// caller did not configure any.
+// effectiveAllowedRoots returns the AllowedRoots augmented
+// with the current working directory. The working directory is
+// evaluated on every call so it picks up the workspace's
+// resolved path after the agent's manifest finishes loading.
+// When AllowedRoots is empty the home directory is added as a
+// permissive fallback.
 func (m *Manager) effectiveAllowedRoots() []string {
+	var roots []string
 	if len(m.allowedRoots) > 0 {
-		return append([]string{}, m.allowedRoots...)
+		roots = append(roots, m.allowedRoots...)
+	} else {
+		roots = append(roots, "~")
 	}
-	roots := []string{"~"}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
 			roots = append(roots, wd)
@@ -454,31 +459,60 @@ func (m *Manager) effectiveAllowedRoots() []string {
 }
 
 // resolveAndBroadcast computes a fresh snapshot and notifies
-// subscribers if the aggregate hash changed.
+// every subscriber. The broadcast is unconditional: Resync
+// waiters that triggered the pass without an actual content
+// change still need to wake up. Subscribers compare snapshots
+// via AggregateHash if they want to filter.
 func (m *Manager) resolveAndBroadcast(ctx context.Context) {
+	// Snapshot the inputs under the lock, then release it
+	// before running the resolver. The resolver walks the
+	// filesystem, reads files, and hashes them; holding
+	// m.mu across that would block Sources, AddSource,
+	// RemoveSource, Snapshot, and SubscribeChanges for the
+	// duration of the pass.
 	m.mu.Lock()
-	m.resolveLocked()
+	roots := m.scanRootsLocked()
+	resolver := m.resolver
+	watcher := m.watcher
+	schemaVersion := m.schemaVersion
+	m.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return
+	}
+	snap := resolver.ResolveContext(ctx, roots)
+	// Surface watcher degradation as a snapshot-level error
+	// when the resolver did not already emit one.
+	if snap.SnapshotError == "" && watcher != nil {
+		if d := watcher.Degraded(); d != "" {
+			snap.SnapshotError = d
+		}
+	}
+	snap.SchemaVersion = schemaVersion
+
+	m.mu.Lock()
+	m.version++
+	snap.Version = m.version
+	m.snapshot = snap
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)
 	}
 	m.mu.Unlock()
 
-	// The broadcast is unconditional: Resync waiters that
-	// triggered the pass without an actual content change
-	// still need to wake up. Subscribers compare snapshots via
-	// AggregateHash if they want to filter.
 	for _, ch := range subs {
 		select {
 		case ch <- struct{}{}:
 		default:
 		}
 	}
-	_ = ctx
 }
 
-// resolveLocked runs the resolver and stamps the snapshot.
-// The Manager's mutex must be held.
+// resolveLocked runs the resolver inline while m.mu is held.
+// It is used by the synchronous initial resolve in NewManager,
+// where there is no concurrent reader. Background re-resolves
+// must use resolveAndBroadcast, which drops the lock around
+// filesystem I/O.
 func (m *Manager) resolveLocked() {
 	roots := m.scanRootsLocked()
 	snap := m.resolver.Resolve(roots)
@@ -492,11 +526,6 @@ func (m *Manager) resolveLocked() {
 			snap.SnapshotError = d
 		}
 	}
-	// Ensure resources are stable-sorted by ID even when the
-	// resolver did not run them through caps.
-	sort.Slice(snap.Resources, func(i, j int) bool {
-		return snap.Resources[i].ID < snap.Resources[j].ID
-	})
 	m.snapshot = snap
 }
 

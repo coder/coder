@@ -27,8 +27,8 @@ type SourceRequest struct {
 }
 
 // SnapshotResource is the on-wire representation of a Resource.
-// PayloadBase64 is omitted from list responses; clients that
-// need the bytes hit GET /sources/{path}.
+// Payloads are omitted; clients that need the bytes go through
+// the drpc PushContextState path.
 type SnapshotResource struct {
 	ID          string `json:"id"`
 	Kind        string `json:"kind"`

@@ -134,6 +134,10 @@ func TestRunPush_SubsequentPushOnChange(t *testing.T) {
 	requests := p.snapshot()
 	require.GreaterOrEqual(t, len(requests), 2)
 	require.False(t, requests[1].Initial, "subsequent pushes must not be Initial")
+	require.NotEqual(t, requests[0].AggregateHash, requests[1].AggregateHash,
+		"second push must reflect the v2 content, not a duplicate of the first snapshot")
+	require.Greater(t, requests[1].Version, requests[0].Version,
+		"version must advance between snapshots")
 
 	cancel()
 	require.ErrorIs(t, <-pushDone, context.Canceled)
@@ -194,6 +198,99 @@ func TestRunPush_RetriesTransientError(t *testing.T) {
 
 	cancel()
 	<-pushDone
+}
+
+// TestRunPush_ClosesOnManagerClose verifies that calling
+// Manager.Close terminates an in-flight RunPush even when the
+// caller's context is still live. Without this guarantee the
+// agent shutdown would leak a push goroutine until the
+// surrounding ctx expired.
+func TestRunPush_ClosesOnManagerClose(t *testing.T) {
+	t.Parallel()
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return t.TempDir() },
+	})
+
+	p := newFakePusher()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	done := make(chan error, 1)
+	go func() {
+		done <- m.RunPush(ctx, p, agentcontext.PushOptions{
+			Logger: testutil.Logger(t).Named("push"),
+		})
+	}()
+
+	// Wait for the initial push so the loop is parked on the
+	// change channel, then close the Manager and assert that
+	// RunPush returns promptly with a nil error.
+	select {
+	case <-p.signal:
+	case <-ctx.Done():
+		t.Fatalf("initial push never landed: %v", ctx.Err())
+	}
+	require.NoError(t, m.Close())
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatalf("RunPush did not return after Manager.Close: %v", ctx.Err())
+	}
+}
+
+// TestRunPush_RejectedResponseProceeds verifies the contract
+// that an Accepted=false response is not retried: pushWithRetry
+// returns success and RunPush parks on the next change instead
+// of re-sending the same snapshot. A regression that added
+// retry-on-reject logic would loop here and fail the test.
+func TestRunPush_RejectedResponseProceeds(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v1"), 0o600))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+
+	p := newFakePusher()
+	p.resp = &agentcontext.PushResponse{Accepted: false}
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+	defer cancel()
+	pushDone := make(chan error, 1)
+	go func() {
+		pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{
+			Logger: testutil.Logger(t).Named("push"),
+		})
+	}()
+
+	// Initial push delivered and accepted=false; loop must park
+	// on changes, not retry the same payload.
+	select {
+	case <-p.signal:
+	case <-ctx.Done():
+		t.Fatalf("initial push never landed: %v", ctx.Err())
+	}
+
+	// Trigger a content change so a second push lands. Without
+	// the change, the loop should remain parked.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600))
+	_, err := m.Resync(ctx)
+	require.NoError(t, err)
+
+	select {
+	case <-p.signal:
+	case <-ctx.Done():
+		t.Fatalf("second push never landed after change: %v", ctx.Err())
+	}
+
+	requests := p.snapshot()
+	require.GreaterOrEqual(t, len(requests), 2,
+		"exactly one push per snapshot; rejection must not double-fire")
+	require.NotEqual(t, requests[0].AggregateHash, requests[1].AggregateHash)
+
+	cancel()
+	require.ErrorIs(t, <-pushDone, context.Canceled)
 }
 
 func TestRunPush_NilPusherErrors(t *testing.T) {

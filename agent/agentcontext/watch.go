@@ -29,6 +29,12 @@ type WatcherOptions struct {
 	Logger   slog.Logger
 	Clock    quartz.Clock
 	Debounce time.Duration
+	// MaxDepth caps the recursion depth when discovering
+	// subdirectories to watch. Zero defaults to
+	// DefaultMaxScanDepth. Callers wiring the watcher to a
+	// Resolver should pass the resolver's MaxDepth so the
+	// watcher never misses edits below the scan horizon.
+	MaxDepth int
 	// OnChange runs at most once per debounce window. The
 	// caller must not block; the recommended pattern is a
 	// non-blocking send on a re-resolve trigger channel.
@@ -44,6 +50,7 @@ type Watcher struct {
 	logger   slog.Logger
 	clock    quartz.Clock
 	debounce time.Duration
+	maxDepth int
 	onChange func()
 
 	mu        sync.Mutex
@@ -70,6 +77,10 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
+	maxDepth := opts.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = DefaultMaxScanDepth
+	}
 
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -81,6 +92,7 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 			logger:    opts.Logger,
 			clock:     clock,
 			debounce:  debounce,
+			maxDepth:  maxDepth,
 			onChange:  opts.OnChange,
 			watched:   make(map[string]struct{}),
 			degraded:  "fsnotify init failed: " + err.Error(),
@@ -94,6 +106,7 @@ func NewWatcher(opts WatcherOptions) (*Watcher, error) {
 		logger:    opts.Logger,
 		clock:     clock,
 		debounce:  debounce,
+		maxDepth:  maxDepth,
 		onChange:  opts.OnChange,
 		watcher:   w,
 		watched:   make(map[string]struct{}),
@@ -280,9 +293,9 @@ func (w *Watcher) schedule() {
 }
 
 // collectDirs walks every scan root and returns the set of
-// directories to watch. The maximum depth mirrors the
-// resolver's MaxDepth so we never watch more than we'd scan.
-func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
+// directories to watch. The maximum depth uses the watcher's
+// configured maxDepth so it mirrors the resolver's horizon.
+func (w *Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 	out := make(map[string]struct{})
 	for _, root := range roots {
 		if root.Path == "" {
@@ -314,7 +327,7 @@ func (*Watcher) collectDirs(roots []ScanRoot) map[string]struct{} {
 			if _, skip := skipDirNames[d.Name()]; skip && path != root.Path {
 				return fs.SkipDir
 			}
-			if strings.Count(path, string(os.PathSeparator))-rootDepth > DefaultMaxScanDepth {
+			if strings.Count(path, string(os.PathSeparator))-rootDepth > w.maxDepth {
 				return fs.SkipDir
 			}
 			out[path] = struct{}{}

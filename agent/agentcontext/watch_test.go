@@ -20,12 +20,12 @@ func TestWatcher_FiresOnAgentsMdEdit(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v1"), 0o600))
 
-	var fires int32
+	var fires atomic.Int32
 	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
 		Logger:   testutil.Logger(t).Named("watcher"),
 		Clock:    quartz.NewReal(),
 		Debounce: 10 * time.Millisecond,
-		OnChange: func() { atomic.AddInt32(&fires, 1) },
+		OnChange: func() { fires.Add(1) },
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
@@ -38,7 +38,7 @@ func TestWatcher_FiresOnAgentsMdEdit(t *testing.T) {
 	// the next write fires the debounce timer.
 	require.Eventually(t, func() bool {
 		_ = os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("v2"), 0o600)
-		return atomic.LoadInt32(&fires) >= 1
+		return fires.Load() >= 1
 	}, testutil.WaitShort, testutil.IntervalFast, "expected at least one fire after AGENTS.md edit")
 }
 
@@ -48,11 +48,11 @@ func TestWatcher_FiresOnNewSkillFile(t *testing.T) {
 	skillsRoot := filepath.Join(dir, ".agents", "skills")
 	require.NoError(t, os.MkdirAll(skillsRoot, 0o755))
 
-	var fires int32
+	var fires atomic.Int32
 	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
 		Logger:   testutil.Logger(t).Named("watcher"),
 		Debounce: 10 * time.Millisecond,
-		OnChange: func() { atomic.AddInt32(&fires, 1) },
+		OnChange: func() { fires.Add(1) },
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
@@ -68,7 +68,7 @@ func TestWatcher_FiresOnNewSkillFile(t *testing.T) {
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
 	require.Eventually(t, func() bool {
 		_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: foo\ndescription: bar\n---\nbody"), 0o600)
-		return atomic.LoadInt32(&fires) >= 1
+		return fires.Load() >= 1
 	}, testutil.WaitShort, testutil.IntervalFast, "expected fire after SKILL.md create")
 }
 

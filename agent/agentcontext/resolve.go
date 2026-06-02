@@ -1,6 +1,7 @@
 package agentcontext
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -118,10 +119,25 @@ type ScanRoot struct {
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
 // The version and schemaVersion fields are stamped by the
-// caller; Resolve fills everything else.
+// caller; Resolve fills everything else. Resolve is the
+// non-cancellable convenience wrapper around ResolveContext
+// using context.Background.
 func (r *Resolver) Resolve(roots []ScanRoot) Snapshot {
+	return r.ResolveContext(context.Background(), roots)
+}
+
+// ResolveContext is the cancellable variant of Resolve. The
+// context is checked between scan roots so callers can bail out
+// of a long pass without waiting for the current root's walk to
+// finish. Cancellation never partially populates the returned
+// Snapshot: a canceled context returns an empty Snapshot with
+// SnapshotError set to the context error.
+func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapshot {
 	res := r.normalize()
-	resources, snapErrs := res.walk(roots)
+	resources, snapErrs := res.walk(ctx, roots)
+	if err := ctx.Err(); err != nil {
+		return Snapshot{SnapshotError: err.Error()}
+	}
 	resources = res.applyCaps(resources)
 
 	// Append MCP server resources after the filesystem caps
@@ -136,8 +152,8 @@ func (r *Resolver) Resolve(roots []ScanRoot) Snapshot {
 	}
 
 	// Deterministic order by ID for stable IDs and hashes.
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].ID < resources[j].ID
+	slices.SortFunc(resources, func(a, b Resource) int {
+		return strings.Compare(a.ID, b.ID)
 	})
 
 	var payloadBytes uint64
@@ -180,8 +196,9 @@ func (r *Resolver) normalize() *Resolver {
 }
 
 // walk traverses every scan root and produces an unordered
-// resource list. Aggregate caps are applied separately.
-func (r *Resolver) walk(roots []ScanRoot) (resources []Resource, snapErrs []string) {
+// resource list. Aggregate caps are applied separately. The ctx
+// is checked between roots so callers can bail out promptly.
+func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
 	// Dedup roots by canonical path. The first occurrence
 	// wins so user-added roots that overlap with a built-in
 	// root attribute resources to the built-in.
@@ -204,6 +221,9 @@ func (r *Resolver) walk(roots []ScanRoot) (resources []Resource, snapErrs []stri
 	seenID := make(map[string]struct{})
 
 	for _, root := range dedup {
+		if err := ctx.Err(); err != nil {
+			return nil, []string{err.Error()}
+		}
 		info, err := os.Stat(root.Path)
 		if err != nil {
 			// Missing roots silently fall through. The user
@@ -242,12 +262,11 @@ func (r *Resolver) walkDir(root ScanRoot, out *[]Resource, seenID map[string]str
 			// associate it with a single recognized file;
 			// otherwise let the walk continue.
 			if d != nil && !d.IsDir() {
-				if recognizedInstructionFile(d.Name()) ||
-					d.Name() == mcpConfigFileName ||
-					d.Name() == skillMetaFileName {
+				kind, recognized := kindFromFilename(d.Name())
+				if recognized {
 					res := Resource{
-						ID:         resourceID(KindInstructionFile, path),
-						Kind:       KindInstructionFile,
+						ID:         resourceID(kind, path),
+						Kind:       kind,
 						Source:     path,
 						SizeBytes:  0,
 						Status:     StatusUnreadable,
@@ -303,6 +322,21 @@ func (r *Resolver) walkDir(root ScanRoot, out *[]Resource, seenID map[string]str
 	})
 }
 
+// kindFromFilename maps a file basename to its ResourceKind.
+// recognized=false when the name matches no convention.
+func kindFromFilename(name string) (kind ResourceKind, recognized bool) {
+	switch {
+	case recognizedInstructionFile(name):
+		return KindInstructionFile, true
+	case name == mcpConfigFileName:
+		return KindMCPConfig, true
+	case name == skillMetaFileName:
+		return KindSkill, true
+	default:
+		return 0, false
+	}
+}
+
 // classifyFile inspects a single file path and produces a
 // Resource when the basename matches a recognized convention.
 func (r *Resolver) classifyFile(path string, info fs.FileInfo, userSource string) (Resource, bool) {
@@ -328,34 +362,19 @@ func (r *Resolver) classifyFile(path string, info fs.FileInfo, userSource string
 // readInstructionFile reads an instruction file and produces a
 // KindInstructionFile resource. The file is read into memory
 // with the per-resource cap applied.
+//
+// The bytes are returned verbatim. The legacy code path in
+// agentcontextconfig/api.go strips HTML comments and invisible
+// Unicode before serving instruction-file contents to chat; the
+// equivalent sanitization for this pipeline lives in the
+// follow-up chatd integration that consumes Snapshot.Resources.
+// Until that lands, downstream consumers that render these
+// payloads must sanitize themselves.
 func (r *Resolver) readInstructionFile(path string, info fs.FileInfo, userSource string) Resource {
-	res := Resource{
-		ID:         resourceID(KindInstructionFile, path),
-		Kind:       KindInstructionFile,
-		Source:     path,
-		SizeBytes:  safeUint64(info.Size()),
-		SourcePath: userSource,
+	res := r.readFileResource(KindInstructionFile, path, info, userSource)
+	if res.Status == StatusOK {
+		res.Description = firstLine(string(res.Payload))
 	}
-	if safeUint64(info.Size()) > r.MaxResourceBytes {
-		res.Status = StatusOversize
-		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", info.Size(), r.MaxResourceBytes)
-		// Still hash the (capped) content so a fix is
-		// detectable.
-		if data, err := readFileCapped(path, safeInt64(r.MaxResourceBytes)); err == nil {
-			res.ContentHash = sha256.Sum256(data)
-		}
-		return res
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		res.Status = StatusUnreadable
-		res.Error = err.Error()
-		return res
-	}
-	res.Payload = data
-	res.ContentHash = sha256.Sum256(data)
-	// Description is just the first non-empty line.
-	res.Description = firstLine(string(data))
 	return res
 }
 
@@ -365,9 +384,19 @@ func (r *Resolver) readInstructionFile(path string, info fs.FileInfo, userSource
 // newline conversion. Future work: detect malformed JSON and
 // surface StatusInvalid.
 func (r *Resolver) readMCPConfig(path string, info fs.FileInfo, userSource string) Resource {
+	return r.readFileResource(KindMCPConfig, path, info, userSource)
+}
+
+// readFileResource is the shared plumbing for kinds whose only
+// difference is the enum stamped on the Resource: build the
+// Resource header, enforce the per-resource size cap, read the
+// file, hash it, attach the bytes. Callers add kind-specific
+// post-processing (e.g. firstLine for instruction files) by
+// inspecting Status==StatusOK.
+func (r *Resolver) readFileResource(kind ResourceKind, path string, info fs.FileInfo, userSource string) Resource {
 	res := Resource{
-		ID:         resourceID(KindMCPConfig, path),
-		Kind:       KindMCPConfig,
+		ID:         resourceID(kind, path),
+		Kind:       kind,
 		Source:     path,
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
@@ -375,6 +404,8 @@ func (r *Resolver) readMCPConfig(path string, info fs.FileInfo, userSource strin
 	if safeUint64(info.Size()) > r.MaxResourceBytes {
 		res.Status = StatusOversize
 		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", info.Size(), r.MaxResourceBytes)
+		// Still hash the (capped) content so a fix is
+		// detectable.
 		if data, err := readFileCapped(path, safeInt64(r.MaxResourceBytes)); err == nil {
 			res.ContentHash = sha256.Sum256(data)
 		}
@@ -472,11 +503,11 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 func (r *Resolver) applyCaps(resources []Resource) []Resource {
 	// Stable sort by (Kind asc, Source asc) so excluded
 	// resources are deterministic.
-	sort.SliceStable(resources, func(i, j int) bool {
-		if resources[i].Kind != resources[j].Kind {
-			return resources[i].Kind < resources[j].Kind
+	slices.SortStableFunc(resources, func(a, b Resource) int {
+		if a.Kind != b.Kind {
+			return int(a.Kind) - int(b.Kind)
 		}
-		return resources[i].Source < resources[j].Source
+		return strings.Compare(a.Source, b.Source)
 	})
 
 	var total uint64
@@ -555,7 +586,7 @@ func readFileCapped(path string, maxBytes int64) ([]byte, error) {
 // firstLine returns the first non-empty trimmed line of s, used
 // as a short description fallback.
 func firstLine(s string) string {
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

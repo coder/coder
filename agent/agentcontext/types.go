@@ -2,8 +2,9 @@ package agentcontext
 
 import (
 	"crypto/sha256"
-	"sort"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 // ResourceKind describes the category of a resolved context
@@ -71,6 +72,13 @@ func (k ResourceKind) String() string {
 // ResourceStatus describes whether a resource was successfully
 // read and whether its payload survived the per-resource and
 // aggregate caps.
+//
+// Note: these iota ordinals do NOT match the proto
+// ContextResource.Status ordinals one-to-one. The proto enum
+// reserves 0 for STATUS_UNSPECIFIED and shifts every value by
+// one, so the conversion in resourceStatusToProto cannot be
+// replaced with a direct int cast. ResourceKind, by contrast,
+// does align with its proto counterpart.
 type ResourceStatus int
 
 const (
@@ -180,16 +188,19 @@ type Snapshot struct {
 // not need to pre-sort; the function sorts a copy of the slice
 // to keep its inputs side-effect free.
 //
-// The encoding is a newline-delimited stream of fields. The
-// resource boundary is a single NUL byte. The boundary scheme
-// is internal to the agent and coderd, but it is stable across
-// platforms because every field is encoded as either a UTF-8
-// string with a length prefix or a fixed-width integer.
+// The encoding is a Netstring-style stream. Each string field
+// is written as the decimal-ASCII length, the literal ':', and
+// the raw UTF-8 bytes. ContentHash is written as 32 raw bytes
+// without a length prefix because it is a fixed-size SHA-256
+// digest. Resources are separated by a single NUL byte. The
+// scheme is internal to the agent and coderd, but it is stable
+// across platforms because every field has an unambiguous
+// length.
 func ComputeAggregateHash(resources []Resource) [32]byte {
 	indexed := make([]Resource, len(resources))
 	copy(indexed, resources)
-	sort.Slice(indexed, func(i, j int) bool {
-		return indexed[i].ID < indexed[j].ID
+	slices.SortFunc(indexed, func(a, b Resource) int {
+		return strings.Compare(a.ID, b.ID)
 	})
 
 	h := sha256.New()
@@ -206,8 +217,9 @@ func ComputeAggregateHash(resources []Resource) [32]byte {
 	return out
 }
 
-// writeLengthPrefixed writes a uvarint length prefix followed
-// by the raw bytes of s.
+// writeLengthPrefixed writes a decimal-ASCII length prefix, a
+// literal ':' separator, and the raw bytes of s. This matches
+// the Netstring framing used by ComputeAggregateHash.
 func writeLengthPrefixed(h interface{ Write([]byte) (int, error) }, s string) {
 	_, _ = h.Write([]byte(strconv.Itoa(len(s))))
 	_, _ = h.Write([]byte{':'})

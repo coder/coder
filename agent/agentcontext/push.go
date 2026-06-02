@@ -35,8 +35,8 @@ type PushResponse struct {
 }
 
 // Pusher delivers snapshots to coderd. Concrete implementations
-// wrap a drpc client (proto v30 and later) or, in tests, a
-// recording in-memory fake.
+// wrap a drpc client (Agent API v2.10 and later) or, in tests,
+// a recording in-memory fake.
 //
 // PushContextState must respect ctx cancellation; the Manager
 // retries on transient errors with backoff but stops on
@@ -49,6 +49,14 @@ type Pusher interface {
 // implement PushContextState. RunPush stops pushing for the
 // remainder of the connection.
 var ErrPushUnimplemented = xerrors.New("agentcontext: PushContextState unimplemented")
+
+// Default backoff timings for pushWithRetry. Exposed as named
+// constants (rather than inline literals) so godoc shows them
+// and a second push loop, if it ever appears, can reuse them.
+const (
+	DefaultPushInitialBackoff = 250 * time.Millisecond
+	DefaultPushMaxBackoff     = 30 * time.Second
+)
 
 // PushOptions parameterizes RunPush.
 type PushOptions struct {
@@ -80,11 +88,11 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	logger := opts.Logger
 	initialBackoff := opts.InitialBackoff
 	if initialBackoff <= 0 {
-		initialBackoff = 250 * time.Millisecond
+		initialBackoff = DefaultPushInitialBackoff
 	}
 	maxBackoff := opts.MaxBackoff
 	if maxBackoff <= 0 {
-		maxBackoff = 30 * time.Second
+		maxBackoff = DefaultPushMaxBackoff
 	}
 	clock := opts.Clock
 	if clock == nil {
@@ -105,14 +113,14 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 		case err == nil:
 			initial = false
 		case errors.Is(err, ErrPushUnimplemented):
-			logger.Warn(ctx, "agentcontext: coderd peer does not implement PushContextState; stopping")
+			logger.Warn(ctx, "coderd peer does not implement PushContextState; stopping")
 			return nil
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return ctx.Err()
 		default:
 			// Should be unreachable: pushWithRetry only
 			// returns terminal errors. Log and continue.
-			logger.Warn(ctx, "agentcontext: push terminated with non-retried error", slog.Error(err))
+			logger.Warn(ctx, "push terminated with non-retried error", slog.Error(err))
 		}
 
 		select {
@@ -120,10 +128,10 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 			return ctx.Err()
 		case <-m.closedCh:
 			return nil
-		case _, ok := <-changes:
-			if !ok {
-				return nil
-			}
+		case <-changes:
+			// Shutdown comes from closedCh or ctx; the
+			// subscriber channel is never closed by
+			// SubscribeChanges.
 		}
 	}
 }
@@ -150,7 +158,7 @@ func pushWithRetry(
 				// Out-of-order or replayed push. Do not
 				// retry; the next change will redeliver
 				// the snapshot with a higher version.
-				logger.Debug(ctx, "agentcontext: push rejected, awaiting next change",
+				logger.Debug(ctx, "push rejected, awaiting next change",
 					slog.F("version", req.Version))
 			}
 			return nil
@@ -161,7 +169,7 @@ func pushWithRetry(
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
-		logger.Warn(ctx, "agentcontext: push failed, retrying",
+		logger.Warn(ctx, "push failed, retrying",
 			slog.F("version", req.Version),
 			slog.F("backoff", backoff),
 			slog.Error(err))
