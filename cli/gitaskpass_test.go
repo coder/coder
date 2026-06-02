@@ -37,14 +37,14 @@ func TestGitAskpass(t *testing.T) {
 		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		stdout.ExpectMatchContext(ctx, "something")
+		stdout.ExpectMatch(ctx, "something")
 
 		inv, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
 		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		stdout = expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		stdout.ExpectMatchContext(ctx, "bananas")
+		stdout.ExpectMatch(ctx, "bananas")
 	})
 
 	t.Run("NoHost", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestGitAskpass(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.ErrorIs(t, err, cliui.ErrCanceled)
-		stdout.ExpectMatchContext(ctx, "Nope!")
+		stdout.ExpectMatch(ctx, "Nope!")
 	})
 
 	t.Run("Poll", func(t *testing.T) {
@@ -99,11 +99,11 @@ func TestGitAskpass(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 		testutil.RequireReceive(ctx, t, poll)
-		stderr.ExpectMatchContext(ctx, "Open the following URL to authenticate")
+		stderr.ExpectMatch(ctx, "Open the following URL to authenticate")
 		resp.Store(&agentsdk.ExternalAuthResponse{
 			Username: "username",
 			Password: "password",
 		})
-		stdout.ExpectMatchContext(ctx, "username")
+		stdout.ExpectMatch(ctx, "username")
 	})
 }

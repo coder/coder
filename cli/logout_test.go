@@ -43,9 +43,9 @@ func TestLogout(t *testing.T) {
 			assert.NoFileExists(t, string(config.Session()))
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Are you sure you want to log out?")
+		stdout.ExpectMatch(ctx, "Are you sure you want to log out?")
 		stdin.WriteLine("yes")
-		stdout.ExpectMatchContext(ctx, "You are no longer logged in. You can log in using 'coder login <url>'.")
+		stdout.ExpectMatch(ctx, "You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
 	})
 	t.Run("SkipPrompt", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestLogout(t *testing.T) {
 			assert.NoFileExists(t, string(config.Session()))
 		}()
 
-		stdout.ExpectMatchContext(ctx, "You are no longer logged in. You can log in using 'coder login <url>'.")
+		stdout.ExpectMatch(ctx, "You are no longer logged in. You can log in using 'coder login <url>'.")
 		<-logoutChan
 	})
 	t.Run("NoURLFile", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestLogout(t *testing.T) {
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), logout)
 
 		go func() {
-			stdout.ExpectMatchContext(ctx, "Are you sure you want to log out?")
+			stdout.ExpectMatch(ctx, "Are you sure you want to log out?")
 			stdin.WriteLine("yes")
 		}()
 		err = logout.Run()
@@ -183,9 +183,9 @@ func login(ctx context.Context, t *testing.T) config.Root {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "Paste your token here:")
+	stdout.ExpectMatch(ctx, "Paste your token here:")
 	stdin.WriteLine(client.SessionToken())
-	stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+	stdout.ExpectMatch(ctx, "Welcome to Coder")
 	testutil.TryReceive(ctx, t, doneChan)
 
 	return cfg

@@ -395,7 +395,7 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 
 	waiter := clitest.StartWithWaiter(t, inv)
 
-	stdout.ExpectMatchContext(ctx, "not empty")
+	stdout.ExpectMatch(ctx, "not empty")
 	stdin.WriteLine("no")
 
 	waiter.RequireError()

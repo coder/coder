@@ -44,7 +44,7 @@ func TestUserDelete(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	t.Run("UserID", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestUserDelete(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	t.Run("UserID", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestUserDelete(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "coolin")
+		stdout.ExpectMatch(ctx, "coolin")
 	})
 
 	// TODO: reenable this test case. Fetching users without perms returns a

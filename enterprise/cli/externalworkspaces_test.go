@@ -117,14 +117,14 @@ func TestExternalWorkspaces(t *testing.T) {
 		}()
 
 		// Expect the workspace creation confirmation
-		stdout.ExpectMatchContext(ctx, "coder_external_agent.main")
-		stdout.ExpectMatchContext(ctx, "external-agent (linux, amd64)")
-		stdout.ExpectMatchContext(ctx, "Confirm create")
+		stdout.ExpectMatch(ctx, "coder_external_agent.main")
+		stdout.ExpectMatch(ctx, "external-agent (linux, amd64)")
+		stdout.ExpectMatch(ctx, "Confirm create")
 		stdin.WriteLine("yes")
 
 		// Expect the external agent instructions
-		stdout.ExpectMatchContext(ctx, "Please run the following command to attach external agent")
-		stdout.ExpectRegexMatchContext(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
 		testutil.TryReceive(ctx, t, doneChan)
 
@@ -229,8 +229,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		stdout.ExpectMatchContext(ctx, ws.Name)
-		stdout.ExpectMatchContext(ctx, template.Name)
+		stdout.ExpectMatch(ctx, ws.Name)
+		stdout.ExpectMatch(ctx, template.Name)
 		cancelFunc()
 		<-done
 	})
@@ -308,8 +308,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		stdout.ExpectMatchContext(ctx, "No workspaces found!")
-		stdout.ExpectMatchContext(ctx, "coder external-workspaces create")
+		stdout.ExpectMatch(ctx, "No workspaces found!")
+		stdout.ExpectMatch(ctx, "coder external-workspaces create")
 		cancelFunc()
 		<-done
 	})
@@ -352,8 +352,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		stdout.ExpectMatchContext(ctx, "Please run the following command to attach external agent to the workspace")
-		stdout.ExpectRegexMatchContext(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent to the workspace")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 		cancelFunc()
 
 		ctx = testutil.Context(t, testutil.WaitLong)
@@ -503,12 +503,12 @@ func TestExternalWorkspaces(t *testing.T) {
 		}()
 
 		// Expect the workspace creation confirmation
-		stdout.ExpectMatchContext(ctx, "coder_external_agent.main")
-		stdout.ExpectMatchContext(ctx, "external-agent (linux, amd64)")
+		stdout.ExpectMatch(ctx, "coder_external_agent.main")
+		stdout.ExpectMatch(ctx, "external-agent (linux, amd64)")
 
 		// Expect the external agent instructions
-		stdout.ExpectMatchContext(ctx, "Please run the following command to attach external agent")
-		stdout.ExpectRegexMatchContext(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
 		testutil.TryReceive(ctx, t, doneChan)
 

@@ -64,7 +64,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		stdout.ExpectMatchContext(ctx, expectedName)
+		stdout.ExpectMatch(ctx, expectedName)
 
 		// Also check via the api
 		proxies, err := client.WorkspaceProxies(ctx) //nolint:gocritic // requires owner

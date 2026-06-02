@@ -92,9 +92,9 @@ func TestUseKeyring(t *testing.T) {
 		}()
 
 		// Provide the token when prompted
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file was NOT created (using keyring instead)
@@ -139,9 +139,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify credential exists in OS keyring
@@ -203,9 +203,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -248,9 +248,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -292,9 +292,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -344,9 +344,9 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (automatic fallback to file storage)
@@ -385,9 +385,9 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify session file exists

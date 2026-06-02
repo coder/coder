@@ -39,7 +39,7 @@ func TestUserCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)
@@ -74,7 +74,7 @@ func TestUserCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)

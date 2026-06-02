@@ -283,7 +283,7 @@ func TestDERPHeaders(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	stdout.ExpectMatchContext(ctx, "pong from "+workspace.Name)
+	stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 	<-cmdDone
 
 	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")

@@ -157,7 +157,7 @@ func Test_TaskSend(t *testing.T) {
 		// Wait for the command to observe the initializing state and
 		// start watching the workspace build. This ensures the command
 		// has entered the waiting code path.
-		stdout.ExpectMatchContext(ctx, "Queued")
+		stdout.ExpectMatch(ctx, "Queued")
 
 		// Connect a new agent so the task can transition to active.
 		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
@@ -208,7 +208,7 @@ func Test_TaskSend(t *testing.T) {
 
 		// Wait for the command to observe the paused state, trigger
 		// a resume, and start watching the workspace build.
-		stdout.ExpectMatchContext(ctx, "Queued")
+		stdout.ExpectMatch(ctx, "Queued")
 
 		// Connect a new agent so the task can transition to active.
 		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
@@ -265,7 +265,7 @@ func Test_TaskSend(t *testing.T) {
 
 		// Wait for the command to enter the build-watching phase
 		// of waitForTaskIdle.
-		stdout.ExpectMatchContext(ctx, "Waiting for task to become idle")
+		stdout.ExpectMatch(ctx, "Waiting for task to become idle")
 
 		// Wait for ticker creation and release it.
 		tickCall := tickTrap.MustWait(ctx)

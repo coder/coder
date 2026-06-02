@@ -44,8 +44,8 @@ func TestList(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		stdout.ExpectMatchContext(ctx, r.Workspace.Name)
-		stdout.ExpectMatchContext(ctx, "Started")
+		stdout.ExpectMatch(ctx, r.Workspace.Name)
+		stdout.ExpectMatch(ctx, "Started")
 		cancelFunc()
 		<-done
 	})

@@ -144,7 +144,7 @@ func TestShowOrganizations(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, first.OrganizationID.String())
+		stdout.ExpectMatch(ctx, first.OrganizationID.String())
 	})
 
 	t.Run("UsingFlag", func(t *testing.T) {
@@ -185,7 +185,7 @@ func TestShowOrganizations(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, orgs["bar"].ID.String())
+		stdout.ExpectMatch(ctx, orgs["bar"].ID.String())
 	})
 }
 
