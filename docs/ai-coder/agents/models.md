@@ -1,9 +1,10 @@
 # Models
 
-Administrators configure LLM providers and models from the Coder dashboard.
-Providers, models, and centrally managed credentials are deployment-wide
-settings managed by platform teams. Developers select from the set of models
-that an administrator has enabled.
+Administrators configure LLM providers from **Admin settings** > **AI** and
+Coder Agents models from the **Agents** settings page. Providers, models, and
+centrally managed credentials are deployment-wide settings managed by platform
+teams. Developers select from the set of models that an administrator has
+enabled.
 
 Optionally, administrators can enable AI Gateway Bring Your Own Key (BYOK)
 so developers can supply personal API keys for providers. See
@@ -11,7 +12,8 @@ so developers can supply personal API keys for providers. See
 
 ## Providers
 
-Each LLM provider has a type, a credential configuration, and an endpoint/base URL for the upstream provider or proxy.
+Each LLM provider has a type, credentials, and an endpoint/base URL for the
+upstream provider or proxy.
 
 Coder supports the following provider types:
 
@@ -35,26 +37,22 @@ the provider configuration stored in Coder's database.
 
 ### Add a provider
 
-1. Navigate to the **Agents** page in the Coder dashboard.
-1. Open **Settings** > **Manage Agents** and select the **Providers** tab.
-1. Click the provider you want to configure.
-1. Enter the **API key** for the provider, if required.
-1. Set **Endpoint** or **Base URL** to the upstream provider or proxy
-   [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers). Use
-   the default when it matches your provider, or override it for enterprise
-   proxies, regional endpoints, or self-hosted models.
+LLM providers are managed from the deployment AI settings, not from the Agents
+settings page.
+
+1. Navigate to **Admin settings** > **AI**.
+1. Select **Providers**.
+1. Click **Add provider**.
+1. Select the provider type.
+1. Enter a unique lowercase provider name, the credentials, and the upstream
+   provider or proxy
+   [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
 1. Click **Save**.
 
-<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the Agents settings">
-
-<small>The providers list shows all supported providers and their configuration
-status.</small>
-
-<img src="../../images/guides/ai-agents/models-add-provider.png" alt="Screenshot of the add provider form">
-
-<small>Adding a provider usually requires an API key. AWS Bedrock can also use
-ambient AWS credentials. The endpoint/base URL should point at the upstream
-provider or proxy.</small>
+After saving a provider, add an Agents model for it from **Agents** >
+**Settings** > **Manage Agents** > **Models**. For screenshots and general AI
+Gateway provider management, see
+[AI Gateway setup](../ai-gateway/setup.md#dashboard).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
