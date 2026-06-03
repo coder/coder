@@ -170,7 +170,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								return (
 									<CommandGroup
 										key={groupKey}
-										className="[&_[cmdk-group-heading]]:text-content-secondary [&:not(:first-child)]:border-0 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-solid [&:not(:first-child)]:border-surface-secondary [&_[data-cmdk-group-items]]:flex [&_[data-cmdk-group-items]]:flex-col [&_[data-cmdk-group-items]]:gap-0.5"
+										className="[&_[cmdk-group-heading]]:text-content-secondary [&:not(:first-child)]:border-0 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-solid [&:not(:first-child)]:border-surface-secondary [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
 									heading={
 										<span className="text-content-secondary">{providerLabel}</span>
 									}
