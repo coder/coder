@@ -133,7 +133,7 @@ export const ResizableChatsSidebarFrame = ({
 				onPointerUp={handlePointerEnd}
 				onPointerCancel={handlePointerEnd}
 				onKeyDown={handleKeyDown}
-				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
+				className="absolute top-0 right-0 z-20 hidden h-full w-[2px] touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-none sm:block"
 			/>
 		</div>
 	);
