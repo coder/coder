@@ -113,8 +113,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					aria-label={selectedModel ? selectedModel.displayName : placeholder}
 					className={cn(
-						"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-						selectedModel ? "text-content-primary" : "text-content-secondary",
+						"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 						isDisabled && "pointer-events-none opacity-50",
 						className,
 					)}
@@ -194,7 +193,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 													onValueChange(option.id);
 													setIsOpen(false);
 												}}
-												className="cursor-pointer"
+												className={cn("cursor-pointer", isSelected && "text-content-primary")}
 											>
 												<span className="flex flex-1 items-center justify-between gap-2">
 													<span className="truncate">
