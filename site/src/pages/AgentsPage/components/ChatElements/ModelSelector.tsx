@@ -169,9 +169,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										key={groupKey}
 										className="[&_[cmdk-group-heading]]:text-content-disabled"
 									heading={
-										<span className="flex items-center gap-2 text-content-disabled">
+										<span className="flex items-center gap-2">
 											<ProviderIcon provider={provider} className="size-5" />
-											<span>{providerLabel}</span>
+											<span className="text-content-disabled">{providerLabel}</span>
 										</span>
 									}
 								>
@@ -198,17 +198,17 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 												className="cursor-pointer"
 											>
 												<span className="flex flex-1 items-center justify-between gap-2">
-													<span className="truncate">{option.displayName}</span>
-													<span className="flex shrink-0 items-center gap-2">
+													<span className="truncate">
+														{option.displayName}
 														{contextInfo && (
 															<span className="text-xs text-content-secondary">
-																{contextInfo}
+																{" "}({contextInfo})
 															</span>
 														)}
-														{isSelected && (
-															<CheckIcon className="size-4 text-content-primary" />
-														)}
 													</span>
+													{isSelected && (
+														<CheckIcon className="size-4 shrink-0 text-content-primary" />
+													)}
 												</span>
 											</CommandItem>
 										);
