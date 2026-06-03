@@ -607,6 +607,34 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Bedrock settings are only valid for type=bedrock")
 	})
 
+	t.Run("BedrockUpdateCannotClearSettings", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-clear-settings",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "type=bedrock requires bedrock settings or base_url")
+	})
+
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

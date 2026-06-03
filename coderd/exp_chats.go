@@ -6954,7 +6954,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		lockedProviderType, err := canonicalAIProviderTypeForRow(lockedAIProvider)
 		if err != nil {
-			return err
+			return xerrors.Errorf("canonicalize provider type for %q: %w", lockedAIProvider.Name, err)
 		}
 		insertParams.Provider = string(lockedProviderType)
 
@@ -7183,7 +7183,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 			providerType, err := canonicalAIProviderTypeForRow(aiProvider)
 			if err != nil {
-				return err
+				return xerrors.Errorf("canonicalize provider type for %q: %w", aiProvider.Name, err)
 			}
 			updateParams.Provider = string(providerType)
 		}

@@ -2,8 +2,10 @@ package coderd_test
 
 import (
 	"bytes"
+	"database/sql"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -235,6 +237,48 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		bedrockKeys, err := db.GetAIProviderKeysByProviderID(ctx, bedrock.ID)
 		require.NoError(t, err)
 		require.Empty(t, bedrockKeys)
+	})
+
+	t.Run("LegacyBedrockRowNamedAnthropicDoesNotBlockAnthropicEnv", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		legacySettings := `{"_type":"bedrock","_version":1,"region":"us-west-2","model":"anthropic.claude-3-5-sonnet","access_key":"AKIA","access_key_secret":"secret"}`
+		_, err := db.InsertAIProvider(ctx, database.InsertAIProviderParams{
+			ID:            uuid.New(),
+			Type:          database.AiProviderTypeAnthropic,
+			Name:          "anthropic",
+			DisplayName:   sql.NullString{String: "anthropic", Valid: true},
+			Enabled:       true,
+			BaseUrl:       "",
+			Settings:      sql.NullString{String: legacySettings, Valid: true},
+			SettingsKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		cfg := codersdk.AIBridgeConfig{
+			LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{
+				BaseURL: serpent.String("https://api.anthropic.com/"),
+				Key:     serpent.String("sk-ant"),
+			},
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region:          serpent.String("us-west-2"),
+				AccessKey:       serpent.String("AKIA"),
+				AccessKeySecret: serpent.String("secret"),
+				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+			},
+		}
+
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
+		require.Contains(t, row.Settings.String, "us-west-2")
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys)
 	})
 
 	t.Run("BedrockWithoutCredentialsUsesAWSEnvAuth", func(t *testing.T) {

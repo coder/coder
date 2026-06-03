@@ -103,6 +103,18 @@ func SeedAIProvidersFromEnv(
 			}
 
 			existing, found := byName[dp.Name]
+			if found && !existing.Deleted && dp.Type == database.AiProviderTypeAnthropic {
+				existingSettings, err := db2sdk.AIProviderSettings(existing.Settings)
+				if err != nil {
+					return xerrors.Errorf("decode existing settings for %q: %w", existing.Name, err)
+				}
+				if canonicalDatabaseAIProviderType(existing.Type, existingSettings) == database.AiProviderTypeBedrock {
+					logger.Warn(sysCtx, "skipping legacy Anthropic env seed because an existing Anthropic-named row contains Bedrock settings",
+						slog.F("name", dp.Name),
+					)
+					continue
+				}
+			}
 			if !found && dp.Type == database.AiProviderTypeBedrock {
 				candidate, ok := byName[aibridge.ProviderAnthropic]
 				if ok {

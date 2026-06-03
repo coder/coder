@@ -60,8 +60,9 @@ const (
 // concrete settings struct directly.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
-	// AWS Bedrock. Only meaningful for AIProviderTypeBedrock and the
-	// compatibility input shape that pairs it with AIProviderTypeAnthropic.
+	// AWS Bedrock. Only meaningful for AIProviderTypeBedrock. Legacy rows
+	// may carry this field with AIProviderTypeAnthropic; callers should use
+	// CanonicalAIProviderType to normalize before checking the type.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
 }
 
