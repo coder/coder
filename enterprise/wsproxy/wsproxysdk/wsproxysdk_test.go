@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -133,6 +134,87 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		require.Equal(t, expectedResponseBody, string(body))
 
 		require.EqualValues(t, called.Load(), 1)
+	})
+}
+
+func Test_ResolveAppOwnerID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedProxyToken = "hi:test"
+			expectedAppReq     = workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "user",
+				WorkspaceNameOrID: "workspace",
+				AgentNameOrID:     "agent",
+				AppSlugOrPort:     "app",
+			}
+			expectedOwnerID = uuid.New()
+		)
+		var called atomic.Int64
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			called.Add(1)
+
+			assert.Equal(t, r.Method, http.MethodPost)
+			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/resolve-app-owner")
+			assert.Equal(t, r.Header.Get(httpmw.WorkspaceProxyAuthTokenHeader), expectedProxyToken)
+
+			var req wsproxysdk.ResolveAppOwnerIDRequest
+			err := json.NewDecoder(r.Body).Decode(&req)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedAppReq, req.AppRequest)
+
+			rw.WriteHeader(http.StatusOK)
+			err = json.NewEncoder(rw).Encode(wsproxysdk.ResolveAppOwnerIDResponse{
+				OwnerID: expectedOwnerID,
+			})
+			assert.NoError(t, err)
+		}))
+
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := wsproxysdk.New(u, expectedProxyToken)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := client.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{
+			AppRequest: expectedAppReq,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedOwnerID, res.OwnerID)
+		require.EqualValues(t, 1, called.Load())
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedProxyToken   = "hi:test"
+			expectedResponseBody = "bad request"
+		)
+		var called atomic.Int64
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			called.Add(1)
+
+			assert.Equal(t, r.Method, http.MethodPost)
+			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/resolve-app-owner")
+			assert.Equal(t, r.Header.Get(httpmw.WorkspaceProxyAuthTokenHeader), expectedProxyToken)
+
+			rw.WriteHeader(http.StatusBadRequest)
+			_, _ = rw.Write([]byte(expectedResponseBody))
+		}))
+
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+		client := wsproxysdk.New(u, expectedProxyToken)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err = client.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{})
+		require.Error(t, err)
+		require.EqualValues(t, 1, called.Load())
 	})
 }
 

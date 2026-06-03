@@ -11213,6 +11213,42 @@
 				}
 			}
 		},
+		"/api/v2/workspaceproxies/me/resolve-app-owner": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Resolve workspace app owner ID",
+				"operationId": "resolve-workspace-app-owner-id",
+				"parameters": [
+					{
+						"description": "Resolve workspace app owner request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/wsproxysdk.ResolveAppOwnerIDRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/wsproxysdk.ResolveAppOwnerIDResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/workspaceproxies/{workspaceproxy}": {
 			"get": {
 				"produces": ["application/json"],
@@ -26342,6 +26378,22 @@
 					"items": {
 						"$ref": "#/definitions/workspaceapps.StatsReport"
 					}
+				}
+			}
+		},
+		"wsproxysdk.ResolveAppOwnerIDRequest": {
+			"type": "object",
+			"properties": {
+				"app_request": {
+					"$ref": "#/definitions/workspaceapps.Request"
+				}
+			}
+		},
+		"wsproxysdk.ResolveAppOwnerIDResponse": {
+			"type": "object",
+			"properties": {
+				"owner_id": {
+					"type": "string"
 				}
 			}
 		}

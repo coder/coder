@@ -154,6 +154,29 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 	return res, true
 }
 
+type ResolveAppOwnerIDRequest struct {
+	AppRequest workspaceapps.Request `json:"app_request"`
+}
+
+type ResolveAppOwnerIDResponse struct {
+	OwnerID uuid.UUID `json:"owner_id"`
+}
+
+func (c *Client) ResolveAppOwnerID(ctx context.Context, req ResolveAppOwnerIDRequest) (ResolveAppOwnerIDResponse, error) {
+	resp, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/resolve-app-owner", req)
+	if err != nil {
+		return ResolveAppOwnerIDResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ResolveAppOwnerIDResponse{}, codersdk.ReadBodyAsError(resp)
+	}
+
+	var res ResolveAppOwnerIDResponse
+	return res, json.NewDecoder(resp.Body).Decode(&res)
+}
+
 type ReportAppStatsRequest struct {
 	Stats []workspaceapps.StatsReport `json:"stats"`
 }

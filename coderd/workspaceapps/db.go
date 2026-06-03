@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -49,7 +50,7 @@ type DBTokenProvider struct {
 	Keycache                        cryptokeys.SigningKeycache
 }
 
-var _ SignedTokenProvider = &DBTokenProvider{}
+var _ Provider = &DBTokenProvider{}
 
 func NewDBTokenProvider(ctx context.Context,
 	log slog.Logger,
@@ -62,7 +63,7 @@ func NewDBTokenProvider(ctx context.Context,
 	workspaceAgentInactiveTimeout time.Duration,
 	workspaceAppAuditSessionTimeout time.Duration,
 	signer cryptokeys.SigningKeycache,
-) SignedTokenProvider {
+) Provider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
@@ -87,6 +88,27 @@ func NewDBTokenProvider(ctx context.Context,
 
 func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
 	return FromRequest(r, p.Keycache)
+}
+
+func (p *DBTokenProvider) ResolveAppOwnerID(ctx context.Context, app appurl.ApplicationURL) (uuid.UUID, error) {
+	req := (Request{
+		AccessMethod:      AccessMethodSubdomain,
+		BasePath:          "/",
+		Prefix:            app.Prefix,
+		UsernameOrID:      app.Username,
+		WorkspaceNameOrID: app.WorkspaceName,
+		AgentNameOrID:     app.AgentName,
+		AppSlugOrPort:     app.AppSlugOrPort,
+	}).Normalize()
+
+	//nolint:gocritic // The caller may not have permission to read the
+	// workspace, but CORS needs authoritative app identity.
+	dbReq, err := req.getDatabase(dbauthz.AsSystemRestricted(ctx), p.Database)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return dbReq.Workspace.OwnerID, nil
 }
 
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {

@@ -506,6 +506,65 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 	})
 }
 
+// @Summary Resolve workspace app owner ID
+// @ID resolve-workspace-app-owner-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body wsproxysdk.ResolveAppOwnerIDRequest true "Resolve workspace app owner request"
+// @Success 200 {object} wsproxysdk.ResolveAppOwnerIDResponse
+// @Router /api/v2/workspaceproxies/me/resolve-app-owner [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyResolveAppOwner(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req wsproxysdk.ResolveAppOwnerIDRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	appReq := req.AppRequest.Normalize()
+	if err := appReq.Check(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid app request.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if appReq.AccessMethod != workspaceapps.AccessMethodSubdomain {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid access method.",
+			Detail:  "Only subdomain app requests may be resolved.",
+		})
+		return
+	}
+
+	ownerID, err := api.AGPL.WorkspaceAppsProvider.ResolveAppOwnerID(ctx, appurl.ApplicationURL{
+		Prefix:        appReq.Prefix,
+		AppSlugOrPort: appReq.AppSlugOrPort,
+		AgentName:     appReq.AgentNameOrID,
+		WorkspaceName: appReq.WorkspaceNameOrID,
+		Username:      appReq.UsernameOrID,
+	})
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Application not found.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		httpapi.InternalServerError(rw, xerrors.Errorf("resolve app owner ID: %w", err))
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.ResolveAppOwnerIDResponse{
+		OwnerID: ownerID,
+	})
+}
+
 // @Summary Report workspace app stats
 // @ID report-workspace-app-stats
 // @Security CoderSessionToken

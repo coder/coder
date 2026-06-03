@@ -779,6 +779,113 @@ func TestIssueSignedAppToken(t *testing.T) {
 	})
 }
 
+func TestResolveAppOwnerID(t *testing.T) {
+	t.Parallel()
+
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
+	})
+
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ownerUsername := workspace.OwnerName
+	_, otherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	createProxyCtx := testutil.Context(t, testutil.WaitLong)
+	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
+		Name: testutil.GetRandomName(t),
+		Icon: "/emojis/flag.png",
+	})
+	require.NoError(t, err)
+
+	t.Run("BadAppRequest", func(t *testing.T) {
+		t.Parallel()
+
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := proxyClient.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{
+			AppRequest: workspaceapps.Request{},
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		res, err := proxyClient.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{
+			AppRequest: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      ownerUsername,
+				WorkspaceNameOrID: workspace.ID.String(),
+				AgentNameOrID:     build.Resources[0].Agents[0].Name,
+				AppSlugOrPort:     "8080",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, user.UserID, res.OwnerID)
+	})
+
+	t.Run("OwnerMismatch", func(t *testing.T) {
+		t.Parallel()
+
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := proxyClient.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{
+			AppRequest: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      otherUser.Username,
+				WorkspaceNameOrID: workspace.ID.String(),
+				AgentNameOrID:     build.Resources[0].Agents[0].Name,
+				AppSlugOrPort:     "8080",
+			},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("AccessMethodMustBeSubdomain", func(t *testing.T) {
+		t.Parallel()
+
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := proxyClient.ResolveAppOwnerID(ctx, wsproxysdk.ResolveAppOwnerIDRequest{
+			AppRequest: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/",
+				UsernameOrID:      ownerUsername,
+				WorkspaceNameOrID: workspace.ID.String(),
+				AppSlugOrPort:     "8080",
+			},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+}
+
 func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Parallel()
 

@@ -19062,3 +19062,39 @@ This value is only stored on subsequent requests to the register endpoint, not t
 | Name    | Type                                                            | Required | Restrictions | Description |
 |---------|-----------------------------------------------------------------|----------|--------------|-------------|
 | `stats` | array of [workspaceapps.StatsReport](#workspaceappsstatsreport) | false    |              |             |
+
+## wsproxysdk.ResolveAppOwnerIDRequest
+
+```json
+{
+  "app_request": {
+    "access_method": "path",
+    "agent_name_or_id": "string",
+    "app_prefix": "string",
+    "app_slug_or_port": "string",
+    "base_path": "string",
+    "username_or_id": "string",
+    "workspace_name_or_id": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                           | Required | Restrictions | Description |
+|---------------|------------------------------------------------|----------|--------------|-------------|
+| `app_request` | [workspaceapps.Request](#workspaceappsrequest) | false    |              |             |
+
+## wsproxysdk.ResolveAppOwnerIDResponse
+
+```json
+{
+  "owner_id": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `owner_id` | string | false    |              |             |

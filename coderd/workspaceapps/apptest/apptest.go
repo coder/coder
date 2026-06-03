@@ -491,6 +491,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			behavior             codersdk.CORSBehavior
 			httpMethod           string
 			origin               func(details *Details, app App) string
+			clientAndOrigin      func(t *testing.T, details *Details) (*codersdk.Client, string)
 			expectedStatusCode   int
 			checkRequestHeaders  func(t *testing.T, origin string, req http.Header)
 			checkResponseHeaders func(t *testing.T, origin string, resp http.Header)
@@ -665,6 +666,46 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				},
 			},
 			{
+				// An authenticated request from a valid app subdomain owned by a different
+				// user is not allowed by the simple CORS policy.
+				// The origin doesn't belong to the same owner as the target app, so the
+				// CORS headers are not added.
+				name:               "Default/Authenticated/GET/DifferentOwnerSubdomain",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				behavior:           codersdk.CORSBehaviorSimple,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				clientAndOrigin: func(t *testing.T, details *Details) (*codersdk.Client, string) {
+					t.Helper()
+
+					otherUserClient, otherUser := coderdtest.CreateAnotherUser(
+						t, details.SDKClient, details.FirstUser.OrganizationID, rbac.RoleTemplateAdmin(),
+					)
+					otherWorkspace, _ := createWorkspaceWithApps(
+						t, otherUserClient, details.FirstUser.OrganizationID, otherUser, details.AppPort,
+						details.Options.ServeHTTPS,
+					)
+
+					otherOrigin := details.SubdomainAppURL(App{
+						Username:      otherUser.Username,
+						WorkspaceName: otherWorkspace.Name,
+						AppSlugOrPort: proxyTestAppNamePublic,
+						Query:         proxyTestAppQuery,
+					})
+
+					client := details.AppClient(t)
+					client.SetSessionToken(otherUserClient.SessionToken())
+
+					return client, otherOrigin.Scheme + "://" + otherOrigin.Host
+				},
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Headers"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Credentials"))
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
 				// The request is rejected because the client is unauthenticated.
 				name:               "Passthru/Unauthenticated/Preflight/Subdomain",
 				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSPassthru },
@@ -832,11 +873,20 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				require.Equal(t, tc.behavior, template.CORSBehavior)
 
 				// Given: a client and a workspace app
-				client := tc.client(t, appDetails)
-				path := appDetails.SubdomainAppURL(tc.app(appDetails)).String()
-				origin := tc.origin(appDetails, tc.app(appDetails))
+				app := tc.app(appDetails)
+				var client *codersdk.Client
+				if tc.client != nil {
+					client = tc.client(t, appDetails)
+				}
+				var origin string
+				if tc.origin != nil {
+					origin = tc.origin(appDetails, app)
+				}
+				if tc.clientAndOrigin != nil {
+					client, origin = tc.clientAndOrigin(t, appDetails)
+				}
+				path := appDetails.SubdomainAppURL(app).String()
 
-				fmt.Println("method: ", tc.httpMethod)
 				// When: a preflight request is made to an app with a specified CORS behavior
 				resp, err := requestWithRetries(ctx, t, client, tc.httpMethod, path, nil, func(r *http.Request) {
 					// Mimic non-browser clients that don't send the Origin header.

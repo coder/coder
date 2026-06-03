@@ -325,14 +325,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		Hostname:      opts.AppHostname,
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
-		SignedTokenProvider: &TokenProvider{
-			DashboardURL:             opts.DashboardURL,
-			AccessURL:                opts.AccessURL,
-			AppHostname:              opts.AppHostname,
-			Client:                   client,
-			TokenSigningKeycache:     signingCache,
-			APIKeyEncryptionKeycache: encryptionCache,
-			Logger:                   s.Logger.Named("proxy_token_provider"),
+		WorkspaceAppsProvider: &AppsProvider{
+			DashboardURL:         opts.DashboardURL,
+			Client:               client,
+			TokenSigningKeycache: signingCache,
+			Logger:               s.Logger.Named("proxy_token_provider"),
 		},
 
 		DisablePathApps: opts.DisablePathApps,

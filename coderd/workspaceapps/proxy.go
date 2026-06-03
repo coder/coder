@@ -98,7 +98,7 @@ type ServerOptions struct {
 	HostnameRegex *regexp.Regexp
 	RealIPConfig  *httpmw.RealIPConfig
 
-	SignedTokenProvider      SignedTokenProvider
+	WorkspaceAppsProvider    Provider
 	APIKeyEncryptionKeycache cryptokeys.EncryptionKeycache
 
 	// DisablePathApps disables path-based apps. This is a security feature as path
@@ -146,7 +146,7 @@ func (s *Server) Close() error {
 		_ = s.StatsCollector.Close()
 	}
 
-	// The caller must close the SignedTokenProvider and the AgentProvider (if
+	// The caller must close the WorkspaceAppsProvider and the AgentProvider (if
 	// necessary).
 
 	return nil
@@ -335,7 +335,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		Logger:              s.Logger,
 		Cookies:             s.cookies,
 		CookieCfg:           s.CookiesConfig,
-		SignedTokenProvider: s.SignedTokenProvider,
+		SignedTokenProvider: s.WorkspaceAppsProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
 		AppHostname:         s.Hostname,
@@ -361,10 +361,18 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 
 // determineCORSBehavior examines the given token and conditionally applies
 // CORS middleware if the token specifies that behavior.
-func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
+func (s *Server) determineCORSBehavior(token *SignedToken) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		// Create the CORS middleware handler upfront.
-		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
+		targetOwnerID := uuid.Nil
+		if token != nil {
+			targetOwnerID = token.UserID
+		}
+		corsHandler := httpmw.WorkspaceAppCors(
+			s.HostnameRegex,
+			targetOwnerID,
+			s.WorkspaceAppsProvider.ResolveAppOwnerID,
+		)(next)
 
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var behavior codersdk.CORSBehavior
@@ -470,7 +478,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				Logger:              s.Logger,
 				Cookies:             s.cookies,
 				CookieCfg:           s.CookiesConfig,
-				SignedTokenProvider: s.SignedTokenProvider,
+				SignedTokenProvider: s.WorkspaceAppsProvider,
 				DashboardURL:        s.DashboardURL,
 				PathAppBaseURL:      s.AccessURL,
 				AppHostname:         s.Hostname,
@@ -491,7 +499,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			}
 
 			// Proxy the request (possibly with the CORS middleware).
-			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token, app)))
+			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token)))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
@@ -716,7 +724,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		Logger:              s.Logger,
 		Cookies:             s.cookies,
 		CookieCfg:           s.CookiesConfig,
-		SignedTokenProvider: s.SignedTokenProvider,
+		SignedTokenProvider: s.WorkspaceAppsProvider,
 		DashboardURL:        s.DashboardURL,
 		PathAppBaseURL:      s.AccessURL,
 		AppHostname:         s.Hostname,

@@ -6,7 +6,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -103,4 +106,17 @@ type SignedTokenProvider interface {
 	// app, false is returned. An error page is written to the response writer
 	// in this case.
 	Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq IssueTokenRequest) (*SignedToken, string, bool)
+}
+
+type AppOwnerResolver interface {
+	// ResolveAppOwnerID returns the owner of a workspace app.
+	// In practice this is the owner of the app's workspace.
+	ResolveAppOwnerID(ctx context.Context, app appurl.ApplicationURL) (uuid.UUID, error)
+}
+
+// Provider provides workspace app authentication and
+// resolution services.
+type Provider interface {
+	SignedTokenProvider
+	AppOwnerResolver
 }
