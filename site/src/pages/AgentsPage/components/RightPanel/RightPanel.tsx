@@ -247,7 +247,7 @@ export const RightPanel = ({
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link lg:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-[2px] cursor-col-resize select-none transition-colors hover:bg-content-link lg:block",
 					visualExpanded && "-left-1",
 				)}
 			/>
