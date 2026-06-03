@@ -1,4 +1,4 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
 	useInfiniteQuery,
@@ -758,13 +758,22 @@ const AgentChatPage: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-		// Prefer admin provider configs (full set); fall back
-		// to user provider configs (available to everyone).
-		chatProviderConfigsQuery.data ?? userProviderConfigsQuery.data,
-	);
+		const providerDisplayConfigs =
+			chatProviderConfigsQuery.data ?? userProviderConfigsQuery.data;
+		const modelOptions = useMemo(
+			() =>
+				getModelOptionsFromConfigs(
+					chatModelConfigsQuery.data,
+					chatModelsQuery.data,
+					providerDisplayConfigs,
+				),
+			[
+				chatModelConfigsQuery.data,
+				chatModelsQuery.data,
+				providerDisplayConfigs,
+			],
+		);
+
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
 		permissions.editDeploymentConfig &&
