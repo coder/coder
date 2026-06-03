@@ -10,12 +10,24 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
+import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
+
+// 1x1 solid coral (#FF6B6B) PNG encoded as base64.
+const TEST_PNG_B64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
+
+const getDiffsText = (element: HTMLElement) =>
+	Array.from(element.querySelectorAll("diffs-container"))
+		.map((container) => container.shadowRoot?.textContent ?? "")
+		.join("\n");
+
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -41,6 +53,212 @@ const meta: Meta<typeof Tool> = {
 export default meta;
 type Story = StoryObj<typeof Tool>;
 
+type ToolShowcaseItem = {
+	name: string;
+	status?: React.ComponentProps<typeof Tool>["status"];
+	args?: unknown;
+	result?: unknown;
+	isError?: boolean;
+	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
+	subagentVariants?: Map<string, "general" | "explore" | "computer_use">;
+};
+
+const allToolShowcaseItems: ToolShowcaseItem[] = [
+	{
+		name: "execute",
+		args: { command: "pnpm check", model_intent: "Checking frontend" },
+		modelIntent: "Checking frontend",
+		parsedCommands: [["pnpm", "check"]],
+		result: {
+			output: "Checked 1799 files.",
+			wall_duration_ms: 2400,
+			exit_code: 0,
+		},
+	},
+	{
+		name: "process_output",
+		args: { process_id: "storybook-process" },
+		result: { output: "dev server ready on :6006" },
+	},
+	{
+		name: "process_list",
+		args: {},
+		result: {
+			processes: [
+				{
+					id: "storybook-process",
+					command: "pnpm storybook",
+					status: "running",
+				},
+			],
+		},
+	},
+	{
+		name: "process_signal",
+		args: { process_id: "storybook-process", signal: "terminate" },
+		result: { success: true },
+	},
+	{
+		name: "wait_for_external_auth",
+		args: { provider: "github" },
+		result: { provider_display_name: "GitHub", authenticated: true },
+	},
+	{
+		name: "read_file",
+		args: { path: "site/src/pages/AgentsPage/AgentChatPage.tsx" },
+		result: { content: "export const AgentChatPage = () => null;" },
+	},
+	{
+		name: "write_file",
+		args: { path: "docs/example.md", content: "# Example\n" },
+		result: { path: "docs/example.md" },
+	},
+	{
+		name: "edit_files",
+		args: {
+			files: [
+				{
+					path: "site/src/example.ts",
+					edits: [{ old_text: "foo", new_text: "bar" }],
+				},
+			],
+		},
+		result: { files: [{ path: "site/src/example.ts", status: "edited" }] },
+	},
+	{
+		name: "list_templates",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					display_name: "Go Development",
+				},
+			],
+			count: 1,
+		},
+	},
+	{
+		name: "read_template",
+		args: { template_id: "template-1" },
+		result: {
+			template: { name: "go-template", display_name: "Go Development" },
+		},
+	},
+	{
+		name: "create_workspace",
+		result: {
+			created: true,
+			workspace_name: "agent-icons",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "start_workspace",
+		result: {
+			started: true,
+			workspace_name: "agent-icons",
+			agent_status: "ready",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "chat_summarized",
+		result: { summary: "Earlier transcript content was compacted." },
+	},
+	{
+		name: "propose_plan",
+		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
+		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
+	},
+	{
+		name: "ask_user_question",
+		args: { questions: [] },
+		status: "running",
+	},
+	{
+		name: "advisor",
+		args: { question: "Which icon family should represent transcript tools?" },
+		result: { answer: "Use category-level icons for better scanning." },
+	},
+	{
+		name: "computer",
+		args: { action: "screenshot" },
+		result: { output: { type: "image", data: TEST_PNG_B64 } },
+	},
+	{
+		name: "read_skill",
+		args: { name: "deep-review" },
+		result: {
+			name: "deep-review",
+			content: "# Deep Review\nReview code carefully.",
+		},
+	},
+	{
+		name: "read_skill_file",
+		args: { name: "deep-review", path: "roles/security-reviewer.md" },
+		result: { content: "# Security Reviewer Role\nCheck auth boundaries." },
+	},
+	{
+		name: "spawn_agent",
+		args: { title: "Repository review", prompt: "Review the code." },
+		result: {
+			chat_id: "bot-child",
+			title: "Repository review",
+			status: "completed",
+		},
+	},
+	{
+		name: "wait_agent",
+		args: { chat_id: "bot-child" },
+		result: {
+			chat_id: "bot-child",
+			title: "Repository review",
+			status: "completed",
+			report: "No issues found.",
+		},
+	},
+	{
+		name: "message_agent",
+		args: { chat_id: "bot-child", message: "Check icon consistency." },
+		result: { chat_id: "bot-child", status: "completed" },
+	},
+	{
+		name: "close_agent",
+		args: { chat_id: "bot-child" },
+		result: { chat_id: "bot-child", status: "completed" },
+	},
+	{
+		name: "spawn_computer_use_agent",
+		args: { prompt: "Inspect the UI." },
+		result: { chat_id: "desktop-child", status: "completed" },
+		subagentVariants: new Map([["desktop-child", "computer_use"]]),
+	},
+	{
+		name: "read_file",
+		args: { path: "site/src/pages/AgentsPage/Missing.tsx" },
+		status: "error",
+		isError: true,
+		result: { error: "File not found" },
+	},
+	{
+		name: "create_workspace",
+		status: "running",
+		args: { workspace_name: "agent-icons" },
+		result: {
+			workspace_name: "agent-icons",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "unknown_tool",
+		args: { example: true },
+		result: { ok: true },
+	},
+];
+
 // ---------------------------------------------------------------------------
 // Execute stories
 // ---------------------------------------------------------------------------
@@ -51,6 +269,80 @@ export const ExecuteRunning: Story = {
 		result: {
 			output: "remote: Enumerating objects: 12, done.\nFetching origin...",
 		},
+	},
+};
+
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Running tests using ${executeIntentCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		shellToolDisplayMode: "always_expanded",
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand} for 2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
 
@@ -72,7 +364,7 @@ export const ExecuteSuccess: Story = {
 		expect(
 			canvas.queryByRole("img", { name: "Running in background" }),
 		).not.toBeInTheDocument();
-		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
 };
@@ -99,7 +391,7 @@ export const ExecuteError: Story = {
 		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
 		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand command output" }),
+			canvas.getByRole("button", { name: "Expand command" }),
 		);
 		await waitFor(() => {
 			expect(canvas.getByText(/error line 1/)).toBeVisible();
@@ -144,13 +436,16 @@ export const ExecuteAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(executeCommand)).toBeVisible();
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
 			canvas.queryByText(/From github\.com:coder\/coder/),
 		).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByText(executeCommand));
+		await userEvent.click(commandButton);
 		await waitFor(() => {
 			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
 		});
@@ -174,13 +469,13 @@ export const ExecuteLongCommandCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByText(longExecuteCommand);
-		expect(command).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: longExecuteCommand }),
-		).not.toBeInTheDocument();
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
-		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
 		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
 	},
 };
@@ -345,6 +640,32 @@ export const SubagentRunning: Story = {
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
 	},
 };
@@ -745,6 +1066,7 @@ export const CloseAgentRunningWithoutChatId: Story = {
 		await waitFor(() => {
 			expect(canvasElement.textContent?.trim()).toBe("");
 		});
+		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
 		expect(canvas.queryByRole("button")).toBeNull();
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
@@ -976,17 +1298,15 @@ export const MCPToolCompleted: Story = {
 		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
 		// Icon should still be monochrome when completed.
 		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
-		// Result should be collapsed by default.
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
-		// Expand to see result content.
 		await userEvent.click(toggle);
-		// @pierre/diffs renders inside a Shadow DOM (<diffs-container>)
-		// so textContent on the host element can't see the content.
-		// Query into the shadow root to verify the JSON rendered.
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
 		await waitFor(() => {
-			const shadow = canvasElement.querySelector("diffs-container")?.shadowRoot;
-			expect(shadow?.textContent).toContain("Fix auth flow");
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("backend");
+			expect(diffsText).toContain("Fix auth flow");
 		});
 	},
 };
@@ -1020,8 +1340,12 @@ export const MCPToolNoResult: Story = {
 		mcpServers: sampleMCPServers,
 	},
 	play: async ({ canvasElement }) => {
-		// No toggle button when there is no result content.
-		expect(canvasElement.querySelector("button")).toBeNull();
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		await waitFor(() => {
+			expect(getDiffsText(canvasElement)).toContain("New issue");
+		});
 	},
 };
 
@@ -1089,6 +1413,27 @@ export const MCPToolNoServer: Story = {
 		const canvas = within(canvasElement);
 		// Falls through to generic wrench icon + raw tool name.
 		expect(canvas.getByText("some_custom_tool")).toBeInTheDocument();
+	},
+};
+
+export const WorkspaceMCPToolCompleted: Story = {
+	args: {
+		name: "workspace-mcp__echo",
+		status: "completed",
+		args: { message: "hello from workspace MCP" },
+		result: { output: "hello from workspace MCP" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("workspace-mcp__echo")).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button"));
+		expect(canvas.getByText("Input")).toBeVisible();
+		expect(canvas.getByText("Output")).toBeVisible();
+		await waitFor(() => {
+			const diffsText = getDiffsText(canvasElement);
+			expect(diffsText).toContain("message");
+			expect(diffsText).toContain("hello from workspace MCP");
+		});
 	},
 };
 
@@ -1947,7 +2292,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),
@@ -2443,5 +2788,67 @@ export const CreateWorkspaceBuildFailed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Failed to create workspace")).toBeInTheDocument();
+	},
+};
+
+export const AllToolIconsTranscript: Story = {
+	render: () => (
+		<ChatWorkspaceContext value={{ workspaceId: "test-workspace-id" }}>
+			<DesktopPanelContext.Provider
+				value={{ desktopChatId: "desktop-child", onOpenDesktop: fn() }}
+			>
+				<div className="flex flex-col gap-2">
+					<BlockList
+						blocks={[
+							{
+								type: "thinking",
+								text: "Thinking\nReviewing the available tools and grouping them by category.",
+							},
+						]}
+						tools={[]}
+						keyPrefix="all-tool-icons-thinking"
+					/>
+					{allToolShowcaseItems.map((tool, index) => (
+						<Tool
+							key={`${tool.name}-${index}`}
+							name={tool.name}
+							status={tool.status ?? "completed"}
+							args={tool.args}
+							result={tool.result}
+							isError={tool.isError}
+							killedBySignal={tool.killedBySignal}
+							modelIntent={tool.modelIntent}
+							parsedCommands={tool.parsedCommands}
+							subagentVariants={tool.subagentVariants}
+							shellToolDisplayMode="always_collapsed"
+							codeDiffDisplayMode="always_collapsed"
+							showDesktopPreviews={false}
+						/>
+					))}
+				</div>
+			</DesktopPanelContext.Provider>
+		</ChatWorkspaceContext>
+	),
+	parameters: {
+		queries: [
+			{
+				key: ["workspace", "test-workspace-id"],
+				data: {
+					id: "test-workspace-id",
+					latest_build: {
+						id: "test-build-id",
+						status: "running",
+					},
+				},
+			},
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
 	},
 };

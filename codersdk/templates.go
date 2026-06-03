@@ -379,9 +379,19 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 	return nil
 }
 
-// TemplateACLAvailable returns available users + groups that can be assigned template perms
-func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID) (ACLAvailable, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID), nil)
+// TemplateACLAvailable returns available users + groups that can be assigned
+// template perms. The optional req controls the q/limit/offset query
+// parameters applied server-side; pass codersdk.UsersRequest{} when no
+// filtering is desired.
+func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
 	if err != nil {
 		return ACLAvailable{}, err
 	}

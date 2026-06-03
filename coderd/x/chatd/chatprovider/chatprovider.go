@@ -104,6 +104,14 @@ type ProviderAPIKeys struct {
 	BaseURLByProvider map[string]string
 }
 
+// Empty reports whether no provider keys or base URL overrides are set.
+func (k ProviderAPIKeys) Empty() bool {
+	return k.OpenAI == "" &&
+		k.Anthropic == "" &&
+		len(k.ByProvider) == 0 &&
+		len(k.BaseURLByProvider) == 0
+}
+
 // UserProviderKey is a user-supplied API key for a specific provider.
 type UserProviderKey struct {
 	ChatProviderID uuid.UUID
@@ -565,6 +573,21 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
+// isGatewayProvider reports whether the provider routes requests to
+// multiple upstream model providers using a "<provider>/<model>" model
+// identifier, where the slash is part of the upstream model ID rather
+// than a hint.
+func isGatewayProvider(provider string) bool {
+	switch provider {
+	case fantasyvercel.Name,
+		fantasyopenrouter.Name,
+		fantasyopenaicompat.Name:
+		return true
+	default:
+		return false
+	}
+}
+
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
@@ -593,6 +616,15 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
 		return "", "", xerrors.New("model is required")
+	}
+
+	// Gateway providers (vercel, openrouter, openai-compat) treat the
+	// "<provider>/<model>" slash as part of the upstream model ID, so
+	// parseCanonicalModelRef would incorrectly strip the prefix and
+	// route to the embedded provider name instead. Honor an explicit
+	// gateway hint before attempting canonical-ref parsing.
+	if normalized := NormalizeProvider(providerHint); normalized != "" && isGatewayProvider(normalized) {
+		return normalized, modelName, nil
 	}
 
 	if provider, modelID, ok := parseCanonicalModelRef(modelName); ok {
@@ -1211,6 +1243,7 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
+		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),

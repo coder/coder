@@ -166,8 +166,9 @@ type Options struct {
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
-	Database database.Store
-	Pubsub   pubsub.Pubsub
+	Database          database.Store
+	Pubsub            pubsub.Pubsub
+	ReplicaSyncPubsub *pubsub.PGPubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -286,6 +287,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+	if options.ReplicaSyncPubsub == nil {
+		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
+		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
+		options.ReplicaSyncPubsub = pgPubsub
 	}
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
@@ -596,6 +602,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
+			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 			UsageInserter:                  usageInserter,
 
@@ -1276,6 +1283,22 @@ func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID 
 		client:      client,
 		workspaceID: workspaceID,
 	}
+}
+
+// RequireWorkspaceAgentByName avoids weak nil UUID assertions when a fixture requires a specific agent.
+func RequireWorkspaceAgentByName(t testing.TB, resources []codersdk.WorkspaceResource, name string) codersdk.WorkspaceAgent {
+	t.Helper()
+
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			if agent.Name == name {
+				return agent
+			}
+		}
+	}
+
+	require.FailNowf(t, "workspace agent not found", "workspace agent %q not found in resources", name)
+	return codersdk.WorkspaceAgent{}
 }
 
 // AgentNames instructs the waiter to wait for the given, named agents to be connected and will

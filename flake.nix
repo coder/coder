@@ -61,6 +61,30 @@
           inherit nodejs; # Ensure it points to the above nodejs version
         };
 
+        mise = pkgs.stdenvNoCC.mkDerivation rec {
+          pname = "mise";
+          version = "2026.5.12";
+          target = {
+            x86_64-linux = "linux-x64";
+            aarch64-linux = "linux-arm64";
+            x86_64-darwin = "macos-x64";
+            aarch64-darwin = "macos-arm64";
+          }.${system};
+          src = pkgs.fetchurl {
+            url = "https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${target}";
+            hash = {
+              x86_64-linux = "sha256-ojiXKjFi1xC4WyjDJDculspOS0hsgf54aVAA2fvHfEg=";
+              aarch64-linux = "sha256-/S1SJ6itCx41nHBSeoNFqa2nIHf43LtVk3FlPD2VRk8=";
+              x86_64-darwin = "sha256-3lfo3IK72ICmnJvIruBrncxXgYSz5c+G/O+AY11qkLQ=";
+              aarch64-darwin = "sha256-53cHBUD/4iz4srn4iu2ItGHQiH2UDE8cGpc1lGPN5uE=";
+            }.${system};
+          };
+          dontUnpack = true;
+          installPhase = ''
+            install -Dm755 "$src" "$out/bin/mise"
+          '';
+        };
+
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -109,15 +133,30 @@
           vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
 
+        paralleltestctx = unstablePkgs.buildGo126Module {
+          pname = "paralleltestctx";
+          version = "0.0.2";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "coder";
+            repo = "paralleltestctx";
+            rev = "v0.0.2";
+            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+          };
+
+          subPackages = [ "cmd/paralleltestctx" ];
+          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+        };
+
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
-        terraform_1_15_2 =
+        terraform_1_15_5 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.15.2" {
+            pkgs.runCommand "terraform-1.15.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip";
-                hash = "sha256-xW/yvH5s6bOHmlA5KwPC6gdLR2iL9QP/lmyH+wGyqrg=";
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
               };
             } ''
               mkdir -p "$out/bin"
@@ -188,6 +227,7 @@
             lazydocker
             lazygit
             less
+            mise
             unstablePkgs.mockgen
             moreutils
             nfpm
@@ -195,10 +235,10 @@
             nodejs
             openssh
             openssl
+            paralleltestctx
             pango
             pixman
             pkg-config
-            playwright-driver.browsers
             pnpm
             postgresql_16
             proto_gen_go_1_30
@@ -209,7 +249,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_15_2
+            terraform_1_15_5
             typos
             which
             # Needed for many LD system libs!
@@ -222,8 +262,6 @@
             zstd
           ]
           ++ frontendPackages;
-
-        docker = pkgs.callPackage ./nix/docker.nix { };
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
@@ -278,16 +316,6 @@
             '';
           };
       in
-      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
-      # - https://nixos.wiki/wiki/Playwright
-      assert pkgs.lib.assertMsg
-        (
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-          == pkgs.playwright-driver.version
-        )
-        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
@@ -301,79 +329,29 @@
             {
             buildInputs = devShellPackages;
 
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
-
             LOCALE_ARCHIVE =
               with pkgs;
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
 
             NODE_OPTIONS = "--max-old-space-size=8192";
-            BIOME_BINARY =
-              if pkgs.stdenv.isLinux then
-                if pkgs.stdenv.hostPlatform.isAarch64 then
-                  "@biomejs/cli-linux-arm64-musl/biome"
-                else
-                  "@biomejs/cli-linux-x64-musl/biome"
-              else
-                "";
             GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };
 
-        packages =
-          {
-            default = packages.${system};
+        packages = {
+          default = packages.${system};
 
-            proto_gen_go = proto_gen_go_1_30;
-            site = buildSite;
+          proto_gen_go = proto_gen_go_1_30;
+          site = buildSite;
 
-            # Copying `OS_ARCHES` from the Makefile.
-            x86_64-linux = buildFat "linux_amd64";
-            aarch64-linux = buildFat "linux_arm64";
-            x86_64-darwin = buildFat "darwin_amd64";
-            aarch64-darwin = buildFat "darwin_arm64";
-            x86_64-windows = buildFat "windows_amd64.exe";
-            aarch64-windows = buildFat "windows_arm64.exe";
-          }
-          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = docker.buildNixShellImage rec {
-              name = "codercom/oss-dogfood-nix";
-              tag = "latest-${system}";
-
-              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
-              # to have issues on dogfood envs.
-              maxLayers = 32;
-
-              uname = "coder";
-              homeDirectory = "/home/${uname}";
-              releaseName = version;
-
-              drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs =
-                  (with pkgs; [
-                    coreutils
-                    nix.out
-                    curl.bin # Ensure the actual curl binary is included in the PATH
-                    glibc.bin # Ensure the glibc binaries are included in the PATH
-                    jq.bin
-                    binutils # ld and strings
-                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
-                    systemd.out
-                    service-wrapper
-                    docker_26
-                    shadow.out
-                    su
-                    ncurses.out # clear
-                    unzip
-                    zip
-                    gzip
-                    procps # free
-                  ])
-                  ++ oldAttrs.buildInputs;
-              });
-            };
-          });
+          # Copying `OS_ARCHES` from the Makefile.
+          x86_64-linux = buildFat "linux_amd64";
+          aarch64-linux = buildFat "linux_arm64";
+          x86_64-darwin = buildFat "darwin_amd64";
+          aarch64-darwin = buildFat "darwin_arm64";
+          x86_64-windows = buildFat "windows_amd64.exe";
+          aarch64-windows = buildFat "windows_arm64.exe";
+        };
       }
     );
 }

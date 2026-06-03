@@ -8,35 +8,46 @@ on:
   #
   # Effects vary by event:
   #
-  #   PRs: `build_image` builds the image variants but never pushes
-  #   (each `depot/build-push-action` step's `push:` and the
-  #   `Push Nix image` step are gated on `github.ref ==
-  #   'refs/heads/main'`). `deploy_template` runs `terraform init` +
-  #   `validate` only; the apply step and SHA/title gathering are
-  #   gated on main.
+  #   PRs: `build_image` builds the base and runs `mise oci build`,
+  #   loads the result into the local Docker daemon, and runs
+  #   `make gen`, `fmt`, `lint`, and a Linux build inside the image
+  #   to validate the baked-in tooling. Only the base image is pushed
+  #   (to ghcr.io so the mise oci step can pull --from a real
+  #   registry); the Docker Hub push is gated on
+  #   `github.ref == 'refs/heads/main'`. Fork PRs skip the entire
+  #   base+mise-oci pipeline since GITHUB_TOKEN is read-only for
+  #   packages.
+  #   `deploy_template` runs `terraform init` + `validate` only; the
+  #   apply step and SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
-  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
-  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
-  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-branch tag on
-  #   each. `deploy_template` runs `terraform apply` and creates new
+  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`) and
+  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), plus a
+  #   per-branch tag on each. The image-tooling validation runs as
+  #   above before any push, so a broken image never reaches Docker
+  #   Hub.
+  #   `deploy_template` runs `terraform apply` and creates new
   #   `coderd_template` versions on dev.coder.com whose `name` is the
-  #   commit short SHA. Content is unchanged when neither `dogfood/**`
-  #   nor the flake files changed, so the new versions are cosmetic.
+  #   commit short SHA. Content is unchanged when `dogfood/**` is
+  #   unchanged, so the new versions are cosmetic.
   push:
     branches:
       - main
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
-      - "flake.lock"
-      - "flake.nix"
+      - "mise.toml"
+      - "mise.lock"
+      - "scripts/dogfood/**"
+      - "scripts/dogfood_test_image.sh"
   pull_request:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
-      - "flake.lock"
-      - "flake.nix"
+      - "mise.toml"
+      - "mise.lock"
+      - "scripts/dogfood/**"
+      - "scripts/dogfood_test_image.sh"
   workflow_dispatch:
 
 permissions:
@@ -47,10 +58,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image-version: ["22.04", "26.04", "nix"]
+        image-version: ["22.04", "26.04"]
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write # push the dogfood base image to ghcr.io/coder/oss-dogfood-base
+    env:
+      # MISE_EXPERIMENTAL opts into the experimental `oci` subcommand.
+      MISE_EXPERIMENTAL: "1"
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
@@ -61,34 +78,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-
-      - name: Setup Nix
-        uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
-        with:
-          # Pinning to 2.28 here, as Nix gets a "error: [json.exception.type_error.302] type must be array, but is string"
-          # on version 2.29 and above.
-          nix_version: "2.28.5"
-        if: matrix.image-version == 'nix'
-
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
-        with:
-          # restore and save a cache using this key
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          # if there's no cache hit, restore a cache by this prefix
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          # collect garbage until Nix store size (in bytes) is at most this number
-          # before trying to save a new cache
-          # 1G = 1073741824
-          gc-max-store-size-linux: 5G
-          # do purge caches
-          purge: true
-          # purge all versions of the cache
-          purge-prefixes: nix-${{ runner.os }}-
-          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
-          purge-created: 0
-          # except the version with the `primary-key`, if it exists
-          purge-primary-key: never
-        if: matrix.image-version == 'nix'
 
       - name: Get branch name
         id: branch-name
@@ -105,11 +94,38 @@ jobs:
 
       - name: Set up Depot CLI
         uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
-        if: matrix.image-version != 'nix'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-        if: matrix.image-version != 'nix'
+
+      - name: Set up mise tools
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: ./.github/actions/setup-mise
+
+      - name: Compute image SHAs
+        # Match the fork guard on the downstream consumers of these
+        # outputs: nothing reads `steps.shas.outputs.*` outside the
+        # base-push + mise-oci pipeline, which is gated below.
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        id: shas
+        env:
+          IMAGE_VERSION: ${{ matrix.image-version }}
+        run: |
+          base_sha="$(./scripts/dogfood/compute-base-sha.sh "$IMAGE_VERSION")"
+          final_sha="$(./scripts/dogfood/compute-final-sha.sh "$IMAGE_VERSION")"
+          echo "base_sha=${base_sha}" >> "$GITHUB_OUTPUT"
+          echo "final_sha=${final_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        # Fork PRs get a read-only GITHUB_TOKEN that cannot push to
+        # ghcr.io. Skip the entire GHCR-dependent pipeline (base push +
+        # mise oci build) for fork PRs.
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
@@ -118,48 +134,103 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Build and push Ubuntu 22.04 image
+      - name: Build base image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          # Context is the repo root so the Dockerfile can COPY the
-          # project mise.toml that the image installs from. The
-          # github_token secret raises aqua's GitHub API quota during
-          # `mise install`.
+          # Context is the repo root so Dockerfile.base can COPY the
+          # distro-specific files/ tree and configure-chrome-flags.sh.
           context: "{{defaultContext}}"
-          file: dogfood/coder/ubuntu-22.04/Dockerfile
-          secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
+          file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true
-          save: true
-          push: ${{ github.ref == 'refs/heads/main' }}
-          # TODO: move the `latest` tag to 26.04 soon. we don't want to transition
-          # it immediately because that would make workspaces switch to it
-          # automatically without any grace period.
-          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:22.04,codercom/oss-dogfood:latest"
-        if: matrix.image-version == '22.04'
+          # Push to ghcr.io on every non-fork CI run so the downstream
+          # mise oci build can --from a real registry. The base-sha tag
+          # is a cache key (see scripts/dogfood/compute-base-sha.sh) so
+          # commits that don't change base inputs reuse the previous
+          # build.
+          push: true
+          tags: |
+            ghcr.io/coder/oss-dogfood-base:${{ matrix.image-version }}-${{ steps.shas.outputs.base_sha }}
+            ghcr.io/coder/oss-dogfood-base:${{ matrix.image-version }}-${{ steps.docker-tag-name.outputs.tag }}
 
-      - name: Build and push Ubuntu 26.04 image
-        uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
-        with:
-          project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
-          buildx-fallback: true
-          # Context is the repo root so the Dockerfile can COPY the
-          # project mise.toml that the image installs from. The
-          # github_token secret raises aqua's GitHub API quota during
-          # `mise install`.
-          context: "{{defaultContext}}"
-          file: dogfood/coder/ubuntu-26.04/Dockerfile
-          secrets: |
-            github_token=${{ secrets.GITHUB_TOKEN }}
-          pull: true
-          save: true
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:26.04"
-        if: matrix.image-version == '26.04'
+      - name: Build mise oci layer
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          IMAGE_VERSION: ${{ matrix.image-version }}
+          BASE_SHA: ${{ steps.shas.outputs.base_sha }}
+          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
+        # --output makes the OCI layout location explicit so the later
+        # `mise oci push --image-dir` steps point at the right path even
+        # if mise oci's default ever changes (it's experimental).
+        run: |
+          mise oci build \
+            --from "ghcr.io/coder/oss-dogfood-base:${IMAGE_VERSION}-${BASE_SHA}" \
+            --tag "codercom/oss-dogfood:${FINAL_SHA}-${IMAGE_VERSION}" \
+            --output ./mise-oci
+
+      # Load the OCI layout into the local Docker daemon so the next
+      # step can `docker run` it. crane lacks a direct OCI-layout-to-
+      # daemon command, but its built-in registry server gives us a
+      # simple two-hop path with no extra dependencies.
+      - name: Load mise oci image into Docker daemon
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          IMAGE_VERSION: ${{ matrix.image-version }}
+        run: |
+          set -euo pipefail
+          crane registry serve --address localhost:5000 &
+          reg_pid=$!
+          trap 'kill $reg_pid 2>/dev/null || true' EXIT
+          for _ in 1 2 3 4 5; do
+            curl -sf http://localhost:5000/v2/ >/dev/null && break
+            sleep 1
+          done
+          crane push ./mise-oci "localhost:5000/dogfood-test:${IMAGE_VERSION}"
+          docker pull "localhost:5000/dogfood-test:${IMAGE_VERSION}"
+          docker tag "localhost:5000/dogfood-test:${IMAGE_VERSION}" "dogfood-test:${IMAGE_VERSION}"
+
+      # Validate the dogfood image's tooling by running make gen, fmt,
+      # lint, and a fat build inside it. Failures here block the
+      # Docker Hub push below so broken images never reach workspaces.
+      - name: Test image tooling
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
+
+      - name: Push final Ubuntu 22.04 image
+        if: matrix.image-version == '22.04' && github.ref == 'refs/heads/main'
+        env:
+          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
+          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
+        # --image-dir points at the OCI layout written by the previous
+        # `mise oci build` step. Without it, `mise oci push` rebuilds
+        # from mise.toml and forgets the --from base. --tool crane
+        # forces the registry client mise oci shells out to, so we
+        # don't drift between the apt-shipped skopeo on whatever runner
+        # image we land on.
+        # TODO: move the `latest` tag to 26.04 soon. we don't want to
+        # transition it immediately because that would make workspaces
+        # switch to it automatically without any grace period.
+        run: |
+          set -euo pipefail
+          for tag in "${FINAL_SHA}-22.04" "$DOCKER_TAG" 22.04 latest; do
+            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
+          done
+
+      - name: Push final Ubuntu 26.04 image
+        if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
+        env:
+          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
+          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04; do
+            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
+          done
 
       - name: Build and push vscode-coder image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
@@ -173,25 +244,6 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
         if: matrix.image-version == '22.04'
-
-      - name: Build Nix image
-        run: nix build .#dev_image
-        if: matrix.image-version == 'nix'
-
-      - name: Push Nix image
-        if: matrix.image-version == 'nix' && github.ref == 'refs/heads/main'
-        run: |
-          docker load -i result
-
-          CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
-
-          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:${DOCKER_TAG}"
-          docker image push "codercom/oss-dogfood-nix:${DOCKER_TAG}"
-
-          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:latest"
-          docker image push "codercom/oss-dogfood-nix:latest"
-        env:
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: build_image
@@ -210,8 +262,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "terraform"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0

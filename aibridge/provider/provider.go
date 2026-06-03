@@ -53,6 +53,8 @@ type Provider interface {
 	// Name returns the provider instance name.
 	// Defaults to Type() when not explicitly configured.
 	Name() string
+	// Enabled reports whether the provider should serve requests.
+	Enabled() bool
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string
 
@@ -77,10 +79,6 @@ type Provider interface {
 	// AuthHeader returns the name of the header which the provider expects to find its authentication
 	// token in.
 	AuthHeader() string
-	// InjectAuthHeader allows [Provider]s to set its authentication header.
-	// TODO(ssncferreira): remove. Auth is now applied per-attempt by
-	// KeyFailoverTransport (see [Provider.KeyFailoverConfig]).
-	InjectAuthHeader(*http.Header)
 	// KeyFailoverConfig returns the per-provider configuration for
 	// automatic key failover on passthrough routes.
 	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig

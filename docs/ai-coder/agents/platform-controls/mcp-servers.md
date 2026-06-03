@@ -143,10 +143,8 @@ auth header for the configured `auth_type`:
 | `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
 | `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
 
-These are the same headers Coder sends to LLM providers (see
-[Coder agents headers](../../ai-gateway/clients/coder-agents.md)) so a
-first-party MCP server can correlate a tool call back to the
-originating chat.
+Coder sends the same identity headers to LLM providers, so a first-party
+MCP server can correlate a tool call back to the originating chat.
 
 Because the headers leak chat identity, the option is **off by
 default** and should only be enabled for first-party or trusted

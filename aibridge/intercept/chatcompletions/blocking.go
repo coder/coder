@@ -3,6 +3,7 @@ package chatcompletions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -123,7 +125,6 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
 			ExtraTokenTypes: map[string]int64{
 				"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-				"prompt_cached":                  lastUsage.PromptTokensDetails.CachedTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 				"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
 				"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
 				"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
@@ -225,12 +226,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		// The failover loop may return a keypool exhaustion
 		// error. Check before the SDK-error path.
-		if keyErr := ProcessKeyPoolError(err); keyErr != nil {
-			i.writeUpstreamError(w, keyErr)
+		var keyPoolErr *keypool.Error
+		if errors.As(err, &keyPoolErr) {
+			i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 			return xerrors.Errorf("key pool exhausted: %w", err)
 		}
 
-		if apiErr := getErrorResponse(err); apiErr != nil {
+		if apiErr := intercept.ResponseErrorFromAPIError(err); apiErr != nil {
 			i.writeUpstreamError(w, apiErr)
 			return xerrors.Errorf("openai API error: %w", err)
 		}
@@ -289,15 +291,16 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 // 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller.
 func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
 	walker := i.cfg.KeyPool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			return nil, keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

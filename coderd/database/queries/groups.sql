@@ -78,6 +78,15 @@ WHERE
 				groups.id = ANY(@group_ids)
 			ELSE true
 		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN @search :: text != '' THEN (
+				groups.name ILIKE concat('%', @search, '%')
+				OR groups.display_name ILIKE concat('%', @search, '%')
+			)
+			ELSE true
+		END
+-- A limit of 0 means "no limit".
+LIMIT NULLIF(@limit_opt :: int, 0)
 ;
 
 -- name: InsertGroup :one

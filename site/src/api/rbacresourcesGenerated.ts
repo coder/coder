@@ -8,6 +8,11 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	ai_gateway_key: {
+		create: "create an AI Gateway key",
+		delete: "delete an AI Gateway key",
+		read: "read AI Gateway keys",
+	},
 	ai_model_price: {
 		read: "read AI model prices",
 		update: "update AI model prices",
@@ -50,6 +55,11 @@ export const RBACResourceActions: Partial<
 		create: "create new audit log entries",
 		read: "read audit logs",
 	},
+	boundary_log: {
+		create: "create boundary log records",
+		delete: "delete boundary logs",
+		read: "read boundary logs and session metadata",
+	},
 	boundary_usage: {
 		delete: "delete boundary usage statistics",
 		read: "read boundary usage statistics",
@@ -59,6 +69,7 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat",
 		delete: "delete a chat",
 		read: "read chat messages and metadata",
+		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
 	connection_log: {
@@ -213,6 +224,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete a user secret",
 		read: "read user secret metadata and value",
 		update: "update user secret metadata and value",
+	},
+	user_skill: {
+		create: "create a user skill",
+		delete: "delete a user skill",
+		read: "read user skill metadata and content",
+		update: "update user skill metadata and content",
 	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",

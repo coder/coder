@@ -27,7 +27,7 @@ import {
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { ReadFileTool } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -42,13 +42,16 @@ import {
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
+import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
 	asRecord,
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	formatModelIntentLabel,
 	formatResultOutput,
+	formatToolInput,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -92,6 +95,8 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
+	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
@@ -117,6 +122,7 @@ type ToolRendererProps = {
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
@@ -214,72 +220,26 @@ const parseAskUserQuestionResult = (
 	return null;
 };
 
-type ExecuteRenderData = {
-	command: string;
-	output: string;
-	durationMs?: number;
-	isBackgrounded: boolean;
-	authenticateURL: string;
-	providerLabel: string;
-};
-
-const getExecuteRenderData = (
-	args: unknown,
-	result: unknown,
-): ExecuteRenderData => {
-	const parsedArgs = parseArgs(args);
-	const command = parsedArgs ? asString(parsedArgs.command) : "";
-	const rec = asRecord(result);
-	const output = rec ? asString(rec.output).trim() : "";
-	const durationMs = rec
-		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
-			asNumber(rec.duration_ms, { parseString: true }))
-		: undefined;
-	const isBackgrounded = Boolean(
-		rec && asString(rec.background_process_id).trim(),
-	);
-	const authenticateURL = rec?.auth_required
-		? asString(rec.authenticate_url).trim()
-		: "";
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-
-	return {
-		command,
-		output,
-		durationMs,
-		isBackgrounded,
-		authenticateURL,
-		providerLabel,
-	};
-};
-
-const shouldHideExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length === 0 && !data.authenticateURL;
-};
-
 const ExecuteRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
+	parsedCommands,
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-
-	if (shouldHideExecuteTool(data)) {
-		return null;
-	}
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -288,12 +248,14 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
+			modelIntent={modelIntent}
+			parsedCommands={parsedCommands}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
@@ -356,22 +318,12 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
-}) => {
-	const parsedArgs = parseArgs(args);
-	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(result);
-	const content = rec ? asString(rec.content).trim() : "";
-
-	return (
-		<ReadFileTool
-			path={path || "file"}
-			content={content}
-			status={status}
-			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-		/>
-	);
-};
+}) => (
+	<ReadFileTool
+		{...getReadFileToolData({ args, result, isError })}
+		status={status}
+	/>
+);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -592,20 +544,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
 			isTimeout = true;
-		}
-	}
-
-	// Postpone rendering wait_agent, message_agent, and close_agent
-	// until the chat_id has been parsed from the streaming args.
-	// Without it we cannot determine variant or title, which causes
-	// a brief flash of the generic lifecycle copy.
-	if (!chatId && status === "running") {
-		if (
-			descriptor.action === "wait" ||
-			descriptor.action === "message" ||
-			descriptor.action === "close"
-		) {
-			return null;
 		}
 	}
 
@@ -878,6 +816,76 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+type ToolFileViewerProps = {
+	label?: string;
+	file: ComponentPropsWithRef<typeof FileViewer>["file"];
+	options: ComponentPropsWithRef<typeof FileViewer>["options"];
+};
+
+const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
+	<>
+		{label && (
+			<div className="mt-2 text-2xs font-medium text-content-secondary">
+				{label}
+			</div>
+		)}
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
+			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
+		</ScrollArea>
+	</>
+);
+
+type GenericToolContentProps = {
+	toolInput: string | null;
+	fileContent: ReturnType<typeof getFileContentForViewer>;
+	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
+	isDark: boolean;
+	resultOutput: string | null;
+};
+
+const GenericToolContent: FC<GenericToolContentProps> = ({
+	toolInput,
+	fileContent,
+	fileContentOptions,
+	isDark,
+	resultOutput,
+}) => {
+	const output = fileContent
+		? {
+				file: { name: fileContent.path, contents: fileContent.content },
+				options: fileContentOptions,
+			}
+		: resultOutput
+			? {
+					file: { name: "output.json", contents: resultOutput },
+					options: getFileViewerOptionsNoHeader(isDark),
+				}
+			: undefined;
+
+	return (
+		<>
+			{toolInput && (
+				<ToolFileViewer
+					label="Input"
+					file={{ name: "input.json", contents: toolInput }}
+					options={getFileViewerOptionsNoHeader(isDark)}
+				/>
+			)}
+			{output && (
+				<ToolFileViewer
+					label={toolInput ? "Output" : undefined}
+					file={output.file}
+					options={output.options}
+				/>
+			)}
+		</>
+	);
+};
+
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -890,6 +898,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
@@ -906,7 +915,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
@@ -922,7 +931,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			/>
 			{modelIntent ? (
 				<span className="truncate text-[13px]">
-					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+					{formatModelIntentLabel(modelIntent)}
 				</span>
 			) : (
 				<ToolLabel
@@ -932,67 +941,47 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					mcpSlug={mcpServer?.slug}
 				/>
 			)}
+		</>
+	);
+	const toolHeaderStatus = (
+		<>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 		</>
 	);
 
 	const toolContent = (
-		<>
-			{fileContent ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={fileContentOptions}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: "output.json",
-								contents: resultOutput,
-							}}
-							options={getFileViewerOptionsNoHeader(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				)
-			)}
-		</>
+		<GenericToolContent
+			toolInput={toolInput}
+			fileContent={fileContent}
+			fileContentOptions={fileContentOptions}
+			isDark={isDark}
+			resultOutput={resultOutput}
+		/>
 	);
 
 	return (
-		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+		<ToolCollapsible
+			hasContent={hasContent}
+			header={toolHeader}
+			headerStatus={toolHeaderStatus}
+		>
 			{toolContent}
 		</ToolCollapsible>
 	);
 };
 
 // ---------------------------------------------------------------------------
-// process_signal — thin wrapper that promotes soft failures (success=false
+// process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
 // renderer shows the error indicator and tooltip.
 // ---------------------------------------------------------------------------
@@ -1035,7 +1024,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Renderer lookup map — maps tool names to their specialized renderers.
+// Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
@@ -1060,7 +1049,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Public Tool component — single wrapper div + map dispatch.
+// Public Tool component with a single wrapper div and map dispatch.
 // ---------------------------------------------------------------------------
 
 export const Tool = memo(
@@ -1084,6 +1073,7 @@ export const Tool = memo(
 		isLatestAskUserQuestion,
 		previousResponseText,
 		modelIntent,
+		parsedCommands,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
@@ -1093,25 +1083,18 @@ export const Tool = memo(
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
-		if (
-			name === "execute" &&
-			shouldHideExecuteTool(getExecuteRenderData(args, result))
-		) {
+		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
 		}
 
 		return (
 			<div
 				ref={ref}
-				data-tool-call=""
-				data-shell-tool={isShellTool ? "" : undefined}
+				data-transcript-row=""
 				className={cn(
 					isShellTool || name === "propose_plan" || name === "advisor"
-						? "w-full py-0.5"
-						: "py-0.5",
-					// Keep back-to-back tool cards visually grouped so stacked tool calls do not look double-spaced.
-					"[&:has(+[data-tool-call])]:pb-0",
-					"[[data-tool-call]+&]:pt-0",
+						? "w-full"
+						: undefined,
 					className,
 				)}
 				{...props}
@@ -1135,6 +1118,7 @@ export const Tool = memo(
 					isLatestAskUserQuestion={isLatestAskUserQuestion}
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
+					parsedCommands={parsedCommands}
 					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>

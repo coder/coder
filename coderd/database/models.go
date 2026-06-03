@@ -19,8 +19,15 @@ import (
 type AIProviderType string
 
 const (
-	AiProviderTypeOpenai    AIProviderType = "openai"
-	AiProviderTypeAnthropic AIProviderType = "anthropic"
+	AiProviderTypeOpenai       AIProviderType = "openai"
+	AiProviderTypeAnthropic    AIProviderType = "anthropic"
+	AiProviderTypeAzure        AIProviderType = "azure"
+	AiProviderTypeBedrock      AIProviderType = "bedrock"
+	AiProviderTypeGoogle       AIProviderType = "google"
+	AiProviderTypeOpenaiCompat AIProviderType = "openai-compat"
+	AiProviderTypeOpenrouter   AIProviderType = "openrouter"
+	AiProviderTypeVercel       AIProviderType = "vercel"
+	AiProviderTypeCopilot      AIProviderType = "copilot"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -61,7 +68,14 @@ func (ns NullAIProviderType) Value() (driver.Value, error) {
 func (e AIProviderType) Valid() bool {
 	switch e {
 	case AiProviderTypeOpenai,
-		AiProviderTypeAnthropic:
+		AiProviderTypeAnthropic,
+		AiProviderTypeAzure,
+		AiProviderTypeBedrock,
+		AiProviderTypeGoogle,
+		AiProviderTypeOpenaiCompat,
+		AiProviderTypeOpenrouter,
+		AiProviderTypeVercel,
+		AiProviderTypeCopilot:
 		return true
 	}
 	return false
@@ -71,6 +85,13 @@ func AllAIProviderTypeValues() []AIProviderType {
 	return []AIProviderType{
 		AiProviderTypeOpenai,
 		AiProviderTypeAnthropic,
+		AiProviderTypeAzure,
+		AiProviderTypeBedrock,
+		AiProviderTypeGoogle,
+		AiProviderTypeOpenaiCompat,
+		AiProviderTypeOpenrouter,
+		AiProviderTypeVercel,
+		AiProviderTypeCopilot,
 	}
 }
 
@@ -293,6 +314,20 @@ const (
 	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
+	ApiKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
+	ApiKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
+	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
+	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
+	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
+	ApiKeyScopeBoundaryLog                         APIKeyScope = "boundary_log:*"
+	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
+	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -547,7 +582,21 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiProviderCreate,
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate:
+		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead:
 		return true
 	}
 	return false
@@ -771,6 +820,20 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
 		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead,
 	}
 }
 
@@ -3298,8 +3361,11 @@ const (
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAiProvider                  ResourceType = "ai_provider"
-	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeAIProvider                  ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                   ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3368,8 +3434,11 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey:
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
+		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey:
 		return true
 	}
 	return false
@@ -3406,8 +3475,11 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
+		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
 	}
 }
 
@@ -4378,6 +4450,17 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
+type AIGatewayKey struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4465,6 +4548,43 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Persisted boundary audit events. Each row is a single audit event processed by a Boundary proxy.
+type BoundaryLog struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// The session ID generated by the Boundary process on startup. Groups all events from one invocation.
+	SessionID uuid.UUID `db:"session_id" json:"session_id"`
+	// Monotonically increasing integer assigned by Boundary, starting at 0 per session. Primary ordering key when Boundary is in use.
+	SequenceNumber int32 `db:"sequence_number" json:"sequence_number"`
+	// When the log was sent to the DB.
+	CapturedAt time.Time `db:"captured_at" json:"captured_at"`
+	// When the event happened on the workspace.
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// The protocol of the audited action. e.g. http, dns, git, fs.
+	Proto string `db:"proto" json:"proto"`
+	// The operation within the protocol. e.g. GET/POST for http, clone for git, A for dns, read/write for fs.
+	Method string `db:"method" json:"method"`
+	// Protocol-specific detail. e.g. the full URL for http, the hostname for dns, the path for fs.
+	Detail string `db:"detail" json:"detail"`
+	// The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.
+	MatchedRule sql.NullString `db:"matched_rule" json:"matched_rule"`
+}
+
+// Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.
+type BoundarySession struct {
+	// The unique session ID generated by the Boundary process on startup.
+	ID uuid.UUID `db:"id" json:"id"`
+	// The workspace agent that this Boundary session is associated with.
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Name of the confined process (e.g. claude-code, codex, copilot).
+	ConfinedProcessName string `db:"confined_process_name" json:"confined_process_name"`
+	// Time when the first log for this session was received by coderd.
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	// Time when the session was last updated.
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// The ID of the user who owns the workspace. NULL if the user has been deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
+}
+
 // Per-replica boundary usage statistics for telemetry aggregation.
 type BoundaryUsageStat struct {
 	// The unique identifier of the replica reporting stats.
@@ -4512,6 +4632,8 @@ type Chat struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
 	OwnerName           string                `db:"owner_name" json:"owner_name"`
 }
@@ -4617,6 +4739,7 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
+	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatModelConfig struct {
@@ -4635,23 +4758,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
-}
-
-type ChatProvider struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Provider    string    `db:"provider" json:"provider"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	APIKey      string    `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
+	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 type ChatQueuedMessage struct {
@@ -4660,6 +4767,7 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 }
 
 type ChatTable struct {
@@ -4691,6 +4799,8 @@ type ChatTable struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -4804,6 +4914,8 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+	// The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 type Group struct {
@@ -5652,14 +5764,26 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
-type UserChatProviderKey struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+// Per-user AI spend override that supersedes group budget resolution.
+type UserAiBudgetOverride struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.
+type UserAiProviderKey struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	// User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type UserConfig struct {
@@ -5701,6 +5825,16 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+}
+
+type UserSkill struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

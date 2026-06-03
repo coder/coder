@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestOpenVSCode(t *testing.T) {
@@ -120,9 +120,8 @@ func TestOpenVSCode(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -140,7 +139,7 @@ func TestOpenVSCode(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -246,9 +245,8 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -266,7 +264,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -433,7 +431,72 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			agentcontainers.WithContainerLabelIncludeFilter("coder.test", t.Name()),
 		)
 	})
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName, devcontainerName}).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName}).Wait()
+	parentAgent := coderdtest.RequireWorkspaceAgentByName(t, resources, parentAgentName)
+	parentAgentID := parentAgent.ID
+
+	// Agent connection does not guarantee the parent agent's container API
+	// has completed its first devcontainer update. Wait for that endpoint so
+	// parallel open commands do not race the initial cache population.
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := client.WorkspaceAgentListContainers(ctx, parentAgentID, nil)
+		if err != nil {
+			t.Logf("list containers: %v", err)
+			return false
+		}
+		var devcontainerAgentID uuid.UUID
+		for _, dc := range resp.Devcontainers {
+			if dc.ID != devcontainerID {
+				continue
+			}
+			if dc.Status != codersdk.WorkspaceAgentDevcontainerStatusRunning {
+				t.Logf("devcontainer %s status %q", devcontainerName, dc.Status)
+				return false
+			}
+			if dc.Container == nil {
+				t.Logf("devcontainer %s missing container", devcontainerName)
+				return false
+			}
+			if dc.Container.ID != containerID {
+				t.Logf("devcontainer %s has container %s, want %s", devcontainerName, dc.Container.ID, containerID)
+				return false
+			}
+			if dc.Agent == nil {
+				t.Logf("devcontainer %s missing subagent", devcontainerName)
+				return false
+			}
+			if dc.Agent.Name != devcontainerName {
+				t.Logf("devcontainer %s has subagent %s, want %s", devcontainerName, dc.Agent.Name, devcontainerName)
+				return false
+			}
+			devcontainerAgentID = dc.Agent.ID
+		}
+		if devcontainerAgentID == uuid.Nil {
+			t.Logf("devcontainer %s not found", devcontainerName)
+			return false
+		}
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		if err != nil {
+			t.Logf("get workspace: %v", err)
+			return false
+		}
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, workspaceAgent := range resource.Agents {
+				if workspaceAgent.ID != devcontainerAgentID {
+					continue
+				}
+				if workspaceAgent.Status != codersdk.WorkspaceAgentConnected {
+					t.Logf("devcontainer subagent %s status %q", devcontainerAgentID, workspaceAgent.Status)
+					return false
+				}
+				return true
+			}
+		}
+		t.Logf("devcontainer subagent %s not found in workspace", devcontainerAgentID)
+		return false
+	}, testutil.IntervalMedium, "devcontainer did not become ready")
 
 	insideWorkspaceEnv := map[string]string{
 		"CODER":                      "true",
@@ -505,10 +568,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -527,7 +588,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -575,9 +636,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -606,9 +664,6 @@ func TestOpenApp(t *testing.T) {
 		client, _, _ := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "open", "app", "not-a-workspace", "app1")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
 		w.RequireContains("Resource not found or you do not have access to this resource")
@@ -621,9 +676,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -645,9 +697,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--region", "bad-region")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -669,9 +718,6 @@ func TestOpenApp(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()

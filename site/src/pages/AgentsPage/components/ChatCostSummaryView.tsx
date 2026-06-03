@@ -174,7 +174,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Read
+						Cache read
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
 						{formatTokenCount(summary.total_cache_read_tokens)}
@@ -182,7 +182,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Write
+						Cache write
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
 						{formatTokenCount(summary.total_cache_creation_tokens)}
@@ -206,7 +206,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
 							<div>
 								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									{usageLimitPeriodLabel} Spend Limit
+									{usageLimitPeriodLabel} spend limit
 								</p>
 								{usageLimitCurrentPeriod && (
 									<p className="mt-1 text-sm text-content-secondary">
@@ -255,7 +255,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 
 			{summary.unpriced_message_count > 0 && (
 				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
-					<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
+					<TriangleAlertIcon className="size-5 shrink-0 text-content-warning" />
 					<span>
 						{summary.unpriced_message_count} message
 						{summary.unpriced_message_count === 1 ? "" : "s"} could not be
@@ -265,7 +265,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			)}
 
 			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
-				<InfoIcon className="h-5 w-5 shrink-0" />
+				<InfoIcon className="size-5 shrink-0" />
 				<span>
 					Automatic title generation uses lightweight models and is not counted
 					towards usage limits.
@@ -288,8 +288,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead className="text-right">Messages</TableHead>
 									<TableHead className="text-right">Input</TableHead>
 									<TableHead className="text-right">Output</TableHead>
-									<TableHead className="text-right">Cache Read</TableHead>
-									<TableHead className="text-right">Cache Write</TableHead>
+									<TableHead className="text-right">Cache read</TableHead>
+									<TableHead className="text-right">Cache write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -344,8 +344,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									<TableHead className="text-right">Messages</TableHead>
 									<TableHead className="text-right">Input</TableHead>
 									<TableHead className="text-right">Output</TableHead>
-									<TableHead className="text-right">Cache Read</TableHead>
-									<TableHead className="text-right">Cache Write</TableHead>
+									<TableHead className="text-right">Cache read</TableHead>
+									<TableHead className="text-right">Cache write</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>

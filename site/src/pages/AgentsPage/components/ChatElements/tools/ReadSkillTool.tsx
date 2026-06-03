@@ -1,4 +1,4 @@
-import { BookOpenIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
@@ -8,6 +8,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 export const ReadSkillTool: React.FC<{
@@ -26,14 +27,18 @@ export const ReadSkillTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<BookOpenIcon className="h-4 w-4 shrink-0 text-current" />
-					<span className="text-[13px]">
+					<ToolIcon name="read_skill" isError={isError} isRunning={isRunning} />
+					<span className="text-[13px] leading-6">
 						{isRunning ? `Reading ${label}…` : `Read ${label}`}
 					</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+								<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to read skill"}
@@ -41,7 +46,7 @@ export const ReadSkillTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+						<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}

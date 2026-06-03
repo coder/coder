@@ -2,4 +2,4 @@
 // notifications.Enqueuer interface for use in tests.
 package notificationsmock
 
-//go:generate mockgen -destination ./notificationsmock.go -package notificationsmock github.com/coder/coder/v2/coderd/notifications Enqueuer
+//go:generate go tool mockgen -destination ./notificationsmock.go -package notificationsmock github.com/coder/coder/v2/coderd/notifications Enqueuer

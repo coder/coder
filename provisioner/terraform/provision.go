@@ -198,7 +198,7 @@ func (s *server) Plan(
 		}
 	}
 
-	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders, request.UserSecrets)
+	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
 	if err != nil {
 		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
@@ -311,7 +311,7 @@ func (s *server) Apply(
 		}
 	}
 
-	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil, nil)
+	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
 	}
@@ -347,7 +347,6 @@ func planVars(plan *proto.PlanRequest) ([]string, error) {
 func provisionEnv(
 	config *proto.Config, metadata *proto.Metadata,
 	previousParams, richParams []*proto.RichParameterValue, externalAuth []*proto.ExternalAuthProvider,
-	userSecrets []*proto.UserSecretValue,
 ) ([]string, error) {
 	env := safeEnviron()
 	ownerGroups, err := json.Marshal(metadata.GetWorkspaceOwnerGroups())
@@ -382,7 +381,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 		"CODER_TASK_ID="+metadata.GetTaskId(),
 		"CODER_TASK_PROMPT="+metadata.GetTaskPrompt(),
-		"AWS_SDK_UA_APP_ID=APN_1.1/pc_cdfmjwn8i6u8l9fwz8h82e4w3$",
+		awsSDKUserAgentEnv(safeEnvironValue(env, awsSDKUserAgentEnvKey)),
 	)
 	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")
@@ -414,19 +413,6 @@ func provisionEnv(
 	for _, extAuth := range externalAuth {
 		env = append(env, gitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
-	}
-
-	for _, secret := range userSecrets {
-		if secret.EnvName != "" {
-			env = append(env, provider.SecretEnvEnvironmentVariable(secret.EnvName)+"="+string(secret.Value))
-		}
-		if secret.FilePath != "" {
-			// Environment variables are used to communicate the file path a
-			// secret should be written to. The hex encoding is done because
-			// file paths contain slashes, tildes, and dots that are illegal
-			// in environment variable names.
-			env = append(env, provider.SecretFileEnvironmentVariable(secret.FilePath)+"="+string(secret.Value))
-		}
 	}
 
 	if config.ProvisionerLogLevel != "" {

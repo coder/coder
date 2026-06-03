@@ -48,8 +48,8 @@ In your Terraform module, enable Agent Firewall with minimal configuration:
 
 ```tf
 module "claude-code" {
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.7.0"
+  source              = "registry.coder.com/coder/claude-code/coder"
+  version             = "5.2.0"
   enable_boundary     = true
 }
 ```
@@ -59,7 +59,7 @@ Claude Code module, use the following minimal configuration:
 
 ```yaml
 allowlist:
-  - "domain=dev.coder.com" # Required - use your Coder deployment domain
+  - "domain=coder.example.com" # Required - use your Coder deployment domain
   - "domain=api.anthropic.com" # Required - API endpoint for Claude
   - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
   - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
@@ -225,5 +225,5 @@ such as Grafana Loki.
 Example of an allowed request (assuming stderr):
 
 ```console
-2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://dev.coder.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=dev.coder.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
+2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://coder.example.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=coder.example.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
 ```

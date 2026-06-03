@@ -22,8 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -275,10 +275,7 @@ func TestDERPHeaders(t *testing.T) {
 	}
 	inv, root := clitest.New(t, args...)
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stderr = pty.Output()
-	inv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	cmdDone := tGo(t, func() {
@@ -286,7 +283,7 @@ func TestDERPHeaders(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	pty.ExpectMatch("pong from " + workspace.Name)
+	stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 	<-cmdDone
 
 	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
