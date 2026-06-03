@@ -35,6 +35,7 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
+	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -730,6 +731,7 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
@@ -759,7 +761,9 @@ const AgentChatPage: FC = () => {
 	const modelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
-		chatProviderConfigsQuery.data,
+		// Prefer admin provider configs (full set); fall back
+		// to user provider configs (available to everyone).
+		chatProviderConfigsQuery.data ?? userProviderConfigsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =

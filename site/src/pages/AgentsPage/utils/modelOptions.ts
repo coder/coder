@@ -165,10 +165,19 @@ export const resolveModelOptionId = (
 	return "";
 };
 
+/** Minimal shape needed to resolve provider display names
+ * in the model selector. Both ChatProviderConfig (admin) and
+ * UserChatProviderConfig (all users) satisfy this. */
+type ProviderDisplayNameSource = {
+	readonly id?: string;
+	readonly provider_id?: string;
+	readonly display_name?: string;
+};
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	providerConfigs?: readonly TypesGen.ChatProviderConfig[] | null,
+	providerConfigs?: readonly ProviderDisplayNameSource[] | null,
 ): readonly ModelSelectorOption[] => {
 	if (!configs || !catalog) {
 		return [];
@@ -178,12 +187,15 @@ export const getModelOptionsFromConfigs = (
 
 	// Build a lookup from provider config ID to its display name
 	// so models can carry the human-readable provider label.
+	// ChatProviderConfig uses "id", UserChatProviderConfig uses
+	// "provider_id"; accept both.
 	const providerDisplayNames = new Map<string, string>();
 	if (providerConfigs) {
 		for (const pc of providerConfigs) {
+			const key = asString(pc.id || pc.provider_id).trim();
 			const name = asString(pc.display_name).trim();
-			if (pc.id && name) {
-				providerDisplayNames.set(pc.id, name);
+			if (key && name) {
+				providerDisplayNames.set(key, name);
 			}
 		}
 	}
