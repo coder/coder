@@ -31,9 +31,8 @@ const (
 
 type ClassifiedError = chaterror.ClassifiedError
 
-// IsRetryable determines whether an error from an LLM provider is
-// transient and worth retrying. It is context-free and does not apply
-// Retry's normalization of bare context.Canceled into provider transport resets.
+// IsRetryable reports whether err is retryable. Unlike Retry, it does not
+// reclassify bare context.Canceled as a transport reset.
 func IsRetryable(err error) bool {
 	return chaterror.Classify(err).Retryable
 }
@@ -99,6 +98,9 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 // non-retryable error, ctx is canceled, or MaxAttempts is reached.
 // Retries use exponential backoff capped at MaxDelay, unless the
 // normalized error includes a longer provider Retry-After hint.
+//
+// When fn returns bare context.Canceled while ctx is still alive, Retry
+// treats it as a provider transport reset and retries it.
 //
 // The onRetry callback (if non-nil) is called before each retry
 // attempt, giving the caller a chance to reset state, log, or
