@@ -142,11 +142,12 @@ pushing the commit are both the bot.
 
 ## User identity (on the roadmap)
 
-A small webhook receiver listens for Anthropic's `runner-needed` event,
-maps the session creator (from the event payload) to a Coder user, and
-calls Coder's workspace-create API **on behalf of that user**. The
-middleware authenticates to Coder as a dedicated service account with a
-scoped admin-like token.
+The on-demand runner orchestrator polls Anthropic for pending spawn
+requests, and the `spawn-runner` hook maps the session creator (from
+`CLAUDE_RUNNER_ACCOUNT_EMAIL` in the hook environment) to a Coder
+user, then calls Coder's workspace-create API **on behalf of that
+user**. The hook authenticates to Coder as a dedicated service account
+with a scoped admin-like token.
 
 This is what unlocks per-user identity: when the workspace is created on
 behalf of the human, Coder's external-auth wires `GIT_ASKPASS` with the
@@ -156,19 +157,19 @@ arrives so there is no first-session-wins race.
 
 ### Pieces
 
-1. **Webhook receiver, or in-tree integration.** Two implementation
+1. **`spawn-runner` hook, or in-tree integration.** Two implementation
    paths, both valid:
-   - **Middleware service.** A few hundred lines of Go or Node.
-     Verifies the Anthropic signature, looks up the user in Coder via
-     the API, pre-flights that the user has the required
-     external-auth grants, calls `POST /workspaces` on the user's
-     behalf with `--lock-to-account` as a parameter. Faster to ship;
-     can land the day Anthropic's webhook ships.
-   - **First-class integration in `coderd`.** Coder's server consumes
-     the Anthropic webhook directly, with user-mapping rules and the
-     on-behalf-of spawn built in. The webhook receiver collapses from
-     "a service to write" to "a config block in the template." Better
-     long-term shape; absorbs whatever middleware deployments teach
+   - **`spawn-runner` hook script.** A short shell script in the
+     orchestrator's hooks directory. Reads
+     `CLAUDE_RUNNER_ACCOUNT_EMAIL`, looks up the user in Coder via
+     the API, calls `coder create` on the user's behalf with the
+     work order passed as a parameter. Faster to ship; works today
+     with the orchestrator shipped in byoc.14.
+   - **First-class integration in `coderd`.** Coder's server runs
+     the orchestrator process internally, with user-mapping rules
+     and the on-behalf-of spawn built in. The hook collapses from
+     "a script to maintain" to "a config block in the template."
+     Better long-term shape; absorbs whatever hook deployments teach
      us about the right defaults.
 2. **Coder service-account token.** A scoped API token owned by, for
    example, `svc-claude-pool`. Scopes: create workspaces on behalf of
@@ -191,8 +192,9 @@ arrives so there is no first-session-wins race.
 These are documented in the dedicated [open questions](#open-questions-for-anthropic)
 section below. The two that block User identity specifically:
 
-- The shape and auth contract of the `runner-needed` webhook.
 - Graduation of `--lock-to-account` from its current "(pending)" status.
+  The orchestrator's `spawn-runner` hook now provides all the user info
+  needed, but the runner flag to pre-lock is still pending.
 
 ### User identity acceptance criteria
 
@@ -416,36 +418,37 @@ If the answer is "no, runners are always ephemeral":
   multi-user scenarios. System identity's pool of warm runners is the
   only correct shape for system-identity deployments.
 
-### Webhook payload and `--lock-to-account` graduation
+### Orchestrator and `--lock-to-account` graduation
 
-User identity depends on two interfaces the PDF flags as on Anthropic's
-roadmap but not yet shipped:
+**Update (byoc.14):** The on-demand runner orchestrator shipped in
+2.1.161-byoc.14 and replaces the earlier "runner-needed webhook"
+concept. The orchestrator (`claude self-hosted-runner orchestrator`)
+polls Anthropic for pending spawn requests and invokes a `spawn-runner`
+hook per session. This is the scaling signal integration point.
 
-- The `runner-needed` webhook. The PDF describes it (one event per
-  queued session with no available runner, plus a CLI poll fallback)
-  and says "tell us which scaling signal fits your infrastructure,
-  what payload fields you need to provision a runner (for example:
-  pool ID, the account the runner should serve, repository URLs to
-  pre-clone), and what authentication shape your webhook receiver
-  expects." The wire format is not finalized and there is no
-  destination URL to configure today. We have a concrete consumer
-  (the middleware or coderd-integration in User identity) and want
-  to influence the contract before it is finalized.
-- The `--lock-to-account` flag is documented today as "intended for
-  webhook-driven spawn (pending)." User identity's no-first-session-
-  wins property depends on it. We need to know whether it will
-  graduate from pending and whether the locked account must already
-  have queued sessions, must belong to the pool's org, etc.
+The `spawn-runner` hook receives rich environment variables including:
 
-Specific asks for the webhook payload:
+- `CLAUDE_RUNNER_WORK_ORDER_FILE`: single-use work order JWT
+- `CLAUDE_RUNNER_ORDER_ID`: idempotency key (DNS-safe)
+- `CLAUDE_RUNNER_SESSION_ID`: session correlation ID
+- `CLAUDE_RUNNER_ACCOUNT_ID` / `CLAUDE_RUNNER_ACCOUNT_EMAIL`: the
+  Anthropic account that enqueued the session (added in byoc.13)
+- `CLAUDE_RUNNER_PRIMARY_REPO_URL` / `CLAUDE_RUNNER_REPO_SOURCES`:
+  repository info for pre-cloning or routing (added in byoc.14)
 
-- Include the IdP `sub` claim, not just `email`. Email is mutable and
-  not reliably unique across IdP federations; `sub` is the right key
-  for cross-system user mapping.
-- Include the pool ID so the middleware can spawn into the right Coder
-  template if you have multiple pools.
-- Document the signature scheme up front (HMAC with timestamp and
-  shared secret is the cheapest workable shape).
+The account ID and email in the spawn hint are what User Identity needs
+to map an Anthropic user to a Coder user. The orchestrator replaces
+the webhook receiver concept; the `spawn-runner` hook replaces the
+middleware service.
+
+Remaining open items:
+
+- `--lock-to-account` is still marked "pending" in the byoc.14 guide.
+  User identity's no-first-session-wins property depends on it.
+- The work-order JWT carries `ccr:spawn_account_id` and
+  `ccr:spawn_account_email` claims. We need to confirm whether
+  the IdP `sub` is also available (email alone is not reliably
+  unique across IdP federations).
 
 ### Lock and drain event hooks
 

@@ -57,16 +57,17 @@ Read these first; the rest of this page assumes they fit your team.
   Each runner serves up to `--capacity` sessions for the one locked
   user. Cross-user concurrency is bounded by `instances`, not
   `--capacity`.
-- **No webhook-driven autoscaling yet.** Anthropic's EAP guide
-  describes a `runner-needed` webhook (and a CLI poll fallback) that
-  would let an operator spawn a runner on demand for each queued
-  session, but both interfaces are marked pending and the wire format
-  is not finalized. There is no destination URL to configure in
-  `claude.ai` or in the runner today. Until those ship, scaling is
-  static: pick `instances = N` for expected concurrency and bump the
-  number when Anthropic's queue depth shows backlog. Send your
-  requirements (auth shape, payload fields you need) to your
-  Anthropic account team.
+- **On-demand scaling is now possible.** Runner version 2.1.161-byoc.14
+  ships an orchestrator mode (`claude self-hosted-runner orchestrator`)
+  that polls Anthropic for pending spawn requests and invokes a
+  `spawn-runner` hook per session. The hook can call `coder create` to
+  spin up a workspace on demand, passing a single-use work order
+  instead of the long-lived pool secret. This is an alternative to the
+  fixed-fleet prebuild model described on this page. With on-demand
+  runners, the pool secret stays on the orchestrator host (which never
+  runs user code), and each spawned runner receives a scoped,
+  single-use credential. See Anthropic's self-hosted runner guide for
+  the orchestrator quickstart and the `spawn-runner` hook contract.
 
 If the first two are blockers for your team, wait for
 [User identity](./user-identity.md).
@@ -152,7 +153,7 @@ runner, and creates `/workspace` owned by the workspace user.
 # NOPASSWD at uid 1000.
 FROM codercom/oss-dogfood:latest
 
-ARG BYOC_VERSION=2.1.97-byoc.9
+ARG BYOC_VERSION=2.1.161-byoc.14
 ENV BYOC_VERSION=${BYOC_VERSION}
 
 USER root

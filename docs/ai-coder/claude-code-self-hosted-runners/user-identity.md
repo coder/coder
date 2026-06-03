@@ -12,20 +12,22 @@ them.
 > [!IMPORTANT]
 > User identity is not available yet.
 >
-> - The Anthropic runner protocol pieces it depends on (per-user
->   routing webhook, pre-locking a runner before its first session)
->   have not shipped. Anthropic flags both as pending in their EAP
->   guide; the wire format is not finalized and there is no
->   destination URL to configure in `claude.ai` or in the runner
->   today.
-> - The Coder-side routing component that would receive that webhook,
+> - The Anthropic runner protocol piece it depends on (pre-locking a
+>   runner to a specific user before its first session) has not shipped.
+>   The `--lock-to-account` flag is still marked "pending" in the
+>   byoc.14 guide.
+> - The on-demand runner orchestrator (shipped in byoc.14) now provides
+>   the user's account ID and email to the `spawn-runner` hook via
+>   `CLAUDE_RUNNER_ACCOUNT_ID` and `CLAUDE_RUNNER_ACCOUNT_EMAIL`
+>   environment variables. This is the integration point for mapping
+>   an Anthropic user to a Coder user.
+> - The Coder-side routing component that would receive that spawn hint,
 >   map the Anthropic user to a Coder user, and claim a prebuild on
->   their behalf does not exist yet. There is no `coderd` endpoint, no
->   middleware, no Terraform block you can wire up today.
+>   their behalf does not exist yet.
 >
-> Until both ship, the model to use is
-> [System identity](./system-identity.md). This page describes what
-> the user-identity model will look like once both pieces land.
+> Until both the Coder routing and `--lock-to-account` ship, the model
+> to use is [System identity](./system-identity.md). This page describes
+> what the user-identity model will look like once both pieces land.
 
 ## What user identity gives you
 
@@ -83,41 +85,42 @@ plumbing from the bot PAT to Coder's external auth feature.
 
 ## Where this depends on Anthropic
 
-Two pieces of the Anthropic runner protocol have not shipped:
+One piece of the Anthropic runner protocol has not shipped:
 
-- A way for Anthropic to **tell your infrastructure** that a specific
-  user has a session waiting, so Coder can spawn a workspace on their
-  behalf instead of waiting for a runner to be claimed. Webhook
-  support is on Anthropic's roadmap (the EAP guide describes a
-  `runner-needed` webhook plus a CLI poll fallback), but the wire
-  format and auth contract are not finalized and there is no
-  destination URL to configure today.
 - A way to **pre-bind a runner to a specific user** at startup, so
   there is no race where a session lands on the wrong runner. The
-  `--lock-immediate` flag exists in the runner today but is marked
-  pending and intended for webhook-driven spawn.
+  `--lock-to-account` flag exists in the runner today but is marked
+  pending.
 
-Anthropic invites operator input on both contracts. Once they ship,
-this page will be replaced with a copy-and-go recipe.
+The scaling signal that tells your infrastructure a specific user has
+a session waiting **has shipped** in byoc.14: the on-demand runner
+orchestrator polls Anthropic for pending spawn requests and invokes a
+`spawn-runner` hook per session. The hook environment includes
+`CLAUDE_RUNNER_ACCOUNT_ID` and `CLAUDE_RUNNER_ACCOUNT_EMAIL`, which
+is the data the Coder routing component needs to map an Anthropic
+user to a Coder user.
+
+Once `--lock-to-account` graduates from pending, this page will be
+replaced with a copy-and-go recipe.
 
 ## Where this depends on Coder
 
-Once Anthropic publishes the webhook contract, **one of two**
-architectures gets you to per-user workspaces. Pick one:
+With the orchestrator's `spawn-runner` hook providing user identity,
+**one of two** architectures gets you to per-user workspaces:
 
-- **Middleware in front of Coder.** A small service (a few hundred
-  lines of Go or Node) receives the Anthropic webhook, looks up the
-  Coder user, and calls Coder's API to spawn the workspace on their
-  behalf with the runner pre-locked. Fastest to ship: lands the day
-  Anthropic's webhook ships, on top of Coder primitives that exist
-  today.
-- **Built into `coderd`.** Coder's server consumes the Anthropic
-  webhook directly. No separate service to run, no extra token to
+- **`spawn-runner` hook script.** A shell script in the orchestrator's
+  hooks directory reads `CLAUDE_RUNNER_ACCOUNT_EMAIL`, looks up the
+  matching Coder user via the API, and calls `coder create` on their
+  behalf with the work order passed as a parameter. Fastest to ship:
+  works today with the orchestrator from byoc.14, on top of Coder
+  primitives that already exist.
+- **Built into `coderd`.** Coder's server runs the orchestrator
+  process internally. No separate host to run, no extra token to
   rotate. The integration is a config block in the template instead
   of a deployment you operate. Better long-term shape, but a larger
   product change.
 
-We expect early adopters to start with middleware and, once the
+We expect early adopters to start with a hook script and, once the
 integration shape settles, fold it into `coderd`.
 
 ## What to do today

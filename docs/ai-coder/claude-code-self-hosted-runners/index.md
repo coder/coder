@@ -181,12 +181,51 @@ external auth wires their git push token automatically, and audit log
 entries attribute to them.
 
 User identity depends on Anthropic runner protocol pieces that are
-still being finalized. The [System identity](./system-identity.md)
+still being finalized. The on-demand runner orchestrator (shipped in
+byoc.14) now provides the user's account email to the `spawn-runner`
+hook, which is the data needed to map an Anthropic user to a Coder
+user. The remaining blocker is `--lock-to-account`, which is still
+marked pending. The [System identity](./system-identity.md)
 recipe you ship today is the foundation; turning on user identity will
 mean swapping the bot credential plumbing for Coder external auth.
 
 See [User identity](./user-identity.md) for the design and what stays
 the same.
+
+## Deployment models
+
+Coder supports two ways to host self-hosted runners, each with different
+tradeoffs:
+
+### Fixed fleet (prebuilds)
+
+Coder keeps N warm prebuild workspaces, each running a long-lived runner
+process. Anthropic's pool scheduler picks a free runner when a session
+arrives. When a runner drains, the workspace deletes itself and the
+prebuild reconciler queues a replacement.
+
+Best when: you want instant session pickup with zero cold-start latency,
+and can size the pool statically.
+
+See [System identity](./system-identity.md) for the full recipe.
+
+### On-demand (orchestrator)
+
+An orchestrator process (`claude self-hosted-runner orchestrator`) runs
+outside your runner workspaces and polls Anthropic for pending spawn
+requests. For each request, it invokes a `spawn-runner` hook that calls
+`coder create` to spin up a workspace with a single-use work order. The
+workspace runs the runner for exactly one session, then exits. The pool
+secret never leaves the orchestrator host.
+
+Best when: you want elastic scaling, stronger credential isolation (each
+runner gets a single-use work order, not the pool secret), or cannot
+size a fixed fleet.
+
+The orchestrator shipped in runner version 2.1.161-byoc.14. See
+Anthropic's self-hosted runner guide for the hook contract and a worked
+Kubernetes example; the `spawn-runner` hook is provisioner-agnostic, so
+the same contract works with `coder create` instead of `kubectl`.
 
 ## Where to next
 
