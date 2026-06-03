@@ -221,9 +221,18 @@ export const getModelOptionsFromConfigs = (
 		const aiProviderID = asString(
 			(config as { ai_provider_id?: unknown }).ai_provider_id,
 		).trim();
-		const providerDisplayName = aiProviderID
-			? providerDisplayNames.get(aiProviderID)
-			: undefined;
+		// Read provider display name from the enriched field stamped by
+		// the chatModelConfigs query, or fall back to the separate
+		// provider configs lookup.
+		const providerDisplayName =
+			asString(
+				(config as { __providerDisplayName?: unknown })
+					.__providerDisplayName,
+			).trim() ||
+			(aiProviderID
+				? providerDisplayNames.get(aiProviderID)
+				: undefined) ||
+			undefined;
 
 		options.push({
 			id: configID,

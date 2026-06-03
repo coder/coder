@@ -1689,8 +1689,38 @@ const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
-	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
-		API.experimental.getChatModelConfigs(),
+	queryFn: async (): Promise<TypesGen.ChatModelConfig[]> => {
+		// Fetch model configs and provider display names in parallel.
+		// Provider keys endpoint gives us the provider ID to display
+		// name mapping needed to distinguish multiple providers of
+		// the same type (e.g. two Anthropic providers).
+		const [configs, providerKeys] = await Promise.all([
+			API.experimental.getChatModelConfigs(),
+			API.experimental.getUserAIProviderKeyConfigs().catch(() => []),
+		]);
+
+		if (providerKeys.length === 0) {
+			return configs;
+		}
+
+		const displayNames = new Map<string, string>();
+		for (const pk of providerKeys) {
+			const name = pk.provider.display_name || pk.provider.name;
+			if (pk.provider.id && name) {
+				displayNames.set(pk.provider.id, name);
+			}
+		}
+
+		// Stamp each config with a __providerDisplayName field that
+		// the frontend model-options builder can read.
+		return configs.map((c) => {
+			const providerName = c.ai_provider_id
+				? displayNames.get(c.ai_provider_id)
+				: undefined;
+			if (!providerName) return c;
+			return { ...c, __providerDisplayName: providerName };
+		});
+	},
 });
 
 export const userChatProviderConfigsKey = [
