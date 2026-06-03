@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -163,15 +162,13 @@ func TestServerCreateAdminUser(t *testing.T) {
 		inv.Environ.Set("CODER_EMAIL", email)
 		inv.Environ.Set("CODER_PASSWORD", password)
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "User created successfully.")
-		pty.ExpectMatchContext(ctx, username)
-		pty.ExpectMatchContext(ctx, email)
-		pty.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatchContext(ctx, "User created successfully.")
+		stdout.ExpectMatchContext(ctx, username)
+		stdout.ExpectMatchContext(ctx, email)
+		stdout.ExpectMatchContext(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
