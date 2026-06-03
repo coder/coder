@@ -14,7 +14,6 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
-import { ProviderIcon } from "../ChatModelAdminPanel/ProviderIcon";
 
 export interface ModelSelectorOption {
 	id: string;
@@ -169,10 +168,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										key={groupKey}
 										className="[&_[cmdk-group-heading]]:text-content-disabled"
 									heading={
-										<span className="flex items-center gap-2">
-											<ProviderIcon provider={provider} className="size-5 opacity-50" />
-											<span className="text-content-disabled">{providerLabel}</span>
-										</span>
+										<span className="text-content-disabled">{providerLabel}</span>
 									}
 								>
 									{providerOptions.map((option) => {
