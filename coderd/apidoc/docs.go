@@ -28365,7 +28365,7 @@ const docTemplate = `{
     },
     "tags": [
         {
-            "description": "Workspace agent endpoints. These power the workspace agent daemon defined by the ` + "`" + `coder_agent` + "`" + ` Terraform resource. This API is NOT the AI Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.",
+            "description": "Workspace agent endpoints. These power the workspace agent daemon defined by the ` + "`" + `coder_agent` + "`" + ` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.",
             "name": "Agents"
         },
         {
