@@ -148,33 +148,11 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			err = session.Shell()
 			require.NoError(t, err)
 
-			var s *proto.Stats
-			// We are looking for four different stats to be reported. They might not all
-			// arrive at the same time, so we loop until we've seen them all.
-			var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
-			require.Eventuallyf(t, func() bool {
-				var ok bool
-				s, ok = <-stats
-				if !ok {
-					return false
-				}
-				if s.ConnectionCount > 0 {
-					connectionCountSeen = true
-				}
-				if s.RxBytes > 0 {
-					rxBytesSeen = true
-				}
-				if s.TxBytes > 0 {
-					txBytesSeen = true
-				}
-				if s.SessionCountSsh == 1 {
-					sessionCountSSHSeen = true
-				}
-				return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
-			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw all stats: %+v, saw connectionCount: %t, rxBytes: %t, txBytes: %t, sessionCountSsh: %t",
-				s, connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen,
-			)
+			// Generate SSH traffic so the connstats window sees the session.
+			_, err = stdin.Write([]byte("echo test\n"))
+			require.NoError(t, err)
+
+			assertSSHStats(t, stats)
 			_, err = stdin.Write([]byte("exit 0\n"))
 			require.NoError(t, err, "writing exit to stdin")
 			_ = stdin.Close()
@@ -182,6 +160,92 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			require.NoError(t, err, "waiting for session to exit")
 		})
 	}
+
+	// Regression test for CODAGT-517: the barrier blocks reportLoop's
+	// initial UpdateStats, so on unfixed code the connstats callback is
+	// never installed and handshake traffic is lost. On fixed code the
+	// callback is installed at creation, so traffic is captured.
+	t.Run("StatsCallbackRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		barrier := make(chan struct{})
+
+		//nolint:dogsled
+		conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0,
+			func(c *agenttest.Client, _ *agent.Options) {
+				c.SetUpdateStatsOverride(func(
+					ctx context.Context,
+					req *proto.UpdateStatsRequest,
+					next func(context.Context, *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error),
+				) (*proto.UpdateStatsResponse, error) {
+					if req.Stats == nil {
+						select {
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						case <-barrier:
+						}
+					}
+					return next(ctx, req)
+				})
+			},
+		)
+
+		// Connect SSH while the barrier holds reportLoop blocked.
+		sshClient, err := conn.SSHClientOnPort(ctx, workspacesdk.AgentStandardSSHPort)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
+		err = session.Shell()
+		require.NoError(t, err)
+
+		// Shell must be idle so the only traffic is the SSH handshake.
+
+		close(barrier)
+
+		assertSSHStats(t, stats)
+		_, err = stdin.Write([]byte("exit 0\n"))
+		require.NoError(t, err, "writing exit to stdin")
+		_ = stdin.Close()
+		err = session.Wait()
+		require.NoError(t, err, "waiting for session to exit")
+	})
+}
+
+// assertSSHStats waits for ConnectionCount, RxBytes, TxBytes, and
+// SessionCountSsh to be nonzero on the stats channel.
+func assertSSHStats(t *testing.T, stats <-chan *proto.Stats) {
+	t.Helper()
+	var connectionCountSeen, rxBytesSeen, txBytesSeen, sessionCountSSHSeen bool
+	require.Eventuallyf(t, func() bool {
+		s, ok := <-stats
+		if !ok {
+			return false
+		}
+		t.Logf("got stats: ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountSsh=%d",
+			s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountSsh)
+		if s.ConnectionCount > 0 {
+			connectionCountSeen = true
+		}
+		if s.RxBytes > 0 {
+			rxBytesSeen = true
+		}
+		if s.TxBytes > 0 {
+			txBytesSeen = true
+		}
+		if s.SessionCountSsh == 1 {
+			sessionCountSSHSeen = true
+		}
+		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw all SSH stats",
+	)
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
@@ -3851,6 +3915,7 @@ func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []a
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 		EnvironmentVariables:   map[string]string{},
+		StatsReportInterval:    agenttest.StatsInterval,
 	}
 
 	for _, opt := range opts {
