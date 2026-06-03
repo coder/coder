@@ -22,6 +22,11 @@ export interface ModelSelectorOption {
 	model: string;
 	displayName: string;
 	contextLimit?: number;
+	/** The specific provider config instance ID, used to group models
+	 * when multiple providers of the same type exist. */
+	providerConfigId?: string;
+	/** Human-readable label for the provider instance (e.g. "Anthropic Work"). */
+	providerDisplayName?: string;
 }
 
 interface ModelSelectorProps {
@@ -85,12 +90,16 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
-			const providerOptions = grouped.get(option.provider);
+			// Group by provider config instance when available,
+			// falling back to provider type for models without
+			// a specific provider config.
+			const groupKey = option.providerConfigId || option.provider;
+			const providerOptions = grouped.get(groupKey);
 			if (providerOptions) {
 				providerOptions.push(option);
 				continue;
 			}
-			grouped.set(option.provider, [option]);
+			grouped.set(groupKey, [option]);
 		}
 
 		return Array.from(grouped.entries());
@@ -146,11 +155,18 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					<CommandInput placeholder="Search..." className="text-xs" />
 					<CommandList className="max-h-72">
 						<CommandEmpty className="text-xs">{emptyMessage}</CommandEmpty>
-						{optionsByProvider.map(([provider, providerOptions]) => {
-							const providerLabel = formatProviderLabel(provider);
-							return (
-								<CommandGroup
-									key={provider}
+						{optionsByProvider.map(
+							([_groupKey, providerOptions]) => {
+								const first = providerOptions[0];
+								const provider = first.provider;
+								const providerLabel =
+									first.providerDisplayName ??
+									formatProviderLabel(provider);
+								const groupKey =
+									first.providerConfigId || provider;
+								return (
+									<CommandGroup
+										key={groupKey}
 									heading={
 										<span className="flex items-center gap-2">
 											<ProviderIcon provider={provider} className="size-5" />
@@ -198,7 +214,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 									})}
 								</CommandGroup>
 							);
-						})}
+						},
+					)}
 					</CommandList>
 				</Command>
 			</PopoverContent>

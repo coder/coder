@@ -759,6 +759,7 @@ const AgentChatPage: FC = () => {
 	const modelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
+		chatProviderConfigsQuery.data,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =

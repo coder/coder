@@ -168,12 +168,26 @@ export const resolveModelOptionId = (
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	providerConfigs?: readonly TypesGen.ChatProviderConfig[] | null,
 ): readonly ModelSelectorOption[] => {
 	if (!configs || !catalog) {
 		return [];
 	}
 
 	const availableProviders = getAvailableProviders(catalog);
+
+	// Build a lookup from provider config ID to its display name
+	// so models can carry the human-readable provider label.
+	const providerDisplayNames = new Map<string, string>();
+	if (providerConfigs) {
+		for (const pc of providerConfigs) {
+			const name = asString(pc.display_name).trim();
+			if (pc.id && name) {
+				providerDisplayNames.set(pc.id, name);
+			}
+		}
+	}
+
 	const options: ModelSelectorOption[] = [];
 
 	for (const config of configs as readonly ModelOptionConfigLike[]) {
@@ -192,19 +206,33 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = asString(config.display_name).trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const aiProviderID = asString(
+			(config as { ai_provider_id?: unknown }).ai_provider_id,
+		).trim();
+		const providerDisplayName = aiProviderID
+			? providerDisplayNames.get(aiProviderID)
+			: undefined;
+
 		options.push({
 			id: configID,
 			provider,
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(aiProviderID ? { providerConfigId: aiProviderID } : {}),
+			...(providerDisplayName ? { providerDisplayName } : {}),
 		});
 	}
 
 	return options.sort((a, b) => {
-		const providerCompare = a.provider.localeCompare(b.provider);
-		if (providerCompare !== 0) {
-			return providerCompare;
+		// Sort by provider config instance first to keep models from the
+		// same provider instance together, then by provider type, then
+		// by display name.
+		const groupA = a.providerConfigId || a.provider;
+		const groupB = b.providerConfigId || b.provider;
+		const groupCompare = groupA.localeCompare(groupB);
+		if (groupCompare !== 0) {
+			return groupCompare;
 		}
 		return a.displayName.localeCompare(b.displayName);
 	});
