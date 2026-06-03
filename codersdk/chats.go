@@ -1503,6 +1503,8 @@ const (
 	ChatStreamEventTypeQueueUpdate    ChatStreamEventType = "queue_update"
 	ChatStreamEventTypeRetry          ChatStreamEventType = "retry"
 	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
+	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
+	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -1516,8 +1518,11 @@ type ChatQueuedMessage struct {
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
-	Role ChatMessageRole `json:"role,omitempty"`
-	Part ChatMessagePart `json:"part"`
+	Role              ChatMessageRole `json:"role,omitempty"`
+	Part              ChatMessagePart `json:"part"`
+	HistoryVersion    int64           `json:"history_version,omitempty"`
+	GenerationAttempt int64           `json:"generation_attempt,omitempty"`
+	Seq               int64           `json:"seq,omitempty"`
 }
 
 // ChatStreamStatus represents an updated chat status.

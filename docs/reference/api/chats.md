@@ -2717,6 +2717,8 @@ Experimental: this endpoint is subject to change.
     }
   },
   "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
     "part": {
       "args": [
         0
@@ -2779,7 +2781,8 @@ Experimental: this endpoint is subject to change.
       "type": "text",
       "url": "string"
     },
-    "role": "system"
+    "role": "system",
+    "seq": 0
   },
   "queued_messages": [
     {

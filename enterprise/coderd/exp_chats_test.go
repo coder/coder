@@ -67,7 +67,6 @@ func createOpenAIModelConfigForTest(
 
 func TestChatStreamRelay(t *testing.T) {
 	t.Parallel()
-	t.Skip("chatd refactor: remove in PR 4")
 
 	t.Run("RelayMessagePartsAcrossReplicas", func(t *testing.T) {
 		t.Parallel()

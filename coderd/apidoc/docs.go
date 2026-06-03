@@ -959,6 +959,45 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/stream/parts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat parts via WebSockets",
+                "operationId": "stream-chat-parts-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/title/regenerate": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -17418,7 +17457,9 @@ const docTemplate = `{
                 "error",
                 "queue_update",
                 "retry",
-                "action_required"
+                "action_required",
+                "preview_reset",
+                "history_reset"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -17427,17 +17468,28 @@ const docTemplate = `{
                 "ChatStreamEventTypeError",
                 "ChatStreamEventTypeQueueUpdate",
                 "ChatStreamEventTypeRetry",
-                "ChatStreamEventTypeActionRequired"
+                "ChatStreamEventTypeActionRequired",
+                "ChatStreamEventTypePreviewReset",
+                "ChatStreamEventTypeHistoryReset"
             ]
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
             "properties": {
+                "generation_attempt": {
+                    "type": "integer"
+                },
+                "history_version": {
+                    "type": "integer"
+                },
                 "part": {
                     "$ref": "#/definitions/codersdk.ChatMessagePart"
                 },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
+                },
+                "seq": {
+                    "type": "integer"
                 }
             }
         },

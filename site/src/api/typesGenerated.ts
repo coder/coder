@@ -2811,8 +2811,10 @@ export interface ChatStreamEvent {
 export type ChatStreamEventType =
 	| "action_required"
 	| "error"
+	| "history_reset"
 	| "message"
 	| "message_part"
+	| "preview_reset"
 	| "queue_update"
 	| "retry"
 	| "status";
@@ -2820,8 +2822,10 @@ export type ChatStreamEventType =
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
 	"error",
+	"history_reset",
 	"message",
 	"message_part",
+	"preview_reset",
 	"queue_update",
 	"retry",
 	"status",
@@ -2834,6 +2838,9 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 export interface ChatStreamMessagePart {
 	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
+	readonly history_version?: number;
+	readonly generation_attempt?: number;
+	readonly seq?: number;
 }
 
 // From codersdk/chats.go
