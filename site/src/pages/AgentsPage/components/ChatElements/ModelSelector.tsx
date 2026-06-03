@@ -168,7 +168,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 									<CommandGroup
 										key={groupKey}
 									heading={
-										<span className="flex items-center gap-2">
+										<span className="flex items-center gap-2 text-content-disabled">
 											<ProviderIcon provider={provider} className="size-5" />
 											<span>{providerLabel}</span>
 										</span>
