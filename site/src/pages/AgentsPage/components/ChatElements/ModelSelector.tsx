@@ -168,7 +168,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								return (
 									<CommandGroup
 										key={groupKey}
-										className="[&_[cmdk-group-heading]]:text-content-secondary"
+										className="[&_[cmdk-group-heading]]:text-content-secondary [&:not(:first-child)]:border-t [&:not(:first-child)]:border-solid [&:not(:first-child)]:border-border"
 									heading={
 										<span className="text-content-secondary">{providerLabel}</span>
 									}
