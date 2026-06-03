@@ -547,11 +547,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
 	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+	const shouldOverflowPlanningBadge =
+		planModeEnabled && contextUsage !== undefined;
 
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (planModeEnabled) {
+	if (shouldOverflowPlanningBadge) {
 		allBadges.push({ kind: "planning" });
 	}
 	// When workspace data is available, WorkspacePill handles
@@ -1373,6 +1375,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownAlign="center"
 								enableMobileFullWidthDropdown
 							/>
+						)}
+						{planModeEnabled && !shouldOverflowPlanningBadge && (
+							<span
+								data-testid="planning-badge"
+								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+							>
+								<PencilIcon className="size-3" />
+								Planning
+								{onPlanModeToggle && (
+									<BadgeDismissButton
+										onClick={handleDisablePlanMode}
+										ariaLabel="Disable plan mode"
+										isDisabled={isDisabled}
+									/>
+								)}
+							</span>
 						)}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
