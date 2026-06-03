@@ -130,7 +130,7 @@ func chatMessageText(messages []codersdk.ChatMessage, role codersdk.ChatMessageR
 		found = true
 		for _, part := range msg.Content {
 			if part.Type == codersdk.ChatMessagePartTypeText {
-				b.WriteString(part.Text)
+				_, _ = b.WriteString(part.Text)
 			}
 		}
 	}
