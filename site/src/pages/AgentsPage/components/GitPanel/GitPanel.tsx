@@ -1,5 +1,6 @@
 import {
 	CheckIcon,
+	ChevronDownIcon,
 	CircleDotIcon,
 	ColumnsIcon,
 	GitBranchIcon,
@@ -18,7 +19,12 @@ import type {
 	WorkspaceAgentRepoChanges,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { cn } from "#/utils/cn";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
@@ -77,6 +83,120 @@ function repoTabLabel(repoRoot: string): string {
 	const segments = repoRoot.split("/").filter(Boolean);
 	return segments[segments.length - 1] ?? repoRoot;
 }
+
+/** Builds the icon + label for a given view. */
+const viewLabel = (
+	view: GitView,
+	prTab: GitPanelProps["prTab"],
+	prTitle: string | undefined,
+	prState: string | undefined,
+	prDraft: boolean | undefined,
+): { icon: React.ReactNode; text: string } => {
+	if (view.type === "remote") {
+		if (prTab) {
+			return {
+				icon: (
+					<PrStateIcon
+						state={prState}
+						draft={prDraft}
+						className="!size-4 shrink-0"
+					/>
+				),
+				text: prTitle || `PR #${prTab.prNumber}`,
+			};
+		}
+		return {
+			icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+			text: "Branch",
+		};
+	}
+	return {
+		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+		text: `Working ${repoTabLabel(view.repoRoot)}`,
+	};
+};
+
+interface GitViewSelectorProps {
+	view: GitView;
+	setView: (view: GitView) => void;
+	showRemoteTab: boolean;
+	prTab: GitPanelProps["prTab"];
+	prTitle: string | undefined;
+	prState: string | undefined;
+	prDraft: boolean | undefined;
+	localRepos: string[];
+}
+
+const GitViewSelector: FC<GitViewSelectorProps> = ({
+	view,
+	setView,
+	showRemoteTab,
+	prTab,
+	prTitle,
+	prState,
+	prDraft,
+	localRepos,
+}) => {
+	const allViews: GitView[] = [
+		...(showRemoteTab ? [{ type: "remote" } as const] : []),
+		...localRepos.map((r) => ({ type: "local" as const, repoRoot: r })),
+	];
+
+	const active = viewLabel(view, prTab, prTitle, prState, prDraft);
+
+	// Single tab: just show the label inline, no dropdown.
+	if (allViews.length <= 1) {
+		return (
+			<div className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-xs font-medium text-content-primary">
+				{active.icon}
+				<span className="truncate">{active.text}</span>
+			</div>
+		);
+	}
+
+	// Multiple tabs: dropdown selector.
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1.5 text-xs font-medium text-content-primary"
+				>
+					{active.icon}
+					<span className="truncate">{active.text}</span>
+					<ChevronDownIcon className="size-3.5 shrink-0 opacity-60" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="max-w-64">
+				{allViews.map((v) => {
+					const label = viewLabel(v, prTab, prTitle, prState, prDraft);
+					const isActive =
+						v.type === view.type &&
+						(v.type === "remote" ||
+							(v.type === "local" &&
+								view.type === "local" &&
+								v.repoRoot === view.repoRoot));
+					return (
+						<DropdownMenuItem
+							key={v.type === "remote" ? "remote" : v.repoRoot}
+							onClick={() => setView(v)}
+							className={cn(
+								"gap-1.5 text-xs",
+								isActive && "bg-surface-secondary text-content-primary",
+							)}
+						>
+							{label.icon}
+							<span className="truncate">{label.text}</span>
+							{isActive && (
+								<CheckIcon className="ml-auto size-3.5 shrink-0" />
+							)}
+						</DropdownMenuItem>
+					);
+				})}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+};
 
 export const GitPanel: FC<GitPanelProps> = ({
 	prTab,
@@ -195,75 +315,17 @@ export const GitPanel: FC<GitPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
-				{/* Tabs — scrollable when they overflow */}
-				<ScrollArea
-					className="min-w-0 flex-1"
-					orientation="horizontal"
-					scrollBarClassName="h-1.5"
-				>
-					<div className="flex items-center gap-0.5 py-1.5 text-xs">
-						{showRemoteTab && (
-							<Button
-								variant="outline"
-								size="lg"
-								onClick={() => setView({ type: "remote" })}
-								className={cn(
-									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									view.type === "remote" &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-								)}
-							>
-								{prTab ? (
-									<>
-										<PrStateIcon
-											state={prState}
-											draft={prDraft}
-											className="!size-4 shrink-0"
-										/>
-										<span className="truncate">
-											{prTitle || `PR #${prTab.prNumber}`}
-										</span>
-									</>
-								) : (
-									<>
-										<GitBranchIcon className="!size-3.5 shrink-0" />
-										<span className="truncate">Branch</span>
-									</>
-								)}
-							</Button>
-						)}
-						{localRepos.map((repoRoot) => {
-							const isActive =
-								view.type === "local" && view.repoRoot === repoRoot;
-							return (
-								<Button
-									key={repoRoot}
-									variant="outline"
-									size="lg"
-									onClick={() => setView({ type: "local", repoRoot })}
-									className={cn(
-										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-										isActive &&
-											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-									)}
-								>
-									<CircleDotIcon
-										className={cn(
-											"!size-3.5 shrink-0",
-											isActive
-												? "text-content-warning"
-												: "text-content-warning/60",
-										)}
-									/>
-									<span className="truncate">
-										Working{" "}
-										<span className="opacity-50">{repoTabLabel(repoRoot)}</span>
-									</span>
-								</Button>
-							);
-						})}
-					</div>
-				</ScrollArea>
+				{/* Tab selector — dropdown when multiple tabs, inline label when single */}
+				<GitViewSelector
+					view={view}
+					setView={setView}
+					showRemoteTab={showRemoteTab}
+						prTab={prTab}
+					prTitle={prTitle}
+						prState={prState}
+						prDraft={prDraft}
+						localRepos={localRepos}
+					/>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1 py-1.5">
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
