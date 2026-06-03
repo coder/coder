@@ -2065,6 +2065,40 @@ export const GenericToolFailedNoResult: Story = {
 	},
 };
 
+// Long, unwrappable content used to verify that code/JSON/file tool
+// previews scroll horizontally inside their own bounds instead of
+// pushing the timeline wider than the viewport.
+const longCodeLine =
+	'export const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };';
+
+export const ReadFileLongLine: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+	},
+};
+
+export const GenericToolLongOutput: Story = {
+	args: {
+		name: "some_custom_tool",
+		args: { query: "lookup" },
+		result: { value: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /some_custom_tool/i }),
+		);
+	},
+};
+
 export const SubagentWaitTimedOut: Story = {
 	args: {
 		name: "wait_agent",

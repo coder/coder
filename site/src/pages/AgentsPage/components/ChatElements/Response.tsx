@@ -10,6 +10,7 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
@@ -86,8 +87,10 @@ type FileViewerThemeType = keyof typeof fileViewerTheme;
 const markdownFileViewerCSS = [
 	":host { background-color: transparent !important; }",
 	"pre, [data-code], [data-line], [data-diffs-header] { background-color: transparent !important; }",
-	"[data-code] { padding-block: 8px !important; overflow: auto clip !important; scrollbar-width: none !important; }",
-	"[data-code]::-webkit-scrollbar { width: 0 !important; height: 0 !important; }",
+	// The block-level horizontal scroll is owned by the wrapping
+	// ScrollArea, so let [data-code] size to its content instead of
+	// scrolling (and hiding) inside its own box.
+	"[data-code] { padding-block: 8px !important; overflow: visible !important; }",
 	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
 	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",
 	"[data-line] { min-height: 20px !important; padding-inline: 12px !important; }",
@@ -216,7 +219,12 @@ const createComponents = (
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
-						<div className="my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
+						<ScrollArea
+							orientation="both"
+							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
+							scrollBarClassName="w-1.5"
+							horizontalScrollBarClassName="h-1.5"
+						>
 							<FileViewer
 								file={{
 									name: `block.${lang}`,
@@ -234,7 +242,7 @@ const createComponents = (
 								}}
 								style={markdownFileViewerStyle}
 							/>
-						</div>
+						</ScrollArea>
 					);
 				}
 			}

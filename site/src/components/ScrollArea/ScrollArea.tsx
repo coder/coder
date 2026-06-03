@@ -9,6 +9,14 @@ import { cn } from "#/utils/cn";
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
+	/**
+	 * Class applied to the horizontal scrollbar when orientation is
+	 * "horizontal" or "both". Use this to size the horizontal bar
+	 * thickness (e.g. "h-1.5") without affecting the vertical bar,
+	 * whose thickness is set via a width class in scrollBarClassName.
+	 * Falls back to scrollBarClassName when omitted.
+	 */
+	horizontalScrollBarClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
@@ -18,6 +26,7 @@ interface ScrollAreaProps
 export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
 	scrollBarClassName,
+	horizontalScrollBarClassName,
 	viewportClassName,
 	viewportTabIndex,
 	orientation = "vertical",
@@ -64,7 +73,10 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			{(orientation === "horizontal" || orientation === "both") && (
 				<ScrollBar
 					orientation="horizontal"
-					className={cn("z-10", scrollBarClassName)}
+					className={cn(
+						"z-10",
+						horizontalScrollBarClassName ?? scrollBarClassName,
+					)}
 				/>
 			)}
 			<ScrollAreaPrimitive.Corner />

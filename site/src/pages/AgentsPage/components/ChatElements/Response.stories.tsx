@@ -184,6 +184,25 @@ export const SingleLineFencedBlock: Story = {
 	},
 };
 
+const longLineCodeBlockMarkdown = [
+	"```ts",
+	'const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };',
+	"```",
+	"",
+].join("\n");
+
+// A fenced block whose single line is far wider than the container.
+// The block must scroll horizontally within its own bounds instead of
+// widening the surrounding message.
+export const LongLineFencedBlock: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+	},
+};
+
 export const MarkdownAndLinksLight: Story = {
 	globals: {
 		theme: "light",
