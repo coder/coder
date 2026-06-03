@@ -1523,8 +1523,8 @@
 							"path": "./reference/api/aiproviders.md"
 						},
 						{
-							"title": "Workspace Agents",
-							"description": "REST endpoints for the workspace agent daemon (`coder_agent`). Not the AI Coder Agents API \u2014 see Chats.",
+							"title": "Agents",
+							"description": "REST endpoints for the workspace agent daemon (`coder_agent`). Not the AI Coder Agents API — see Chats.",
 							"path": "./reference/api/agents.md"
 						},
 						{
