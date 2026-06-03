@@ -3,6 +3,7 @@ package chatprovider
 import (
 	"context"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strings"
 
@@ -184,6 +185,22 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 		return ""
 	}
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
+}
+
+// ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
+func ProviderBaseURLHostname(baseURL string) string {
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return ""
+	}
+	parsed, err := neturl.Parse(baseURL)
+	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
+		parsed, err = neturl.Parse("https://" + baseURL)
+	}
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
 }
 
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.

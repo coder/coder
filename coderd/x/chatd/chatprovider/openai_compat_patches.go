@@ -154,7 +154,7 @@ func shouldAddGoogleOpenAICompatThoughtSignatures(baseURL string, modelID string
 	if err != nil {
 		return false
 	}
-	host := strings.ToLower(parsed.Hostname())
+	host := ProviderBaseURLHostname(baseURL)
 	path := strings.ToLower(parsed.EscapedPath())
 	if host == "generativelanguage.googleapis.com" && strings.Contains(path, "/openai") {
 		return true

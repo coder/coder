@@ -6794,6 +6794,16 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+func validateChatModelConfigAIProvider(aiProvider database.AIProvider, model string) *codersdk.Response {
+	if err := chatd.ValidateAIGatewayProviderModel(aiProvider, model); err != nil {
+		return &codersdk.Response{
+			Message: "AI provider type openai does not support slash-namespaced models.",
+			Detail:  err.Error(),
+		}
+	}
+	return nil
+}
+
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -6836,6 +6846,11 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Model is required.",
 		})
+		return
+	}
+
+	if resp := validateChatModelConfigAIProvider(aiProvider, model); resp != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
 
@@ -6892,6 +6907,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 	}
 
+	var aiProviderValidationResp *codersdk.Response
 	var inserted database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
 		//nolint:gocritic // The route already authorized chat model config updates.
@@ -6906,6 +6922,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return errChatProviderNotConfigured
 		}
 		insertParams.Provider = string(lockedAIProvider.Type)
+		if resp := validateChatModelConfigAIProvider(lockedAIProvider, insertParams.Model); resp != nil {
+			aiProviderValidationResp = resp
+			return errChatModelConfigInvalidAIProvider
+		}
 
 		insertAsDefault := isDefault
 		if !insertAsDefault {
@@ -6946,6 +6966,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}, nil)
 	if err != nil {
 		switch {
+		case xerrors.Is(err, errChatModelConfigInvalidAIProvider):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *aiProviderValidationResp)
+			return
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
@@ -7108,9 +7131,11 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 
+	revalidateAIProvider := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
+	var aiProviderValidationResp *codersdk.Response
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
-		if updateParams.AIProviderID.Valid && req.AIProviderID != nil {
+		if revalidateAIProvider {
 			//nolint:gocritic // The route already authorized chat model config updates.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
@@ -7123,6 +7148,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				return errChatProviderNotConfigured
 			}
 			updateParams.Provider = string(aiProvider.Type)
+			if resp := validateChatModelConfigAIProvider(aiProvider, updateParams.Model); resp != nil {
+				aiProviderValidationResp = resp
+				return errChatModelConfigInvalidAIProvider
+			}
 		}
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
@@ -7166,6 +7195,9 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}, nil)
 	if err != nil {
 		switch {
+		case xerrors.Is(err, errChatModelConfigInvalidAIProvider):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *aiProviderValidationResp)
+			return
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
@@ -7507,8 +7539,9 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 }
 
 var (
-	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
-	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+	errChatModelConfigNotFound          = xerrors.New("chat model config not found")
+	errChatProviderNotConfigured        = xerrors.New("chat provider is not configured")
+	errChatModelConfigInvalidAIProvider = xerrors.New("invalid AI provider for chat model config")
 )
 
 // ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
