@@ -1,5 +1,7 @@
 # Chats
 
+Programmatic API for Coder AI Agents (the user-facing "Coder Agents" / "Chats" product). Experimental. Use these endpoints to create, list, and manage AI coding agent sessions. For background and migration from the Tasks API, see the AI Coder docs.
+
 ## List chats
 
 ### Code samples
