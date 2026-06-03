@@ -827,6 +827,7 @@ func (api *API) getUserChatProviderAvailability(
 		enabledProviderIDs:   make(map[uuid.UUID]struct{}, len(enabledProviders)),
 		providerStatusByID:   make(map[uuid.UUID]chatprovider.ProviderAvailability, len(enabledProviders)),
 	}
+	normalizedProviderByID := make(map[uuid.UUID]string, len(configuredProviders))
 	for _, configuredProvider := range configuredProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
 		if normalizedProvider != "" {
@@ -834,6 +835,9 @@ func (api *API) getUserChatProviderAvailability(
 		}
 		if configuredProvider.ProviderID != uuid.Nil {
 			availability.enabledProviderIDs[configuredProvider.ProviderID] = struct{}{}
+			if normalizedProvider != "" {
+				normalizedProviderByID[configuredProvider.ProviderID] = normalizedProvider
+			}
 		}
 	}
 	userKeys := []chatprovider.UserProviderKey{}
@@ -884,9 +888,18 @@ func (api *API) getUserChatProviderAvailability(
 		mergeProviderStatus(providerStatusByType, normalizedProvider, status)
 	}
 
+	modelProviderType := func(model database.ChatModelConfig) string {
+		if model.AIProviderID.Valid {
+			if providerType := normalizedProviderByID[model.AIProviderID.UUID]; providerType != "" {
+				return providerType
+			}
+		}
+		return model.Provider
+	}
+
 	modelStatusByType := make(map[string]chatprovider.ProviderAvailability, len(enabledModels))
 	for _, model := range enabledModels {
-		normalizedProvider := chatprovider.NormalizeProvider(model.Provider)
+		normalizedProvider := chatprovider.NormalizeProvider(modelProviderType(model))
 		if normalizedProvider == "" {
 			continue
 		}
@@ -907,7 +920,8 @@ func (api *API) getUserChatProviderAvailability(
 	}
 
 	for _, model := range enabledModels {
-		normalizedProvider := chatprovider.NormalizeProvider(model.Provider)
+		providerType := modelProviderType(model)
+		normalizedProvider := chatprovider.NormalizeProvider(providerType)
 		if model.AIProviderID.Valid {
 			status, ok := availability.providerStatusByID[model.AIProviderID.UUID]
 			if !ok {
@@ -918,7 +932,7 @@ func (api *API) getUserChatProviderAvailability(
 			}
 		}
 		availability.configuredModels = append(availability.configuredModels, chatprovider.ConfiguredModel{
-			Provider:    model.Provider,
+			Provider:    providerType,
 			Model:       model.Model,
 			DisplayName: model.DisplayName,
 		})
@@ -6516,19 +6530,19 @@ func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
 	return uuid.Parse(chi.URLParam(r, "aiProvider"))
 }
 
-func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderSummary {
-	displayName := provider.Name
-	if provider.DisplayName.Valid && provider.DisplayName.String != "" {
-		displayName = provider.DisplayName.String
+func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProviderSummary, error) {
+	effectiveType, err := db2sdk.EffectiveAIProviderType(provider)
+	if err != nil {
+		return codersdk.AIProviderSummary{}, xerrors.Errorf("effective AI provider type: %w", err)
 	}
 	return codersdk.AIProviderSummary{
 		ID:          provider.ID,
-		Type:        codersdk.AIProviderType(provider.Type),
+		Type:        effectiveType,
 		Name:        provider.Name,
-		DisplayName: displayName,
+		DisplayName: db2sdk.AIProviderDisplayName(provider, effectiveType),
 		Enabled:     provider.Enabled,
 		Deleted:     provider.Deleted,
-	}
+	}, nil
 }
 
 func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Request) {
@@ -6583,8 +6597,17 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	for _, provider := range visibleProviders {
 		_, hasUserKey := keysByProviderID[provider.ID]
 		_, hasProviderKey := providerKeysByProviderID[provider.ID]
+		providerSummary, err := convertAIProviderSummary(provider)
+		if err != nil {
+			api.Logger.Error(ctx, "convert AI provider summary", slog.F("provider_id", provider.ID), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "AI provider settings could not be parsed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		configs = append(configs, codersdk.UserAIProviderKeyConfig{
-			Provider:          convertAIProviderSummary(provider),
+			Provider:          providerSummary,
 			HasUserAPIKey:     hasUserKey,
 			HasProviderAPIKey: hasProviderKey,
 			BYOKEnabled:       byokEnabled,
@@ -6661,8 +6684,17 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update user AI provider key."})
 		return
 	}
+	providerSummary, err := convertAIProviderSummary(provider)
+	if err != nil {
+		api.Logger.Error(ctx, "convert AI provider summary", slog.F("provider_id", provider.ID), slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "AI provider settings could not be parsed.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
-		Provider:          convertAIProviderSummary(provider),
+		Provider:          providerSummary,
 		HasUserAPIKey:     true,
 		HasProviderAPIKey: len(providerKeys) > 0,
 		BYOKEnabled:       true,
@@ -6703,12 +6735,12 @@ func (api *API) configuredProvidersFromAIProviders(ctx context.Context, provider
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		configuredProviders = append(configuredProviders, api.configuredProviderFromAIProviderKeys(provider, keysByProviderID[provider.ID]))
+		configuredProviders = append(configuredProviders, api.configuredProviderFromAIProviderKeys(ctx, provider, keysByProviderID[provider.ID]))
 	}
 	return configuredProviders, nil
 }
 
-func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvider, keys []database.AIProviderKey) chatprovider.ConfiguredProvider {
+func (api *API) configuredProviderFromAIProviderKeys(ctx context.Context, provider database.AIProvider, keys []database.AIProviderKey) chatprovider.ConfiguredProvider {
 	apiKey := ""
 	for _, key := range keys {
 		if key.APIKey != "" {
@@ -6716,9 +6748,10 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 			break
 		}
 	}
+	effectiveType := api.effectiveAIProviderTypeOrRaw(ctx, provider)
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   string(provider.Type),
+		Provider:                   string(effectiveType),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -6786,12 +6819,68 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	providerTypesByID, err := effectiveAIProviderTypesByID(ctx, api.Database, configs, api.Logger)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load AI providers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
 	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
+		provider := config.Provider
+		if config.AIProviderID.Valid {
+			if effectiveType, ok := providerTypesByID[config.AIProviderID.UUID]; ok {
+				provider = string(effectiveType)
+			}
+		}
+		resp = append(resp, convertChatModelConfigWithProvider(config, provider))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func effectiveAIProviderTypesByID(
+	ctx context.Context,
+	db database.Store,
+	configs []database.ChatModelConfig,
+	logger slog.Logger,
+) (map[uuid.UUID]codersdk.AIProviderType, error) {
+	providerIDs := make(map[uuid.UUID]struct{})
+	for _, config := range configs {
+		if config.AIProviderID.Valid {
+			providerIDs[config.AIProviderID.UUID] = struct{}{}
+		}
+	}
+	providerTypesByID := make(map[uuid.UUID]codersdk.AIProviderType, len(providerIDs))
+	for providerID := range providerIDs {
+		//nolint:gocritic // Chatd context is required to include provider metadata for model config presentation.
+		provider, err := db.GetAIProviderByID(dbauthz.AsChatd(ctx), providerID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, xerrors.Errorf("get AI provider %s: %w", providerID, err)
+		}
+		effectiveType, err := db2sdk.EffectiveAIProviderType(provider)
+		if err != nil {
+			logger.Warn(ctx, "parse AI provider settings for chat model config", slog.F("provider_id", providerID), slog.Error(err))
+			continue
+		}
+		providerTypesByID[provider.ID] = effectiveType
+	}
+	return providerTypesByID, nil
+}
+
+func (api *API) effectiveAIProviderTypeOrRaw(ctx context.Context, provider database.AIProvider) codersdk.AIProviderType {
+	effectiveType, err := db2sdk.EffectiveAIProviderType(provider)
+	if err != nil {
+		api.Logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		return codersdk.AIProviderType(provider.Type)
+	}
+	return effectiveType
 }
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -6828,7 +6917,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 		return
 	}
-	provider := string(aiProvider.Type)
+	provider := string(api.effectiveAIProviderTypeOrRaw(ctx, aiProvider))
 	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
 
 	model := strings.TrimSpace(req.Model)
@@ -6905,7 +6994,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderNotConfigured
 		}
-		insertParams.Provider = string(lockedAIProvider.Type)
+		insertParams.Provider = string(api.effectiveAIProviderTypeOrRaw(ctx, lockedAIProvider))
 
 		insertAsDefault := isDefault
 		if !insertAsDefault {
@@ -7003,20 +7092,40 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	provider := existing.Provider
+	aiProviderID := existing.AIProviderID
+	linkedProviderMissing := false
+	if req.AIProviderID == nil && existing.AIProviderID.Valid {
+		//nolint:gocritic // The route already authorized chat model config updates.
+		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), existing.AIProviderID.UUID)
+		if err != nil {
+			linkedProviderMissing = true
+			if !httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get AI provider.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		} else {
+			provider = string(api.effectiveAIProviderTypeOrRaw(ctx, aiProvider))
+		}
+	}
+
 	if strings.TrimSpace(req.Provider) != "" && req.AIProviderID == nil {
 		requestedProvider := chatprovider.NormalizeProvider(req.Provider)
 		if requestedProvider == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid provider."})
 			return
 		}
-		if requestedProvider != existing.Provider {
+		if linkedProviderMissing {
+			provider = requestedProvider
+		} else if requestedProvider != chatprovider.NormalizeProvider(provider) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required when updating provider."})
 			return
 		}
 	}
 
-	provider := existing.Provider
-	aiProviderID := existing.AIProviderID
 	if req.AIProviderID != nil {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
@@ -7035,7 +7144,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 			return
 		}
-		provider = string(aiProvider.Type)
+		provider = string(api.effectiveAIProviderTypeOrRaw(ctx, aiProvider))
 		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
 	}
 
@@ -7122,7 +7231,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			if !aiProvider.Enabled {
 				return errChatProviderNotConfigured
 			}
-			updateParams.Provider = string(aiProvider.Type)
+			updateParams.Provider = string(api.effectiveAIProviderTypeOrRaw(ctx, aiProvider))
 		}
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
@@ -7365,13 +7474,17 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+	return convertChatModelConfigWithProvider(config, config.Provider)
+}
+
+func convertChatModelConfigWithProvider(config database.ChatModelConfig, provider string) codersdk.ChatModelConfig {
 	var aiProviderID *uuid.UUID
 	if config.AIProviderID.Valid {
 		aiProviderID = &config.AIProviderID.UUID
 	}
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
-		Provider:             config.Provider,
+		Provider:             provider,
 		AIProviderID:         aiProviderID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,

@@ -50,27 +50,58 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
 func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
+	s, err := AIProviderSettings(row.Settings)
+	if err != nil {
+		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
 	}
+	effectiveType := resolveAIProviderType(row.Type, s)
 	out := codersdk.AIProvider{
 		ID:          row.ID,
-		Type:        codersdk.AIProviderType(row.Type),
+		Type:        effectiveType,
 		Name:        row.Name,
-		DisplayName: display,
+		DisplayName: AIProviderDisplayName(row, effectiveType),
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
-	s, err := AIProviderSettings(row.Settings)
-	if err != nil {
-		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
-	}
 	out.Settings = redactAIProviderSettings(s)
 	return out, nil
+}
+
+// EffectiveAIProviderType reports the provider identity callers should
+// use for routing and presentation.
+func EffectiveAIProviderType(row database.AIProvider) (codersdk.AIProviderType, error) {
+	s, err := AIProviderSettings(row.Settings)
+	if err != nil {
+		return "", err
+	}
+	return resolveAIProviderType(row.Type, s), nil
+}
+
+func resolveAIProviderType(
+	providerType database.AIProviderType,
+	settings codersdk.AIProviderSettings,
+) codersdk.AIProviderType {
+	if providerType == database.AiProviderTypeAnthropic && settings.Bedrock != nil {
+		return codersdk.AIProviderTypeBedrock
+	}
+	return codersdk.AIProviderType(providerType)
+}
+
+// AIProviderDisplayName uses effectiveType to override generic names for Bedrock providers.
+func AIProviderDisplayName(row database.AIProvider, effectiveType codersdk.AIProviderType) string {
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	if effectiveType == codersdk.AIProviderTypeBedrock &&
+		(strings.EqualFold(display, string(codersdk.AIProviderTypeAnthropic)) ||
+			strings.EqualFold(display, string(codersdk.AIProviderTypeBedrock))) {
+		return codersdk.AIProviderDisplayNameBedrock
+	}
+	return display
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

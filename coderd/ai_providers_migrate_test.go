@@ -145,8 +145,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Bedrock fields without an Anthropic key produce a Bedrock-
-		// authenticated Anthropic provider with no bearer keys.
+		// Bedrock fields without an Anthropic key produce a Bedrock
+		// provider with no bearer keys.
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
 				Region:          serpent.String("us-west-2"),
@@ -160,7 +160,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
+		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "us-west-2")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-haiku")
@@ -220,6 +220,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
 		require.True(t, row.Settings.Valid, "Bedrock metadata must produce a settings blob")
 		require.Contains(t, row.Settings.String, "us-east-1")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
@@ -228,7 +229,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, keys, "Bedrock provider must not seed bearer keys")
 	})
 
-	t.Run("BedrockOnlyAnthropic", func(t *testing.T) {
+	t.Run("BedrockOnlyProvider", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -244,11 +245,11 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "us-east-1")
 		require.Contains(t, row.Settings.String, "AKIAONLY")
 		require.Contains(t, row.Settings.String, "secretonly")
-		// Bedrock-only Anthropic has zero ai_provider_keys: it
-		// authenticates via the settings blob.
+		// Bedrock authenticates via the settings blob.
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
 		require.Empty(t, keys)
@@ -371,6 +372,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "bedrock-anthropic")
 		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "AKIA-indexed")
 		require.Contains(t, row.Settings.String, "indexed-secret")
 		// Crucially, no ai_provider_keys rows for Bedrock providers.

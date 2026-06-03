@@ -188,6 +188,11 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	providerType := database.AIProviderType(req.Type)
+	if providerType == database.AiProviderTypeAnthropic && req.Settings.Bedrock != nil {
+		providerType = database.AiProviderTypeBedrock
+	}
+
 	var (
 		row  database.AIProvider
 		keys []database.AIProviderKey
@@ -196,7 +201,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		var txErr error
 		row, txErr = tx.InsertAIProvider(ctx, database.InsertAIProviderParams{
 			ID:          uuid.New(),
-			Type:        database.AIProviderType(req.Type),
+			Type:        providerType,
 			Name:        req.Name,
 			DisplayName: sql.NullString{String: req.DisplayName, Valid: req.DisplayName != ""},
 			Enabled:     req.Enabled,

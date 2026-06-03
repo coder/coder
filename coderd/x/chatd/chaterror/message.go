@@ -130,7 +130,7 @@ func providerDisplayName(provider string) string {
 	case "azure":
 		return "Azure OpenAI"
 	case "bedrock":
-		return "AWS Bedrock"
+		return codersdk.AIProviderDisplayNameBedrock
 	case "google":
 		return "Google"
 	case "openai":

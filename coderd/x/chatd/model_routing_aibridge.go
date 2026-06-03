@@ -131,7 +131,7 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(route.Provider.Type)
+	config := fantasyConfigForAIBridge(bestEffortAIProviderType(route.Provider))
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -225,7 +225,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type),
+		aiGatewayRequestFormatForProviderType(bestEffortAIProviderType(provider)),
 	)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -242,7 +242,7 @@ func (p *Server) resolveAIGatewayModelRouteForConfig(
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, bestEffortAIProviderTypeString(provider))
 }
 
 func (p *Server) resolveAIGatewayModelRouteForProviderType(
@@ -258,7 +258,7 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 		ctx,
 		ownerID,
 		provider,
-		chatprovider.NormalizeProvider(providerType),
+		bestEffortAIProviderTypeString(provider),
 	)
 }
 
@@ -289,7 +289,14 @@ func (p *Server) aiProviderForProviderType(
 		if !provider.Enabled {
 			continue
 		}
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
+		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderType)
+		if err != nil || !matches {
+			continue
+		}
+		return provider, nil
+	}
+	for _, provider := range providers {
+		if !provider.Enabled || !aiProviderMatchesRawType(provider, normalizedProviderType) {
 			continue
 		}
 		return provider, nil

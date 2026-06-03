@@ -336,6 +336,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 							(ps) =>
 								ps.key === modelConfigProviderKey(modelConfig, providerStates),
 						);
+						const displayProvider =
+							providerState?.provider ?? modelConfig.provider;
 						const duplicateUnavailable = Boolean(
 							providerState && !canManageProviderModels(providerState),
 						);
@@ -355,7 +357,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left"
 								>
 									<ProviderIcon
-										provider={modelConfig.provider}
+										provider={displayProvider}
 										className="size-8 shrink-0"
 									/>
 									<div className="min-w-0 flex-1">

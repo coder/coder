@@ -160,7 +160,13 @@ func enabledProviderContainsName(
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
+		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderName)
+		if err == nil && matches {
+			return true
+		}
+	}
+	for _, provider := range providers {
+		if aiProviderMatchesRawType(provider, normalizedProviderName) {
 			return true
 		}
 	}
@@ -506,7 +512,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
 		}
-		providerName := chatprovider.NormalizeProvider(string(provider.Type))
+		providerName := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(provider))
 		if providerName == "" {
 			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
 		}

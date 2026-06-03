@@ -23,6 +23,92 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+func TestAIProviderEffectiveTypeAndDisplayName(t *testing.T) {
+	t.Parallel()
+
+	bedrockSettings := marshalAIProviderSettings(t, codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+
+	cases := []struct {
+		name        string
+		row         database.AIProvider
+		wantType    codersdk.AIProviderType
+		wantDisplay string
+	}{
+		{
+			name: "anthropic without bedrock stays anthropic",
+			row: database.AIProvider{
+				Type: database.AiProviderTypeAnthropic,
+				Name: "anthropic",
+			},
+			wantType:    codersdk.AIProviderTypeAnthropic,
+			wantDisplay: "anthropic",
+		},
+		{
+			name: "anthropic with bedrock promotes to bedrock",
+			row: database.AIProvider{
+				Type:     database.AiProviderTypeAnthropic,
+				Name:     "anthropic",
+				Settings: bedrockSettings,
+			},
+			wantType:    codersdk.AIProviderTypeBedrock,
+			wantDisplay: codersdk.AIProviderDisplayNameBedrock,
+		},
+		{
+			name: "bedrock type passes through",
+			row: database.AIProvider{
+				Type:        database.AiProviderTypeBedrock,
+				Name:        "bedrock",
+				DisplayName: sql.NullString{String: "bedrock", Valid: true},
+				Settings:    bedrockSettings,
+			},
+			wantType:    codersdk.AIProviderTypeBedrock,
+			wantDisplay: codersdk.AIProviderDisplayNameBedrock,
+		},
+		{
+			name: "other types ignore bedrock settings",
+			row: database.AIProvider{
+				Type:     database.AiProviderTypeOpenai,
+				Name:     "openai",
+				Settings: bedrockSettings,
+			},
+			wantType:    codersdk.AIProviderTypeOpenAI,
+			wantDisplay: "openai",
+		},
+		{
+			name: "custom bedrock display name is preserved",
+			row: database.AIProvider{
+				Type:        database.AiProviderTypeAnthropic,
+				Name:        "anthropic",
+				DisplayName: sql.NullString{String: "Claude in AWS", Valid: true},
+				Settings:    bedrockSettings,
+			},
+			wantType:    codersdk.AIProviderTypeBedrock,
+			wantDisplay: "Claude in AWS",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotType, err := db2sdk.EffectiveAIProviderType(tt.row)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantType, gotType)
+			require.Equal(t, tt.wantDisplay, db2sdk.AIProviderDisplayName(tt.row, gotType))
+		})
+	}
+}
+
+func marshalAIProviderSettings(t *testing.T, settings codersdk.AIProviderSettings) sql.NullString {
+	t.Helper()
+
+	raw, err := json.Marshal(settings)
+	require.NoError(t, err)
+	return sql.NullString{String: string(raw), Valid: true}
+}
+
 func TestProvisionerJobStatus(t *testing.T) {
 	t.Parallel()
 

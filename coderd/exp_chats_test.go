@@ -3494,6 +3494,68 @@ func TestListChatModelConfigs(t *testing.T) {
 		})
 	})
 
+	t.Run("LinkedBedrockProviderUsesBedrockIdentity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "anthropic-bedrock-" + uuid.NewString(),
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeBedrock, provider.Type)
+
+		contextLimit := int64(4096)
+		createdConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			AIProviderID: &provider.ID,
+			Model:        "anthropic.claude-3-5-haiku",
+			DisplayName:  "Created Claude on Bedrock",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", createdConfig.Provider)
+
+		storedCreatedConfig, err := db.GetChatModelConfigByID(ctx, createdConfig.ID)
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", storedCreatedConfig.Provider)
+
+		updatedConfig, err := client.UpdateChatModelConfig(ctx, createdConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "Updated Claude on Bedrock",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", updatedConfig.Provider)
+
+		storedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:             "anthropic",
+			AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:                "anthropic.claude-3-5-sonnet",
+			DisplayName:          "Claude on Bedrock",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+		})
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, config := range configs {
+			if config.ID == storedConfig.ID {
+				require.Equal(t, "bedrock", config.Provider)
+				return
+			}
+		}
+		t.Fatal("bedrock model config not found")
+	})
+
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 

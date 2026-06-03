@@ -8660,7 +8660,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   string(provider.Type),
+		Provider:                   bestEffortAIProviderTypeString(provider),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -8763,16 +8763,34 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
 	}
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
-			continue
-		}
+	keysForProvider := func(provider database.AIProvider, providerKeysType string) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
 		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
 		if err != nil {
 			return chatprovider.ProviderAPIKeys{}, nil, err
 		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
+		if userCanUseProviderKeys(keys, providerKeysType) {
 			return keys, &provider, nil
+		}
+		return chatprovider.ProviderAPIKeys{}, nil, nil
+	}
+	for _, provider := range providers {
+		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderType)
+		if err != nil || !matches {
+			continue
+		}
+		keys, matchedProvider, err := keysForProvider(provider, normalizedProviderType)
+		if err != nil || matchedProvider != nil {
+			return keys, matchedProvider, err
+		}
+	}
+	for _, provider := range providers {
+		if !aiProviderMatchesRawType(provider, normalizedProviderType) {
+			continue
+		}
+		providerKeysType := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(provider))
+		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
+		if err != nil || matchedProvider != nil {
+			return keys, matchedProvider, err
 		}
 	}
 	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)

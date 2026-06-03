@@ -126,8 +126,12 @@ func SeedAIProvidersFromEnv(
 				for _, k := range existingKeyRows {
 					existingKeys = append(existingKeys, k.APIKey)
 				}
+				effectiveType, err := db2sdk.EffectiveAIProviderType(existing)
+				if err != nil {
+					return xerrors.Errorf("resolve existing provider type for %q: %w", dp.Name, err)
+				}
 				existingDP := desiredAIProvider{
-					Type:    existing.Type,
+					Type:    database.AIProviderType(effectiveType),
 					BaseURL: existing.BaseUrl,
 					Bedrock: existingSettings.Bedrock,
 					Keys:    existingKeys,
@@ -139,11 +143,15 @@ func SeedAIProvidersFromEnv(
 				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name)
 			}
 
+			displayName := dp.Name
+			if dp.DisplayName != "" {
+				displayName = dp.DisplayName
+			}
 			row, err := tx.InsertAIProvider(sysCtx, database.InsertAIProviderParams{
 				ID:            uuid.New(),
 				Type:          dp.Type,
 				Name:          dp.Name,
-				DisplayName:   sql.NullString{String: dp.Name, Valid: true},
+				DisplayName:   sql.NullString{String: displayName, Valid: true},
 				Enabled:       true,
 				BaseUrl:       dp.BaseURL,
 				Settings:      settings,
@@ -221,8 +229,9 @@ type canonicalAIProvider struct {
 // desiredAIProvider is a normalized provider description sourced from
 // environment configuration that we want to materialize as a row.
 type desiredAIProvider struct {
-	Name string
-	Type database.AIProviderType
+	Name        string
+	DisplayName string
+	Type        database.AIProviderType
 	// BaseURL is the upstream provider's HTTP endpoint.
 	BaseURL string
 	// Keys is the list of API keys to seed into ai_provider_keys for
@@ -310,11 +319,8 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		addLegacy(aibridge.ProviderOpenAI, dp)
 	}
 
-	// Legacy Anthropic + Bedrock. Anthropic is enabled if either an
-	// Anthropic key OR any Bedrock setting is explicitly configured.
-	// Detection goes through AIProviderBedrockSettings.IsConfigured()
-	// so the legacy and indexed paths agree on what counts as a
-	// Bedrock provider.
+	// Legacy Anthropic + Bedrock. The legacy route name stays
+	// "anthropic" for backward compatibility.
 	bedrock := codersdk.NewAIProviderBedrockSettings(
 		cfg.LegacyBedrock.Region.String(),
 		cfg.LegacyBedrock.AccessKey.String(),
@@ -337,6 +343,8 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			}
 			// Bedrock-only deployments use CODER_AIBRIDGE_BEDROCK_BASE_URL
 			// for custom VPC, FIPS, or proxy endpoints.
+			dp.Type = database.AiProviderTypeBedrock
+			dp.DisplayName = codersdk.AIProviderDisplayNameBedrock
 			dp.BaseURL = cfg.LegacyBedrock.BaseURL.String()
 			dp.Bedrock = &bedrock
 		} else {
@@ -404,6 +412,9 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				// the runtime derives the endpoint from the region.
 				dp.BaseURL = p.BedrockBaseURL
 			}
+		}
+		if isBedrock {
+			dp.Type = database.AiProviderTypeBedrock
 		}
 		// Non-Bedrock, non-Copilot providers carry their bearer keys in
 		// ai_provider_keys. Bedrock providers authenticate via the

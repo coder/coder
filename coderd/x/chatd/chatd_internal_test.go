@@ -202,6 +202,43 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
 }
 
+func TestResolveDirectModelRouteForProviderTypeFallsBackToRawTypeForBedrock(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	rawSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+	provider := database.AIProvider{
+		ID:       providerID,
+		Type:     database.AiProviderTypeAnthropic,
+		Enabled:  true,
+		Settings: sql.NullString{String: string(rawSettings), Valid: true},
+	}
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{provider}, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
+
+	server := &Server{db: db}
+	route, err := server.resolveDirectModelRouteForProviderType(
+		ctx,
+		ownerID,
+		chattool.ComputerUseProviderAnthropic,
+	)
+	require.NoError(t, err)
+
+	providerHint, err := route.providerHint()
+	require.NoError(t, err)
+	require.Equal(t, "bedrock", providerHint)
+	require.True(t, route.directProviderKeys().HasProvider("bedrock"))
+}
+
 func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
 	t.Parallel()
 
