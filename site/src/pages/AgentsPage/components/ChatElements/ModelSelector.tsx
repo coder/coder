@@ -198,11 +198,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 												className={cn("cursor-pointer py-1.5 text-xs", isSelected && "bg-surface-secondary text-content-primary")}
 											>
 												<span className="flex flex-1 items-center justify-between gap-2">
-													<span className="truncate">
-														{option.displayName}
-														{contextInfo && (
-															<span className="text-xs text-content-secondary">
-																{" "}({contextInfo})
+													<span className="flex flex-col">
+														<span className="truncate">
+															{option.displayName}
+														</span>
+														{isSelected && contextInfo && (
+															<span className="text-2xs text-content-secondary">
+																{contextInfo} context
 															</span>
 														)}
 													</span>
