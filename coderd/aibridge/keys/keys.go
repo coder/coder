@@ -1,4 +1,4 @@
-package aigatewaykey
+package keys
 
 import (
 	"github.com/google/uuid"
@@ -19,12 +19,18 @@ const (
 	KeyLength = KeyPrefixLength + privateSuffixLength
 )
 
-// New generates an AI Gateway Coderd key. Returns InsertParams ready
-// for the database query.
+// New generates an AI Gateway key used for authenticating standalone replicas.
+// Returns InsertParams ready for the database query.
 func New(name string) (database.InsertAIGatewayKeyParams, string, error) {
 	secret, hashed, err := apikey.GenerateSecret(KeyLength)
 	if err != nil {
 		return database.InsertAIGatewayKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
+	}
+	if len(secret) != KeyLength {
+		return database.InsertAIGatewayKeyParams{}, "", xerrors.Errorf("generated secret has unexpected length: got %d, want %d", len(secret), KeyLength)
+	}
+	if KeyLength < KeyPrefixLength {
+		return database.InsertAIGatewayKeyParams{}, "", xerrors.Errorf("KeyLength (%d) must be >= KeyPrefixLength (%d)", KeyLength, KeyPrefixLength)
 	}
 	visiblePrefix := secret[:KeyPrefixLength]
 

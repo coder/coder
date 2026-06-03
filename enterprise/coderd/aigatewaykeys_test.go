@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,8 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/aigatewaykey"
+	aibridgekeys "github.com/coder/coder/v2/coderd/aibridge/keys"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,8 +48,8 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, created.ID)
 		require.Equal(t, name, created.Name)
-		require.Len(t, created.KeyPrefix, aigatewaykey.KeyPrefixLength)
-		require.Len(t, created.Key, aigatewaykey.KeyLength)
+		require.Len(t, created.KeyPrefix, aibridgekeys.KeyPrefixLength)
+		require.Len(t, created.Key, aibridgekeys.KeyLength)
 		require.True(t, strings.HasPrefix(created.Key, created.KeyPrefix), "key must begin with key_prefix")
 		require.WithinDuration(t, time.Now(), created.CreatedAt, time.Minute)
 
@@ -73,26 +75,21 @@ func TestAIGatewayKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Managing AI Gateway keys is owner-only.
-		_, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
+		created, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
 			Name: uniqueName(t, "leak"),
 		})
 		require.NoError(t, err)
+		fullKey := created.Key
 
-		// Raw HTTP read of LIST to confirm the JSON shape.
 		resp, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/aibridge/keys", nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = resp.Body.Close() })
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var raw []map[string]any
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&raw))
-		require.NotEmpty(t, raw)
-		_, hasKey := raw[0]["key"]
-		_, hasSecret := raw[0]["secret"]
-		_, hasHashed := raw[0]["hashed_secret"]
-		require.False(t, hasKey, "LIST response leaked full key")
-		require.False(t, hasSecret, "LIST response leaked plaintext secret")
-		require.False(t, hasHashed, "LIST response leaked hashed_secret")
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		require.NotContains(t, string(body), fullKey, "LIST response leaked full key")
 	})
 
 	t.Run("CreateValidation", func(t *testing.T) {
@@ -104,15 +101,22 @@ func TestAIGatewayKeys(t *testing.T) {
 		// Empty name -> 400 (validate:"required" on request struct).
 		//nolint:gocritic // Managing AI Gateway keys is owner-only.
 		_, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: ""})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.ErrorContains(t, err, "Validation failed")
 
 		// >64 char name -> 400 (DB check constraint).
 		longName := strings.Repeat("a", 65)
 		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: longName})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.ErrorContains(t, err, "Invalid key name")
 
 		// Uppercase name -> 400 (DB check constraint rejects non-lowercase).
 		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "UPPER-CASE"})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.ErrorContains(t, err, "Invalid key name")
 
 		// Duplicate name -> 400.
@@ -120,6 +124,8 @@ func TestAIGatewayKeys(t *testing.T) {
 		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: name})
 		require.NoError(t, err)
 		_, err = ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: name})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.ErrorContains(t, err, "must be unique")
 	})
 
@@ -188,6 +194,7 @@ func TestAIGatewayKeys(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
 	})
 }
 
@@ -272,4 +279,105 @@ func TestAIGatewayKeyAudit(t *testing.T) {
 func uniqueName(t *testing.T, prefix string) string {
 	t.Helper()
 	return strings.ToLower(fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano()))
+}
+
+// aiGatewayKeyErrorStore wraps a database.Store and forces specific
+// methods to return errors, allowing tests to exercise error paths.
+type aiGatewayKeyErrorStore struct {
+	database.Store
+	insertErr error
+	listErr   error
+	deleteErr error
+}
+
+func (s *aiGatewayKeyErrorStore) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
+	if s.insertErr != nil {
+		return database.InsertAIGatewayKeyRow{}, s.insertErr
+	}
+	return s.Store.InsertAIGatewayKey(ctx, arg)
+}
+
+func (s *aiGatewayKeyErrorStore) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.Store.ListAIGatewayKeys(ctx)
+}
+
+func (s *aiGatewayKeyErrorStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
+	if s.deleteErr != nil {
+		return database.DeleteAIGatewayKeyRow{}, s.deleteErr
+	}
+	return s.Store.DeleteAIGatewayKey(ctx, id)
+}
+
+func TestAIGatewayKeysDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
+	dbErr := xerrors.New("internal db failure")
+
+	tests := []struct {
+		name       string
+		errStore   aiGatewayKeyErrorStore
+		method     string
+		path       string
+		body       any
+		wantStatus int
+		wantMsg    string
+	}{
+		{
+			name:       "CreateDBError",
+			errStore:   aiGatewayKeyErrorStore{insertErr: dbErr},
+			method:     http.MethodPost,
+			path:       "/api/v2/aibridge/keys",
+			body:       codersdk.CreateAIGatewayKeyRequest{Name: "db-err-create"},
+			wantStatus: http.StatusInternalServerError,
+			wantMsg:    "Failed to create key. Please retry.",
+		},
+		{
+			name:       "ListDBError",
+			errStore:   aiGatewayKeyErrorStore{listErr: dbErr},
+			method:     http.MethodGet,
+			path:       "/api/v2/aibridge/keys",
+			wantStatus: http.StatusInternalServerError,
+			wantMsg:    "Failed to list keys.",
+		},
+		{
+			name:       "DeleteDBError",
+			errStore:   aiGatewayKeyErrorStore{deleteErr: dbErr},
+			method:     http.MethodDelete,
+			path:       "/api/v2/aibridge/keys/" + uuid.New().String(),
+			wantStatus: http.StatusInternalServerError,
+			wantMsg:    "Failed to delete key.",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			errStore := tc.errStore
+			errStore.Store = db
+
+			opts := aibridgeOpts(t)
+			opts.Options.Database = &errStore
+			opts.Options.Pubsub = ps
+
+			ownerClient, _ := coderdenttest.New(t, opts)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			//nolint:gocritic // Managing AI Gateway keys is owner-only.
+			resp, err := ownerClient.Request(ctx, tc.method, tc.path, tc.body)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+
+			var sdkResp codersdk.Response
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&sdkResp))
+			require.Equal(t, tc.wantMsg, sdkResp.Message)
+			require.Empty(t, sdkResp.Detail, "response must not leak internal error details")
+		})
+	}
 }

@@ -10,16 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/coderd/aigatewaykey"
+	"github.com/coder/coder/v2/coderd/aibridge/keys"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-// maxKeyInsertAttempts defines number of retries when newly created
-// secret collides (unique constraints on hashed_secret and secret_prefix).
-const maxKeyInsertAttempts = 7
 
 // nameFormatDetail is the human-readable description of valid key names.
 const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, numbers, and non-consecutive hyphens, cannot start or end with a hyphen."
@@ -52,9 +48,6 @@ func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	row, secret, err := api.generateAndInsertKey(ctx, req.Name)
-	for attempt := 1; isRetryableKeyInsertErr(err) && attempt < maxKeyInsertAttempts; attempt++ {
-		row, secret, err = api.generateAndInsertKey(ctx, req.Name)
-	}
 	if err != nil {
 		writeKeyInsertError(ctx, rw, err)
 		return
@@ -78,7 +71,7 @@ func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 
 // generateAndInsertKey creates fresh key material and attempts an insert.
 func (api *API) generateAndInsertKey(ctx context.Context, name string) (database.InsertAIGatewayKeyRow, string, error) {
-	params, key, err := aigatewaykey.New(name)
+	params, key, err := keys.New(name)
 	if err != nil {
 		return database.InsertAIGatewayKeyRow{}, "", err
 	}
@@ -87,14 +80,6 @@ func (api *API) generateAndInsertKey(ctx context.Context, name string) (database
 		return database.InsertAIGatewayKeyRow{}, "", err
 	}
 	return row, key, nil
-}
-
-// isRetryableKeyInsertErr returns true for generated-secret collisions.
-func isRetryableKeyInsertErr(err error) bool {
-	return database.IsUniqueViolation(err,
-		database.UniqueAiGatewayKeysSecretPrefixIndex,
-		database.UniqueAiGatewayKeysHashedSecretIndex,
-	)
 }
 
 // writeKeyInsertError maps insert errors to HTTP responses.
@@ -116,8 +101,12 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 				{Field: "name", Detail: "A key with this name already exists."},
 			},
 		})
-	default: // secret collisions and other unexpected errors
-		httpapi.InternalServerError(rw, err)
+	default:
+		// Secret collisions (hashed_secret or secret_prefix unique
+		// violations, should not happen in practice) and other unexpected errors
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create key. Please retry.",
+		})
 	}
 }
 
@@ -137,7 +126,9 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list keys.",
+		})
 		return
 	}
 
@@ -188,7 +179,9 @@ func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete key.",
+		})
 		return
 	}
 
