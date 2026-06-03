@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
@@ -244,7 +245,7 @@ func TestBlockingInterception_BedrockProxyHeadersBreakSigV4(t *testing.T) {
 func verifySigV4(r *http.Request, body []byte, accessKey, secretKey string) error {
 	authz := r.Header.Get("Authorization")
 	if !strings.HasPrefix(authz, "AWS4-HMAC-SHA256 ") {
-		return fmt.Errorf("missing or malformed Authorization header: %q", authz)
+		return xerrors.Errorf("missing or malformed Authorization header: %q", authz)
 	}
 
 	parts := map[string]string{}
@@ -260,16 +261,16 @@ func verifySigV4(r *http.Request, body []byte, accessKey, secretKey string) erro
 	signedHeadersList := parts["SignedHeaders"]
 	gotSignature := parts["Signature"]
 	if cred == "" || signedHeadersList == "" || gotSignature == "" {
-		return fmt.Errorf("incomplete Authorization header: %q", authz)
+		return xerrors.Errorf("incomplete Authorization header: %q", authz)
 	}
 
 	credParts := strings.Split(cred, "/")
 	if len(credParts) != 5 {
-		return fmt.Errorf("malformed Credential scope %q", cred)
+		return xerrors.Errorf("malformed Credential scope %q", cred)
 	}
 	gotAccessKey, _, gotRegion, service := credParts[0], credParts[1], credParts[2], credParts[3]
 	if gotAccessKey != accessKey {
-		return fmt.Errorf("credential access key %q does not match expected %q", gotAccessKey, accessKey)
+		return xerrors.Errorf("credential access key %q does not match expected %q", gotAccessKey, accessKey)
 	}
 	_ = gotSignature // included in the mismatch error below for diagnostics
 
@@ -278,7 +279,7 @@ func verifySigV4(r *http.Request, body []byte, accessKey, secretKey string) erro
 	signTimeStr := r.Header.Get("X-Amz-Date")
 	signTime, err := time.Parse("20060102T150405Z", signTimeStr)
 	if err != nil {
-		return fmt.Errorf("parse X-Amz-Date %q: %w", signTimeStr, err)
+		return xerrors.Errorf("parse X-Amz-Date %q: %w", signTimeStr, err)
 	}
 
 	// Build a fresh request that contains ONLY the headers that were
@@ -292,7 +293,7 @@ func verifySigV4(r *http.Request, body []byte, accessKey, secretKey string) erro
 
 	verifyReq, err := http.NewRequestWithContext(r.Context(), r.Method, "http://"+r.Host+r.URL.RequestURI(), strings.NewReader(string(body)))
 	if err != nil {
-		return fmt.Errorf("build verification request: %w", err)
+		return xerrors.Errorf("build verification request: %w", err)
 	}
 	for k, vs := range r.Header {
 		if _, ok := signed[strings.ToLower(k)]; !ok {
@@ -318,14 +319,14 @@ func verifySigV4(r *http.Request, body []byte, accessKey, secretKey string) erro
 		AccessKeyID:     accessKey,
 		SecretAccessKey: secretKey,
 	}, verifyReq, payloadHash, service, gotRegion, signTime); err != nil {
-		return fmt.Errorf("re-sign request: %w", err)
+		return xerrors.Errorf("re-sign request: %w", err)
 	}
 
 	wantAuthz := verifyReq.Header.Get("Authorization")
 	if wantAuthz == authz {
 		return nil
 	}
-	return fmt.Errorf("signature mismatch: client sent %q, we recomputed %q (SignedHeaders=%q)",
+	return xerrors.Errorf("signature mismatch: client sent %q, we recomputed %q (SignedHeaders=%q)",
 		gotSignature, strings.TrimPrefix(wantAuthz, "AWS4-HMAC-SHA256 "), signedHeadersList)
 }
 
