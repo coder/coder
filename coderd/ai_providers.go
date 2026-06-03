@@ -161,16 +161,6 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.Type = codersdk.CanonicalAIProviderType(req.Type, req.Settings)
 
-	// Bedrock providers authenticate via the settings blob, not via a
-	// bearer key, so registering an api_keys list against them would
-	// be silently unused.
-	if req.Type == codersdk.AIProviderTypeBedrock && len(req.APIKeys) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
-		})
-		return
-	}
-
 	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",

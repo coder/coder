@@ -8658,9 +8658,13 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
+	providerType, err := canonicalAIProviderType(provider)
+	if err != nil {
+		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   string(provider.Type),
+		Provider:                   string(providerType),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -8764,7 +8768,11 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 	}
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
+		canonicalProviderType, err := canonicalAIProviderType(provider)
+		if err != nil {
+			return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+		}
+		if chatprovider.NormalizeProvider(string(canonicalProviderType)) != normalizedProviderType {
 			continue
 		}
 		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)

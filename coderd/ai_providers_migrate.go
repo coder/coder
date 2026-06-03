@@ -161,6 +161,9 @@ func SeedAIProvidersFromEnv(
 				if existingHash == dp.Hash {
 					continue
 				}
+				if existing.Name != dp.Name {
+					return xerrors.Errorf("AI provider %q matches existing legacy row %q and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name, existing.Name)
+				}
 				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name)
 			}
 

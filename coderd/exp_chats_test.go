@@ -3531,6 +3531,43 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, configs[0].Enabled)
 	})
 
+	t.Run("CanonicalizesLegacyBedrockProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AiProviderTypeAnthropic,
+			Name: "legacy-bedrock-provider",
+			Settings: sql.NullString{
+				String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
+				Valid:  true,
+			},
+		})
+		storedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:             "anthropic",
+			AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:                "anthropic.claude-3-5-sonnet",
+			DisplayName:          "Claude via Bedrock",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+		})
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		for _, config := range configs {
+			if config.ID == storedConfig.ID {
+				require.Equal(t, "bedrock", config.Provider)
+				return
+			}
+		}
+		require.Fail(t, "expected legacy Bedrock model config")
+	})
+
 	t.Run("DeserializesLegacyPricingJSON", func(t *testing.T) {
 		t.Parallel()
 

@@ -89,5 +89,9 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	if err != nil {
 		return "", nil, err
 	}
-	return string(provider.Type), &provider, nil
+	providerType, err := canonicalAIProviderType(provider)
+	if err != nil {
+		return "", nil, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+	}
+	return string(providerType), &provider, nil
 }

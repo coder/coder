@@ -6825,9 +6825,34 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	providerNameByID := map[uuid.UUID]string{}
+	//nolint:gocritic // All authenticated users need canonical provider metadata to render model configs.
+	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{
+		IncludeDeleted:  true,
+		IncludeDisabled: true,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list AI providers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	for _, provider := range providers {
+		providerType, err := canonicalAIProviderTypeForRow(provider)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to decode AI provider settings.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		providerNameByID[provider.ID] = string(providerType)
+	}
+
 	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
 	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
+		resp = append(resp, convertChatModelConfig(config, providerNameByID))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -7020,7 +7045,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, nil))
 }
 
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7255,7 +7280,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, nil))
 }
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7427,14 +7452,20 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+func convertChatModelConfig(config database.ChatModelConfig, providerNameByID map[uuid.UUID]string) codersdk.ChatModelConfig {
 	var aiProviderID *uuid.UUID
+	provider := config.Provider
 	if config.AIProviderID.Valid {
 		aiProviderID = &config.AIProviderID.UUID
+		if providerNameByID != nil {
+			if providerName, ok := providerNameByID[config.AIProviderID.UUID]; ok {
+				provider = providerName
+			}
+		}
 	}
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
-		Provider:             config.Provider,
+		Provider:             provider,
 		AIProviderID:         aiProviderID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,

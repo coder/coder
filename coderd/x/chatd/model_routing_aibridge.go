@@ -242,7 +242,11 @@ func (p *Server) resolveAIGatewayModelRouteForConfig(
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
+	providerType, err := canonicalAIProviderType(provider)
+	if err != nil {
+		return resolvedModelRoute{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+	}
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(providerType))
 }
 
 func (p *Server) resolveAIGatewayModelRouteForProviderType(
@@ -289,7 +293,11 @@ func (p *Server) aiProviderForProviderType(
 		if !provider.Enabled {
 			continue
 		}
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
+		canonicalProviderType, err := canonicalAIProviderType(provider)
+		if err != nil {
+			return database.AIProvider{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+		}
+		if chatprovider.NormalizeProvider(string(canonicalProviderType)) != normalizedProviderType {
 			continue
 		}
 		return provider, nil

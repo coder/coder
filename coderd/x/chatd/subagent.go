@@ -157,14 +157,18 @@ func validateModelConfigAndResolveProvider(
 func enabledProviderContainsName(
 	providers []database.AIProvider,
 	providerName string,
-) bool {
+) (bool, error) {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
-			return true
+		providerType, err := canonicalAIProviderType(provider)
+		if err != nil {
+			return false, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+		}
+		if chatprovider.NormalizeProvider(string(providerType)) == normalizedProviderName {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func userCanUseProviderKeys(
@@ -506,7 +510,11 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
 		}
-		providerName := chatprovider.NormalizeProvider(string(provider.Type))
+		providerType, err := canonicalAIProviderType(provider)
+		if err != nil {
+			return database.ChatModelConfig{}, "", xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+		}
+		providerName := chatprovider.NormalizeProvider(string(providerType))
 		if providerName == "" {
 			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
 		}
@@ -523,7 +531,11 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
-	if !enabledProviderContainsName(enabledProviders, providerName) {
+	providerEnabled, err := enabledProviderContainsName(enabledProviders, providerName)
+	if err != nil {
+		return database.ChatModelConfig{}, "", err
+	}
+	if !providerEnabled {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	return modelConfig, providerName, nil

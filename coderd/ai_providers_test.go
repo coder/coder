@@ -933,7 +933,10 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.NotEmpty(t, sdkErr.Validations)
+		require.Equal(t, "api_keys", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "type=bedrock does not accept api_keys")
 	})
 
 	t.Run("BedrockRejectsUpdateWithKeys", func(t *testing.T) {
