@@ -166,9 +166,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								return (
 									<CommandGroup
 										key={groupKey}
-										className="[&_[cmdk-group-heading]]:text-content-disabled"
+										className="[&_[cmdk-group-heading]]:text-content-secondary"
 									heading={
-										<span className="text-content-disabled">{providerLabel}</span>
+										<span className="text-content-secondary">{providerLabel}</span>
 									}
 								>
 									{providerOptions.map((option) => {
@@ -197,7 +197,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 													<span className="truncate">
 														{option.displayName}
 														{contextInfo && (
-															<span className="text-xs text-content-disabled">
+															<span className="text-xs text-content-secondary">
 																{" "}({contextInfo})
 															</span>
 														)}
