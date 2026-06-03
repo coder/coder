@@ -76,8 +76,8 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          test-parallelism-packages: "2"
-          test-parallelism-tests: "8"
+          test-parallelism-packages: "4"
+          test-parallelism-tests: "12"
           test-count: "35"
           test-packages: ${{ fromJSON(steps.selector.outputs.matrix).include[0].package }}
           run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
