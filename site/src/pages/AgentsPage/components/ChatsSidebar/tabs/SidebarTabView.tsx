@@ -104,6 +104,16 @@ function useTabScroll() {
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
+/** Shared className fragments for underline-style tab triggers. */
+const tabTriggerBase = cn(
+	"inline-flex shrink-0 items-center gap-2 whitespace-nowrap",
+	"border-0 border-b border-solid border-transparent",
+	"bg-transparent px-1 py-2.5 text-sm text-content-secondary",
+	"cursor-pointer transition-colors -mb-px",
+	"hover:text-content-primary",
+);
+const tabTriggerActive = "border-b-content-primary text-content-primary";
+
 export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
@@ -188,7 +198,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			<div
 				role="tablist"
-				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
+				className="relative flex shrink-0 items-stretch gap-2 border-0 border-b border-solid border-border-default px-4 lg:px-3"
 			>
 				{onClose && (
 					<Button
@@ -196,7 +206,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onClose}
 						aria-label="Close panel"
-						className="size-7 shrink-0 lg:hidden"
+						className="size-7 shrink-0 self-center lg:hidden"
 					>
 						<ArrowLeftIcon />
 					</Button>
@@ -207,12 +217,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleSidebarCollapsed}
 						aria-label="Expand sidebar"
-						className="mr-1 size-7 shrink-0"
+						className="mr-1 size-7 shrink-0 self-center"
 					>
 						<PanelLeftIcon />
 					</Button>
 				)}
-				<div className="relative min-w-0 flex-1">
+				<div className="relative flex min-w-0 flex-1">
 					{canScrollLeft && (
 						<button
 							type="button"
@@ -225,24 +235,21 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						className="flex w-full items-stretch gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
 							return (
-								<Button
+								<button
+									type="button"
 									key={tab.id}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
 									onClick={() => onActiveTabChange(tab.id)}
-									variant="outline"
-									size="lg"
 									className={cn(
-										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-										isActive &&
-											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-										tab.badge && "pr-0",
+										tabTriggerBase,
+										isActive && tabTriggerActive,
 									)}
 								>
 									{tab.icon}
@@ -250,32 +257,30 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									{tab.badge && (
 										<span
 											className={cn(
-												"flex -my-px items-center self-stretch transition-opacity",
-												!isActive && "opacity-50",
+												"flex items-center transition-opacity",
+												!isActive && "opacity-60",
 											)}
 										>
 											{tab.badge}
 										</span>
 									)}
-								</Button>
+								</button>
 							);
 						})}
 						{desktopChatId && (
-							<Button
+							<button
+								type="button"
 								id={`${tabIdPrefix}-tab-desktop`}
 								role="tab"
 								aria-selected={effectiveTabId === "desktop"}
 								onClick={() => onActiveTabChange("desktop")}
-								variant="outline"
-								size="lg"
 								className={cn(
-									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									effectiveTabId === "desktop" &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+									tabTriggerBase,
+									effectiveTabId === "desktop" && tabTriggerActive,
 								)}
 							>
 								Desktop
-							</Button>
+							</button>
 						)}
 					</div>
 					{canScrollRight && (
@@ -301,7 +306,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="hidden size-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
+					className="hidden size-7 shrink-0 self-center text-content-secondary hover:text-content-primary lg:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
