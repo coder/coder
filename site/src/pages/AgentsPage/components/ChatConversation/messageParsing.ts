@@ -109,6 +109,7 @@ export const mergeTools = (
 			status: result ? (result.isError ? "error" : "completed") : "completed",
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
+			parsedCommands: call.parsedCommands,
 		});
 	}
 
@@ -161,6 +162,7 @@ export const parseMessageContent = (
 					id,
 					name: part.tool_name || "Tool",
 					args: part.args,
+					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
@@ -256,10 +258,16 @@ export const getEditableUserMessagePayload = (
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
+	// Concatenate text parts verbatim to match the server-side string_agg in
+	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
+	const text = (message.content ?? [])
+		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+		.map((part) => part.text)
+		.join("");
 	const parsed = parseMessageContent(message.content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
-		text: parsed.markdown || "",
+		text,
 		fileBlocks: fileBlocks.length > 0 ? fileBlocks : undefined,
 	};
 };

@@ -82,6 +82,7 @@ var chatActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat messages and metadata",
 	ActionUpdate: "update chat title or settings",
 	ActionDelete: "delete a chat",
+	ActionShare:  "share a chat with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -378,6 +379,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a user secret",
 		},
 	},
+	"user_skill": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a user skill",
+			ActionRead:   "read user skill metadata and content",
+			ActionUpdate: "update user skill metadata and content",
+			ActionDelete: "delete a user skill",
+		},
+	},
 	"usage_event": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a usage event",
@@ -398,10 +407,34 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update AI model prices",
 		},
 	},
+	"ai_provider": {
+		Name: "AIProvider",
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI provider configuration",
+			ActionCreate: "create an AI provider",
+			ActionUpdate: "update an AI provider",
+			ActionDelete: "delete an AI provider",
+		},
+	},
 	"ai_seat": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "record AI seat usage",
 			ActionRead:   "read AI seat state",
+		},
+	},
+	"boundary_log": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create boundary log records",
+			ActionRead:   "read boundary logs and session metadata",
+			ActionDelete: "delete boundary logs",
+		},
+	},
+	"ai_gateway_key": {
+		Name: "AIGatewayKey",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an AI Gateway key",
+			ActionRead:   "read AI Gateway keys",
+			ActionDelete: "delete an AI Gateway key",
 		},
 	},
 	"boundary_usage": {

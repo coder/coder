@@ -30,8 +30,10 @@ func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	return coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: mcpDeploymentValues(t),
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
 	})
 }
 
@@ -97,6 +99,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "default_on", created.Availability)
 	require.True(t, created.Enabled)
 	require.False(t, created.AllowInPlanMode)
+	require.False(t, created.ForwardCoderHeaders)
 
 	// Verify the secret is indicated but never returned.
 	require.True(t, created.HasOAuth2Secret)
@@ -108,25 +111,31 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, created.ID, configs[0].ID)
 	require.True(t, configs[0].HasOAuth2Secret)
 	require.False(t, configs[0].AllowInPlanMode)
+	require.False(t, configs[0].ForwardCoderHeaders)
 
 	fetched, err := client.MCPServerConfigByID(ctx, created.ID)
 	require.NoError(t, err)
 	require.Equal(t, created.ID, fetched.ID)
 	require.False(t, fetched.AllowInPlanMode)
+	require.False(t, fetched.ForwardCoderHeaders)
 
-	// Update display name, availability, and allow_in_plan_mode.
+	// Update display name, availability, allow_in_plan_mode, and
+	// forward_coder_headers.
 	newName := "Renamed Server"
 	newAvail := "force_on"
 	allowInPlanMode := true
+	forwardCoderHeaders := true
 	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
-		DisplayName:     &newName,
-		Availability:    &newAvail,
-		AllowInPlanMode: &allowInPlanMode,
+		DisplayName:         &newName,
+		Availability:        &newAvail,
+		AllowInPlanMode:     &allowInPlanMode,
+		ForwardCoderHeaders: &forwardCoderHeaders,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Renamed Server", updated.DisplayName)
 	require.Equal(t, "force_on", updated.Availability)
 	require.True(t, updated.AllowInPlanMode)
+	require.True(t, updated.ForwardCoderHeaders)
 	// Unchanged fields should remain the same.
 	require.Equal(t, "my-mcp-server", updated.Slug)
 	require.Equal(t, "oauth2", updated.AuthType)
@@ -138,10 +147,12 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "Renamed Server", configs[0].DisplayName)
 	require.Equal(t, "force_on", configs[0].Availability)
 	require.True(t, configs[0].AllowInPlanMode)
+	require.True(t, configs[0].ForwardCoderHeaders)
 
 	fetched, err = client.MCPServerConfigByID(ctx, created.ID)
 	require.NoError(t, err)
 	require.True(t, fetched.AllowInPlanMode)
+	require.True(t, fetched.ForwardCoderHeaders)
 
 	// Delete it.
 	err = client.DeleteMCPServerConfig(ctx, created.ID)
@@ -1385,10 +1396,11 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	// Create the chat model config required for creating a chat.
 	_ = createChatModelConfigForMCP(t, expClient)
 
-	// Create an enabled MCP server config.
-	mcpConfig := createMCPServerConfig(t, client, "chat-mcp-server", true)
+	// Create enabled MCP server configs.
+	mcpConfigA := createMCPServerConfig(t, client, "chat-mcp-server-a", true)
+	mcpConfigB := createMCPServerConfig(t, client, "chat-mcp-server-b", true)
 
-	// Create a chat referencing the MCP server.
+	// Create a chat referencing the MCP servers.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{
@@ -1397,41 +1409,29 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 				Text: "hello with mcp server",
 			},
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
+		MCPServerIDs: []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID},
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, chat.ID)
-	require.Contains(t, chat.MCPServerIDs, mcpConfig.ID)
+	require.ElementsMatch(t, []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID}, chat.MCPServerIDs)
 
 	// Fetch the chat and verify the MCP server IDs persist.
 	fetched, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Contains(t, fetched.MCPServerIDs, mcpConfig.ID)
+	require.ElementsMatch(t, []uuid.UUID{mcpConfigA.ID, mcpConfigB.ID}, fetched.MCPServerIDs)
+
+	err = client.DeleteMCPServerConfig(ctx, mcpConfigA.ID)
+	require.NoError(t, err)
+
+	fetched, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotContains(t, fetched.MCPServerIDs, mcpConfigA.ID)
+	require.Contains(t, fetched.MCPServerIDs, mcpConfigB.ID)
 }
 
-// createChatModelConfigForMCP sets up a chat provider and model
-// config so that CreateChat succeeds. This mirrors the helper in
-// chats_test.go but is defined here to avoid coupling.
 func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai",
-		APIKey:   "test-api-key",
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
-	return modelConfig
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
 }
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {

@@ -106,6 +106,28 @@ type Manager struct {
 	// caller and may outlive Close).
 	closedCh  chan struct{}
 	closeOnce sync.Once
+
+	// lastPaths records the most recent config paths passed to
+	// Reload/Tools. The fsnotify-backed watcher uses these to
+	// drive its own reloads when ~/.mcp.json appears late on
+	// dual-agent workspaces.
+	lastPaths []string
+
+	// watcher fires a debounced Reload when any watched config
+	// file is created, written, removed, or renamed. It is armed
+	// lazily on the first Reload call so tests that never call
+	// Reload do not pay for an extra goroutine and file
+	// descriptor.
+	watcher       *configWatcher
+	watcherOnce   sync.Once
+	watchDebounce time.Duration
+
+	// connectStartedHook is a test hook invoked at the start of
+	// connectAll, before any client is dialed. Production code
+	// leaves this nil; tests set it to coordinate with an
+	// in-flight reload (for example, to verify Close()'s
+	// shutdown ordering does not stall on a stuck connect).
+	connectStartedHook func()
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -136,6 +158,7 @@ func NewManager(
 		snapshot:       make(map[string]fileSnapshot),
 		startupSettled: make(chan struct{}),
 		closedCh:       make(chan struct{}),
+		watchDebounce:  defaultWatchDebounce,
 	}
 }
 
@@ -258,6 +281,14 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		}
 		return nil, false, err
 	}
+	// Arm the fsnotify watcher before deciding whether to short
+	// circuit. The first call lazily creates it; subsequent calls
+	// re-sync the watched path set if it changed. Arming before
+	// the SnapshotChanged check ensures any Create event that
+	// races with parseAndDedup is still delivered: the watcher
+	// is running when parseAndDedup returns the empty snapshot.
+	m.armWatcher(paths)
+
 	if firstSyncSettled && !m.SnapshotChanged(paths) {
 		return nil, false, nil
 	}
@@ -268,6 +299,82 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		return struct{}{}, err
 	})
 	return ch, true, nil
+}
+
+// armWatcher lazily initializes the fsnotify-backed configWatcher
+// and syncs it to the latest config paths. Lazy initialization
+// keeps unit tests that never call Reload free of extra goroutines
+// and file descriptors.
+//
+// If the underlying watcher cannot be created (e.g. inotify limit
+// reached), the error is logged once and the manager continues
+// without a watcher. The lazy stat-on-request path remains the
+// primary mechanism; the watcher is an optimization that closes
+// the dual-agent race window.
+func (m *Manager) armWatcher(paths []string) {
+	m.watcherOnce.Do(func() {
+		cw, err := newConfigWatcher(
+			m.logger.Named("config_watcher"),
+			m.clock,
+			m.watchDebounce,
+			m.handleWatchedConfigChange,
+		)
+		if err != nil {
+			m.logger.Warn(m.ctx,
+				"failed to start MCP config watcher; falling back to lazy stat",
+				slog.Error(err))
+			return
+		}
+		// Close the watcher if the manager was closed between
+		// newConfigWatcher returning and us acquiring m.mu.
+		// Otherwise its goroutine and inotify fd leak.
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			_ = cw.Close()
+			return
+		}
+		m.watcher = cw
+		m.mu.Unlock()
+	})
+
+	m.mu.Lock()
+	m.lastPaths = slices.Clone(paths)
+	w := m.watcher
+	closed := m.closed
+	m.mu.Unlock()
+	if w == nil || closed {
+		return
+	}
+	w.Sync(paths)
+}
+
+// handleWatchedConfigChange is invoked by the watcher on a
+// debounced fire. It triggers a singleflight Reload using the
+// most recently observed path set so the cached server map and
+// snapshot are refreshed without waiting for the next HTTP
+// request.
+func (m *Manager) handleWatchedConfigChange() {
+	m.mu.RLock()
+	paths := slices.Clone(m.lastPaths)
+	closed := m.closed
+	m.mu.RUnlock()
+	if closed || len(paths) == 0 {
+		return
+	}
+
+	logger := m.logger.With(slog.F("trigger", "fsnotify"))
+	logger.Debug(m.ctx, "reloading due to config change")
+	if err := m.Reload(m.ctx, paths); err != nil {
+		if errors.Is(err, ErrManagerClosed) ||
+			errors.Is(err, context.Canceled) {
+			logger.Debug(m.ctx,
+				"watched reload short-circuited by shutdown",
+				slog.Error(err))
+			return
+		}
+		logger.Warn(m.ctx, "watched reload failed", slog.Error(err))
+	}
 }
 
 func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeout time.Duration) error {
@@ -515,6 +622,10 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
+	if hook := m.connectStartedHook; hook != nil {
+		hook()
+	}
+
 	var (
 		mu        sync.Mutex
 		connected []connectedServer
@@ -756,13 +867,34 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 }
 
 // Close terminates all MCP server connections and child
-// processes.
+// processes, stops the config file watcher, and waits for any
+// in-flight watcher-driven reload to complete.
 func (m *Manager) Close() error {
+	// Mark the manager closed and signal closedCh first, then
+	// hand the watcher off and release the lock. Marking closed
+	// before w.Close() ensures that any in-flight
+	// handleWatchedConfigChange short-circuits and any Reload
+	// blocked in waitReload observes m.closedCh, instead of
+	// blocking firesWG.Wait() inside w.Close() until a 30 s
+	// connectAll times out.
+	m.mu.Lock()
+	m.closed = true
+	m.closeOnce.Do(func() { close(m.closedCh) })
+	w := m.watcher
+	m.watcher = nil
+	m.mu.Unlock()
+
+	// Close the watcher outside the manager lock. Its goroutine
+	// may call handleWatchedConfigChange, which takes m.mu, so
+	// holding m.mu while waiting for the watcher to drain would
+	// deadlock. Close on a nil watcher is a no-op.
+	if w != nil {
+		_ = w.Close()
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.closed = true
-	m.closeOnce.Do(func() { close(m.closedCh) })
 	var errs []error
 	for _, entry := range m.servers {
 		if err := entry.client.Close(); err != nil {
@@ -843,15 +975,19 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 			}),
 		), nil
 	case "http", "":
-		return transport.NewStreamableHTTP(
-			cfg.URL,
-			transport.WithHTTPHeaders(cfg.Headers),
-		)
+		var opts []transport.StreamableHTTPCOption
+		opts = append(opts, transport.WithHTTPHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			opts = append(opts, transport.WithHTTPBasicClient(c))
+		}
+		return transport.NewStreamableHTTP(cfg.URL, opts...)
 	case "sse":
-		return transport.NewSSE(
-			cfg.URL,
-			transport.WithHeaders(cfg.Headers),
-		)
+		var sseOpts []transport.ClientOption
+		sseOpts = append(sseOpts, transport.WithHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			sseOpts = append(sseOpts, transport.WithHTTPClient(c))
+		}
+		return transport.NewSSE(cfg.URL, sseOpts...)
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}

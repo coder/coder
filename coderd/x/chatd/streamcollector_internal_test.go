@@ -44,11 +44,11 @@ func TestStreamStateCollector(t *testing.T) {
 		server := &Server{}
 
 		server.chatStreams.Store(uuid.New(), &chatStreamState{
-			buffer:      make([]codersdk.ChatStreamEvent, 10),
+			buffer:      make([]bufferedStreamPart, 10),
 			subscribers: newSubscribers(t, 2),
 		})
 		server.chatStreams.Store(uuid.New(), &chatStreamState{
-			buffer:      make([]codersdk.ChatStreamEvent, 25),
+			buffer:      make([]bufferedStreamPart, 25),
 			subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
 		})
 		server.chatStreams.Store(uuid.New(), &chatStreamState{
@@ -74,7 +74,7 @@ func TestStreamStateCollector(t *testing.T) {
 
 		server.chatStreams.Store(uuid.New(), "garbage")
 		server.chatStreams.Store(uuid.New(), &chatStreamState{
-			buffer:      make([]codersdk.ChatStreamEvent, 5),
+			buffer:      make([]bufferedStreamPart, 5),
 			subscribers: newSubscribers(t, 1),
 		})
 
@@ -97,7 +97,7 @@ func TestStreamStateCollector(t *testing.T) {
 
 		server := &Server{}
 		state := &chatStreamState{
-			buffer:      make([]codersdk.ChatStreamEvent, 0, 100),
+			buffer:      make([]bufferedStreamPart, 0, 100),
 			subscribers: newSubscribers(t, 1),
 		}
 		server.chatStreams.Store(uuid.New(), state)
@@ -110,7 +110,7 @@ func TestStreamStateCollector(t *testing.T) {
 		wg.Go(func() {
 			for range iterations {
 				state.mu.Lock()
-				state.buffer = append(state.buffer, codersdk.ChatStreamEvent{})
+				state.buffer = append(state.buffer, bufferedStreamPart{})
 				if len(state.buffer) > 50 {
 					state.buffer = state.buffer[10:]
 				}
@@ -185,7 +185,7 @@ func TestStreamStateCollector_BufferDroppedIncrementsOnCapacity(t *testing.T) {
 	chatID := uuid.New()
 	server.chatStreams.Store(chatID, &chatStreamState{
 		buffering: true,
-		buffer:    make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		buffer:    make([]bufferedStreamPart, maxStreamBufferSize),
 	})
 
 	partEvent := codersdk.ChatStreamEvent{

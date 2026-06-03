@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"runtime"
 	"testing"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 //nolint:paralleltest, tparallel
@@ -127,19 +129,17 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--email", email,
 			"--password", password,
 		)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "Creating user...")
-		pty.ExpectMatchContext(ctx, "Generating user SSH key...")
-		pty.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
-		pty.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
-		pty.ExpectMatchContext(ctx, "User created successfully.")
-		pty.ExpectMatchContext(ctx, username)
-		pty.ExpectMatchContext(ctx, email)
-		pty.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatchContext(ctx, "Creating user...")
+		stdout.ExpectMatchContext(ctx, "Generating user SSH key...")
+		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
+		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
+		stdout.ExpectMatchContext(ctx, "User created successfully.")
+		stdout.ExpectMatchContext(ctx, username)
+		stdout.ExpectMatchContext(ctx, email)
+		stdout.ExpectMatchContext(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -183,6 +183,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
+		logger := testutil.Logger(t)
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 
@@ -194,23 +195,24 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--postgres-url", connectionURL,
 			"--ssh-keygen-algorithm", "ed25519",
 		)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "Username")
-		pty.WriteLine(username)
-		pty.ExpectMatchContext(ctx, "Email")
-		pty.WriteLine(email)
-		pty.ExpectMatchContext(ctx, "Password")
-		pty.WriteLine(password)
-		pty.ExpectMatchContext(ctx, "Confirm password")
-		pty.WriteLine(password)
+		stdout.ExpectMatchContext(ctx, "Username")
+		stdin.WriteLine(username)
+		stdout.ExpectMatchContext(ctx, "Email")
+		stdin.WriteLine(email)
+		stdout.ExpectMatchContext(ctx, "Password")
+		stdin.WriteLine(password)
+		stdout.ExpectMatchContext(ctx, "Confirm password")
+		stdin.WriteLine(password)
 
-		pty.ExpectMatchContext(ctx, "User created successfully.")
-		pty.ExpectMatchContext(ctx, username)
-		pty.ExpectMatchContext(ctx, email)
-		pty.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatchContext(ctx, "User created successfully.")
+		stdout.ExpectMatchContext(ctx, username)
+		stdout.ExpectMatchContext(ctx, email)
+		stdout.ExpectMatchContext(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -224,8 +226,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		}
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		root, _ := clitest.New(t,
 			"server", "create-admin-user",
@@ -235,10 +236,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--email", "not-an-email",
 			"--password", "x",
 		)
-		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-
+		root.Stdout, root.Stderr = io.Discard, io.Discard
 		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")

@@ -48,11 +48,11 @@ const AISessionListPage: FC = () => {
 	});
 
 	const providerMenu = useProviderFilterMenu({
-		value: filter.values.provider,
+		value: filter.values.provider_name,
 		onChange: (option) =>
 			filter.update({
 				...filter.values,
-				provider: option?.value,
+				provider_name: option?.value,
 			}),
 	});
 

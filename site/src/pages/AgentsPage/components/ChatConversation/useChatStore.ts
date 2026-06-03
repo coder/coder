@@ -7,7 +7,11 @@ import {
 } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	chatMessagesKey,
+	chatPromptsKey,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -168,6 +172,14 @@ export const useChatStore = (
 					],
 				};
 			});
+			// Refresh the dedicated prompt-history cache when a user message arrives.
+			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
+			if (hasNewUserPrompt) {
+				void queryClient.invalidateQueries({
+					queryKey: chatPromptsKey(chatID),
+					exact: true,
+				});
+			}
 		},
 		[chatID, queryClient],
 	);

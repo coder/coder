@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -125,6 +126,7 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
@@ -146,6 +148,7 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
@@ -473,7 +476,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								severity="info"
 								actions={
 									<Button asChild size="sm">
-										<Link to="/agents/analytics">View Usage</Link>
+										<Link to="/agents/analytics">View usage</Link>
 									</Button>
 								}
 							>
@@ -506,12 +509,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
-					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
+						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
-							isCreating || isForbidden || isPersonalModelOverridesLoading
+							isCreating ||
+							isForbidden ||
+							isPersonalModelOverridesLoading ||
+							!hasModelOptions
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -542,6 +548,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
+						agentSetupNotice={agentSetupNotice}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

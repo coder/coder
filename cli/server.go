@@ -56,13 +56,13 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -856,11 +856,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(logger, os.Environ())
+			aiProviders, err := ReadAIProvidersFromEnv(logger, os.Environ())
 			if err != nil {
-				return xerrors.Errorf("read aibridge providers from env: %w", err)
+				return xerrors.Errorf("read AI providers from env: %w", err)
 			}
-			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aibridgeProviders...)
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
+
+			if err := validateLegacyAIBridgeConfig(vals.AI.BridgeConfig); err != nil {
+				return xerrors.Errorf("validate legacy AI bridge config: %w", err)
+			}
 
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
@@ -895,6 +899,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
+
 			telemetryReporter, err := telemetry.New(telemetry.Options{
 				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
@@ -1008,6 +1013,49 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
+			}
+			var aibridgeDaemon *aibridged.Server
+
+			// Both seed (writes) and build (reads) of AI providers need
+			// options.Database to be dbcrypt-wrapped, which only happens
+			// inside newAPI. The context is detached: the shutdown
+			// sequence below is not deferred, so a ctx-canceled early
+			// return here would orphan newAPI's goroutines.
+			//nolint:gocritic // Production timeout, not a test wait.
+			aibridgeInitCtx, aibridgeInitCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+			defer aibridgeInitCancel()
+			if err := coderd.SeedAIProvidersFromEnv(
+				aibridgeInitCtx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
+			// In-memory aibridge daemon. Registered on coderd so chatd can
+			// dispatch LLM requests via the in-process transport without
+			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// itself is registered (and license-gated) only by enterprise/coderd;
+			// in AGPL builds it does not exist at all. The daemon starts here
+			// unconditionally when the bridge feature is enabled by config so
+			// chatd can use it regardless of license entitlement.
+			if vals.AI.BridgeConfig.Enabled.Value() {
+				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
+				if err != nil {
+					return xerrors.Errorf("build AI providers: %w", err)
+				}
+				var unsubscribeProviderReload func()
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig)
+				if err != nil {
+					return xerrors.Errorf("create aibridged: %w", err)
+				}
+				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				// The handler is bound to coderAPI's lifecycle; Close() on the
+				// daemon does not affect in-flight requests but is needed to
+				// release pool/recorder resources at shutdown.
+				defer aibridgeDaemon.Close()
+				defer unsubscribeProviderReload()
 			}
 
 			if vals.Prometheus.Enable {
@@ -1265,6 +1313,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
+			// The in-memory aibridge server participates in the websocket
+			// wait group, so close its client before waiting for that group.
+			if aibridgeDaemon != nil {
+				_ = aibridgeDaemon.Close()
+			}
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
@@ -2926,11 +2979,143 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-// ReadAIBridgeProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
-// environment variables into a slice of AIBridgeProviderConfig.
+const (
+	aiGatewayProviderEnvPrefix = "CODER_AI_GATEWAY_PROVIDER_"
+	aiBridgeProviderEnvPrefix  = "CODER_AIBRIDGE_PROVIDER_"
+)
+
+// ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+// environment variables into a slice of AIProviderConfig.
+// Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// prefix are also accepted for compatibility. Prefixes are mutually exclusive.
+//
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
-func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
-	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
+func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
+	providers, err := readAIProvidersForPrefix(logger, environ, aiBridgeProviderEnvPrefix)
+	if err != nil {
+		return nil, err
+	}
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, aiGatewayProviderEnvPrefix)
+	if err != nil {
+		return nil, err
+	}
+	if len(providers) > 0 && len(gatewayProviders) > 0 {
+		return nil, xerrors.Errorf("cannot mix %s* and %s* environment variables, please consolidate onto %s*", aiBridgeProviderEnvPrefix, aiGatewayProviderEnvPrefix, aiGatewayProviderEnvPrefix)
+	}
+	var activePrefix string
+	if len(providers) > 0 {
+		activePrefix = aiBridgeProviderEnvPrefix
+	} else if len(gatewayProviders) > 0 {
+		activePrefix = aiGatewayProviderEnvPrefix
+	}
+	providers = append(providers, gatewayProviders...)
+
+	// Post-parse validation.
+	names := make(map[string]int, len(providers))
+	for i := range providers {
+		p := &providers[i]
+		if p.Type == "" {
+			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
+		}
+
+		providerType := database.AIProviderType(p.Type)
+		if !providerType.Valid() {
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %v)",
+				i, p.Type, database.AllAIProviderTypeValues())
+		}
+
+		var bedrockKey, bedrockSecret string
+		if len(p.BedrockAccessKeys) > 0 {
+			bedrockKey = p.BedrockAccessKeys[0]
+		}
+		if len(p.BedrockAccessKeySecrets) > 0 {
+			bedrockSecret = p.BedrockAccessKeySecrets[0]
+		}
+		settings := codersdk.NewAIProviderBedrockSettings(
+			p.BedrockRegion, bedrockKey, bedrockSecret,
+			p.BedrockModel, p.BedrockSmallFastModel,
+		)
+		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
+
+		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
+		// with KEYS) and required on bedrock. Any other TYPE rejecting
+		// them prevents silently-ignored credentials.
+		isBedrockType := providerType == database.AiProviderTypeBedrock
+		isAnthropicType := providerType == database.AiProviderTypeAnthropic
+		if !isAnthropicType && !isBedrockType && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
+				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
+		}
+
+		if isBedrockType && !isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires BEDROCK_* fields to be configured",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if isBedrockType && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use BEDROCK_* fields)",
+				i, p.Type, database.AiProviderTypeBedrock)
+		}
+
+		if providerType == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
+				i, p.Type, database.AiProviderTypeCopilot)
+		}
+
+		// An Anthropic provider authenticates either via a bearer
+		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
+		// the conflict here so misconfigured deployments fail before
+		// any DB work happens at server startup.
+		if isAnthropicType && len(p.Keys) > 0 && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
+			return nil, err
+		}
+
+		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
+			return nil, err
+		}
+
+		if p.Name == "" {
+			p.Name = p.Type
+		}
+		if other, exists := names[p.Name]; exists {
+			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
+		}
+		names[p.Name] = i
+	}
+
+	warnIfAIProvidersConfiguredFromEnv(context.Background(), logger, activePrefix, providers)
+
+	return providers, nil
+}
+
+func warnIfAIProvidersConfiguredFromEnv(ctx context.Context, logger slog.Logger, prefix string, providers []codersdk.AIProviderConfig) {
+	if len(providers) == 0 {
+		return
+	}
+
+	if prefix == "" {
+		return
+	}
+
+	logger.Warn(ctx,
+		"ai provider environment variables are deprecated for provider management and only seed provider configuration at startup",
+		slog.F("env_prefix", prefix),
+		slog.F("replacement", "Manage AI Providers from the Coder UI or HTTP API."),
+	)
+}
+
+// readAIProvidersForPrefix parses provider env vars under a single
+// indexed prefix (e.g. CODER_AI_GATEWAY_PROVIDER_) into a slice of
+// AIProviderConfig. Per-field syntax errors and unknown keys are
+// reported using the original env var name so the prefix stays visible
+// to the operator.
+func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix string) ([]codersdk.AIProviderConfig, error) {
+	parsed := serpent.ParseEnviron(environ, prefix)
 
 	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
 	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
@@ -2942,25 +3127,26 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	var providers []codersdk.AIBridgeProviderConfig
+	var providers []codersdk.AIProviderConfig
 	for _, v := range parsed {
+		fullName := prefix + v.Name
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+			return nil, xerrors.Errorf("invalid env var: %s", fullName)
 		}
 
 		providerNum, err := strconv.Atoi(tokens[0])
 		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
+			return nil, xerrors.Errorf("parse number: %s", fullName)
 		}
 
-		var provider codersdk.AIBridgeProviderConfig
+		var provider codersdk.AIProviderConfig
 		switch {
 		case len(providers) < providerNum:
 			return nil, xerrors.Errorf(
 				"provider num %v skipped: %s",
 				len(providers),
-				v.Name,
+				fullName,
 			)
 		case len(providers) == providerNum: // First observation of this index, create a new provider.
 			providers = append(providers, provider)
@@ -2985,8 +3171,6 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			}
 		case "BASE_URL":
 			provider.BaseURL = v.Value
-		case "DUMP_DIR":
-			provider.DumpDir = v.Value
 		case "BEDROCK_BASE_URL":
 			provider.BedrockBaseURL = v.Value
 		case "BEDROCK_REGION":
@@ -3014,62 +3198,38 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
 		default:
-			logger.Warn(context.Background(), "ignoring unknown aibridge provider field (check for typos)",
-				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
+			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
+				slog.F("env", fullName),
 			)
 		}
 		providers[providerNum] = provider
 	}
 
-	// Post-parse validation.
-	names := make(map[string]int, len(providers))
-	for i := range providers {
-		p := &providers[i]
-		if p.Type == "" {
-			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
-		}
-
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
-		}
-
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
-		}
-
-		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
-			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, aibridge.ProviderCopilot)
-		}
-
-		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
-			return nil, err
-		}
-
-		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
-			return nil, err
-		}
-
-		if p.Name == "" {
-			p.Name = p.Type
-		}
-		if other, exists := names[p.Name]; exists {
-			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
-		}
-		names[p.Name] = i
-	}
-
 	return providers, nil
 }
 
-func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
-	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
-		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
-		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
+// validateLegacyAIBridgeConfig enforces invariants on the legacy
+// single-provider env vars (CODER_AIBRIDGE_ANTHROPIC_KEY,
+// CODER_AIBRIDGE_BEDROCK_*) that the indexed validator above can't
+// catch because legacy fields live outside cfg.Providers.
+func validateLegacyAIBridgeConfig(cfg codersdk.AIBridgeConfig) error {
+	// An Anthropic provider authenticates either via a bearer token
+	// or via Bedrock, not both. Fields without serpent-level
+	// defaults (region, base URL, credentials) reliably indicate
+	// operator intent; Model and SmallFastModel are excluded because
+	// they have defaults.
+	settings := codersdk.NewAIProviderBedrockSettings(
+		cfg.LegacyBedrock.Region.String(),
+		cfg.LegacyBedrock.AccessKey.String(),
+		cfg.LegacyBedrock.AccessKeySecret.String(),
+		cfg.LegacyBedrock.Model.String(),
+		cfg.LegacyBedrock.SmallFastModel.String(),
+	)
+	hasBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), settings)
+	if cfg.LegacyAnthropic.Key.String() != "" && hasBedrock {
+		return xerrors.New("CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive")
+	}
+	return nil
 }
 
 // maxKeysPerProvider is the maximum number of keys allowed per

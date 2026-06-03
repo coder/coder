@@ -6,9 +6,18 @@ const (
 	APIKeyScopeAll APIKeyScope = "all"
 	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
 	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	APIKeyScopeAiGatewayKeyAll                     APIKeyScope = "ai_gateway_key:*"
+	APIKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	APIKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	APIKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
 	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
+	APIKeyScopeAiProviderAll                       APIKeyScope = "ai_provider:*"
+	APIKeyScopeAiProviderCreate                    APIKeyScope = "ai_provider:create"
+	APIKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
+	APIKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
+	APIKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
 	APIKeyScopeAiSeatAll                           APIKeyScope = "ai_seat:*"
 	APIKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
 	APIKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
@@ -35,6 +44,10 @@ const (
 	APIKeyScopeAuditLogAll                         APIKeyScope = "audit_log:*"
 	APIKeyScopeAuditLogCreate                      APIKeyScope = "audit_log:create"
 	APIKeyScopeAuditLogRead                        APIKeyScope = "audit_log:read"
+	APIKeyScopeBoundaryLogAll                      APIKeyScope = "boundary_log:*"
+	APIKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	APIKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	APIKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
 	APIKeyScopeBoundaryUsageAll                    APIKeyScope = "boundary_usage:*"
 	APIKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
 	APIKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
@@ -43,6 +56,7 @@ const (
 	APIKeyScopeChatCreate                          APIKeyScope = "chat:create"
 	APIKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
+	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
@@ -176,6 +190,11 @@ const (
 	APIKeyScopeUserSecretDelete                    APIKeyScope = "user_secret:delete"
 	APIKeyScopeUserSecretRead                      APIKeyScope = "user_secret:read"
 	APIKeyScopeUserSecretUpdate                    APIKeyScope = "user_secret:update"
+	APIKeyScopeUserSkillAll                        APIKeyScope = "user_skill:*"
+	APIKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
+	APIKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
+	APIKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
+	APIKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
 	APIKeyScopeWebpushSubscriptionAll              APIKeyScope = "webpush_subscription:*"
 	APIKeyScopeWebpushSubscriptionCreate           APIKeyScope = "webpush_subscription:create"
 	APIKeyScopeWebpushSubscriptionDelete           APIKeyScope = "webpush_subscription:delete"
@@ -261,6 +280,11 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeUserSecretDelete,
 	APIKeyScopeUserSecretRead,
 	APIKeyScopeUserSecretUpdate,
+	APIKeyScopeUserSkillAll,
+	APIKeyScopeUserSkillCreate,
+	APIKeyScopeUserSkillDelete,
+	APIKeyScopeUserSkillRead,
+	APIKeyScopeUserSkillUpdate,
 	APIKeyScopeWorkspaceAll,
 	APIKeyScopeWorkspaceApplicationConnect,
 	APIKeyScopeWorkspaceCreate,

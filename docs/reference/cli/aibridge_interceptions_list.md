@@ -43,6 +43,14 @@ Only return interceptions started after this time. Must be before 'started-befor
 
 Only return interceptions from this provider.
 
+### --provider-name
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Only return interceptions from the named provider.
+
 ### --model
 
 |      |                     |

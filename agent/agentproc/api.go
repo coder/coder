@@ -200,8 +200,13 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// Fall through to read snapshot below.
 	}
 
-	output, truncated := proc.output()
+	// Read info before output to avoid a TOCTOU race. The exit
+	// goroutine completes all buffer writes (cmd.Wait) before
+	// setting running=false, so if info reports the process as
+	// exited, the subsequent output read is guaranteed to reflect
+	// the final buffer state.
 	info := proc.info()
+	output, truncated := proc.output()
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ProcessOutputResponse{
 		Output:    output,

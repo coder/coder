@@ -250,7 +250,7 @@ func (n FeatureName) Humanize() string {
 	case FeatureSCIM:
 		return "SCIM"
 	case FeatureAIBridge:
-		return "AI Bridge"
+		return "AI Gateway"
 	case FeatureAIGovernanceUserLimit:
 		return "AI Governance User Limit"
 	default:
@@ -574,6 +574,34 @@ var PostgresAuthDrivers = []string{
 // based on max open connections.
 const PostgresConnMaxIdleAuto = "auto"
 
+// AIBudgetPolicy determines how the effective group is selected when a user
+// belongs to multiple groups with AI budgets configured.
+type AIBudgetPolicy string
+
+const (
+	// AIBudgetPolicyHighest selects the group with the highest spend limit.
+	AIBudgetPolicyHighest AIBudgetPolicy = "highest"
+)
+
+// AIBudgetPolicies lists the supported AIBudgetPolicy values.
+var AIBudgetPolicies = []string{
+	string(AIBudgetPolicyHighest),
+}
+
+// AIBudgetPeriod determines when accumulated AI spend resets to zero,
+// aligned to UTC calendar boundaries.
+type AIBudgetPeriod string
+
+const (
+	// AIBudgetPeriodMonth resets spend at the start of each UTC calendar month.
+	AIBudgetPeriodMonth AIBudgetPeriod = "month"
+)
+
+// AIBudgetPeriods lists the supported AIBudgetPeriod values.
+var AIBudgetPeriods = []string{
+	string(AIBudgetPeriodMonth),
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -610,6 +638,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
@@ -629,6 +658,7 @@ type DeploymentValues struct {
 	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
+	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
@@ -1450,12 +1480,20 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "chat",
 			Description: "Configure the background chat processing daemon.",
 		}
+		deploymentGroupAIGateway = serpent.Group{
+			Name: "AI Gateway",
+			YAML: "ai_gateway",
+		}
+		deploymentGroupAIGatewayProxy = serpent.Group{
+			Name: "AI Gateway Proxy",
+			YAML: "ai_gateway_proxy",
+		}
 		deploymentGroupAIBridge = serpent.Group{
-			Name: "AI Bridge",
+			Name: "AI Bridge (Deprecated)",
 			YAML: "aibridge",
 		}
 		deploymentGroupAIBridgeProxy = serpent.Group{
-			Name: "AI Bridge Proxy",
+			Name: "AI Bridge Proxy (Deprecated)",
 			YAML: "aibridgeproxy",
 		}
 		deploymentGroupRetention = serpent.Group{
@@ -1659,6 +1697,378 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Value:       &c.WorkspaceHostnameSuffix,
 		Hidden:      false,
 		Default:     "coder",
+	}
+
+	// AI Gateway options
+	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. "
+	aiGatewayEnabled := serpent.Option{
+		Name:        "AI Gateway Enabled",
+		Description: "Whether to start an in-memory AI Gateway instance.",
+		Flag:        "ai-gateway-enabled",
+		Env:         "CODER_AI_GATEWAY_ENABLED",
+		Value:       &c.AI.BridgeConfig.Enabled,
+		Default:     "true",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "enabled",
+	}
+	aiGatewayOpenAIBaseURL := serpent.Option{
+		Name:        "AI Gateway OpenAI Base URL",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the OpenAI API.",
+		Flag:        "ai-gateway-openai-base-url",
+		Env:         "CODER_AI_GATEWAY_OPENAI_BASE_URL",
+		Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
+		Default:     "https://api.openai.com/v1/",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "openai_base_url",
+	}
+	aiGatewayOpenAIKey := serpent.Option{
+		Name:        "AI Gateway OpenAI Key",
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the OpenAI API.",
+		Flag:        "ai-gateway-openai-key",
+		Env:         "CODER_AI_GATEWAY_OPENAI_KEY",
+		Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+	}
+	aiGatewayAnthropicBaseURL := serpent.Option{
+		Name:        "AI Gateway Anthropic Base URL",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the Anthropic API.",
+		Flag:        "ai-gateway-anthropic-base-url",
+		Env:         "CODER_AI_GATEWAY_ANTHROPIC_BASE_URL",
+		Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
+		Default:     "https://api.anthropic.com/",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "anthropic_base_url",
+	}
+	aiGatewayAnthropicKey := serpent.Option{
+		Name:        "AI Gateway Anthropic Key",
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the Anthropic API.",
+		Flag:        "ai-gateway-anthropic-key",
+		Env:         "CODER_AI_GATEWAY_ANTHROPIC_KEY",
+		Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+	}
+	aiGatewayBedrockBaseURL := serpent.Option{
+		Name:        "AI Gateway Bedrock Base URL",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.",
+		Flag:        "ai-gateway-bedrock-base-url",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_base_url",
+	}
+	aiGatewayBedrockRegion := serpent.Option{
+		Name:        "AI Gateway Bedrock Region",
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
+		Flag:        "ai-gateway-bedrock-region",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_region",
+	}
+	aiGatewayBedrockAccessKey := serpent.Option{
+		Name:        "AI Gateway Bedrock Access Key",
+		Description: aiGatewayProviderSeedingDeprecated + "The access key to authenticate against the AWS Bedrock API.",
+		Flag:        "ai-gateway-bedrock-access-key",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+	}
+	aiGatewayBedrockAccessKeySecret := serpent.Option{
+		Name:        "AI Gateway Bedrock Access Key Secret",
+		Description: aiGatewayProviderSeedingDeprecated + "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+		Flag:        "ai-gateway-bedrock-access-key-secret",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+	}
+	aiGatewayBedrockModel := serpent.Option{
+		Name:        "AI Gateway Bedrock Model",
+		Description: aiGatewayProviderSeedingDeprecated + "The model to use when making requests to the AWS Bedrock API.",
+		Flag:        "ai-gateway-bedrock-model",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_MODEL",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
+		Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_model",
+	}
+	aiGatewayBedrockSmallFastModel := serpent.Option{
+		Name:        "AI Gateway Bedrock Small Fast Model",
+		Description: aiGatewayProviderSeedingDeprecated + "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+		Flag:        "ai-gateway-bedrock-small-fastmodel",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
+		Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_small_fast_model",
+	}
+	aiGatewayInjectCoderMCPTools := serpent.Option{
+		Name:        "AI Gateway Inject Coder MCP tools",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Flag:        "ai-gateway-inject-coder-mcp-tools",
+		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
+		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "inject_coder_mcp_tools",
+		Hidden:      true,
+	}
+	aiGatewayRetention := serpent.Option{
+		Name:        "AI Gateway Data Retention Duration",
+		Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+		Flag:        "ai-gateway-retention",
+		Env:         "CODER_AI_GATEWAY_RETENTION",
+		Value:       &c.AI.BridgeConfig.Retention,
+		Default:     "60d",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "retention",
+		Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+	}
+	aiGatewayMaxConcurrency := serpent.Option{
+		Name:        "AI Gateway Max Concurrency",
+		Description: "Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disable (unlimited).",
+		Flag:        "ai-gateway-max-concurrency",
+		Env:         "CODER_AI_GATEWAY_MAX_CONCURRENCY",
+		Value:       &c.AI.BridgeConfig.MaxConcurrency,
+		Default:     "0",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "max_concurrency",
+	}
+	aiGatewayRateLimit := serpent.Option{
+		Name:        "AI Gateway Rate Limit",
+		Description: "Maximum number of AI Gateway requests per second per replica. Set to 0 to disable (unlimited).",
+		Flag:        "ai-gateway-rate-limit",
+		Env:         "CODER_AI_GATEWAY_RATE_LIMIT",
+		Value:       &c.AI.BridgeConfig.RateLimit,
+		Default:     "0",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "rate_limit",
+	}
+	aiGatewayStructuredLogging := serpent.Option{
+		Name:        "AI Gateway Structured Logging",
+		Description: "Emit structured logs for AI Gateway interception records. Use this for exporting these records to external SIEM or observability systems.",
+		Flag:        "ai-gateway-structured-logging",
+		Env:         "CODER_AI_GATEWAY_STRUCTURED_LOGGING",
+		Value:       &c.AI.BridgeConfig.StructuredLogging,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "structured_logging",
+	}
+	aiGatewayAPIDumpDir := serpent.Option{
+		Name:        "AI Gateway API Dump Directory",
+		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Flag:        "ai-gateway-dump-dir",
+		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
+		Value:       &c.AI.BridgeConfig.APIDumpDir,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "api_dump_dir",
+	}
+	aiGatewaySendActorHeaders := serpent.Option{
+		Name: "AI Gateway Send Actor Headers",
+		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
+			"This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. " +
+			"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+		Flag:    "ai-gateway-send-actor-headers",
+		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
+		Value:   &c.AI.BridgeConfig.SendActorHeaders,
+		Default: "false",
+		Group:   &deploymentGroupAIGateway,
+		YAML:    "send_actor_headers",
+	}
+	aiGatewayAllowBYOK := serpent.Option{
+		Name:        "AI Gateway Allow BYOK",
+		Description: "Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+		Flag:        "ai-gateway-allow-byok",
+		Env:         "CODER_AI_GATEWAY_ALLOW_BYOK",
+		Value:       &c.AI.BridgeConfig.AllowBYOK,
+		Default:     "true",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "allow_byok",
+	}
+
+	// validateCircuitBreakerPercent is shared by AI Gateway circuit breaker options
+	validateCircuitBreakerPercent := func(value *serpent.Int64) error {
+		if value.Value() <= 0 || value.Value() > 100 {
+			return xerrors.New("must be between 1 and 100")
+		}
+		return nil
+	}
+	aiGatewayCircuitBreakerEnabled := serpent.Option{
+		Name:        "AI Gateway Circuit Breaker Enabled",
+		Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
+		Flag:        "ai-gateway-circuit-breaker-enabled",
+		Env:         "CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED",
+		Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "circuit_breaker_enabled",
+	}
+	aiGatewayCircuitBreakerFailureThreshold := serpent.Option{
+		Name:        "AI Gateway Circuit Breaker Failure Threshold",
+		Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+		Flag:        "ai-gateway-circuit-breaker-failure-threshold",
+		Env:         "CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+		Value:       serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, validateCircuitBreakerPercent),
+		Default:     "5",
+		Hidden:      true,
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "circuit_breaker_failure_threshold",
+	}
+	aiGatewayCircuitBreakerInterval := serpent.Option{
+		Name:        "AI Gateway Circuit Breaker Interval",
+		Description: "Cyclic period of the closed state for clearing internal failure counts.",
+		Flag:        "ai-gateway-circuit-breaker-interval",
+		Env:         "CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL",
+		Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
+		Default:     "10s",
+		Hidden:      true,
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "circuit_breaker_interval",
+		Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+	}
+	aiGatewayCircuitBreakerTimeout := serpent.Option{
+		Name:        "AI Gateway Circuit Breaker Timeout",
+		Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+		Flag:        "ai-gateway-circuit-breaker-timeout",
+		Env:         "CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT",
+		Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
+		Default:     "30s",
+		Hidden:      true,
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "circuit_breaker_timeout",
+		Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+	}
+	aiGatewayCircuitBreakerMaxRequests := serpent.Option{
+		Name:        "AI Gateway Circuit Breaker Max Requests",
+		Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+		Flag:        "ai-gateway-circuit-breaker-max-requests",
+		Env:         "CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS",
+		Value:       serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, validateCircuitBreakerPercent),
+		Default:     "3",
+		Hidden:      true,
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "circuit_breaker_max_requests",
+	}
+	aiGatewayProxyEnabled := serpent.Option{
+		Name:        "AI Gateway Proxy Enabled",
+		Description: "Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider requests.",
+		Flag:        "ai-gateway-proxy-enabled",
+		Env:         "CODER_AI_GATEWAY_PROXY_ENABLED",
+		Value:       &c.AI.BridgeProxyConfig.Enabled,
+		Default:     "false",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "enabled",
+	}
+	aiGatewayProxyListenAddr := serpent.Option{
+		Name:        "AI Gateway Proxy Listen Address",
+		Description: "The address the AI Gateway Proxy will listen on.",
+		Flag:        "ai-gateway-proxy-listen-addr",
+		Env:         "CODER_AI_GATEWAY_PROXY_LISTEN_ADDR",
+		Value:       &c.AI.BridgeProxyConfig.ListenAddr,
+		Default:     ":8888",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "listen_addr",
+	}
+	aiGatewayProxyTLSCertFile := serpent.Option{
+		Name:        "AI Gateway Proxy TLS Certificate File",
+		Description: "Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.",
+		Flag:        "ai-gateway-proxy-tls-cert-file",
+		Env:         "CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE",
+		Value:       &c.AI.BridgeProxyConfig.TLSCertFile,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "tls_cert_file",
+	}
+	aiGatewayProxyTLSKeyFile := serpent.Option{
+		Name:        "AI Gateway Proxy TLS Key File",
+		Description: "Path to the TLS private key file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Certificate File.",
+		Flag:        "ai-gateway-proxy-tls-key-file",
+		Env:         "CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE",
+		Value:       &c.AI.BridgeProxyConfig.TLSKeyFile,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "tls_key_file",
+	}
+	aiGatewayProxyMITMCertFile := serpent.Option{
+		Name:        "AI Gateway Proxy MITM CA Certificate File",
+		Description: "Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.",
+		Flag:        "ai-gateway-proxy-cert-file",
+		Env:         "CODER_AI_GATEWAY_PROXY_CERT_FILE",
+		Value:       &c.AI.BridgeProxyConfig.MITMCertFile,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "cert_file",
+	}
+	aiGatewayProxyMITMKeyFile := serpent.Option{
+		Name:        "AI Gateway Proxy MITM CA Key File",
+		Description: "Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.",
+		Flag:        "ai-gateway-proxy-key-file",
+		Env:         "CODER_AI_GATEWAY_PROXY_KEY_FILE",
+		Value:       &c.AI.BridgeProxyConfig.MITMKeyFile,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "key_file",
+	}
+	aiGatewayProxyDomainAllowlist := serpent.Option{
+		Name:        "AI Gateway Proxy Domain Allowlist",
+		Description: "Deprecated: This value is now derived automatically from the configured AI Gateway providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
+		Flag:        "ai-gateway-proxy-domain-allowlist",
+		Env:         "CODER_AI_GATEWAY_PROXY_DOMAIN_ALLOWLIST",
+		Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+		Default:     "",
+		Hidden:      true,
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "domain_allowlist",
+	}
+	aiGatewayProxyUpstreamProxy := serpent.Option{
+		Name:        "AI Gateway Proxy Upstream Proxy",
+		Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+		Flag:        "ai-gateway-proxy-upstream",
+		Env:         "CODER_AI_GATEWAY_PROXY_UPSTREAM",
+		Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "upstream_proxy",
+	}
+	aiGatewayProxyUpstreamProxyCA := serpent.Option{
+		Name:        "AI Gateway Proxy Upstream Proxy CA",
+		Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+		Flag:        "ai-gateway-proxy-upstream-ca",
+		Env:         "CODER_AI_GATEWAY_PROXY_UPSTREAM_CA",
+		Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "upstream_proxy_ca",
+	}
+	aiGatewayProxyAllowedPrivateCIDRs := serpent.Option{
+		Name:        "AI Gateway Proxy Allowed Private CIDRs",
+		Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+		Flag:        "ai-gateway-proxy-allowed-private-cidrs",
+		Env:         "CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS",
+		Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "allowed_private_cidrs",
+	}
+	aiGatewayProxyAPIDumpDir := serpent.Option{
+		Name:        "AI Gateway Proxy API Dump Directory",
+		Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+		Flag:        "ai-gateway-proxy-dump-dir",
+		Env:         "CODER_AI_GATEWAY_PROXY_DUMP_DIR",
+		Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "api_dump_dir",
 	}
 	opts := serpent.OptionSet{
 		{
@@ -3038,6 +3448,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SCIMAPIKey,
 		},
 		{
+			Name: "SCIM Use Legacy",
+			// The legacy SCIM is a weird mix of SCIM 1.0 and SCIM 2.0
+			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
+			Flag:        "scim-use-legacy",
+			Env:         "CODER_SCIM_USE_LEGACY",
+			Hidden:      true,
+			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
+			Default:     "true",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.UseLegacySCIM,
+		},
+		{
 			Name:        "External Token Encryption Keys",
 			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
 			Flag:        "external-token-encryption-keys",
@@ -3073,6 +3495,15 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 
 			Value: &c.DisableWorkspaceSharing,
 			YAML:  "disableWorkspaceSharing",
+		},
+		{
+			Name:        "Disable Chat Sharing",
+			Description: "Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.",
+			Flag:        "disable-chat-sharing",
+			Env:         "CODER_DISABLE_CHAT_SHARING",
+
+			Value: &c.DisableChatSharing,
+			YAML:  "disableChatSharing",
 		},
 		{
 			Name:        "Session Duration",
@@ -3170,7 +3601,7 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      false,
 		},
 		{
-			// Env handling is done in cli.ReadGitAuthFromEnvironment
+			// Env handling is done in cli.ReadExternalAuthProvidersFromEnv
 			Name:        "External Auth Providers",
 			Description: "External Authentication providers.",
 			YAML:        "externalAuthProviders",
@@ -3639,122 +4070,166 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
 		},
-		// AI Bridge Options
+		{
+			Name:        "Chat: AI Gateway Routing Enabled",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Flag:        "chat-ai-gateway-routing-enabled",
+			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
+			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
+		},
+		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
-			Description: "Whether to start an in-memory aibridged instance.",
+			Description: "Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead. Whether to start an in-memory aibridged instance.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
-			Default:     "false",
+			Default:     "true",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
+		aiGatewayEnabled,
 		{
 			Name:        "AI Bridge OpenAI Base URL",
-			Description: "The base URL of the OpenAI API.",
+			Description: "Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL instead. The base URL of the OpenAI API.",
 			Flag:        "aibridge-openai-base-url",
 			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
 			Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayOpenAIBaseURL},
 		},
+		aiGatewayOpenAIBaseURL,
 		{
 			Name:        "AI Bridge OpenAI Key",
-			Description: "The key to authenticate against the OpenAI API.",
+			Description: "Deprecated: use --ai-gateway-openai-key or CODER_AI_GATEWAY_OPENAI_KEY instead. The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
 			Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayOpenAIKey},
 		},
+		aiGatewayOpenAIKey,
 		{
 			Name:        "AI Bridge Anthropic Base URL",
-			Description: "The base URL of the Anthropic API.",
+			Description: "Deprecated: use --ai-gateway-anthropic-base-url or CODER_AI_GATEWAY_ANTHROPIC_BASE_URL instead. The base URL of the Anthropic API.",
 			Flag:        "aibridge-anthropic-base-url",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
 			Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_base_url",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayAnthropicBaseURL},
 		},
+		aiGatewayAnthropicBaseURL,
 		{
 			Name:        "AI Bridge Anthropic Key",
-			Description: "The key to authenticate against the Anthropic API.",
+			Description: "Deprecated: use --ai-gateway-anthropic-key or CODER_AI_GATEWAY_ANTHROPIC_KEY instead. The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayAnthropicKey},
 		},
+		aiGatewayAnthropicKey,
 		{
 			Name: "AI Bridge Bedrock Base URL",
-			Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
+			Description: "Deprecated: use --ai-gateway-bedrock-base-url or CODER_AI_GATEWAY_BEDROCK_BASE_URL instead. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
 				"over CODER_AIBRIDGE_BEDROCK_REGION.",
-			Flag:    "aibridge-bedrock-base-url",
-			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
-			Value:   &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-			Default: "",
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "bedrock_base_url",
+			Flag:       "aibridge-bedrock-base-url",
+			Env:        "CODER_AIBRIDGE_BEDROCK_BASE_URL",
+			Value:      &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
+			Default:    "",
+			Group:      &deploymentGroupAIBridge,
+			YAML:       "bedrock_base_url",
+			Hidden:     true,
+			UseInstead: serpent.OptionSet{aiGatewayBedrockBaseURL},
 		},
+		aiGatewayBedrockBaseURL,
 		{
 			Name: "AI Bridge Bedrock Region",
-			Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
+			Description: "Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION instead. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
 				"'https://bedrock-runtime.<region>.amazonaws.com'.",
-			Flag:    "aibridge-bedrock-region",
-			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:   &c.AI.BridgeConfig.LegacyBedrock.Region,
-			Default: "",
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "bedrock_region",
+			Flag:       "aibridge-bedrock-region",
+			Env:        "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:      &c.AI.BridgeConfig.LegacyBedrock.Region,
+			Default:    "",
+			Group:      &deploymentGroupAIBridge,
+			YAML:       "bedrock_region",
+			Hidden:     true,
+			UseInstead: serpent.OptionSet{aiGatewayBedrockRegion},
 		},
+		aiGatewayBedrockRegion,
 		{
 			Name:        "AI Bridge Bedrock Access Key",
-			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Description: "Deprecated: use --ai-gateway-bedrock-access-key or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY instead. The access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
 			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKey},
 		},
+		aiGatewayBedrockAccessKey,
 		{
 			Name:        "AI Bridge Bedrock Access Key Secret",
-			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Description: "Deprecated: use --ai-gateway-bedrock-access-key-secret or CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET instead. The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key-secret",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
 			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayBedrockAccessKeySecret},
 		},
+		aiGatewayBedrockAccessKeySecret,
 		{
 			Name:        "AI Bridge Bedrock Model",
-			Description: "The model to use when making requests to the AWS Bedrock API.",
+			Description: "Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL instead. The model to use when making requests to the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-model",
 			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
 			Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
 			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_model",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayBedrockModel},
 		},
+		aiGatewayBedrockModel,
 		{
 			Name:        "AI Bridge Bedrock Small Fast Model",
-			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+			Description: "Deprecated: use --ai-gateway-bedrock-small-fastmodel or CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL instead. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 			Flag:        "aibridge-bedrock-small-fastmodel",
 			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
 			Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
 			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_small_fast_model",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayBedrockSmallFastModel},
 		},
+		aiGatewayBedrockSmallFastModel,
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -3762,10 +4237,12 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "inject_coder_mcp_tools",
 			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayInjectCoderMCPTools},
 		},
+		aiGatewayInjectCoderMCPTools,
 		{
 			Name:        "AI Bridge Data Retention Duration",
-			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Description: "Deprecated: use --ai-gateway-retention or CODER_AI_GATEWAY_RETENTION instead. Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
 			Flag:        "aibridge-retention",
 			Env:         "CODER_AIBRIDGE_RETENTION",
 			Value:       &c.AI.BridgeConfig.Retention,
@@ -3773,88 +4250,107 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "retention",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayRetention},
 		},
+		aiGatewayRetention,
 		{
 			Name:        "AI Bridge Max Concurrency",
-			Description: "Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).",
+			Description: "Deprecated: use --ai-gateway-max-concurrency or CODER_AI_GATEWAY_MAX_CONCURRENCY instead. Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).",
 			Flag:        "aibridge-max-concurrency",
 			Env:         "CODER_AIBRIDGE_MAX_CONCURRENCY",
 			Value:       &c.AI.BridgeConfig.MaxConcurrency,
 			Default:     "0",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "max_concurrency",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayMaxConcurrency},
 		},
+		aiGatewayMaxConcurrency,
 		{
 			Name:        "AI Bridge Rate Limit",
-			Description: "Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).",
+			Description: "Deprecated: use --ai-gateway-rate-limit or CODER_AI_GATEWAY_RATE_LIMIT instead. Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).",
 			Flag:        "aibridge-rate-limit",
 			Env:         "CODER_AIBRIDGE_RATE_LIMIT",
 			Value:       &c.AI.BridgeConfig.RateLimit,
 			Default:     "0",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "rate_limit",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayRateLimit},
 		},
+		aiGatewayRateLimit,
 		{
 			Name:        "AI Bridge Structured Logging",
-			Description: "Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
+			Description: "Deprecated: use --ai-gateway-structured-logging or CODER_AI_GATEWAY_STRUCTURED_LOGGING instead. Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.",
 			Flag:        "aibridge-structured-logging",
 			Env:         "CODER_AIBRIDGE_STRUCTURED_LOGGING",
 			Value:       &c.AI.BridgeConfig.StructuredLogging,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "structured_logging",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayStructuredLogging},
 		},
+		aiGatewayStructuredLogging,
 		{
 			Name: "AI Bridge Send Actor Headers",
-			Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
+			Description: "Deprecated: use --ai-gateway-send-actor-headers or CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
 				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
 				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
-			Flag:    "aibridge-send-actor-headers",
-			Env:     "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
-			Value:   &c.AI.BridgeConfig.SendActorHeaders,
-			Default: "false",
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "send_actor_headers",
+			Flag:       "aibridge-send-actor-headers",
+			Env:        "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
+			Value:      &c.AI.BridgeConfig.SendActorHeaders,
+			Default:    "false",
+			Group:      &deploymentGroupAIBridge,
+			YAML:       "send_actor_headers",
+			Hidden:     true,
+			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
+		aiGatewaySendActorHeaders,
+		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
-			Description: "Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+			Description: "Deprecated: use --ai-gateway-allow-byok or CODER_AI_GATEWAY_ALLOW_BYOK instead. Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
 			Flag:        "aibridge-allow-byok",
 			Env:         "CODER_AIBRIDGE_ALLOW_BYOK",
 			Value:       &c.AI.BridgeConfig.AllowBYOK,
 			Default:     "true",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "allow_byok",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayAllowBYOK},
 		},
+		aiGatewayAllowBYOK,
 		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
-			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
+			Description: "Deprecated: use --ai-gateway-circuit-breaker-enabled or CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED instead. Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
 			Flag:        "aibridge-circuit-breaker-enabled",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "circuit_breaker_enabled",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayCircuitBreakerEnabled},
 		},
+		aiGatewayCircuitBreakerEnabled,
 		{
 			Name:        "AI Bridge Circuit Breaker Failure Threshold",
-			Description: "Number of consecutive failures that triggers the circuit breaker to open.",
+			Description: "Deprecated: use --ai-gateway-circuit-breaker-failure-threshold or CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD instead. Number of consecutive failures that triggers the circuit breaker to open.",
 			Flag:        "aibridge-circuit-breaker-failure-threshold",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, func(value *serpent.Int64) error {
-				if value.Value() <= 0 || value.Value() > 100 {
-					return xerrors.New("must be between 1 and 100")
-				}
-				return nil
-			}),
-			Default: "5",
-			Hidden:  true,
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "circuit_breaker_failure_threshold",
+			Value:       serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerFailureThreshold, validateCircuitBreakerPercent),
+			Default:     "5",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuit_breaker_failure_threshold",
+			UseInstead:  serpent.OptionSet{aiGatewayCircuitBreakerFailureThreshold},
 		},
+		aiGatewayCircuitBreakerFailureThreshold,
 		{
 			Name:        "AI Bridge Circuit Breaker Interval",
-			Description: "Cyclic period of the closed state for clearing internal failure counts.",
+			Description: "Deprecated: use --ai-gateway-circuit-breaker-interval or CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL instead. Cyclic period of the closed state for clearing internal failure counts.",
 			Flag:        "aibridge-circuit-breaker-interval",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerInterval,
@@ -3863,10 +4359,12 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "circuit_breaker_interval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			UseInstead:  serpent.OptionSet{aiGatewayCircuitBreakerInterval},
 		},
+		aiGatewayCircuitBreakerInterval,
 		{
 			Name:        "AI Bridge Circuit Breaker Timeout",
-			Description: "How long the circuit breaker stays open before transitioning to half-open state.",
+			Description: "Deprecated: use --ai-gateway-circuit-breaker-timeout or CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT instead. How long the circuit breaker stays open before transitioning to half-open state.",
 			Flag:        "aibridge-circuit-breaker-timeout",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerTimeout,
@@ -3875,88 +4373,125 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "circuit_breaker_timeout",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			UseInstead:  serpent.OptionSet{aiGatewayCircuitBreakerTimeout},
 		},
+		aiGatewayCircuitBreakerTimeout,
 		{
 			Name:        "AI Bridge Circuit Breaker Max Requests",
-			Description: "Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
+			Description: "Deprecated: use --ai-gateway-circuit-breaker-max-requests or CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS instead. Maximum number of requests allowed in half-open state before deciding to close or re-open the circuit.",
 			Flag:        "aibridge-circuit-breaker-max-requests",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS",
-			Value: serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, func(value *serpent.Int64) error {
-				if value.Value() <= 0 || value.Value() > 100 {
-					return xerrors.New("must be between 1 and 100")
-				}
-				return nil
-			}),
-			Default: "3",
-			Hidden:  true,
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "circuit_breaker_max_requests",
+			Value:       serpent.Validate(&c.AI.BridgeConfig.CircuitBreakerMaxRequests, validateCircuitBreakerPercent),
+			Default:     "3",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "circuit_breaker_max_requests",
+			UseInstead:  serpent.OptionSet{aiGatewayCircuitBreakerMaxRequests},
+		},
+		aiGatewayCircuitBreakerMaxRequests,
+		{
+			Name:        "AI Budget Policy",
+			Description: "Determines the effective group when a user belongs to multiple groups with AI budgets. \"highest\" selects the group with the largest spend limit, and is currently the only supported value.",
+			Flag:        "ai-budget-policy",
+			Env:         "CODER_AI_BUDGET_POLICY",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPolicy, AIBudgetPolicies...),
+			Default:     string(AIBudgetPolicyHighest),
+			Group:       &deploymentGroupAIGateway,
+			YAML:        "budget_policy",
+		},
+		{
+			Name:        "AI Budget Period",
+			Description: "Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only \"month\" is currently supported.",
+			Flag:        "ai-budget-period",
+			Env:         "CODER_AI_BUDGET_PERIOD",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPeriod, AIBudgetPeriods...),
+			Default:     string(AIBudgetPeriodMonth),
+			Group:       &deploymentGroupAIGateway,
+			YAML:        "budget_period",
 		},
 
-		// AI Bridge Proxy Options
+		// AI Gateway Proxy Options
 		{
 			Name:        "AI Bridge Proxy Enabled",
-			Description: "Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.",
+			Description: "Deprecated: use --ai-gateway-proxy-enabled or CODER_AI_GATEWAY_PROXY_ENABLED instead. Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.",
 			Flag:        "aibridge-proxy-enabled",
 			Env:         "CODER_AIBRIDGE_PROXY_ENABLED",
 			Value:       &c.AI.BridgeProxyConfig.Enabled,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "enabled",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyEnabled},
 		},
+		aiGatewayProxyEnabled,
 		{
 			Name:        "AI Bridge Proxy Listen Address",
-			Description: "The address the AI Bridge Proxy will listen on.",
+			Description: "Deprecated: use --ai-gateway-proxy-listen-addr or CODER_AI_GATEWAY_PROXY_LISTEN_ADDR instead. The address the AI Bridge Proxy will listen on.",
 			Flag:        "aibridge-proxy-listen-addr",
 			Env:         "CODER_AIBRIDGE_PROXY_LISTEN_ADDR",
 			Value:       &c.AI.BridgeProxyConfig.ListenAddr,
 			Default:     ":8888",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "listen_addr",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
+		aiGatewayProxyListenAddr,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
-			Description: "Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
+			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
 			Flag:        "aibridge-proxy-tls-cert-file",
 			Env:         "CODER_AIBRIDGE_PROXY_TLS_CERT_FILE",
 			Value:       &c.AI.BridgeProxyConfig.TLSCertFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "tls_cert_file",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyTLSCertFile},
 		},
+		aiGatewayProxyTLSCertFile,
 		{
 			Name:        "AI Bridge Proxy TLS Key File",
-			Description: "Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.",
+			Description: "Deprecated: use --ai-gateway-proxy-tls-key-file or CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE instead. Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.",
 			Flag:        "aibridge-proxy-tls-key-file",
 			Env:         "CODER_AIBRIDGE_PROXY_TLS_KEY_FILE",
 			Value:       &c.AI.BridgeProxyConfig.TLSKeyFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "tls_key_file",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyTLSKeyFile},
 		},
+		aiGatewayProxyTLSKeyFile,
 		{
 			Name:        "AI Bridge Proxy MITM CA Certificate File",
-			Description: "Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.",
+			Description: "Deprecated: use --ai-gateway-proxy-cert-file or CODER_AI_GATEWAY_PROXY_CERT_FILE instead. Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.",
 			Flag:        "aibridge-proxy-cert-file",
 			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
 			Value:       &c.AI.BridgeProxyConfig.MITMCertFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "cert_file",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyMITMCertFile},
 		},
+		aiGatewayProxyMITMCertFile,
 		{
 			Name:        "AI Bridge Proxy MITM CA Key File",
-			Description: "Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.",
+			Description: "Deprecated: use --ai-gateway-proxy-key-file or CODER_AI_GATEWAY_PROXY_KEY_FILE instead. Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.",
 			Flag:        "aibridge-proxy-key-file",
 			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
 			Value:       &c.AI.BridgeProxyConfig.MITMKeyFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyMITMKeyFile},
 		},
+		aiGatewayProxyMITMKeyFile,
 		{
 			Name:        "AI Bridge Proxy Domain Allowlist",
-			Description: "Deprecated: This value is now derived automatically from the configured AI Bridge providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
+			Description: "Deprecated: This value is now derived automatically from the configured AI providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "aibridge-proxy-domain-allowlist",
 			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
 			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
@@ -3964,47 +4499,61 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:      true,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "domain_allowlist",
+			UseInstead:  serpent.OptionSet{aiGatewayProxyDomainAllowlist},
 		},
+		aiGatewayProxyDomainAllowlist,
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
-			Description: "URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
+			Description: "Deprecated: use --ai-gateway-proxy-upstream or CODER_AI_GATEWAY_PROXY_UPSTREAM instead. URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.",
 			Flag:        "aibridge-proxy-upstream",
 			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM",
 			Value:       &c.AI.BridgeProxyConfig.UpstreamProxy,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyUpstreamProxy},
 		},
+		aiGatewayProxyUpstreamProxy,
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy CA",
-			Description: "Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
+			Description: "Deprecated: use --ai-gateway-proxy-upstream-ca or CODER_AI_GATEWAY_PROXY_UPSTREAM_CA instead. Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.",
 			Flag:        "aibridge-proxy-upstream-ca",
 			Env:         "CODER_AIBRIDGE_PROXY_UPSTREAM_CA",
 			Value:       &c.AI.BridgeProxyConfig.UpstreamProxyCA,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy_ca",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyUpstreamProxyCA},
 		},
+		aiGatewayProxyUpstreamProxyCA,
 		{
 			Name:        "AI Bridge Proxy Allowed Private CIDRs",
-			Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+			Description: "Deprecated: use --ai-gateway-proxy-allowed-private-cidrs or CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS instead. Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
 			Flag:        "aibridge-proxy-allowed-private-cidrs",
 			Env:         "CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS",
 			Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyAllowedPrivateCIDRs},
 		},
+		aiGatewayProxyAllowedPrivateCIDRs,
 		{
 			Name:        "AI Bridge Proxy API Dump Directory",
-			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Description: "Deprecated: use --ai-gateway-proxy-dump-dir or CODER_AI_GATEWAY_PROXY_DUMP_DIR instead. Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
 			Flag:        "aibridge-proxy-dump-dir",
 			Env:         "CODER_AIBRIDGE_PROXY_DUMP_DIR",
 			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "api_dump_dir",
+			Hidden:      true,
+			UseInstead:  serpent.OptionSet{aiGatewayProxyAPIDumpDir},
 		},
+		aiGatewayProxyAPIDumpDir,
 
 		// Retention settings
 		{
@@ -4090,15 +4639,15 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	Providers []AIBridgeProviderConfig `json:"providers,omitempty"`
+	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -4107,6 +4656,9 @@ type AIBridgeConfig struct {
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// Budget settings for AI Governance cost controls.
+	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
+	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider overload (503, 529).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
@@ -4114,6 +4666,10 @@ type AIBridgeConfig struct {
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
 	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
 	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
+	// APIDumpDir is the base directory under which each provider's
+	// request/response dumps are written, in a subdirectory named after
+	// the provider. Empty disables dumping.
+	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -4135,11 +4691,14 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
-// AIBridgeProviderConfig represents a single AI Bridge provider instance,
-// parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+// AIProviderConfig represents a single AI provider instance,
+// parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
+// CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
 // This follows the same indexed pattern as ExternalAuthConfig.
-type AIBridgeProviderConfig struct {
-	// Type is the provider type: "openai", "anthropic", or "copilot".
+type AIProviderConfig struct {
+	// Type is the provider type. Valid values are: "openai",
+	// "anthropic", "azure", "bedrock", "google", "openai-compat",
+	// "openrouter", "vercel", "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
@@ -4150,8 +4709,6 @@ type AIBridgeProviderConfig struct {
 	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
-	// DumpDir is the directory path for dumping API requests and responses.
-	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL string `json:"-"`
@@ -4182,8 +4739,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {

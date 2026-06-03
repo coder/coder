@@ -2,15 +2,14 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
-	clearPersistedSidebarTabId,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
-	getPersistedSidebarTabId,
-	lastActiveSidebarTabStorageKeyPrefix,
+	getWorkspaceOptionsWithLinkedWorkspace,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
-	savePersistedSidebarTabId,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -18,6 +17,12 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import {
+	clearPersistedSidebarTabId,
+	getPersistedSidebarTabId,
+	lastActiveSidebarTabStorageKeyPrefix,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -75,21 +80,41 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
-type Deferred<T> = {
-	promise: Promise<T>;
-	resolve: (value: T | PromiseLike<T>) => void;
-	reject: (reason?: unknown) => void;
-};
+describe("getWorkspaceOptionsWithLinkedWorkspace", () => {
+	it("includes a missing linked workspace only when the current user owns it", () => {
+		const existingWorkspace = {
+			...MockWorkspace,
+			id: "existing-workspace",
+		};
+		const ownerWorkspaceOptions = [existingWorkspace];
+		const linkedWorkspace = {
+			...MockWorkspace,
+			id: "linked-workspace",
+			owner_id: MockUserOwner.id,
+		};
 
-const createDeferred = <T>(): Deferred<T> => {
-	let resolve!: (value: T | PromiseLike<T>) => void;
-	let reject!: (reason?: unknown) => void;
-	const promise = new Promise<T>((res, rej) => {
-		resolve = res;
-		reject = rej;
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				linkedWorkspace,
+				MockUserOwner.id,
+			),
+		).toEqual([linkedWorkspace, existingWorkspace]);
+
+		const sharedWorkspace = {
+			...linkedWorkspace,
+			owner_id: "another-user",
+		};
+
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				sharedWorkspace,
+				MockUserOwner.id,
+			),
+		).toBe(ownerWorkspaceOptions);
 	});
-	return { promise, resolve, reject };
-};
+});
 
 describe("waitForPendingChatSettingsSyncs", () => {
 	it("waits for plan-mode and workspace updates before resolving", async () => {

@@ -152,6 +152,28 @@ describe("getEditableUserMessagePayload", () => {
 			expect(getEditableUserMessagePayload(message)).toEqual(want);
 		}
 	});
+
+	it("preserves whitespace-only text parts when concatenating", () => {
+		// The server-side prompt-history cycle joins text parts
+		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
+		// The edit path must agree so cycling and clicking Edit on the
+		// same message produce the same draft text.
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [
+				{ type: "text", text: "hello" },
+				{ type: "text", text: "   " },
+				{ type: "text", text: "world" },
+			],
+		};
+		expect(getEditableUserMessagePayload(message)).toEqual({
+			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
 });
 
 describe("parseMessageContent", () => {
@@ -231,6 +253,30 @@ describe("parseMessageContent", () => {
 			args: { command: "ls" },
 		});
 		expect(result.blocks).toEqual([{ type: "tool", id: "call-1" }]);
+	});
+
+	it("propagates parsed_commands from a tool-call part", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "call-1",
+				args: { command: "cd /repo && git pull" },
+				parsed_commands: [
+					["cd", "/repo"],
+					["git", "pull"],
+				],
+			},
+		]);
+		expect(result.toolCalls[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+		const merged = mergeTools(result.toolCalls, result.toolResults);
+		expect(merged[0].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
 	});
 
 	it("parses a tool-result block", () => {

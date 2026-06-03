@@ -1,9 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import {
 	AgentSettingsGeneralPageView,
 	type AgentSettingsGeneralPageViewProps,
 } from "./AgentSettingsGeneralPageView";
+
+const preferencesData = {
+	task_notification_alert_dismissed: false,
+	thinking_display_mode: "auto" as const,
+	shell_tool_display_mode: "auto" as const,
+	code_diff_display_mode: "auto" as const,
+	agent_chat_send_shortcut: "enter" as const,
+};
 
 const baseArgs: AgentSettingsGeneralPageViewProps = {
 	userPromptData: {
@@ -26,6 +36,9 @@ const meta = {
 	title: "pages/AgentsPage/AgentSettingsGeneralPageView",
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
+	parameters: {
+		queries: [{ key: ["me", "preferences"], data: preferencesData }],
+	},
 } satisfies Meta<typeof AgentSettingsGeneralPageView>;
 
 export default meta;
@@ -42,7 +55,7 @@ export const InvisibleUnicodeWarningUserPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Personal Instructions");
+		await canvas.findByText("Personal instructions");
 		const alert = await canvas.findByText(/invisible Unicode/);
 		expect(alert).toBeInTheDocument();
 		expect(alert.textContent).toContain("2");
@@ -115,31 +128,58 @@ export const RendersChatLayoutSection: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		expect(await canvas.findByText("Chat Layout")).toBeInTheDocument();
+		expect(await canvas.findByText("Chat layout")).toBeInTheDocument();
 		expect(
 			await canvas.findByRole("switch", { name: "Full-width chat" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const RendersAgentDisplayModeSettings: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["me", "preferences"],
-				data: {
-					task_notification_alert_dismissed: false,
-					thinking_display_mode: "auto" as const,
-					code_diff_display_mode: "auto" as const,
-				},
+export const TogglesSendShortcut: Story = {
+	beforeEach: () => {
+		let agentChatSendShortcut: AgentChatSendShortcut =
+			preferencesData.agent_chat_send_shortcut;
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
+			...preferencesData,
+			agent_chat_send_shortcut: agentChatSendShortcut,
+		}));
+		spyOn(API, "updateUserPreferenceSettings").mockImplementation(
+			async (req) => {
+				agentChatSendShortcut =
+					req.agent_chat_send_shortcut ?? agentChatSendShortcut;
+				return {
+					...preferencesData,
+					agent_chat_send_shortcut: agentChatSendShortcut,
+				};
 			},
-		],
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Require Cmd/Ctrl+Enter to send messages",
+		});
 
-		expect(await canvas.findByText("Thinking Display")).toBeVisible();
-		expect(await canvas.findByText("Code Diff Display")).toBeVisible();
+		expect(await canvas.findByText("Keyboard shortcuts")).toBeInTheDocument();
+		expect(toggle).not.toBeChecked();
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(API.updateUserPreferenceSettings).toHaveBeenCalledWith({
+				agent_chat_send_shortcut: "modifier_enter",
+			});
+			expect(toggle).toBeChecked();
+		});
+	},
+};
+
+export const RendersAgentDisplayModeSettings: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(await canvas.findByText("Thinking display")).toBeVisible();
+		expect(await canvas.findByText("Shell output display")).toBeVisible();
+		expect(await canvas.findByText("Code diff display")).toBeVisible();
 	},
 };
 

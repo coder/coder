@@ -305,7 +305,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
-	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
+	const shouldExpandLogs = showLogs || (!hasStartupFeatures && hasAgentIssues);
+	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
+	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -523,13 +525,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 								>
 									<Spinner
 										size="lg"
-										loading={true}
+										loading
 										className="text-content-secondary -ml-1"
 									/>
 									<span>{runningScriptsCount}</span>
 								</Badge>
 							)}
-						{healthIssues.length > 0 && (
+						{hasAgentIssues && (
 							<Badge
 								variant={hasWarningIssues ? "warning" : "info"}
 								size="xs"
@@ -545,9 +547,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 						)}
 					</Button>
 				</div>
-				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+				<Collapse in={shouldExpandLogs}>
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
-						{healthIssues.length > 0 && (
+						{/*
+						  Collapse's `in` condition is needed here,
+							or else the Spinner will also show as Collapse is closing
+						*/}
+						{shouldExpandLogs && !(hasAgentIssues || shouldShowLogsTabs) && (
+							<Spinner size="lg" loading className="block mx-auto" />
+						)}
+						{hasAgentIssues && (
 							<div className="mb-4 flex flex-col gap-3">
 								{healthIssues.map((issue) => (
 									<AgentAlert
@@ -558,7 +567,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								))}
 							</div>
 						)}
-						{hasStartupFeatures && hasAnyLogs && (
+						{shouldShowLogsTabs && (
 							<div className="border border-solid rounded-md overflow-clip">
 								<Tabs
 									className="-mx-px -mt-px"

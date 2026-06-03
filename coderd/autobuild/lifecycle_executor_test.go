@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -158,6 +160,92 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	// And we expect this transition to have been a start transition
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+}
+
+// uniqueViolationStore wraps a database.Store and injects a unique violation
+// error from InsertWorkspaceBuild after a configurable number of successful
+// calls. This simulates a concurrent build race (e.g. an API-driven start
+// racing with the lifecycle executor autostart).
+type uniqueViolationStore struct {
+	database.Store
+	insertCount *atomic.Int32 // pointer: shared across InTx copies
+	failAfterN  int32
+}
+
+func newUniqueViolationStore(db database.Store, failAfterN int32) *uniqueViolationStore {
+	return &uniqueViolationStore{
+		Store:       db,
+		insertCount: &atomic.Int32{},
+		failAfterN:  failAfterN,
+	}
+}
+
+func (s *uniqueViolationStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&uniqueViolationStore{
+			Store:       tx,
+			insertCount: s.insertCount, // shared pointer
+			failAfterN:  s.failAfterN,
+		})
+	}, opts)
+}
+
+func (s *uniqueViolationStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
+	n := s.insertCount.Add(1)
+	if n > s.failAfterN {
+		return &pq.Error{
+			Code:       pq.ErrorCode("23505"),
+			Constraint: string(database.UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey),
+			Message:    `duplicate key value violates unique constraint "workspace_builds_workspace_id_build_number_key"`,
+		}
+	}
+	return s.Store.InsertWorkspaceBuild(ctx, arg)
+}
+
+func TestExecutorBuildNumberRaceIsHandled(t *testing.T) {
+	t.Parallel()
+
+	// The lifecycle executor must handle a unique-violation from
+	// InsertWorkspaceBuild gracefully. This error occurs when a concurrent
+	// actor (API handler, another executor, prebuilds reconciler) inserts a
+	// build with the same number before the executor's INSERT lands.
+	//
+	// We inject the error via a store wrapper. The first two
+	// InsertWorkspaceBuild calls succeed (setup builds), then the third
+	// (the lifecycle executor's autostart build) gets a unique violation.
+
+	realDB, ps := dbtestutil.NewDB(t)
+	wrappedDB := newUniqueViolationStore(realDB, 2) // Allow builds 1 (start) and 2 (stop); fail build 3 (autostart)
+
+	var (
+		sched, _ = cron.Weekly("CRON_TZ=UTC 0 * * * *")
+		tickCh   = make(chan time.Time)
+		statsCh  = make(chan autobuild.Stats)
+		client   = coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			AutobuildTicker:          tickCh,
+			AutobuildStats:           statsCh,
+			Database:                 wrappedDB,
+			Pubsub:                   ps,
+		})
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+	)
+
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	p, err := coderdtest.GetProvisionerForTags(realDB, time.Now(), workspace.OrganizationID, nil)
+	require.NoError(t, err)
+	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	coderdtest.UpdateProvisionerLastSeenAt(t, realDB, p.ID, next)
+
+	tickCh <- next
+	stats := <-statsCh
+
+	// The lifecycle executor should treat the unique violation as a benign
+	// race, not as a hard error.
+	assert.Empty(t, stats.Errors, "lifecycle executor should not report unique-violation as error")
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {
@@ -550,8 +638,8 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 
 	// Given: template has activity bump enabled.
 	_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-		DefaultTTLMillis:   (2 * time.Hour).Milliseconds(),
-		ActivityBumpMillis: time.Hour.Milliseconds(),
+		DefaultTTLMillis:   ptr.Ref((2 * time.Hour).Milliseconds()),
+		ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
 	})
 	require.NoError(t, err)
 
@@ -1905,7 +1993,7 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 
 		if defaultTTL > 0 {
 			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
+				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 		}

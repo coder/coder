@@ -134,6 +134,14 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AiSeatState:
 		return "AI Seat"
+	case database.AIProvider:
+		return typed.Name
+	case database.AIProviderKey:
+		return typed.ID.String()
+	case database.AIGatewayKey:
+		return typed.Name
+	case database.AuditableGroupAiBudget:
+		return typed.GroupName
 	case database.Chat:
 		// Chat titles can contain sensitive content (secrets, internal
 		// project names), so we use a short UUID prefix as a display
@@ -143,6 +151,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
 	case database.UserSecret:
+		return typed.Name
+	case database.UserSkill:
 		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
@@ -210,9 +220,19 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AiSeatState:
 		return typed.UserID
+	case database.AIProvider:
+		return typed.ID
+	case database.AIProviderKey:
+		return typed.ID
+	case database.AIGatewayKey:
+		return typed.ID
+	case database.AuditableGroupAiBudget:
+		return typed.GroupID
 	case database.Chat:
 		return typed.ID
 	case database.UserSecret:
+		return typed.ID
+	case database.UserSkill:
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
@@ -271,10 +291,20 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTask
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
+	case database.AIProvider:
+		return database.ResourceTypeAIProvider
+	case database.AIProviderKey:
+		return database.ResourceTypeAIProviderKey
+	case database.AIGatewayKey:
+		return database.ResourceTypeAIGatewayKey
+	case database.AuditableGroupAiBudget:
+		return database.ResourceTypeGroupAiBudget
 	case database.Chat:
 		return database.ResourceTypeChat
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
+	case database.UserSkill:
+		return database.ResourceTypeUserSkill
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -335,12 +365,28 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.AiSeatState:
 		return false
+	case database.AIProvider:
+		// AI providers are deployment-scoped, not org-scoped.
+		return false
+	case database.AIProviderKey:
+		// AI provider keys inherit the deployment scope of their parent
+		// provider.
+		return false
+	case database.AIGatewayKey:
+		// AI Gateway keys are deployment-scoped, not org-scoped.
+		return false
+	case database.AuditableGroupAiBudget:
+		// Group AI budgets are org-scoped through their parent group.
+		return true
 	case database.Chat:
 		// Chats always have a non-null organization_id (since
 		// migration 000467).
 		return true
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
+		return false
+	case database.UserSkill:
+		// User skills are global to the user across organizations.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

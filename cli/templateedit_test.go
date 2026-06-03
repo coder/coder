@@ -101,8 +101,7 @@ func TestTemplateEdit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
-
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
@@ -751,8 +750,10 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.False(t, req.AllowUserAutostart)
-					assert.False(t, req.AllowUserAutostop)
+					require.NotNil(t, req.AllowUserAutostart)
+					assert.False(t, *req.AllowUserAutostart)
+					require.NotNil(t, req.AllowUserAutostop)
+					assert.False(t, *req.AllowUserAutostop)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					updateTemplateCalled.Add(1)

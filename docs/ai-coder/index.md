@@ -9,7 +9,7 @@ Coder [integrates with IDEs](../user-guides/workspace-access/index.md) such as
 Cursor, Windsurf, and Zed that include built-in coding agents to work alongside
 developers. Additionally, template admins can
 [pre-install extensions](https://registry.coder.com/modules/coder/vscode-web)
-for agents such as GitHub Copilot and Roo Code.
+for agents such as GitHub Copilot.
 
 These agents work well inside existing Coder workspaces as they can simply be
 enabled via an extension or are built-into the editor.
@@ -24,8 +24,7 @@ deployment.
 Coder Agents is a native AI coding agent built into Coder. The agent loop runs
 in the Coder control plane on your infrastructure rather than inside the
 workspace, so workspaces can be completely network isolated. Developers
-interact with agents through the web UI, the CLI (`coder agents`), or the
-REST API.
+interact with agents through the web UI or the REST API.
 
 ![Coder Agents chat interface with git diff sidebar](../images/agents-hero-image.png)
 

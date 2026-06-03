@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	BORDER_BG_STYLE,
 	buildEditDiff,
 	buildWriteFileDiff,
 	COLLAPSED_OUTPUT_HEIGHT,
@@ -8,7 +7,10 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
+	formatModelIntentLabel,
 	formatResultOutput,
+	formatShellDurationMs,
+	formatToolInput,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -24,10 +26,64 @@ import {
 	parseEditFilesArgs,
 	parseServerEditDiffText,
 	parseServerEditResults,
+	sanitizeExecuteModelIntent,
 	shortDurationMs,
 	stripSvnIndexHeaders,
+	summarizeParsedCommands,
 	toProviderLabel,
 } from "./utils";
+
+describe("formatModelIntentLabel", () => {
+	it("returns empty string for empty values", () => {
+		expect(formatModelIntentLabel(undefined)).toBe("");
+		expect(formatModelIntentLabel("")).toBe("");
+		expect(formatModelIntentLabel("   ")).toBe("");
+	});
+
+	it("trims and capitalizes labels", () => {
+		expect(formatModelIntentLabel("checking repository state")).toBe(
+			"Checking repository state",
+		);
+		expect(formatModelIntentLabel(" a")).toBe("A");
+		expect(formatModelIntentLabel("Running tests")).toBe("Running tests");
+	});
+});
+
+describe("sanitizeExecuteModelIntent", () => {
+	it("strips redundant command and duration suffixes", () => {
+		expect(
+			sanitizeExecuteModelIntent("Running tests using npm for 5s", "npm test"),
+		).toBe("Running tests");
+		expect(
+			sanitizeExecuteModelIntent(
+				"checking status using git fetch origin",
+				"git fetch origin",
+			),
+		).toBe("Checking status");
+	});
+
+	it("strips trailing durations without command suffixes", () => {
+		expect(
+			sanitizeExecuteModelIntent("Running tests for 2.5s", "npm test"),
+		).toBe("Running tests");
+		expect(sanitizeExecuteModelIntent("for 5s", "npm test")).toBe("");
+	});
+
+	it("strips leading using only when it references the command", () => {
+		expect(
+			sanitizeExecuteModelIntent("using git fetch origin", "git fetch origin"),
+		).toBe("");
+		expect(
+			sanitizeExecuteModelIntent("Using environment variables", "npm test"),
+		).toBe("Using environment variables");
+	});
+
+	it("preserves using when it is not followed by a command reference", () => {
+		expect(
+			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
+		).toBe("Testing using mock data");
+	});
+});
 
 describe("toProviderLabel", () => {
 	it("returns displayName when provided", () => {
@@ -70,17 +126,42 @@ describe("shortDurationMs", () => {
 		expect(shortDurationMs(1000)).toBe("1s");
 		expect(shortDurationMs(30_000)).toBe("30s");
 		expect(shortDurationMs(59_000)).toBe("59s");
+		expect(shortDurationMs(59_499)).toBe("59s");
 	});
 
 	it("formats minutes", () => {
+		expect(shortDurationMs(59_500)).toBe("1m");
 		expect(shortDurationMs(60_000)).toBe("1m");
 		expect(shortDurationMs(300_000)).toBe("5m");
 		expect(shortDurationMs(3_540_000)).toBe("59m");
+		expect(shortDurationMs(3_569_999)).toBe("59m");
 	});
 
 	it("formats hours", () => {
+		expect(shortDurationMs(3_570_000)).toBe("1h");
 		expect(shortDurationMs(3_600_000)).toBe("1h");
 		expect(shortDurationMs(7_200_000)).toBe("2h");
+	});
+});
+
+describe("formatShellDurationMs", () => {
+	it("returns empty string for invalid values", () => {
+		expect(formatShellDurationMs(undefined)).toBe("");
+		expect(formatShellDurationMs(-1)).toBe("");
+		expect(formatShellDurationMs(Number.NaN)).toBe("");
+		expect(formatShellDurationMs(Number.POSITIVE_INFINITY)).toBe("");
+	});
+
+	it("formats milliseconds and rounded seconds", () => {
+		expect(formatShellDurationMs(100)).toBe("100ms");
+		expect(formatShellDurationMs(47_200)).toBe("47.2s");
+		expect(formatShellDurationMs(59_949)).toBe("59.9s");
+		expect(formatShellDurationMs(59_950)).toBe("1m");
+	});
+
+	it("formats rounded minutes and hours", () => {
+		expect(formatShellDurationMs(3_596_999)).toBe("59.9m");
+		expect(formatShellDurationMs(3_597_000)).toBe("1h");
 	});
 });
 
@@ -223,6 +304,66 @@ describe("parseArgs", () => {
 
 	it("returns null for arrays", () => {
 		expect(parseArgs([1, 2, 3])).toBeNull();
+	});
+});
+
+describe("formatToolInput", () => {
+	it("returns null for null, undefined, and empty inputs", () => {
+		expect(formatToolInput(null)).toBeNull();
+		expect(formatToolInput(undefined)).toBeNull();
+		expect(formatToolInput("")).toBeNull();
+		expect(formatToolInput({})).toBeNull();
+		expect(formatToolInput([])).toBeNull();
+		expect(formatToolInput("{}")).toBeNull();
+		expect(formatToolInput("[]")).toBeNull();
+		expect(formatToolInput("null")).toBeNull();
+		expect(
+			formatToolInput(
+				JSON.stringify({
+					model_intent: "Reading backend issues",
+					properties: {},
+				}),
+			),
+		).toBeNull();
+	});
+
+	it("formats object input as pretty JSON", () => {
+		expect(formatToolInput({ project: "backend", limit: 2 })).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("formats JSON string input as pretty JSON", () => {
+		expect(formatToolInput('{"project":"backend","limit":2}')).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("unwraps model intent input wrappers", () => {
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				properties: { project: "backend" },
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				project: "backend",
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+		expect(
+			formatToolInput(
+				JSON.stringify({
+					model_intent: "Reading backend issues",
+					properties: { project: "backend" },
+				}),
+			),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+	});
+
+	it("preserves non-JSON string input", () => {
+		expect(formatToolInput("search text")).toBe("search text");
 	});
 });
 
@@ -622,6 +763,57 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].edits[0].replace).toBe("");
 	});
 
+	it("accepts old_text/new_text field names", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "before", new_text: "after" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "before", replace: "after" });
+	});
+
+	it("prefers old_text/new_text over search/replace when both present", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{
+							old_text: "from-old-text",
+							new_text: "from-new-text",
+							search: "from-search",
+							replace: "from-replace",
+						},
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({
+			search: "from-old-text",
+			replace: "from-new-text",
+		});
+	});
+
+	it("preserves deletion via old_text/new_text (empty new_text)", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "remove me", new_text: "" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({ search: "remove me", replace: "" });
+	});
+
 	// During streaming the model may emit a file entry before any
 	// edit is complete. Every edit has a missing replace, so all are
 	// filtered out. The file entry survives with an empty edits
@@ -668,7 +860,7 @@ describe("buildEditDiff", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			const diff = buildEditDiff(
-				"/home/coder/coder/site/src/pages/AgentsPage/AgentsSidebar.tsx",
+				"/home/coder/coder/site/src/pages/AgentsPage/components/ChatSidebar/ChatsSidebar.tsx",
 				[
 					{ search: "const a = 1;", replace: "const a = 2;" },
 					{ search: "const b = 3;", replace: "const b = 4;" },
@@ -840,13 +1032,6 @@ describe("constants", () => {
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-line-height", "1.5");
 	});
 
-	it("BORDER_BG_STYLE has expected background", () => {
-		expect(BORDER_BG_STYLE).toHaveProperty(
-			"background",
-			"hsl(var(--border-default))",
-		);
-	});
-
 	it("fileViewerCSS is a non-empty string", () => {
 		expect(typeof fileViewerCSS).toBe("string");
 		expect(fileViewerCSS.length).toBeGreaterThan(0);
@@ -854,6 +1039,17 @@ describe("constants", () => {
 
 	it("diffViewerCSS includes border-left style", () => {
 		expect(diffViewerCSS).toContain("border-left");
+	});
+
+	it("diffViewerCSS uses theme-aware changed line backgrounds", () => {
+		expect(diffViewerCSS).toContain("--diffs-addition-color-override");
+		expect(diffViewerCSS).toContain("--diffs-deletion-color-override");
+		expect(diffViewerCSS).toContain("--diffs-bg-addition-override");
+		expect(diffViewerCSS).toContain("--diffs-bg-deletion-override");
+		expect(diffViewerCSS).toContain("var(--surface-git-added)");
+		expect(diffViewerCSS).toContain("var(--surface-git-deleted)");
+		expect(diffViewerCSS).toContain("[data-line-type='change-addition']");
+		expect(diffViewerCSS).toContain("[data-line-type='change-deletion']");
 	});
 });
 
@@ -919,5 +1115,53 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+});
+
+describe("summarizeParsedCommands", () => {
+	it("renders <prog> <verb> for multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "add"],
+				["git", "commit"],
+			]),
+		).toBe("git pull, git add, git commit");
+	});
+
+	it("renders just <prog> for non-multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["cd", "/repo"],
+				["ls", "/tmp"],
+			]),
+		).toBe("cd, ls");
+	});
+
+	it("renders single-arg entries as just the program", () => {
+		expect(summarizeParsedCommands([["pwd"]])).toBe("pwd");
+	});
+
+	it("dedupes consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "pull"],
+			]),
+		).toBe("git pull");
+	});
+
+	it("keeps non-consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([["git", "pull"], ["ls"], ["git", "pull"]]),
+		).toBe("git pull, ls, git pull");
+	});
+
+	it("returns empty string for empty input", () => {
+		expect(summarizeParsedCommands([])).toBe("");
+	});
+
+	it("skips entries with no program", () => {
+		expect(summarizeParsedCommands([[""], ["git", "pull"]])).toBe("git pull");
 	});
 });

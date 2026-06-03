@@ -871,7 +871,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+	go httpapi.HeartbeatCloseWithClock(ctx, logger, cancel, conn, api.Clock)
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -1095,6 +1095,11 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, waws.WorkspaceTable) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
@@ -2562,9 +2567,9 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if locked.OwnerID != workspace.OwnerID {
 			return errChatDoesNotBelongToWorkspaceOwner
 		}
-		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleChatMessageInsertParams(
+		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
 			chat.ID,
-			database.ChatMessageRoleUser,
+			"", // Agent-initiated context injection has no caller API key.
 			content,
 			database.ChatMessageVisibilityBoth,
 			locked.LastModelConfigID,

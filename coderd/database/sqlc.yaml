@@ -68,6 +68,21 @@ sql:
           - column: "chats.labels"
             go_type:
               type: "StringMap"
+          - column: "chats_expanded.labels"
+            go_type:
+              type: "StringMap"
+          - column: "chats.user_acl"
+            go_type:
+              type: "ChatACL"
+          - column: "chats.group_acl"
+            go_type:
+              type: "ChatACL"
+          - column: "chats_expanded.user_acl"
+            go_type:
+              type: "ChatACL"
+          - column: "chats_expanded.group_acl"
+            go_type:
+              type: "ChatACL"
           - column: "users.rbac_roles"
             go_type: "github.com/lib/pq.StringArray"
           - column: "templates.user_acl"
@@ -163,6 +178,9 @@ sql:
               type: "NullDecimal"
               package: "decimal"
         rename:
+          ai_provider_id: AIProviderID
+          chat: ChatTable
+          chats_expanded: Chat
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
           template: TemplateTable
@@ -182,6 +200,7 @@ sql:
           api_version: APIVersion
           avatar_url: AvatarURL
           created_by_avatar_url: CreatedByAvatarURL
+          diff_url: DiffURL
           dbcrypt_key: DBCryptKey
           session_count_vscode: SessionCountVSCode
           session_count_jetbrains: SessionCountJetBrains
@@ -239,6 +258,13 @@ sql:
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
           aibridge_model_thought: AIBridgeModelThought
+          ai_provider: AIProvider
+          ai_provider_key: AIProviderKey
+          ai_provider_type: AIProviderType
+          ai_gateway_key: AIGatewayKey
+          resource_type_ai_provider: ResourceTypeAIProvider
+          resource_type_ai_provider_key: ResourceTypeAIProviderKey
+          resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

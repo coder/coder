@@ -329,6 +329,12 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 	}
 
 	var out []option.RequestOption
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+		}
+		return next(req)
+	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
 
 	// If a custom base URL is set, override the default endpoint constructed by the bedrock middleware.
@@ -341,7 +347,8 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 
 // augmentRequestForBedrock will change the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
-// don't support adaptive thinking natively.
+// don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
+// adaptive (Opus 4.7+).
 func (i *interceptionBase) augmentRequestForBedrock() {
 	if i.bedrockCfg == nil {
 		return
@@ -355,7 +362,21 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 	}
 	i.reqPayload = updated
 
-	if !bedrockModelSupportsAdaptiveThinking(model) {
+	switch {
+	case bedrockModelRequiresAdaptiveThinking(model):
+		// Symmetric conversion for adaptive-only models (Opus 4.7+): rewrite
+		// thinking.type "enabled" with budget_tokens to the "adaptive" shape,
+		// since Bedrock returns 400 for these models when the legacy shape is
+		// used. Claude Code falls back to the legacy shape when it cannot
+		// read the upstream model's capability metadata (which is the case
+		// when AI Bridge is in the path).
+		updated, err = i.reqPayload.convertEnabledThinkingForBedrock()
+		if err != nil {
+			i.logger.Warn(context.Background(), "failed to convert enabled thinking for Bedrock", slog.Error(err))
+			return
+		}
+		i.reqPayload = updated
+	case !bedrockModelSupportsAdaptiveThinking(model):
 		updated, err = i.reqPayload.convertAdaptiveThinkingForBedrock()
 		if err != nil {
 			i.logger.Warn(context.Background(), "failed to convert adaptive thinking for Bedrock", slog.Error(err))
@@ -370,21 +391,52 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		filterBedrockBetaFlags(i.clientHeaders, model)
 	}
 
-	// Strip body fields that Bedrock does not accept.
-	updated, err = i.reqPayload.removeUnsupportedBedrockFields(i.clientHeaders)
+	// Strip body fields that Bedrock does not accept. Adaptive-only models
+	// (Opus 4.7+) support output_config natively without a beta flag, so
+	// keep it for those models even when the effort-2025-11-24 flag is
+	// absent from the request.
+	var exemptFields []string
+	if bedrockModelRequiresAdaptiveThinking(model) {
+		exemptFields = append(exemptFields, messagesReqPathOutputConfig)
+	}
+	updated, err = i.reqPayload.removeUnsupportedBedrockFields(i.clientHeaders, exemptFields...)
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to remove unsupported fields for Bedrock", slog.Error(err))
 		return
 	}
 	i.reqPayload = updated
+
+	// Adaptive-only models accept output_config but reject some of its
+	// sub-fields (currently: output_config.format). Strip those after the
+	// top-level pass has decided to keep output_config.
+	if bedrockModelRequiresAdaptiveThinking(model) {
+		updated, err = i.reqPayload.removeBedrockUnsupportedOutputConfigSubFields()
+		if err != nil {
+			i.logger.Warn(context.Background(), "failed to strip unsupported output_config sub-fields for Bedrock", slog.Error(err))
+			return
+		}
+		i.reqPayload = updated
+	}
 }
 
 // bedrockModelSupportsAdaptiveThinking returns true if the given Bedrock model ID
-// supports the "adaptive" thinking type natively (i.e. Claude 4.6 models).
+// supports the "adaptive" thinking type natively (i.e. Claude 4.6 models, and
+// adaptive-only models such as Opus 4.7+).
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
 func bedrockModelSupportsAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-6") ||
-		strings.Contains(model, "anthropic.claude-sonnet-4-6")
+		strings.Contains(model, "anthropic.claude-sonnet-4-6") ||
+		bedrockModelRequiresAdaptiveThinking(model)
+}
+
+// bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
+// ID only supports the "adaptive" thinking type and rejects the legacy
+// "enabled" + budget_tokens shape with a 400. Claude Opus 4.7 was the first
+// model in this category.
+//
+// See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+func bedrockModelRequiresAdaptiveThinking(model string) bool {
+	return strings.Contains(model, "anthropic.claude-opus-4-7")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta
@@ -537,32 +589,36 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	)
 }
 
-// ProcessKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the Anthropic
-// API. Returns nil if err is not an exhaustion error.
-func ProcessKeyPoolError(err error) *ResponseError {
-	var transient *keypool.TransientKeyPoolError
-	switch {
-	case errors.As(err, &transient):
-		return newErrorResponse(
-			"all configured keys are rate-limited",
-			string(constant.ValueOf[constant.RateLimitError]()),
-			http.StatusTooManyRequests,
-			transient.RetryAfter,
-		)
-	case errors.Is(err, keypool.ErrPermanentKeyPool):
-		return newErrorResponse(
-			"all configured keys failed authentication",
+// ResponseErrorFromKeyPool translates a *keypool.Error into
+// a developer-facing ResponseError shaped for the Anthropic API.
+func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
+	switch keyPoolErr.Kind {
+	case keypool.ErrorKindPermanent:
+		return newResponseError(
+			keyPoolErr.Error(),
 			string(constant.ValueOf[constant.APIError]()),
 			http.StatusBadGateway,
-			0,
+			keyPoolErr.RetryAfter,
+		)
+	case keypool.ErrorKindRateLimited:
+		return newResponseError(
+			keyPoolErr.Error(),
+			string(constant.ValueOf[constant.RateLimitError]()),
+			http.StatusTooManyRequests,
+			keyPoolErr.RetryAfter,
 		)
 	default:
-		return nil
+		// Fall back to a generic 502.
+		return newResponseError(
+			keyPoolErr.Error(),
+			string(constant.ValueOf[constant.APIError]()),
+			http.StatusBadGateway,
+			keyPoolErr.RetryAfter,
+		)
 	}
 }
 
-func getErrorResponse(err error) *ResponseError {
+func responseErrorFromAPIError(err error) *ResponseError {
 	var apierr *anthropic.Error
 	if !errors.As(err, &apierr) {
 		return nil
@@ -580,7 +636,7 @@ func getErrorResponse(err error) *ResponseError {
 		errType = string(detail.Type)
 	}
 
-	return newErrorResponse(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
+	return newResponseError(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
 }
 
 var _ error = &ResponseError{}
@@ -592,7 +648,7 @@ type ResponseError struct {
 	RetryAfter time.Duration `json:"-"`
 }
 
-func newErrorResponse(msg, errType string, status int, retryAfter time.Duration) *ResponseError {
+func newResponseError(msg, errType string, status int, retryAfter time.Duration) *ResponseError {
 	return &ResponseError{
 		ErrorResponse: &shared.ErrorResponse{
 			Error: shared.ErrorObjectUnion{
