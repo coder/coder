@@ -1,6 +1,5 @@
 import {
 	ArrowLeftIcon,
-	ArrowUpRightIcon,
 	BotIcon,
 	BoxesIcon,
 	ChevronRightIcon,
@@ -166,9 +165,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={PlugIcon}
 						label="Providers"
-						active={false}
-						to="/ai/settings"
-						trailingIcon={ArrowUpRightIcon}
+						active={settingsSection === "providers"}
+						to="/agents/settings/providers"
+						state={location.state}
 					/>
 					<SettingsNavItem
 						icon={BoxesIcon}

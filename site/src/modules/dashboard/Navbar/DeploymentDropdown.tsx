@@ -85,7 +85,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			</DropdownMenuItem>
 			{canViewAISettings && (
 				<DropdownMenuItem asChild>
-					<Link to="/ai/settings">AI</Link>
+					<Link to="/agents/settings/providers">AI</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewAuditLog && (

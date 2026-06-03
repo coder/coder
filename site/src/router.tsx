@@ -435,25 +435,6 @@ const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
 
-const AISettingsLayout = lazy(
-	() => import("./pages/AISettingsPage/AISettingsLayout"),
-);
-const AISettingsProvidersPage = lazy(
-	() => import("./pages/AISettingsPage/ProvidersPage/ProvidersPage"),
-);
-const AISettingsUpdateProviderPage = lazy(
-	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"
-		),
-);
-const AISettingsAddProviderPage = lazy(
-	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
-		),
-);
-
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
@@ -701,16 +682,24 @@ export const router = createBrowserRouter(
 						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
 
-					<Route path="/ai/settings" element={<AISettingsLayout />}>
-						<Route element={<DeploymentConfigProvider />}>
-							<Route path="governance" element={<AIGovernanceSettingsPage />} />
-						</Route>
-						<Route index element={<AISettingsProvidersPage />} />
-						<Route path="add" element={<AISettingsAddProviderPage />} />
-						<Route
-							path=":providerId"
-							element={<AISettingsUpdateProviderPage />}
-						/>
+					{/* Redirect old /ai/settings provider routes to /agents/settings/providers */}
+					<Route
+						path="/ai/settings"
+						element={<Navigate to="/agents/settings/providers" replace />}
+					/>
+					<Route
+						path="/ai/settings/add"
+						element={<Navigate to="/agents/settings/providers" replace />}
+					/>
+					<Route
+						path="/ai/settings/:providerId"
+						element={<Navigate to="/agents/settings/providers" replace />}
+					/>
+					<Route
+						path="/ai/settings/governance"
+						element={<DeploymentConfigProvider />}
+					>
+						<Route index element={<AIGovernanceSettingsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
