@@ -77,7 +77,7 @@ func classifyProviderAttemptError(err error) (ClassifiedError, error) {
 	if classified.Retryable || classified.StatusCode != 0 || !errors.Is(err, context.Canceled) {
 		return classified, err
 	}
-	err = xerrors.Errorf("%w: %w", chaterror.ErrProviderTransportReset, err)
+	err = errors.Join(chaterror.ErrProviderTransportReset, err)
 	return chaterror.Classify(err), err
 }
 
