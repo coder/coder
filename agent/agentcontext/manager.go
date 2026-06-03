@@ -29,18 +29,15 @@ type ManagerOptions struct {
 	// existing agent convention. The result is used as a
 	// scan root.
 	WorkingDir func() string
-	// BuiltinRoots are scan roots layered before user-added
-	// sources. Typically: the working directory, ~/.coder,
-	// ~/.coder/skills, .agents/skills,
-	// ~/.claude/plugins/cache.
-	BuiltinRoots []string
 	// InitialSources seeds the Manager's source list at boot
 	// time. Sources from CODER_AGENT_EXP_*_DIRS env vars or
 	// startup scripts are layered here.
 	InitialSources []Source
 	// AllowedRoots restricts which paths may be added as
-	// sources at runtime. Defaults to [~, ~/.coder, ~/.claude,
-	// workingDir]. Empty falls back to the home directory.
+	// sources at runtime. When empty the package falls back
+	// to [~, ~/.coder, ~/.claude] plus the working directory.
+	// Tests override this to exercise the validation logic
+	// directly; production callers leave it unset.
 	AllowedRoots []string
 	// Resolver, when non-nil, replaces the default resolver.
 	// Tests use this to inject MCP providers and tighten
@@ -70,7 +67,6 @@ type Manager struct {
 	logger        slog.Logger
 	clock         quartz.Clock
 	workingDir    func() string
-	builtinRoots  []string
 	allowedRoots  []string
 	resolver      *Resolver
 	debounce      time.Duration
@@ -141,7 +137,6 @@ func NewManager(opts ManagerOptions) *Manager {
 		logger:        opts.Logger,
 		clock:         clock,
 		workingDir:    opts.WorkingDir,
-		builtinRoots:  append([]string(nil), opts.BuiltinRoots...),
 		allowedRoots:  append([]string(nil), opts.AllowedRoots...),
 		resolver:      resolver,
 		debounce:      debounce,
@@ -497,13 +492,14 @@ func (m *Manager) Trigger() {
 // scanRootsLocked returns the list of ScanRoots to feed the
 // resolver and watcher. The Manager's mutex must be held.
 func (m *Manager) scanRootsLocked() []ScanRoot {
-	out := make([]ScanRoot, 0, 1+len(m.builtinRoots)+len(m.sources))
+	builtinRoots := defaultBuiltinRoots()
+	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
 			out = append(out, ScanRoot{Path: wd})
 		}
 	}
-	for _, r := range m.builtinRoots {
+	for _, r := range builtinRoots {
 		canonical, err := CanonicalizePath(r)
 		if err != nil {
 			continue
@@ -520,14 +516,14 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 // with the current working directory. The working directory is
 // evaluated on every call so it picks up the workspace's
 // resolved path after the agent's manifest finishes loading.
-// When AllowedRoots is empty the home directory is added as a
-// permissive fallback.
+// When AllowedRoots is empty the package falls back to its
+// default policy ([~, ~/.coder, ~/.claude]).
 func (m *Manager) effectiveAllowedRoots() []string {
 	var roots []string
 	if len(m.allowedRoots) > 0 {
 		roots = append(roots, m.allowedRoots...)
 	} else {
-		roots = append(roots, "~")
+		roots = append(roots, defaultAllowedRoots()...)
 	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {

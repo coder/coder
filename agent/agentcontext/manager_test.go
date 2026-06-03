@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,33 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// TestMain points the test binary's HOME (and USERPROFILE on
+// Windows) at a fresh empty directory before any test runs.
+// The package's built-in scan roots (~/.coder,
+// ~/.coder/skills, ~/.claude/plugins/cache) canonicalize
+// against this directory, so they resolve to non-existent
+// paths and the resolver silently skips them. Without this,
+// running the tests on a developer host pulls real Coder and
+// Claude config files into snapshots and breaks every
+// Len(Resources, N) assertion.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "agentcontext-test-home-")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.Setenv("HOME", home); err != nil {
+		panic(err)
+	}
+	if runtime.GOOS == "windows" {
+		if err := os.Setenv("USERPROFILE", home); err != nil {
+			panic(err)
+		}
+	}
+	code := m.Run()
+	_ = os.RemoveAll(home)
+	os.Exit(code)
+}
 
 func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()

@@ -503,9 +503,7 @@ func (a *agent) init() {
 		Logger:         a.logger.Named("agentcontext"),
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
-		BuiltinRoots:   agentcontext.DefaultBuiltinRoots(),
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
-		AllowedRoots:   agentcontext.DefaultAllowedRoots(),
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(

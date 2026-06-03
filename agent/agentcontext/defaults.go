@@ -1,16 +1,12 @@
 package agentcontext
 
-// DefaultBuiltinRoots returns the built-in scan roots that the
-// resolver layers in front of any user-added sources. These
-// mirror the paths the legacy agentcontextconfig API resolves
-// at every chat hydrate, so the new resolver covers the same
-// surface area without callers having to keep the lists in
-// sync.
-//
-// The slice is intentionally tolerant of missing entries; the
+// defaultBuiltinRoots returns the scan roots layered in front
+// of any user-added sources. These mirror the paths the legacy
+// agentcontextconfig API resolves at every chat hydrate. The
+// list is intentionally tolerant of missing entries; the
 // resolver silently skips canonicalization failures and
 // non-existent paths.
-func DefaultBuiltinRoots() []string {
+func defaultBuiltinRoots() []string {
 	return []string{
 		// User-level Coder config.
 		"~/.coder",
@@ -24,12 +20,13 @@ func DefaultBuiltinRoots() []string {
 	}
 }
 
-// DefaultAllowedRoots returns the allow-list applied to runtime
-// AddSource calls. The set matches the RFC's authorization
-// section: the home directory's Coder and Claude config trees.
-// The Manager appends the working directory lazily on every
-// check, which picks up the workspace's resolved path even when
-// the manifest is loaded after agent init.
-func DefaultAllowedRoots() []string {
+// defaultAllowedRoots returns the allow-list applied to runtime
+// AddSource calls when ManagerOptions.AllowedRoots is empty.
+// The set matches the RFC's authorization section: the home
+// directory's Coder and Claude config trees. The Manager
+// appends the working directory lazily on every check, which
+// picks up the workspace's resolved path even when the manifest
+// is loaded after agent init.
+func defaultAllowedRoots() []string {
 	return []string{"~", "~/.coder", "~/.claude"}
 }
