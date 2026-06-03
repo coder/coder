@@ -172,7 +172,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										key={groupKey}
 										className="[&_[cmdk-group-heading]]:text-content-secondary [&_[cmdk-group-heading]]:select-none [&_[cmdk-group-heading]]:pointer-events-none [&:not(:first-child)]:border-0 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-solid [&:not(:first-child)]:border-surface-secondary [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5"
 									heading={
-										<span className="text-content-secondary">{providerLabel}</span>
+										<span className="text-xs text-content-secondary">{providerLabel}</span>
 									}
 								>
 									{providerOptions.map((option) => {
