@@ -75,18 +75,18 @@ A pool of N runners is N prebuilt workspaces; one user serving 4
 parallel sessions is 4 child processes inside one workspace; a runner
 draining and exiting is the workspace deleting itself.
 
-| Anthropic concept                   | Coder primitive                                                                |
-|-------------------------------------|--------------------------------------------------------------------------------|
-| One runner                          | **One workspace**                                                              |
+| Anthropic concept                   | Coder primitive                                                                     |
+|-------------------------------------|-------------------------------------------------------------------------------------|
+| One runner                          | **One workspace**                                                                   |
 | Pool of N runners                   | **N prebuilt workspaces** maintained by a preset with `prebuilds { instances = N }` |
-| Runner image                        | Workspace template + image                                                     |
-| Runner process                      | A long-running command in `coder_script`                                       |
-| Pool secret                         | Sensitive Terraform variable                                                   |
-| "Orchestrator restarts the runner"  | `coder_script` + self-eviction via `coder delete` on runner exit               |
-| Runner locked to one Anthropic user | A per-workspace state, surfaced on that workspace's page via agent metadata    |
-| Per-session checkout (`/workspace`) | Container filesystem in that workspace, deliberately not persisted             |
-| Internal Git, registries, services  | Whatever the workspace can already reach                                       |
-| Wrapper scripts and lifecycle hooks | Files in the workspace image; pointed at via `--exec-path` or `--hooks-dir`    |
+| Runner image                        | Workspace template + image                                                          |
+| Runner process                      | A long-running command in `coder_script`                                            |
+| Pool secret                         | Sensitive Terraform variable                                                        |
+| "Orchestrator restarts the runner"  | `coder_script` + self-eviction via `coder delete` on runner exit                    |
+| Runner locked to one Anthropic user | A per-workspace state, surfaced on that workspace's page via agent metadata         |
+| Per-session checkout (`/workspace`) | Container filesystem in that workspace, deliberately not persisted                  |
+| Internal Git, registries, services  | Whatever the workspace can already reach                                            |
+| Wrapper scripts and lifecycle hooks | Files in the workspace image; pointed at via `--exec-path` or `--hooks-dir`         |
 
 ## Why run them on Coder
 
@@ -214,24 +214,28 @@ See [System identity](./system-identity.md) for the full recipe.
 An orchestrator process (`claude self-hosted-runner orchestrator`) runs
 outside your runner workspaces and polls Anthropic for pending spawn
 requests. For each request, it invokes a `spawn-runner` hook that calls
-`coder create` to spin up a workspace with a single-use work order. The
-workspace runs the runner for exactly one session, then exits. The pool
-secret never leaves the orchestrator host.
+the Coder REST API to spin up a workspace with a single-use work order.
+The workspace runs the runner for exactly one session, then exits. The
+pool secret never leaves the orchestrator host.
 
 Best when: you want elastic scaling, stronger credential isolation (each
 runner gets a single-use work order, not the pool secret), or cannot
 size a fixed fleet.
 
-The orchestrator shipped in runner version 2.1.161-byoc.14. See
-Anthropic's self-hosted runner guide for the hook contract and a worked
-Kubernetes example; the `spawn-runner` hook is provisioner-agnostic, so
-the same contract works with `coder create` instead of `kubectl`.
+This model has been prototyped and proven end-to-end: orchestrator
+receives a spawn hint, the hook creates a Coder workspace via the REST
+API, the runner registers with the work order, picks up the session,
+and serves it.
+
+See [On-demand runners](./on-demand.md) for the full recipe.
 
 ## Where to next
 
 - [System identity](./system-identity.md): the recipe for a self-healing
   pool of bot runners that runs on Coder Premium and the Anthropic
   early-access runner.
+- [On-demand runners](./on-demand.md): the orchestrator + spawn hook
+  recipe for elastic scaling with single-use work orders.
 - [User identity](./user-identity.md): per-developer attribution. On
   the Coder + Anthropic roadmap; not yet available.
 - [Implementation notes](./plan.md): the staged plan, the sub-stages

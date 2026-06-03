@@ -311,13 +311,13 @@ This is purely an image and settings exercise; no product work.
 
 ## Sequencing and review
 
-| Stage             | Pages                            | Reviewers                   | Notes                                                                 |
-|-------------------|----------------------------------|-----------------------------|-----------------------------------------------------------------------|
-| System identity   | overview, system-identity, plan  | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the per-session wrapper (`--permission-mode bypassPermissions`), per-workspace scoped self-eviction token, and host Docker socket passthrough; Stage A is no longer a separate page. |
-| Stage B           | lifecycle hooks page             | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
-| Stage C           | AI Gateway integration page      | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                              |
-| Stage D           | permissions and skills page      | security, AI team           | Mostly cribs from the PDF + existing `~/.claude` content.             |
-| User identity     | middleware reference, plan diff  | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract; either middleware or in-tree `coderd` integration on Coder's side. |
+| Stage           | Pages                           | Reviewers                   | Notes                                                                                                                                                                                                                                           |
+|-----------------|---------------------------------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| System identity | overview, system-identity, plan | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the per-session wrapper (`--permission-mode bypassPermissions`), per-workspace scoped self-eviction token, and host Docker socket passthrough; Stage A is no longer a separate page. |
+| Stage B         | lifecycle hooks page            | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout.                                                                                                                                                                           |
+| Stage C         | AI Gateway integration page     | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                                                                                                                                                                                                        |
+| Stage D         | permissions and skills page     | security, AI team           | Mostly cribs from the PDF + existing `~/.claude` content.                                                                                                                                                                                       |
+| User identity   | middleware reference, plan diff | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract; either middleware or in-tree `coderd` integration on Coder's side.                                                                                                                        |
 
 ## Risks and open issues
 
@@ -425,6 +425,14 @@ If the answer is "no, runners are always ephemeral":
 concept. The orchestrator (`claude self-hosted-runner orchestrator`)
 polls Anthropic for pending spawn requests and invokes a `spawn-runner`
 hook per session. This is the scaling signal integration point.
+
+**Prototype proven:** The on-demand orchestrator has been deployed and
+validated end-to-end on a Coder dev server. The flow: orchestrator
+receives a spawn hint, the `spawn-runner` hook creates a Coder
+workspace via the REST API, the runner registers with the single-use
+work order, picks up the session, and serves it with full tool access
+(GitHub MCP). See [On-demand runners](./on-demand.md) for the
+copyable recipe.
 
 The `spawn-runner` hook receives rich environment variables including:
 

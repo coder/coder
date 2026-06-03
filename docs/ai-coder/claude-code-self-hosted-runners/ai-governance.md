@@ -77,10 +77,10 @@ shape is unchanged from "developer SSH's in and runs `claude` locally."
 
 The self-hosted runner has two distinct outbound paths:
 
-| Source                  | Destination                                  | Through AI Gateway? |
-|-------------------------|----------------------------------------------|---------------------|
-| Runner process          | `api.anthropic.com` (pool register, polling) | No                  |
-| Child `claude` (session)| Anthropic model API (`/v1/messages`)         | Yes, via wrapper    |
+| Source                   | Destination                                  | Through AI Gateway? |
+|--------------------------|----------------------------------------------|---------------------|
+| Runner process           | `api.anthropic.com` (pool register, polling) | No                  |
+| Child `claude` (session) | Anthropic model API (`/v1/messages`)         | Yes, via wrapper    |
 
 The runner uses the pool secret over the public Anthropic endpoint
 for pool registration and session polling. Pool polling is not a
