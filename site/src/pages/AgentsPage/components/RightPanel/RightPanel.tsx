@@ -14,9 +14,32 @@ const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
 
 const SNAP_THRESHOLD = 80;
+const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
 
 function getMaxWidth(): number {
 	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
+}
+
+function getChatMinWidth(parent: HTMLElement): number {
+	const rawChatMinWidth = getComputedStyle(parent).getPropertyValue(
+		"--agents-chat-panel-min-width",
+	);
+	const chatMinWidth = Number.parseFloat(rawChatMinWidth);
+	return Number.isFinite(chatMinWidth) && chatMinWidth > 0
+		? chatMinWidth
+		: AGENTS_MAIN_PANEL_MIN_WIDTH;
+}
+
+function getSideBySideMaxWidth(panel: HTMLElement | null): number {
+	const parent = panel?.parentElement;
+	if (!parent || innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH) {
+		return getMaxWidth();
+	}
+
+	return Math.min(
+		getMaxWidth(),
+		Math.max(MIN_WIDTH, parent.clientWidth - getChatMinWidth(parent)),
+	);
 }
 
 function loadPersistedWidth(): number {
@@ -59,6 +82,7 @@ function useResizableDrag({
 	onVisualExpandedChange,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	getPanelMaxWidth,
 }: {
 	isExpanded: boolean;
 	width: number;
@@ -68,6 +92,7 @@ function useResizableDrag({
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
 	isSidebarCollapsed?: boolean;
 	onToggleSidebarCollapsed?: () => void;
+	getPanelMaxWidth: () => number;
 }) {
 	const isDragging = useRef(false);
 	const startX = useRef(0);
@@ -85,10 +110,10 @@ function useResizableDrag({
 		setDragSnap(null);
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
-		startWidth.current = isExpanded
-			? ((e.target as HTMLElement).closest("[data-testid='agents-right-panel']")
-					?.parentElement?.clientWidth ?? getMaxWidth())
-			: width;
+		const panel = (e.target as HTMLElement).closest(
+			"[data-testid='agents-right-panel']",
+		);
+		startWidth.current = panel?.getBoundingClientRect().width ?? width;
 		(e.target as HTMLElement).setPointerCapture(e.pointerId);
 	};
 
@@ -98,7 +123,7 @@ function useResizableDrag({
 		}
 		const delta = startX.current - e.clientX;
 		const raw = startWidth.current + delta;
-		const maxWidth = getMaxWidth();
+		const maxWidth = getPanelMaxWidth();
 
 		// Collapse/uncollapse the sidebar live when the pointer
 		// reaches the left edge of the viewport.
@@ -169,8 +194,6 @@ function useResizableDrag({
 	};
 }
 
-const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
-
 export const RightPanel = ({
 	isOpen,
 	isExpanded,
@@ -182,15 +205,27 @@ export const RightPanel = ({
 	children,
 }: RightPanelProps) => {
 	const [width, setWidth] = useState(loadPersistedWidth);
+	const panelRef = useRef<HTMLDivElement>(null);
 
-	// Clamp width when the viewport shrinks so the panel
-	// doesn't overflow and take over the whole page.
+	// Clamp width when the viewport or parent panel shrinks so the
+	// persisted width matches the rendered side-by-side panel width.
 	useEffect(() => {
 		const handleResize = () => {
-			setWidth((prev) => Math.min(prev, getMaxWidth()));
+			setWidth((prev) =>
+				Math.min(prev, getSideBySideMaxWidth(panelRef.current)),
+			);
 		};
+		handleResize();
+		const parent = panelRef.current?.parentElement;
+		const resizeObserver = new ResizeObserver(handleResize);
+		if (parent) {
+			resizeObserver.observe(parent);
+		}
 		window.addEventListener("resize", handleResize);
-		return () => window.removeEventListener("resize", handleResize);
+		return () => {
+			resizeObserver.disconnect();
+			window.removeEventListener("resize", handleResize);
+		};
 	}, []);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
@@ -222,13 +257,12 @@ export const RightPanel = ({
 		onVisualExpandedChange,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
 
 	useEffect(() => {
 		localStorage.setItem(STORAGE_KEY, String(width));
 	}, [width]);
-
-	const panelRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		if (
@@ -257,14 +291,7 @@ export const RightPanel = ({
 					return;
 				}
 
-				const rawChatMinWidth = getComputedStyle(parent).getPropertyValue(
-					"--agents-chat-panel-min-width",
-				);
-				const chatMinWidth = Number.parseFloat(rawChatMinWidth);
-				const requiredMainWidth =
-					(Number.isFinite(chatMinWidth) && chatMinWidth > 0
-						? chatMinWidth
-						: AGENTS_MAIN_PANEL_MIN_WIDTH) + MIN_WIDTH;
+				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
 
 				if (parent.clientWidth >= requiredMainWidth) {
 					return;
