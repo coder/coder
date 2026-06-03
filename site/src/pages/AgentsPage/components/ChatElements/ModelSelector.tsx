@@ -170,7 +170,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										className="[&_[cmdk-group-heading]]:text-content-disabled"
 									heading={
 										<span className="flex items-center gap-2">
-											<ProviderIcon provider={provider} className="size-5" />
+											<ProviderIcon provider={provider} className="size-5 opacity-50" />
 											<span className="text-content-disabled">{providerLabel}</span>
 										</span>
 									}
