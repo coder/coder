@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // ErrProviderTransportReset identifies provider stream cancellations that
 // occur while the caller-owned chat context is still alive.
-var ErrProviderTransportReset = errors.New("provider transport reset")
+var ErrProviderTransportReset = xerrors.New("provider transport reset")
 
 // ClassifiedError is the normalized, user-facing view of an
 // underlying provider or runtime error.

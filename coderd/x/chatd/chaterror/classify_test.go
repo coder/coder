@@ -2,6 +2,7 @@ package chaterror_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -221,7 +222,7 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "ProviderTransportResetIsRetryable",
-			err:  fmt.Errorf("%w: %w", chaterror.ErrProviderTransportReset, context.Canceled),
+			err:  errors.Join(chaterror.ErrProviderTransportReset, context.Canceled),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider is temporarily unavailable.",
 				Kind:       codersdk.ChatErrorKindTimeout,
@@ -254,13 +255,13 @@ func TestClassify(t *testing.T) {
 		},
 		{
 			name: "ProviderStatus500ContextCanceledClassifiesAsRetryable",
-			err: fmt.Errorf("provider stream closed: %w: %w",
+			err: xerrors.Errorf("provider stream closed: %w", errors.Join(
 				context.Canceled,
 				&fantasy.ProviderError{
 					Message:    "context canceled",
 					StatusCode: http.StatusInternalServerError,
 				},
-			),
+			)),
 			want: chaterror.ClassifiedError{
 				Message:    "The AI provider returned an unexpected error.",
 				Detail:     "context canceled",

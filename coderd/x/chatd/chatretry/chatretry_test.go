@@ -230,7 +230,7 @@ func TestRetry_ContextCanceledFromParentDoesNotRetry(t *testing.T) {
 func TestRetry_ParentCancelCauseIsPreserved(t *testing.T) {
 	t.Parallel()
 
-	cause := errors.New("retry parent stopped")
+	cause := xerrors.New("retry parent stopped")
 	ctx, cancel := context.WithCancelCause(context.Background())
 
 	calls := 0
