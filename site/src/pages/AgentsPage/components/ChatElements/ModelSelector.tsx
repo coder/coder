@@ -204,7 +204,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 														</span>
 														{isSelected && contextInfo && (
 															<span className="text-2xs text-content-secondary">
-																{contextInfo} context
+																{contextInfo} context limit
 															</span>
 														)}
 													</span>
