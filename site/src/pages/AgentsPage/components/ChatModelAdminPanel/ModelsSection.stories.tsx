@@ -164,7 +164,7 @@ export const LinksToProvidersFromEmptyState: Story = {
 
 		await expect(canvas.getByText("No models configured yet.")).toBeVisible();
 		await expect(providerLink).toBeVisible();
-		expect(providerLink).toHaveAttribute("href", "/agents/settings/providers");
+		expect(providerLink).toHaveAttribute("href", "/ai/settings");
 	},
 };
 
