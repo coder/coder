@@ -919,7 +919,7 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
-	wantMaybeServiceBanner := "Service banner text goes here"
+	wantServiceBanner := "Service banner text goes here"
 
 	u, err := user.Current()
 	require.NoError(t, err, "get current user")
@@ -933,7 +933,7 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
 			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
@@ -948,7 +948,7 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 
 		require.Contains(t, string(output), wantEcho, "should show echo")
 		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
-		require.NotContains(t, string(output), wantMaybeServiceBanner, "should not show service banner")
+		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
 	})
 
 	// Only the MOTD should be silenced when hushlogin is present.
@@ -957,7 +957,7 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
 			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
@@ -970,37 +970,43 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
-		// The agent writes the announcement banner (and would write the
-		// MOTD, if it were not silenced) synchronously in
-		// agentssh.startPTYSession before it forks the user's shell. We
-		// drive the test entirely off those writes, observed on the SSH
-		// session's output stream, and never depend on the remote shell
-		// reading our stdin or exiting cleanly.
-		//
-		// Earlier revisions of this subtest wrote "exit 0" to a client
-		// PTY and then called session.Wait(). Under -race that pattern
-		// occasionally hangs forever: the bytes arrive at the agent
-		// before the shell is in its read loop and get silently dropped,
-		// so the shell never exits and the go test watchdog kills the
-		// binary.
 		stdout := testutil.NewWaitBuffer()
 		ptty := ptytest.New(t)
 		session.Stdout = stdout
 		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
 		require.NoError(t, session.Shell())
 
-		bannerCtx, bannerCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer bannerCancel()
-		stdout.RequireWaitFor(bannerCtx, t, wantMaybeServiceBanner)
+		testutil.Go(t, func() {
+			retryDur := testutil.WaitShort
+			deadlineCh := time.After(retryDur)
+			ticker := time.NewTicker(testutil.IntervalFast)
+			defer ticker.Stop()
+			for {
+				if _, err := stdin.Write([]byte("exit 0\n")); err != nil {
+					return
+				}
+				select {
+				case <-deadlineCh:
+					t.Errorf("failed to exit shell within %s", retryDur)
+					return
+				case <-ticker.C:
+				}
+			}
+		})
 
-		// Banner is written immediately before MOTD on the agent (see
-		// agentssh.startPTYSession). If MOTD were going to appear it
-		// would arrive within milliseconds of the banner, so a short
-		// Never window is sufficient to confirm hushlogin took effect.
-		require.Never(t, func() bool {
-			return strings.Contains(stdout.String(), wantNotMOTD)
-		}, testutil.IntervalSlow, testutil.IntervalFast, "should not show motd")
+		waitErr := make(chan error, 1)
+		go func() { waitErr <- session.Wait() }()
+		select {
+		case err = <-waitErr:
+			require.NoError(t, err)
+		case <-time.After(testutil.WaitLong):
+			require.FailNow(t, "timed out waiting for session to exit")
+		}
+
+		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
+		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
 	})
 }
 
