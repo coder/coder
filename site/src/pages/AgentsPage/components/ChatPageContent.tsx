@@ -36,6 +36,7 @@ import {
 	buildSubagentMaps,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
+import type { PromptHistoryEntry } from "./ChatConversation/PromptHistoryPopover";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 
@@ -46,6 +47,7 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface ChatPageTimelineProps {
+	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -56,17 +58,22 @@ interface ChatPageTimelineProps {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	hasMoreMessages?: boolean;
+	onFetchMoreMessages?: () => unknown;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
+	chatID,
 	store,
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	hasMoreMessages,
+	onFetchMoreMessages,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -97,6 +104,13 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatID ?? ""));
+	const promptHistoryEntries: readonly PromptHistoryEntry[] | undefined =
+		promptsData?.prompts.toReversed().map((prompt, index) => ({
+			id: prompt.id,
+			index: index + 1,
+			label: prompt.text,
+		}));
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -117,6 +131,9 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					parsedMessages={parsedMessages}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
+					promptHistory={promptHistoryEntries}
+					hasMoreMessages={hasMoreMessages}
+					onFetchMoreMessages={onFetchMoreMessages}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
 					onImplementPlan={onImplementPlan}

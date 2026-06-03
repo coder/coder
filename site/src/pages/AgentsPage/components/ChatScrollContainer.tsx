@@ -102,7 +102,7 @@ const ChatScrollContainer: FC<{
 	scrollToBottomRef: RefObject<(() => void) | null>;
 	isFetchingMoreMessages: boolean;
 	hasMoreMessages: boolean;
-	onFetchMoreMessages: () => void;
+	onFetchMoreMessages: () => unknown;
 	messageCount: number;
 	children: ReactNode;
 }> = ({

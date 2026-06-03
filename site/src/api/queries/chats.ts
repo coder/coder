@@ -633,8 +633,8 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	},
 });
 
-// Cap requested prompts to keep the response small; well under the server-side maximum.
-const PROMPT_HISTORY_LIMIT = 500;
+// Request the server-side maximum so prompt history covers long chats without loading every message.
+const PROMPT_HISTORY_LIMIT = 2000;
 
 const PROMPTS_STALE_MS = 30_000;
 

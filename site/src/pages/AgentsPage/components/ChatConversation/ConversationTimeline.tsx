@@ -3,6 +3,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -53,6 +54,10 @@ import {
 	groupSequentialReadFileMessages,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import {
+	type PromptHistoryEntry,
+	PromptHistoryPopover,
+} from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
@@ -79,6 +84,48 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
+
+const getUserSentinel = (messageId: number): Element | null =>
+	document.querySelector(
+		`[data-user-sentinel][data-user-message-id="${messageId}"]`,
+	);
+
+const waitForUserSentinel = (messageId: number): Promise<boolean> => {
+	if (getUserSentinel(messageId)) {
+		return Promise.resolve(true);
+	}
+
+	return new Promise((resolve) => {
+		let settled = false;
+		let rafID: number | null = null;
+		const observer = new MutationObserver(() => {
+			if (!getUserSentinel(messageId)) {
+				return;
+			}
+			settle(true);
+		});
+		const settle = (found: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			observer.disconnect();
+			if (rafID !== null) {
+				cancelAnimationFrame(rafID);
+			}
+			resolve(found);
+		};
+
+		observer.observe(document.body, { childList: true, subtree: true });
+		rafID = requestAnimationFrame(() => {
+			rafID = requestAnimationFrame(() => {
+				settle(Boolean(getUserSentinel(messageId)));
+			});
+		});
+	});
+};
+
+const MAX_PROMPT_JUMP_PAGE_LOADS = 200;
 
 const ReasoningDisclosure = memo<{
 	id: string;
@@ -532,6 +579,8 @@ const ChatMessageItem = memo<{
 	hideActions?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
+	promptHistory?: readonly PromptHistoryEntry[];
+	onPromptHistoryEntrySelect?: (entry: PromptHistoryEntry) => unknown;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -562,6 +611,8 @@ const ChatMessageItem = memo<{
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
+		promptHistory,
+		onPromptHistoryEntrySelect,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -582,6 +633,7 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const [historyOpen, setHistoryOpen] = useState(false);
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -650,11 +702,17 @@ const ChatMessageItem = memo<{
 				</ConversationItem>
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						(isUser && onEditUserMessage) ||
+						(isUser && promptHistory && promptHistory.length > 1) ||
+						(isUser &&
+							onJumpToUserMessage &&
+							(prevUserMessageId !== undefined ||
+								nextUserMessageId !== undefined))) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
 								isUser && "w-full justify-end",
+								historyOpen && "opacity-100",
 							)}
 							data-testid="message-actions"
 						>
@@ -686,6 +744,13 @@ const ChatMessageItem = memo<{
 									</TooltipTrigger>
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
+							)}
+							{isUser && promptHistory && (
+								<PromptHistoryPopover
+									entries={promptHistory}
+									onSelectEntry={onPromptHistoryEntrySelect}
+									onOpenChange={setHistoryOpen}
+								/>
 							)}
 							{isUser &&
 								onJumpToUserMessage &&
@@ -776,6 +841,9 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	promptHistory?: readonly PromptHistoryEntry[];
+	onPromptHistoryEntrySelect?: (entry: PromptHistoryEntry) => unknown;
+	hasActiveStream?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
@@ -787,6 +855,9 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		promptHistory,
+		onPromptHistoryEntrySelect,
+		hasActiveStream = false,
 		prevUserMessageId,
 		nextUserMessageId,
 		onJumpToUserMessage,
@@ -803,6 +874,12 @@ const StickyUserMessage = memo<{
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+		// Ref so the ResizeObserver (created once in a [] effect) reads the latest value.
+
+		const hasActiveStreamRef = useRef(hasActiveStream);
+		useEffect(() => {
+			hasActiveStreamRef.current = hasActiveStream;
+		}, [hasActiveStream]);
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -915,6 +992,9 @@ const StickyUserMessage = memo<{
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
 			const onScroll = () => {
+				// Sticky update() changes layout, triggering a browser scroll-anchor adjustment that undoes the jump.
+
+				if (scroller.hasAttribute("data-scroll-lock")) return;
 				if (rafId !== null) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = null;
@@ -925,12 +1005,15 @@ const StickyUserMessage = memo<{
 			// Re-run the visual update when the scrollable content height
 			// changes (e.g. streaming responses growing the transcript).
 			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
+			// bottom so no scroll event fires, but the content wrapper
 			// resizes and this observer catches that.
+			// During active streaming, skip resize updates so agent output doesn't bounce the pinned prompt.
+
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
+						if (hasActiveStreamRef.current) return;
 						if (contentRafId !== null) return;
 						contentRafId = requestAnimationFrame(() => {
 							contentRafId = null;
@@ -967,6 +1050,15 @@ const StickyUserMessage = memo<{
 			updateFnRef.current?.();
 		}, [isStuck]);
 
+		// Final position update after streaming ends to catch up with suppressed resize updates.
+		const wasStreamingRef = useRef(false);
+		useLayoutEffect(() => {
+			if (wasStreamingRef.current && !hasActiveStream) {
+				updateFnRef.current?.();
+			}
+			wasStreamingRef.current = hasActiveStream;
+		}, [hasActiveStream]);
+
 		const handleEditUserMessage = onEditUserMessage
 			? (
 					messageId: number,
@@ -991,7 +1083,12 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
+				<div
+					ref={setSentinelRef}
+					className="h-0"
+					data-user-sentinel
+					data-user-message-id={message.id}
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
@@ -1020,6 +1117,8 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							promptHistory={promptHistory}
+							onPromptHistoryEntrySelect={onPromptHistoryEntrySelect}
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
@@ -1065,6 +1164,8 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									promptHistory={promptHistory}
+									onPromptHistoryEntrySelect={onPromptHistoryEntrySelect}
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
@@ -1104,6 +1205,9 @@ interface ConversationTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	promptHistory?: readonly PromptHistoryEntry[];
+	hasMoreMessages?: boolean;
+	onFetchMoreMessages?: () => unknown;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -1121,6 +1225,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
+		promptHistory,
+		hasMoreMessages,
+		onFetchMoreMessages,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -1145,8 +1252,119 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
+		const hasMoreMessagesRef = useRef(Boolean(hasMoreMessages));
+		const onFetchMoreMessagesRef = useRef(onFetchMoreMessages);
+		const promptJumpRequestRef = useRef(0);
+		useLayoutEffect(() => {
+			hasMoreMessagesRef.current = Boolean(hasMoreMessages);
+			onFetchMoreMessagesRef.current = onFetchMoreMessages;
+		}, [hasMoreMessages, onFetchMoreMessages]);
+
+		const handlePromptHistoryEntrySelect = async (
+			entry: PromptHistoryEntry,
+		): Promise<boolean> => {
+			const requestID = promptJumpRequestRef.current + 1;
+			promptJumpRequestRef.current = requestID;
+
+			if (sentinelsRef.current.has(entry.id)) {
+				return true;
+			}
+
+			let pageLoads = 0;
+			while (
+				!sentinelsRef.current.has(entry.id) &&
+				hasMoreMessagesRef.current &&
+				pageLoads < MAX_PROMPT_JUMP_PAGE_LOADS
+			) {
+				const fetchMoreMessages = onFetchMoreMessagesRef.current;
+				if (!fetchMoreMessages) {
+					break;
+				}
+				try {
+					await fetchMoreMessages();
+				} catch {
+					break;
+				}
+				if (promptJumpRequestRef.current !== requestID) {
+					return false;
+				}
+				pageLoads++;
+				if (await waitForUserSentinel(entry.id)) {
+					return true;
+				}
+			}
+
+			return sentinelsRef.current.has(entry.id);
+		};
 		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
+
+		const loadedPromptHistory = (() => {
+			const result: PromptHistoryEntry[] = [];
+			let promptIndex = 0;
+			for (const entry of parsedMessages) {
+				if (entry.message.role === "user") {
+					const { shouldHide } = deriveMessageDisplayState({
+						message: entry.message,
+						parsed: entry.parsed,
+						hideActions: false,
+						hasActiveStream: false,
+						isAwaitingFirstStreamChunk: false,
+					});
+					if (shouldHide) {
+						continue;
+					}
+					promptIndex++;
+					const text = getChatMessageTextContent(entry.message.content);
+					const parts = entry.message.content ?? [];
+					const fileParts = parts.filter((p) => p.type === "file");
+					let label = text ?? "";
+					if (!label && fileParts.length > 0) {
+						label =
+							fileParts.length === 1
+								? "[Attachment]"
+								: `[${fileParts.length} attachments]`;
+					} else if (label && fileParts.length > 0) {
+						const suffix =
+							fileParts.length === 1
+								? " [+attachment]"
+								: ` [+${fileParts.length} attachments]`;
+						label += suffix;
+					}
+
+					result.push({
+						id: entry.message.id,
+						index: promptIndex,
+						label,
+					});
+				}
+			}
+			return result;
+		})();
+
+		const effectivePromptHistory = (() => {
+			if (!promptHistory) {
+				return loadedPromptHistory;
+			}
+			const loadedHistoryById = new Map(
+				loadedPromptHistory.map((entry) => [entry.id, entry]),
+			);
+			const mergedHistoryById = new Map<number, PromptHistoryEntry>();
+			for (const entry of promptHistory) {
+				mergedHistoryById.set(
+					entry.id,
+					loadedHistoryById.get(entry.id) ?? entry,
+				);
+			}
+			for (const entry of loadedPromptHistory) {
+				if (!mergedHistoryById.has(entry.id)) {
+					mergedHistoryById.set(entry.id, entry);
+				}
+			}
+			return Array.from(mergedHistoryById.values())
+				.sort((a, b) => a.id - b.id)
+				.map((entry, index) => ({ ...entry, index: index + 1 }));
+		})();
 
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1258,6 +1476,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									promptHistory={effectivePromptHistory}
+									onPromptHistoryEntrySelect={handlePromptHistoryEntrySelect}
+									hasActiveStream={Boolean(hasActiveStream)}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
