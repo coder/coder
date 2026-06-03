@@ -193,7 +193,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 													onValueChange(option.id);
 													setIsOpen(false);
 												}}
-												className={cn("cursor-pointer py-1.5 text-xs", isSelected && "text-content-primary")}
+												className={cn("cursor-pointer py-1.5 text-xs", isSelected && "bg-surface-secondary text-content-primary")}
 											>
 												<span className="flex flex-1 items-center justify-between gap-2">
 													<span className="truncate">
