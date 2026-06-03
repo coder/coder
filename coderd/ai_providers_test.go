@@ -625,7 +625,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		enabled := false
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			Enabled:  &enabled,
 			Settings: &codersdk.AIProviderSettings{},
 		})
 		require.Error(t, err)

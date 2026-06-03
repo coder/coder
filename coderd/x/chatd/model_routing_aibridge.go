@@ -131,7 +131,11 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(route.Provider.Type)
+	providerType, err := canonicalAIProviderType(route.Provider)
+	if err != nil {
+		return nil, xerrors.Errorf("canonicalize provider type for %q: %w", route.Provider.Name, err)
+	}
+	config := fantasyConfigForAIBridge(providerType)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -221,11 +225,15 @@ func (p *Server) resolveAIGatewayRoute(
 	provider database.AIProvider,
 	modelProviderHint string,
 ) (resolvedModelRoute, error) {
+	providerType, err := canonicalAIProviderType(provider)
+	if err != nil {
+		return resolvedModelRoute{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+	}
 	auth, err := p.aiGatewayProviderAuthForUser(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type),
+		aiGatewayRequestFormatForProviderType(providerType),
 	)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
