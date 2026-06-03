@@ -101,6 +101,28 @@ func (f *boundaryFixture) preCreateSession(t *testing.T, sessionID uuid.UUID, pr
 	require.NoError(t, err, "pre-create boundary session")
 }
 
+// addAgent creates another workspace agent in the same workspace chain,
+// allowing tests to simulate multiple agents sharing one database.
+func (f *boundaryFixture) addAgent(t *testing.T) uuid.UUID {
+	t.Helper()
+	job := dbgen.ProvisionerJob(t, f.DB, nil, database.ProvisionerJob{
+		Type: database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, f.DB, database.WorkspaceBuild{
+		JobID:             job.ID,
+		WorkspaceID:       f.WorkspaceID,
+		BuildNumber:       2,
+		TemplateVersionID: f.TemplateVerID,
+	})
+	resource := dbgen.WorkspaceResource(t, f.DB, database.WorkspaceResource{
+		JobID: build.JobID,
+	})
+	agent := dbgen.WorkspaceAgent(t, f.DB, database.WorkspaceAgent{
+		ResourceID: resource.ID,
+	})
+	return agent.ID
+}
+
 func TestReportBoundaryLogs(t *testing.T) {
 	t.Parallel()
 
@@ -482,5 +504,84 @@ func TestReportBoundaryLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, logs, 2, "both logs must be persisted")
+	})
+
+	t.Run("SameSessionIDDifferentAgents", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: two workspace agents in the same workspace, both reporting
+		// logs with the same session ID. The first agent creates the session;
+		// the second agent's ensureSession hits a unique constraint violation
+		// and treats it as success.
+		f := newBoundaryFixture(t)
+		agent2ID := f.addAgent(t)
+
+		api1 := f.api(t)
+		api2 := &agentapi.BoundaryLogsAPI{
+			Log:               testutil.Logger(t),
+			Database:          f.DB,
+			AgentID:           agent2ID,
+			WorkspaceID:       f.WorkspaceID,
+			OwnerID:           f.OwnerID,
+			TemplateID:        f.TemplateID,
+			TemplateVersionID: f.TemplateVerID,
+		}
+
+		sessionID := uuid.New()
+		now := dbtime.Now()
+
+		// When: agent1 reports the first batch, creating the session.
+		_, err := api1.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
+			Logs: []*agentproto.BoundaryLog{
+				{
+					Allowed:        true,
+					Time:           timestamppb.New(now),
+					SequenceNumber: 0,
+					Resource: &agentproto.BoundaryLog_HttpRequest_{
+						HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+							Method: "GET",
+							Url:    "https://example.com",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// When: agent2 reports a batch with the same session ID.
+		// ensureSession should hit the unique violation and treat it as success.
+		resp, err := api2.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
+			SessionId:           sessionID.String(),
+			ConfinedProcessName: "claude-code",
+			Logs: []*agentproto.BoundaryLog{
+				{
+					Allowed:        false,
+					Time:           timestamppb.New(now),
+					SequenceNumber: 1,
+					Resource: &agentproto.BoundaryLog_HttpRequest_{
+						HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+							Method: "POST",
+							Url:    "https://evil.com/exfil",
+						},
+					},
+				},
+			},
+		})
+
+		// Then: both agents' logs are persisted under the same session.
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		sess, err := f.DB.GetBoundarySessionByID(context.Background(), sessionID)
+		require.NoError(t, err)
+		require.Equal(t, f.AgentID, sess.WorkspaceAgentID, "session belongs to the first agent that created it")
+
+		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
+			SessionID: sessionID,
+		})
+		require.NoError(t, err)
+		require.Len(t, logs, 2, "logs from both agents must be persisted")
 	})
 }

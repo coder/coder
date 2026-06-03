@@ -180,7 +180,7 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 	_, err = a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
 		ID:                  sessionID,
 		WorkspaceAgentID:    a.AgentID,
-		OwnerID:             uuid.NullUUID{},
+		OwnerID:             uuid.NullUUID{UUID: a.OwnerID, Valid: true},
 		ConfinedProcessName: confinedProcess,
 		StartedAt:           now,
 		UpdatedAt:           now,
