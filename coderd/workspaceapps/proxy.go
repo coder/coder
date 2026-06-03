@@ -112,6 +112,7 @@ type ServerOptions struct {
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
+	WSWatcher      *httpapi.WSWatcher
 }
 
 // Server serves workspace apps endpoints, including:
@@ -765,10 +766,11 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
 
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
+
+	ctx = s.WSWatcher.Watch(ctx, s.Logger, conn)
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {

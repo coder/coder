@@ -192,7 +192,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	// The encoder is only written from the SubscribeWithErr callback,
 	// which delivers serially per subscription. Do not add a second
@@ -2393,8 +2393,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-
-	go httpapi.HeartbeatClose(ctx, logger, cancel, clientConn)
+	ctx = api.wsWatcher.Watch(ctx, logger, clientConn)
 
 	// Proxy agent → client.
 	agentCh := agentStream.Chan()
@@ -2551,7 +2550,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := workspaceapps.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	agentssh.Bicopy(ctx, wsNetConn, desktopConn)
 	logger.Debug(ctx, "desktop Bicopy finished")
@@ -3502,7 +3501,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	// The last_read_message_id field is owner-scoped. Shared readers
 	// intentionally lack chat update permission, so their streams must not

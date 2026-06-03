@@ -914,6 +914,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
+
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
@@ -926,6 +929,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
@@ -994,7 +998,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry, wsMetrics)
 
 	r.Use(
 		sharedhttpmw.Recover(api.Logger),
@@ -2251,6 +2255,7 @@ type API struct {
 	metadataBatcher          *metadatabatcher.Batcher
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	wsWatcher                *httpapi.WSWatcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
