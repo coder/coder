@@ -55,7 +55,7 @@ func NewWSMetrics(reg prometheus.Registerer) *WSMetrics {
 			Help: "WebSocket liveness probe outcomes by route. " +
 				"Compare rate(...{result=\"ok\"}[1m]) against " +
 				"coderd_api_concurrent_websockets to detect " +
-				"wedged handlers.",
+				"unresponsive WebSocket connections.",
 		}, []string{"path", "result"}),
 	}
 }
