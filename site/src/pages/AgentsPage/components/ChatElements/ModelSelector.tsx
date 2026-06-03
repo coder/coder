@@ -167,6 +167,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								return (
 									<CommandGroup
 										key={groupKey}
+										className="[&_[cmdk-group-heading]]:text-content-disabled"
 									heading={
 										<span className="flex items-center gap-2 text-content-disabled">
 											<ProviderIcon provider={provider} className="size-5" />
