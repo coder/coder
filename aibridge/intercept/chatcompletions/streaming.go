@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -29,6 +30,11 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
+)
+
+const (
+	upstreamEmptyStreamMessage     = "The AI provider did not return a response. Try again or contact your administrator if this persists."
+	upstreamMalformedStreamMessage = "The AI provider returned an invalid response. Try again or contact your administrator if this persists."
 )
 
 type StreamingInterception struct {
@@ -193,6 +199,13 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		opts = append(opts, option.WithRequestBody("application/json", body))
 		opts = append(opts, option.WithJSONSet("stream", true))
 
+		streamStats := &sseStreamStats{}
+		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			resp, err := next(req)
+			streamStats.wrapResponse(resp)
+			return resp, err
+		}))
+
 		stream = i.newStream(streamCtx, svc, opts)
 		processor := newStreamProcessor(streamCtx, i.logger.Named("stream-processor"), i.getInjectedToolByName)
 
@@ -235,6 +248,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			}
 		}
 
+		streamErr := stream.Err()
+		if err := stream.Close(); err != nil {
+			logger.Debug(ctx, "failed to close upstream stream", slog.Error(err))
+		}
+
 		if toolCall != nil {
 			// Builtin tools are not intercepted.
 			if i.getInjectedToolByName(toolCall.Name) == nil {
@@ -248,7 +266,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				})
 
 				toolCall = nil
-			} else if stream.Err() == nil {
+			} else if streamErr == nil {
 				// When the provider responds with only tool calls (no text content),
 				// no chunks are relayed to the client, so the stream is not yet
 				// initiated. Initiate it here so the SSE headers are sent and the
@@ -291,8 +309,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Mid-stream error or logical error: events have
 			// already streamed for this iteration, so the
 			// error is relayed as an SSE event.
-			streamErr := stream.Err()
-			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr, streamStats, true); respErr != nil {
 				interceptionErr = respErr
 				payload, err := i.marshalErr(respErr)
 				if err != nil {
@@ -310,14 +327,14 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
+			if currentKey != nil && i.markKeyOnError(ctx, currentKey, streamErr) {
 				continue
 			}
 			// Non-key error: relay it. Use mapStreamError so that
 			// unknown upstream errors (TCP reset, DNS failure, TLS
 			// error, deadline exceeded) are wrapped in a generic
 			// response instead of producing a silent HTTP 200.
-			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
+			respErr := i.mapStreamError(ctx, logger, streamErr, lastErr, streamStats, events.IsStreaming())
 			if respErr != nil {
 				interceptionErr = respErr
 				if events.IsStreaming() {
@@ -475,11 +492,20 @@ func (i *StreamingInterception) newStream(ctx context.Context, svc openai.ChatCo
 	return svc.NewStreaming(ctx, openai.ChatCompletionNewParams{}, opts...)
 }
 
-// mapStreamError converts a mid-stream upstream error or
-// processing error into a relayable ResponseError. Returns nil
-// when the error is unrecoverable, in which case nothing can be
-// relayed back.
-func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *intercept.ResponseError {
+// mapStreamError turns stream errors or empty-stream anomalies into
+// relayable ResponseErrors. Returns nil for unrecoverable errors that
+// cannot be relayed.
+func (i *StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error, stats *sseStreamStats, downstreamStarted bool) *intercept.ResponseError {
+	if streamErr == nil && stats.isEmptyDataStream() {
+		i.logUpstreamStreamFailure(ctx, logger, "empty_stream", streamErr, stats, downstreamStarted)
+		return intercept.NewResponseError(
+			upstreamEmptyStreamMessage,
+			intercept.OpenAIErrTypeAPI,
+			intercept.OpenAIErrCodeServer,
+			http.StatusBadGateway,
+			0,
+		)
+	}
 	if streamErr != nil {
 		if eventstream.IsUnrecoverableError(streamErr) {
 			logger.Debug(ctx, "stream terminated", slog.Error(streamErr))
@@ -489,6 +515,16 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		if oaiErr := intercept.ResponseErrorFromAPIError(streamErr); oaiErr != nil {
 			logger.Warn(ctx, "openai stream error", slog.Error(streamErr))
 			return oaiErr
+		}
+		if stats != nil && stats.isSSEUpstream() && stats.hasDataEvents() && isJSONDecodeStreamError(streamErr) {
+			i.logUpstreamStreamFailure(ctx, logger, "malformed_json", streamErr, stats, downstreamStarted)
+			return intercept.NewResponseError(
+				upstreamMalformedStreamMessage,
+				intercept.OpenAIErrTypeAPI,
+				intercept.OpenAIErrCodeServer,
+				http.StatusBadGateway,
+				0,
+			)
 		}
 		logger.Warn(ctx, "unknown stream error", slog.Error(streamErr))
 		// Unfortunately, the OpenAI SDK does not support parsing errors received in the stream
@@ -502,6 +538,40 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 		return intercept.NewResponseError(fmt.Sprintf("processing error: %s", lastErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
 	}
 	return nil
+}
+
+func (i *StreamingInterception) logUpstreamStreamFailure(ctx context.Context, logger slog.Logger, kind string, err error, stats *sseStreamStats, downstreamStarted bool) {
+	fields := []slog.Field{
+		slog.F("stream_error_kind", kind),
+		slog.F("provider_name", i.providerName),
+		slog.F("model", i.Model()),
+		slog.F("endpoint", "/v1/chat/completions"),
+		slog.F("downstream_started", downstreamStarted),
+	}
+	if err != nil {
+		fields = append(fields, slog.Error(err))
+	}
+	if stats != nil {
+		fields = append(fields,
+			slog.F("upstream_status", stats.statusCodeInt()),
+			slog.F("upstream_content_type", stats.contentTypeString()),
+			slog.F("has_data_events", stats.hasDataEvents()),
+			slog.F("saw_done", stats.sawDone.Load()),
+			slog.F("data_event_count", stats.dataEvents.Load()),
+			slog.F("comment_count", stats.comments.Load()),
+			slog.F("empty_event_count", stats.emptyEvents.Load()),
+			slog.F("upstream_bytes_read", stats.rawBytes.Load()),
+		)
+	}
+	logger.Warn(ctx, "upstream stream failed", fields...)
+}
+
+func isJSONDecodeStreamError(err error) bool {
+	if _, ok := errors.AsType[*json.SyntaxError](err); ok {
+		return true
+	}
+	_, ok := errors.AsType[*json.UnmarshalTypeError](err)
+	return ok
 }
 
 type streamProcessor struct {

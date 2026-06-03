@@ -128,6 +128,123 @@ data: [DONE]
 
 `
 
+func TestStreamingInterception_HandlesUpstreamSSEEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	validChunkWithoutDone := `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+
+`
+	largeContent := strings.Repeat("a", 70*1024)
+	largeChunk := `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"` + largeContent + `"},"finish_reason":null}]}` + "\n\n"
+
+	tests := []struct {
+		name               string
+		body               string
+		expectErr          bool
+		expectedStatusCode int
+		expectedBody       string
+		unexpectedBody     string
+	}{
+		{
+			name:               "empty body",
+			body:               "",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "comment only event",
+			body:               ": OPENROUTER PROCESSING\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "comment only without final blank line",
+			body:               ": OPENROUTER PROCESSING\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "done marker only",
+			body:               "data: [DONE]\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+		},
+		{
+			name:               "malformed data event",
+			body:               "data: {not-json}\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamMalformedStreamMessage,
+		},
+		{
+			name:               "valid chunk without done",
+			body:               validChunkWithoutDone,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       "Hello",
+		},
+		{
+			name:               "large data event",
+			body:               largeChunk,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       largeContent,
+		},
+		{
+			name:               "comments before valid chunks",
+			body:               ": OPENROUTER PROCESSING\n\n" + streamingSuccessBody,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       "Hello",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(upstream.Close)
+
+			cfg := config.OpenAI{BaseURL: upstream.URL + "/", Key: "test-key"}
+			interceptor := NewStreamingInterceptor(
+				uuid.New(),
+				newRequestParams(true),
+				config.ProviderOpenAI,
+				cfg,
+				http.Header{},
+				"Authorization",
+				otel.Tracer("streaming_test"),
+				intercept.NewCredentialInfo(intercept.CredentialKindBYOK, "test-key"),
+			)
+			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			w := httptest.NewRecorder()
+			err := interceptor.ProcessRequest(w, req)
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
+			assert.Contains(t, w.Body.String(), tc.expectedBody, "response body")
+			if tc.unexpectedBody != "" {
+				assert.NotContains(t, w.Body.String(), tc.unexpectedBody, "response body")
+			}
+		})
+	}
+}
+
 func TestStreamingInterception_KeyFailover(t *testing.T) {
 	t.Parallel()
 
