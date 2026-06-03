@@ -142,12 +142,16 @@ func TestAIGatewayKeys(t *testing.T) {
 		t.Cleanup(func() { _ = resp.Body.Close() })
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-		// Existing id -> 204 (SDK returns nil error on 204).
+		// Existing id -> 204.
 		created, err := ownerClient.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{
 			Name: uniqueName(t, "del"),
 		})
 		require.NoError(t, err)
-		require.NoError(t, ownerClient.DeleteAIGatewayKey(ctx, created.ID))
+		// SDK returns no code on success, using raw request to check for 204.
+		delResp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/aibridge/keys/"+created.ID.String(), nil)
+		require.NoError(t, err)
+		defer delResp.Body.Close()
+		require.Equal(t, http.StatusNoContent, delResp.StatusCode)
 
 		// Not existing id -> 404.
 		err = ownerClient.DeleteAIGatewayKey(ctx, uuid.New())
