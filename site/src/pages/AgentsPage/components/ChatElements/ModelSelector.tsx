@@ -152,7 +152,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					}}
 				>
 					<CommandInput placeholder="Search..." className="text-xs" />
-					<CommandList className="max-h-72">
+					<CommandList className="max-h-72 [scrollbar-width:thin]">
 						<CommandEmpty className="text-xs">{emptyMessage}</CommandEmpty>
 						{optionsByProvider.map(
 							([_groupKey, providerOptions]) => {
