@@ -197,7 +197,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 													<span className="truncate">
 														{option.displayName}
 														{contextInfo && (
-															<span className="text-xs text-content-secondary">
+															<span className="text-xs text-content-disabled">
 																{" "}({contextInfo})
 															</span>
 														)}
