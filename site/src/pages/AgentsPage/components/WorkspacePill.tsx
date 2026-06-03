@@ -148,7 +148,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1.5 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
 				{hasVSCode && (
 					<VSCodeMenuItem
