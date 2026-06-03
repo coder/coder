@@ -405,7 +405,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
+			Message: "Bedrock settings are only valid for type=bedrock.",
 		})
 		return
 	}
@@ -511,9 +511,9 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 
 // errAIProviderBedrockTypeMismatch is the sentinel returned from
 // inside the update transaction when the post-merge settings carry a
-// Bedrock block but the provider is not anthropic- or bedrock-typed;
-// the outer handler translates it into a 400.
-var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+// Bedrock block but the provider is not Bedrock-typed; the outer handler
+// translates it into a 400.
+var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=bedrock")
 
 // errAIProviderBedrockSettingsRequired is returned when a Bedrock provider
 // would be stored without enough Bedrock connection settings.

@@ -555,7 +555,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotEmpty(t, sdkErr.Message)
 	})
 
-	t.Run("BedrockSettingsRequireAnthropic", func(t *testing.T) {
+	t.Run("BedrockSettingsRequireBedrock", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -585,7 +585,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
 		require.NotEmpty(t, sdkErr.Validations)
 		require.Equal(t, "settings", sdkErr.Validations[0].Field)
-		require.Contains(t, sdkErr.Validations[0].Detail, "bedrock settings are only valid for type=anthropic")
+		require.Contains(t, sdkErr.Validations[0].Detail, "bedrock settings are only valid for type=bedrock")
 
 		// Update: existing OpenAI provider patched with Bedrock settings
 		// must also be rejected.
@@ -604,7 +604,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Bedrock settings are only valid for type=anthropic")
+		require.Contains(t, sdkErr.Message, "Bedrock settings are only valid for type=bedrock")
 	})
 
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {

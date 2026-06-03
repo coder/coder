@@ -57,29 +57,33 @@ import {
 	updateInfiniteChatsCache,
 } from "./chats";
 
-vi.mock("#/api/api", () => ({
-	API: {
-		experimental: {
-			updateChat: vi.fn(),
-			createChat: vi.fn(),
-			deleteChatQueuedMessage: vi.fn(),
-			getChats: vi.fn(),
-			getChatCostSummary: vi.fn(),
-			getChatCostUsers: vi.fn(),
-			createChatMessage: vi.fn(),
-			editChatMessage: vi.fn(),
-			interruptChat: vi.fn(),
-			promoteChatQueuedMessage: vi.fn(),
-			proposeChatTitle: vi.fn(),
-			regenerateChatTitle: vi.fn(),
-			getChatAdvisorConfig: vi.fn(),
-			updateChatAdvisorConfig: vi.fn(),
-			getChatACL: vi.fn(),
-			updateChatACL: vi.fn(),
-			listAIProviders: vi.fn(),
+vi.mock("#/api/api", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/api/api")>();
+	return {
+		...actual,
+		API: {
+			experimental: {
+				updateChat: vi.fn(),
+				createChat: vi.fn(),
+				deleteChatQueuedMessage: vi.fn(),
+				getChats: vi.fn(),
+				getChatCostSummary: vi.fn(),
+				getChatCostUsers: vi.fn(),
+				createChatMessage: vi.fn(),
+				editChatMessage: vi.fn(),
+				interruptChat: vi.fn(),
+				promoteChatQueuedMessage: vi.fn(),
+				proposeChatTitle: vi.fn(),
+				regenerateChatTitle: vi.fn(),
+				getChatAdvisorConfig: vi.fn(),
+				updateChatAdvisorConfig: vi.fn(),
+				getChatACL: vi.fn(),
+				updateChatACL: vi.fn(),
+				listAIProviders: vi.fn(),
+			},
 		},
-	},
-}));
+	};
+});
 
 type InfiniteChatsTestOptions = Parameters<typeof infiniteChatsKey>[0];
 
