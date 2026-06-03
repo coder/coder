@@ -205,7 +205,7 @@ func TestExpTaskDelete(t *testing.T) {
 				stdout := expecter.NewAttachedToInvocation(t, inv)
 				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 				w := clitest.StartWithWaiter(t, inv)
-				stdout.ExpectMatchContext(ctx, "Delete these tasks:")
+				stdout.ExpectMatch(ctx, "Delete these tasks:")
 				stdin.WriteLine("yes")
 				runErr = w.Wait()
 				outBuf.Write(stdout.ReadAll())

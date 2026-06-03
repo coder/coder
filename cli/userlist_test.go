@@ -35,7 +35,7 @@ func TestUserList(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "coder.com")
+		stdout.ExpectMatch(ctx, "coder.com")
 	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
@@ -114,7 +114,7 @@ func TestUserShow(t *testing.T) {
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
-		stdout.ExpectMatchContext(ctx, otherUser.Email)
+		stdout.ExpectMatch(ctx, otherUser.Email)
 		<-doneChan
 	})
 

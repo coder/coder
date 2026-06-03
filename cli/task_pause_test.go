@@ -82,11 +82,11 @@ func TestExpTaskPause(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Pause task")
+		stdout.ExpectMatch(ctx, "Pause task")
 		stdin.WriteLine("yes")
 
 		// Then: We expect the task to be paused
-		stdout.ExpectMatchContext(ctx, "has been paused")
+		stdout.ExpectMatch(ctx, "has been paused")
 		require.NoError(t, w.Wait())
 
 		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
@@ -112,7 +112,7 @@ func TestExpTaskPause(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Pause task")
+		stdout.ExpectMatch(ctx, "Pause task")
 		stdin.WriteLine("no")
 		require.Error(t, w.Wait())
 

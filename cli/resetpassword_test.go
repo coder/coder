@@ -86,7 +86,7 @@ func TestResetPassword(t *testing.T) {
 		{"Confirm", newPassword},
 	}
 	for _, match := range matches {
-		stdout.ExpectMatchContext(ctx, match.output)
+		stdout.ExpectMatch(ctx, match.output)
 		stdin.WriteLine(match.input)
 	}
 	<-cmdDone

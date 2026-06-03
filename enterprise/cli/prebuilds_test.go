@@ -483,7 +483,7 @@ func TestSchedulePrebuilds(t *testing.T) {
 			require.NoError(t, inv.Run())
 
 			// Then: the updated schedule should be shown
-			stdout.ExpectMatchContext(ctx, workspace.OwnerName+"/"+workspace.Name)
+			stdout.ExpectMatch(ctx, workspace.OwnerName+"/"+workspace.Name)
 		})
 	}
 }

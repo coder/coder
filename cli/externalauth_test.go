@@ -29,7 +29,7 @@ func TestExternalAuth(t *testing.T) {
 		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github")
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		waiter := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "https://github.com")
+		stdout.ExpectMatch(ctx, "https://github.com")
 		waiter.RequireIs(cliui.ErrCanceled)
 	})
 	t.Run("SuccessWithToken", func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestExternalAuth(t *testing.T) {
 		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github")
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		stdout.ExpectMatchContext(ctx, "bananas")
+		stdout.ExpectMatch(ctx, "bananas")
 	})
 	t.Run("NoArgs", func(t *testing.T) {
 		t.Parallel()
@@ -76,6 +76,6 @@ func TestExternalAuth(t *testing.T) {
 		inv, _ := clitest.New(t, "--agent-url", url, "--agent-token", "foo", "external-auth", "access-token", "github", "--extra", "hey")
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		stdout.ExpectMatchContext(ctx, "there")
+		stdout.ExpectMatch(ctx, "there")
 	})
 }

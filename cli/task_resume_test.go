@@ -115,11 +115,11 @@ func TestExpTaskResume(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Resume task")
+		stdout.ExpectMatch(ctx, "Resume task")
 		stdin.WriteLine("yes")
 
 		// Then: We expect the task to be resumed
-		stdout.ExpectMatchContext(ctx, "has been resumed")
+		stdout.ExpectMatch(ctx, "has been resumed")
 		require.NoError(t, w.Wait())
 
 		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
@@ -146,7 +146,7 @@ func TestExpTaskResume(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Resume task")
+		stdout.ExpectMatch(ctx, "Resume task")
 		stdin.WriteLine("no")
 		require.Error(t, w.Wait())
 

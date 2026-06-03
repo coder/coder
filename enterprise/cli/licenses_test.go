@@ -40,7 +40,7 @@ func TestLicensesAddFake(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		stdout.ExpectMatchContext(ctx, "License with ID 1 added")
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("Prompt", func(t *testing.T) {
 		t.Parallel()
@@ -53,10 +53,10 @@ func TestLicensesAddFake(t *testing.T) {
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		stdout.ExpectMatchContext(ctx, "Paste license:")
+		stdout.ExpectMatch(ctx, "Paste license:")
 		stdin.WriteLine(fakeLicenseJWT)
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "License with ID 1 added")
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("File", func(t *testing.T) {
 		t.Parallel()
@@ -72,7 +72,7 @@ func TestLicensesAddFake(t *testing.T) {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "License with ID 1 added")
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("StdIn", func(t *testing.T) {
 		t.Parallel()
@@ -109,7 +109,7 @@ func TestLicensesAddFake(t *testing.T) {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, "\"f2\": 2")
+		stdout.ExpectMatch(ctx, "\"f2\": 2")
 	})
 }
 
@@ -205,7 +205,7 @@ func TestLicensesDeleteFake(t *testing.T) {
 
 		clitest.Start(t, inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		stdout.ExpectMatchContext(ctx, "License with ID 55 deleted")
+		stdout.ExpectMatch(ctx, "License with ID 55 deleted")
 	})
 }
 

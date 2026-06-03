@@ -42,11 +42,11 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		stdout.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
-		stdout.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
+		stdout.ExpectMatch(ctx, "Regenerating VAPID keypair...")
+		stdout.ExpectMatch(ctx, "This will delete all existing webpush subscriptions.")
+		stdout.ExpectMatch(ctx, "Are you sure you want to continue? (y/N)")
 		// don't need to write to stdin because we passed --yes
-		stdout.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
+		stdout.ExpectMatch(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
 		keys, err := db.GetWebpushVAPIDKeys(ctx)
@@ -85,11 +85,11 @@ func TestRegenerateVapidKeypair(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Regenerating VAPID keypair...")
-		stdout.ExpectMatchContext(ctx, "This will delete all existing webpush subscriptions.")
-		stdout.ExpectMatchContext(ctx, "Are you sure you want to continue? (y/N)")
+		stdout.ExpectMatch(ctx, "Regenerating VAPID keypair...")
+		stdout.ExpectMatch(ctx, "This will delete all existing webpush subscriptions.")
+		stdout.ExpectMatch(ctx, "Are you sure you want to continue? (y/N)")
 		// don't need to write to stdin because we passed --yes
-		stdout.ExpectMatchContext(ctx, "VAPID keypair regenerated successfully.")
+		stdout.ExpectMatch(ctx, "VAPID keypair regenerated successfully.")
 
 		// Ensure the VAPID keypair was created.
 		keys, err := db.GetWebpushVAPIDKeys(ctx)

@@ -55,7 +55,7 @@ func TestGroupList(t *testing.T) {
 		}
 
 		for _, match := range matches {
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 		}
 	})
 
@@ -84,7 +84,7 @@ func TestGroupList(t *testing.T) {
 		}
 
 		for _, match := range matches {
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 		}
 	})
 

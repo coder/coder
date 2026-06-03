@@ -450,9 +450,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -561,7 +561,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err = inv.Run()
 		require.NoError(t, err)
-		stdout.ExpectMatchContext(ctx, "No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

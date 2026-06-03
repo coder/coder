@@ -56,7 +56,7 @@ func TestGroupEdit(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Successfully patched group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, expectedName)))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Successfully patched group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, expectedName)))
 	})
 
 	t.Run("InvalidUserInput", func(t *testing.T) {

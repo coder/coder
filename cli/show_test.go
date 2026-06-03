@@ -60,7 +60,7 @@ func TestShow(t *testing.T) {
 			{match: "coder ssh " + workspace.Name},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -115,7 +115,7 @@ func TestShow(t *testing.T) {
 			{match: "coder ssh " + workspace.Name},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}

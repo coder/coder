@@ -35,7 +35,7 @@ func TestPing(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, "pong from "+workspace.Name)
+		stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 		cancel()
 		<-cmdDone
 	})
@@ -59,7 +59,7 @@ func TestPing(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, "pong from "+workspace.Name)
+		stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 		cancel()
 		<-cmdDone
 	})
@@ -110,7 +110,7 @@ func TestPing(t *testing.T) {
 					rfc3339 += `(?:Z|[+-]\d{2}:\d{2})`
 				}
 
-				stdout.ExpectRegexMatchContext(ctx, `\[`+rfc3339+`\] pong from `+workspace.Name)
+				stdout.ExpectRegexMatch(ctx, `\[`+rfc3339+`\] pong from `+workspace.Name)
 				cancel()
 				<-cmdDone
 			})
