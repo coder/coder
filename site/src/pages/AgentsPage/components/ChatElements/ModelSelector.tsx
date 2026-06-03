@@ -123,12 +123,14 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					<span className="truncate max-w-32">
 						{selectedModel ? selectedModel.displayName : placeholder}
 					</span>
-					<ChevronDownIcon
-						className={cn(
-							"size-3 shrink-0 transition-transform",
-							isOpen && "rotate-180",
-						)}
-					/>
+						<ChevronDownIcon
+							strokeWidth={2.5}
+							className={cn(
+								"size-3.5 shrink-0 transition-transform",
+								isOpen && "rotate-180",
+							)}
+						/>
+
 				</button>
 			</PopoverTrigger>
 			<PopoverContent

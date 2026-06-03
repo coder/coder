@@ -129,12 +129,14 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							<span className="hidden min-w-0 truncate md:inline">
 								{workspace.name}
 							</span>
-							<ChevronDownIcon
-								className={cn(
-									"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
-									open && "rotate-180",
-								)}
-							/>
+								<ChevronDownIcon
+									strokeWidth={2.5}
+									className={cn(
+										"hidden size-3.5 shrink-0 opacity-60 transition-transform md:block",
+										open && "rotate-180",
+									)}
+								/>
+
 						</button>
 					</DropdownMenuTrigger>
 				</TooltipTrigger>
