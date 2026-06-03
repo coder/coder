@@ -36,7 +36,26 @@ import {
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
-type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
+type GitView =
+	| { type: "remote" }
+	| { type: "remote-extra"; index: number }
+	| { type: "local"; repoRoot: string };
+
+// Hardcoded extra PR tabs for demo purposes. In production these
+// would come from the backend when multi-PR support is added.
+const EXTRA_PR_TABS: readonly {
+	title: string;
+	state: string;
+	draft: boolean;
+	number: number;
+}[] = [
+	{
+		title: "fix: increase icon sizes for wcag 2.2 compliance",
+		state: "open",
+		draft: false,
+		number: 2,
+	},
+];
 
 const GIT_NOT_SETUP_TITLE = "Git is not set up for this chat";
 const GIT_NOT_SETUP_SENTENCE = "Git is not set up for this chat.";
@@ -110,9 +129,30 @@ const viewLabel = (
 			text: "Branch",
 		};
 	}
+	if (view.type === "remote-extra") {
+		const extra = EXTRA_PR_TABS[view.index];
+		if (extra) {
+			return {
+				icon: (
+					<PrStateIcon
+						state={extra.state}
+						draft={extra.draft}
+						className="!size-4 shrink-0"
+					/>
+				),
+				text: extra.title,
+			};
+		}
+	}
+	if (view.type === "local") {
+		return {
+			icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+			text: `Working ${repoTabLabel(view.repoRoot)}`,
+		};
+	}
 	return {
-		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
-		text: `Working ${repoTabLabel(view.repoRoot)}`,
+		icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+		text: "Unknown",
 	};
 };
 
@@ -139,6 +179,7 @@ const GitViewSelector: FC<GitViewSelectorProps> = ({
 }) => {
 	const allViews: GitView[] = [
 		...(showRemoteTab ? [{ type: "remote" } as const] : []),
+		...EXTRA_PR_TABS.map((_, i) => ({ type: "remote-extra" as const, index: i })),
 		...localRepos.map((r) => ({ type: "local" as const, repoRoot: r })),
 	];
 
@@ -173,12 +214,21 @@ const GitViewSelector: FC<GitViewSelectorProps> = ({
 					const isActive =
 						v.type === view.type &&
 						(v.type === "remote" ||
+							(v.type === "remote-extra" &&
+								view.type === "remote-extra" &&
+								v.index === view.index) ||
 							(v.type === "local" &&
 								view.type === "local" &&
 								v.repoRoot === view.repoRoot));
+					const key =
+						v.type === "remote"
+							? "remote"
+							: v.type === "remote-extra"
+								? `remote-extra-${v.index}`
+								: v.repoRoot;
 					return (
 						<DropdownMenuItem
-							key={v.type === "remote" ? "remote" : v.repoRoot}
+							key={key}
 							onClick={() => setView(v)}
 							className={cn(
 								"gap-1.5 text-xs",
@@ -387,7 +437,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			</div>
 			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{view.type === "remote" ? (
+				{view.type === "remote" || view.type === "remote-extra" ? (
 					<RemoteContent
 						prTab={prTab}
 						hasGitContext={hasGitContext}
@@ -397,7 +447,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						diffStyle={diffStyle}
 						diffStatus={remoteDiffStats}
 					/>
-				) : (
+				) : view.type === "local" ? (
 					<LocalRepoContent
 						repoRoot={view.repoRoot}
 						repo={repositories.get(view.repoRoot)}
@@ -409,7 +459,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						diffStyle={diffStyle}
 						chatInputRef={chatInputRef}
 					/>
-				)}
+				) : null}
 			</div>
 		</div>
 	);
