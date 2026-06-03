@@ -3,6 +3,7 @@ package rbac
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,8 +36,7 @@ const (
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
-
-	prebuildsOrchestrator string = "prebuilds-orchestrator"
+	orgWorkspaceAccess      string = "organization-workspace-access"
 )
 
 func init() {
@@ -173,6 +173,10 @@ func RoleOrgWorkspaceCreationBan() string {
 	return orgWorkspaceCreationBan
 }
 
+func RoleOrgWorkspaceAccess() string {
+	return orgWorkspaceAccess
+}
+
 // ScopedRoleOrgAdmin is the org role with the organization ID
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
@@ -201,6 +205,67 @@ func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier 
 
 func ScopedRoleAgentsAccess(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleAgentsAccess(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgWorkspaceAccess(), OrganizationID: organizationID}
+}
+
+// OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
+// organization-workspace-access role.
+func OrgWorkspaceAccessMemberPerms() []Permission {
+	return Permissions(map[string][]policy.Action{
+		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
+
+		// Dormant workspaces share the workspace action set minus the
+		// build, ssh, and exec actions.
+		ResourceWorkspaceDormant.Type: {
+			policy.ActionRead,
+			policy.ActionDelete,
+			policy.ActionCreate,
+			policy.ActionUpdate,
+			policy.ActionWorkspaceStop,
+			policy.ActionCreateAgent,
+			policy.ActionDeleteAgent,
+			policy.ActionUpdateAgent,
+		},
+
+		// Upload and read template files used during workspace build
+		// (File.RBACObject sets WithOwner(CreatedBy)).
+		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
+
+		// User-scoped provisioner daemons: Upsert sets
+		// WithOwner(tag_owner) when scope=user so members can run their
+		// own daemons. Read is granted for symmetry; update and delete
+		// stay dead at Member scope.
+		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
+
+		ResourceTask.Type: ResourceTask.AvailableActions(),
+
+		// Intentionally omitted at Member scope (resources without an
+		// Owner field on their RBACObject; Member-level grants never
+		// fire for them). Listed here because these can be common
+		// misconceptions:
+		//
+		//   - ResourceTemplate: templates are only owned by orgs, not
+		//     users. Users granted access via ACL and (generally) the
+		//     "Everyone" group.
+		//   - ResourceGroup: groups have no owner. "Groups I'm a
+		//     member of can read themselves" is handled by the ACL
+		//     applied implicitly in RBACObject().
+		//   - ResourceWorkspaceProxy, ResourceProvisionerJobs,
+		//     ResourceWorkspaceAgentResourceMonitor,
+		//     ResourceWorkspaceAgentDevcontainers,
+		//     ResourceTailnetCoordinator, ResourceReplicas: these
+		//     resources have no DB model that sets Owner; all
+		//     production call sites use the bare resource or
+		//     .InOrg(...) only. Access for these flows through Org
+		//     perms on the appropriate role, or through system /
+		//     agent / template-admin roles defined elsewhere.
+		//   - ResourceProvisionerDaemon update/delete: only create and
+		//     read fire at Member scope via the user-scoped Upsert
+		//     path; other actions go through the bare InOrg path.
+	})
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -609,6 +674,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		orgWorkspaceAccess: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgWorkspaceAccess, OrganizationID: organizationID},
+				DisplayName: "Organization Workspace Access",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org:    []Permission{},
+						Member: OrgWorkspaceAccessMemberPerms(),
+					},
+				},
+			}
+		},
 		// ActionDelete is intentionally excluded because hard-deletion goes through
 		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
@@ -651,6 +730,7 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgWorkspaceAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -667,6 +747,7 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgWorkspaceAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -674,9 +755,10 @@ var assignRoles = map[string]map[string]bool{
 		agentsAccess:            true,
 	},
 	userAdmin: {
-		member:       true,
-		orgMember:    true,
-		agentsAccess: true,
+		member:             true,
+		orgMember:          true,
+		orgWorkspaceAccess: true,
+		agentsAccess:       true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -685,16 +767,14 @@ var assignRoles = map[string]map[string]bool{
 		orgUserAdmin:            true,
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
+		orgWorkspaceAccess:      true,
 		customOrganizationRole:  true,
 		agentsAccess:            true,
 	},
 	orgUserAdmin: {
-		orgMember:    true,
-		agentsAccess: true,
-	},
-
-	prebuildsOrchestrator: {
-		orgMember: true,
+		orgMember:          true,
+		orgWorkspaceAccess: true,
+		agentsAccess:       true,
 	},
 }
 
@@ -1055,59 +1135,19 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Enumerate the per-member resources explicitly so new resources do
-	// not auto-grant to org members. Adding a resource to the codebase
-	// requires an explicit decision to expose it here.
-	//
-	// Member-level grants only fire when input.object.owner ==
-	// input.subject.id (see the org_member rule in
-	// coderd/rbac/policy.rego). Only resources whose RBACObject() calls
-	// WithOwner(...) at production call sites belong here; see the
-	// "Intentionally omitted" block at the bottom.
-	memberPerms := Permissions(map[string][]policy.Action{
-		// Workspace lifecycle on resources owned by this member.
-		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
-
-		// Dormant workspaces share the workspace action set minus the
-		// build, ssh, and exec actions.
-		ResourceWorkspaceDormant.Type: {
-			policy.ActionRead,
-			policy.ActionDelete,
-			policy.ActionCreate,
-			policy.ActionUpdate,
-			policy.ActionWorkspaceStop,
-			policy.ActionCreateAgent,
-			policy.ActionDeleteAgent,
-			policy.ActionUpdateAgent,
-		},
-
-		// Upload and read template files the member created during
-		// workspace build (File.RBACObject sets WithOwner(CreatedBy)).
-		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
-
-		// Create and read user-scoped provisioner daemons. The Upsert
-		// path in dbauthz sets WithOwner(tag_owner) when scope=user, so
-		// members can run their own daemons. Read is granted for
-		// symmetry with workspace ownership: members can inspect
-		// daemons they spawned even though no production call site
-		// currently uses the member-scope read path (read on the bare
-		// InOrg object continues to require Org-level perms).
-		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
-
-		// Tasks ride along with workspaces and are owner-scoped.
-		ResourceTask.Type: ResourceTask.AvailableActions(),
+	// Chat access requires the agents-access role and is intentionally
+	// not granted in the floor.
+	floor := Permissions(map[string][]policy.Action{
+		// Read-self org-member record.
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 
 		// Read-self group-membership record. GroupMember.RBACObject
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Read-self org-member record.
-		ResourceOrganizationMember.Type: {policy.ActionRead},
-
 		// Members can create and update AI Bridge interceptions they
 		// initiate (dbauthz layer sets WithOwner(InitiatorID)) but
-		// cannot read them back. Chat access requires the
-		// agents-access role and is intentionally not granted here.
+		// cannot read them back.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.
@@ -1118,31 +1158,16 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
-
-		// Intentionally omitted at Member scope (resources without an
-		// Owner field on their RBACObject; Member-level grants never
-		// fire for them). Listed here so a future maintainer who sees
-		// these dropped relative to the legacy allPermsExcept(...)
-		// wildcard does not "restore" them:
-		//
-		//   - ResourceTemplate: templates have no owner. Org-member
-		//     template.use is authorized via the ACL path
-		//     (acl_group_list[org_owner] "Everyone" group, populated
-		//     on each template's GroupACL).
-		//   - ResourceGroup: groups have no owner. "Groups I'm a
-		//     member of can read themselves" is granted via the
-		//     per-group GroupACL.
-		//   - ResourceWorkspaceProxy, ResourceProvisionerJobs,
-		//     ResourceWorkspaceAgentResourceMonitor,
-		//     ResourceWorkspaceAgentDevcontainers,
-		//     ResourceTailnetCoordinator, ResourceReplicas: these
-		//     resources have no DB model that sets Owner; all
-		//     production call sites use the bare resource or
-		//     .InOrg(...) only. Access for these flows through Org
-		//     perms on the appropriate role (e.g. ProvisionerDaemon
-		//     above), or through system / agent / template-admin
-		//     roles defined elsewhere.
 	})
+
+	// Workspace-ops elevation. Today bundled into organization-member;
+	// the minimum-implicit-member experiment will move the binding
+	// exclusively onto organization-workspace-access so a user without
+	// that role has only the floor. See OrgWorkspaceAccessMemberPerms
+	// for the perm set and the "Intentionally omitted" rationale.
+	elevation := OrgWorkspaceAccessMemberPerms()
+
+	memberPerms := slices.Concat(elevation, floor)
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
 		memberPerms = append(memberPerms, Permission{
@@ -1189,61 +1214,18 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// service account-scoped permissions (resources owned by the
-	// service account). Enumerated explicitly so new resources do not
-	// auto-grant to service accounts.
-	//
-	// Member-level grants only fire when input.object.owner ==
-	// input.subject.id (see the org_member rule in
-	// coderd/rbac/policy.rego). Only resources whose RBACObject() calls
-	// WithOwner(...) at production call sites belong here; see the
-	// "Intentionally omitted" block at the bottom.
-	memberPerms := Permissions(map[string][]policy.Action{
-		// Workspace lifecycle on resources owned by this service account.
-		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
-
-		// Dormant workspaces share the workspace action set minus the
-		// build, ssh, and exec actions.
-		ResourceWorkspaceDormant.Type: {
-			policy.ActionRead,
-			policy.ActionDelete,
-			policy.ActionCreate,
-			policy.ActionUpdate,
-			policy.ActionWorkspaceStop,
-			policy.ActionCreateAgent,
-			policy.ActionDeleteAgent,
-			policy.ActionUpdateAgent,
-		},
-
-		// Upload and read template files the service account created
-		// during workspace build (File.RBACObject sets
-		// WithOwner(CreatedBy)).
-		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
-
-		// Create and read user-scoped provisioner daemons. The Upsert
-		// path in dbauthz sets WithOwner(tag_owner) when scope=user, so
-		// service accounts can run their own daemons. Read is granted
-		// for symmetry with workspace ownership: service accounts can
-		// inspect daemons they spawned even though no production call
-		// site currently uses the member-scope read path (read on the
-		// bare InOrg object continues to require Org-level perms).
-		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
-
-		// Tasks ride along with workspaces and are owner-scoped.
-		ResourceTask.Type: ResourceTask.AvailableActions(),
+	floor := Permissions(map[string][]policy.Action{
+		// Read-self org-member record.
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 
 		// Read-self group-membership record. GroupMember.RBACObject
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Read-self org-member record.
-		ResourceOrganizationMember.Type: {policy.ActionRead},
-
-		// Service accounts can create and update AI Bridge
-		// interceptions they initiate (dbauthz layer sets
-		// WithOwner(InitiatorID)) but cannot read them back. Chat
-		// access requires the agents-access role and is intentionally
-		// not granted here.
+		// Service accounts can create and update AI Bridge interceptions
+		// they initiate (dbauthz layer sets WithOwner(InitiatorID)) but
+		// cannot read them back. Chat access requires the agents-access
+		// role and is intentionally not granted here.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.
@@ -1254,11 +1236,11 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
-
-		// Intentionally omitted at Member scope. See
-		// OrgMemberPermissions above for the rationale; the service
-		// account role mirrors the same partition.
 	})
+
+	elevation := OrgWorkspaceAccessMemberPerms()
+
+	memberPerms := slices.Concat(elevation, floor)
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }
