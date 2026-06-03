@@ -692,8 +692,10 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.Len(t, stats.Transitions, 0)
 
 	// Given: agent reports "complete" status. This invokes ActivityBumpWorkspace
-	// again, but the SQL's 5%-elapsed guard rejects the UPDATE because we are
-	// still ~1h away from the bumped deadline, so the deadline does not change.
+	// again, but activitybump.sql refuses to update the deadline unless at least
+	// 95% of the activity_bump duration has elapsed since the last bump. We just
+	// bumped milliseconds ago, so the UPDATE matches zero rows and the deadline
+	// is unchanged.
 	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 		AppSlug: "test-app",
 		State:   codersdk.WorkspaceAppStatusStateComplete,
