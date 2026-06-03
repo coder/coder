@@ -246,12 +246,11 @@ export const getModelOptionsFromConfigs = (
 	}
 
 	return options.sort((a, b) => {
-		// Sort by provider config instance first to keep models from the
-		// same provider instance together, then by provider type, then
-		// by display name.
-		const groupA = a.providerConfigId || a.provider;
-		const groupB = b.providerConfigId || b.provider;
-		const groupCompare = groupA.localeCompare(groupB);
+		// Sort by resolved provider display name alphabetically,
+		// then by model display name within each group.
+		const labelA = a.providerDisplayName ?? a.provider;
+		const labelB = b.providerDisplayName ?? b.provider;
+		const groupCompare = labelA.localeCompare(labelB);
 		if (groupCompare !== 0) {
 			return groupCompare;
 		}
