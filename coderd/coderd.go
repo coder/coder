@@ -319,10 +319,10 @@ type Options struct {
 // @BasePath /
 
 // @tag.name Agents
-// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource (sometimes called the workspace daemon). This API is NOT the AI Coder Agents API. For programmatic access to AI Coder Agents (formerly Tasks), see the Chats API.
+// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource (sometimes called the workspace daemon). This API is NOT the AI Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
 
 // @tag.name Chats
-// @tag.description Programmatic API for Coder AI Agents (the user-facing "Coder Agents" / "Chats" product). Experimental. Use these endpoints to create, list, and manage AI coding agent sessions. For background and migration from the Tasks API, see the AI Coder docs.
+// @tag.description Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 
 // @securitydefinitions.apiKey Authorization
 // @in header
