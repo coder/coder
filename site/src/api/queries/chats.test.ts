@@ -6,6 +6,10 @@ import {
 	ERROR_STATUSES,
 	SUCCESS_STATUSES,
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
+import {
+	MockAIProviderBedrock,
+	MockAIProviderBedrockAsAnthropic,
+} from "#/testHelpers/entities";
 import { buildOptimisticEditedMessage } from "./chatMessageEdits";
 import {
 	addChildToParentInCache,
@@ -21,6 +25,7 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
+	chatProviderConfigs,
 	chatSearch,
 	chatsKey,
 	createChat,
@@ -71,6 +76,7 @@ vi.mock("#/api/api", () => ({
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
 			updateChatACL: vi.fn(),
+			listAIProviders: vi.fn(),
 		},
 	},
 }));
@@ -140,6 +146,22 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("chatProviderConfigs", () => {
+	it("maps canonical and legacy Bedrock AI providers to Bedrock chat providers", async () => {
+		vi.mocked(API.experimental.listAIProviders).mockResolvedValue([
+			MockAIProviderBedrock,
+			MockAIProviderBedrockAsAnthropic,
+		]);
+
+		const configs = await chatProviderConfigs().queryFn();
+
+		expect(configs.map((config) => config.provider)).toEqual([
+			"bedrock",
+			"bedrock",
+		]);
+	});
+});
 
 describe("advisor config query factories", () => {
 	it("builds the advisor config query and delegates to the API", async () => {

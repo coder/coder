@@ -1,12 +1,17 @@
-import type {
-	AIProvider,
-	AIProviderBedrockSettings,
-	AIProviderKeyMutation,
-	AIProviderSettings,
-	AIProviderType,
-	CreateAIProviderRequest,
-	UpdateAIProviderRequest,
+import {
+	type AIProvider,
+	type AIProviderBedrockSettings,
+	AIProviderBedrockSettingsVersion,
+	type AIProviderKeyMutation,
+	type AIProviderSettings,
+	type AIProviderType,
+	type CreateAIProviderRequest,
+	type UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
+import {
+	AI_PROVIDER_SETTINGS_TYPE_BEDROCK,
+	isBedrockAIProvider,
+} from "#/utils/aiProviders";
 import {
 	type ProviderFormValues,
 	parseBedrockRegionFromBaseUrl,
@@ -30,12 +35,9 @@ const sanitizeCredential = (
 
 // The generated `AIProviderSettings` interface is empty (the Go side uses
 // a custom marshaler), so we redeclare the structural wire shape here.
-const BEDROCK_SETTINGS_TYPE = "bedrock";
-const BEDROCK_SETTINGS_VERSION = 1;
-
 type BedrockSettingsWire = AIProviderBedrockSettings & {
-	_type: typeof BEDROCK_SETTINGS_TYPE;
-	_version: typeof BEDROCK_SETTINGS_VERSION;
+	_type: typeof AI_PROVIDER_SETTINGS_TYPE_BEDROCK;
+	_version: typeof AIProviderBedrockSettingsVersion;
 };
 
 type SettingsWire = AIProviderSettings &
@@ -44,23 +46,15 @@ type SettingsWire = AIProviderSettings &
 		_version?: number;
 	};
 
-// Bedrock providers are identified by the settings discriminator. The
-// generated type marks settings as non-null, but Go serializes zero settings
-// as JSON `null`.
-export const isBedrockProvider = (provider: AIProvider): boolean => {
-	if (provider.type !== "anthropic" && provider.type !== "bedrock") {
-		return false;
-	}
-	const s = provider.settings as SettingsWire | null;
-	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
-};
+export const isBedrockProvider = isBedrockAIProvider;
 
 export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
 	if (!isBedrockProvider(provider)) {
 		return false;
 	}
-	// Bedrock secrets are write-only. The server only persists Bedrock
-	// settings if credentials were supplied, so presence implies "on file".
+	// Bedrock secrets are write-only, so API responses cannot distinguish
+	// static keys from ambient AWS credentials. Keep existing values masked
+	// unless the administrator enters a replacement pair.
 	return true;
 };
 
@@ -110,8 +104,8 @@ const buildBedrockSettings = (
 	accessKey: string,
 	accessKeySecret: string,
 ): BedrockSettingsWire => ({
-	_type: BEDROCK_SETTINGS_TYPE,
-	_version: BEDROCK_SETTINGS_VERSION,
+	_type: AI_PROVIDER_SETTINGS_TYPE_BEDROCK,
+	_version: AIProviderBedrockSettingsVersion,
 	...(region ? { region } : {}),
 	model,
 	small_fast_model: smallFastModel,
@@ -143,7 +137,7 @@ export const providerFormValuesToCreate = (
 			sanitizeCredential(values.accessKeySecret),
 		);
 		return {
-			type: "anthropic",
+			type: "bedrock",
 			...base,
 			settings: settings as AIProviderSettings,
 		};

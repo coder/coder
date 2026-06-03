@@ -1,3 +1,31 @@
+import type { AIProvider, AIProviderType } from "#/api/typesGenerated";
+
+export const AI_PROVIDER_SETTINGS_TYPE_BEDROCK = "bedrock";
+
+type SettingsWire = {
+	readonly _type?: string;
+};
+
+export const isBedrockAIProvider = (
+	provider: Pick<AIProvider, "type" | "settings">,
+): boolean => {
+	if (provider.type === "bedrock") {
+		return true;
+	}
+	if (provider.type !== "anthropic") {
+		return false;
+	}
+	const settings = provider.settings as SettingsWire | null | undefined;
+	return (
+		settings != null && settings._type === AI_PROVIDER_SETTINGS_TYPE_BEDROCK
+	);
+};
+
+export const canonicalAIProviderType = (
+	provider: Pick<AIProvider, "type" | "settings">,
+): AIProviderType =>
+	isBedrockAIProvider(provider) ? "bedrock" : provider.type;
+
 export const formatProviderLabel = (provider: string): string => {
 	const normalized = provider.trim().toLowerCase();
 	switch (normalized) {

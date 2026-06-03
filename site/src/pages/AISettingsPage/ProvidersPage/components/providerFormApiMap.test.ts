@@ -3,6 +3,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderBedrockAsAnthropic,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
@@ -148,6 +149,10 @@ describe("isBedrockProvider", () => {
 		expect(isBedrockProvider(provider)).toBe(true);
 	});
 
+	it("recognises a Bedrock provider stored with the Anthropic type", () => {
+		expect(isBedrockProvider(MockAIProviderBedrockAsAnthropic)).toBe(true);
+	});
+
 	it("rejects an OpenAI provider", () => {
 		expect(isBedrockProvider(MockAIProviderOpenAI)).toBe(false);
 	});
@@ -185,6 +190,12 @@ describe("hasBedrockStoredCredentials", () => {
 describe("getProviderDisplayType", () => {
 	it("returns bedrock for a Bedrock provider", () => {
 		expect(getProviderDisplayType(MockAIProviderBedrock)).toBe("bedrock");
+	});
+
+	it("returns bedrock for a Bedrock provider stored with the Anthropic type", () => {
+		expect(getProviderDisplayType(MockAIProviderBedrockAsAnthropic)).toBe(
+			"bedrock",
+		);
 	});
 
 	it("returns anthropic for a non-Bedrock Anthropic provider", () => {
@@ -329,9 +340,9 @@ describe("providerFormValuesToCreate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it('maps Bedrock to a wire `type:"anthropic"`', () => {
+		it('maps Bedrock to a wire `type:"bedrock"`', () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
-			expect(req.type).toBe("anthropic");
+			expect(req.type).toBe("bedrock");
 		});
 
 		it("derives the region from a canonical AWS URL", () => {
@@ -623,13 +634,11 @@ describe("aiProviderToFormValues", () => {
 	});
 
 	it("handles a Bedrock provider whose settings are null", () => {
-		// `isBedrockProvider` will return false, so the provider falls
-		// through to the anthropic branch. The helper must not throw.
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
 			settings: null as unknown as AIProvider["settings"],
 		};
 		const values = aiProviderToFormValues(provider);
-		expect(values.type).toBe("anthropic");
+		expect(values.type).toBe("bedrock");
 	});
 });

@@ -1623,6 +1623,79 @@ func TestListChatModels(t *testing.T) {
 		require.True(t, openAIProvider.Available)
 	})
 
+	t.Run("BedrockOnlyProviderRemainsVisibleWithoutAnthropic", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		bedrockProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "test-bedrock-" + uuid.NewString(),
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		bedrockModel, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			AIProviderID: &bedrockProvider.ID,
+			Model:        "anthropic.claude-sonnet-4-20250514-v1:0",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", bedrockModel.Provider)
+
+		findProvider := func(models codersdk.ChatModelsResponse, provider string) *codersdk.ChatModelProvider {
+			for i := range models.Providers {
+				if models.Providers[i].Provider == provider {
+					return &models.Providers[i]
+				}
+			}
+			return nil
+		}
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		bedrock := findProvider(models, "bedrock")
+		require.NotNil(t, bedrock)
+		require.True(t, bedrock.Available)
+		require.Nil(t, findProvider(models, "anthropic"))
+
+		anthropicProvider := createAIProviderForTest(t, client, "anthropic", "test-api-key")
+		anthropicModel, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			AIProviderID: &anthropicProvider.ID,
+			Model:        "claude-sonnet-4-20250514",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", anthropicModel.Provider)
+
+		models, err = client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, findProvider(models, "bedrock"))
+		require.NotNil(t, findProvider(models, "anthropic"))
+
+		enabled := false
+		_, err = client.UpdateAIProvider(ctx, anthropicProvider.ID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: &enabled,
+		})
+		require.NoError(t, err)
+
+		models, err = client.ListChatModels(ctx)
+		require.NoError(t, err)
+		bedrock = findProvider(models, "bedrock")
+		require.NotNil(t, bedrock)
+		require.True(t, bedrock.Available)
+		require.Nil(t, findProvider(models, "anthropic"))
+	})
+
 	t.Run("UserOnlyProviderRequiresUserKey", func(t *testing.T) {
 		t.Parallel()
 

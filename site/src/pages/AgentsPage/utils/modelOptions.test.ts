@@ -378,6 +378,54 @@ describe("getModelOptionsFromConfigs", () => {
 		expect(getModelOptionsFromConfigs(configs, catalog)).toEqual([]);
 	});
 
+	it("includes Bedrock configs without Anthropic availability", () => {
+		const configs = [
+			createConfig({
+				id: "config-bedrock",
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-20250514-v1:0",
+				display_name: "Claude Sonnet via Bedrock",
+				context_limit: 200_000,
+			}),
+		];
+		const catalog = createCatalog([
+			{
+				provider: "bedrock",
+				available: true,
+				models: [],
+			},
+		]);
+
+		expect(getModelOptionsFromConfigs(configs, catalog)).toEqual([
+			{
+				id: "config-bedrock",
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-20250514-v1:0",
+				displayName: "Claude Sonnet via Bedrock",
+				contextLimit: 200_000,
+			},
+		]);
+	});
+
+	it("does not use Anthropic availability for Bedrock configs", () => {
+		const configs = [
+			createConfig({
+				id: "config-bedrock",
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-20250514-v1:0",
+			}),
+		];
+		const catalog = createCatalog([
+			{
+				provider: "anthropic",
+				available: true,
+				models: [],
+			},
+		]);
+
+		expect(getModelOptionsFromConfigs(configs, catalog)).toEqual([]);
+	});
+
 	it("excludes disabled configs", () => {
 		const configs = [
 			createConfig({

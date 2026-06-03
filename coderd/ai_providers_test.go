@@ -87,11 +87,11 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		// Create.
 		req := codersdk.CreateAIProviderRequest{
-			Type:        codersdk.AIProviderTypeAnthropic,
-			Name:        "primary-anthropic",
-			DisplayName: "Primary Anthropic",
+			Type:        codersdk.AIProviderTypeBedrock,
+			Name:        "primary-bedrock",
+			DisplayName: "Primary Bedrock",
 			Enabled:     true,
-			BaseURL:     "https://api.anthropic.com/",
+			BaseURL:     "https://bedrock-runtime.us-east-1.amazonaws.com/",
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region: "us-east-1",
@@ -128,7 +128,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		// Update.
 		newDisplay := "Updated Display"
-		newURL := "https://api.anthropic.com/v1"
+		newURL := "https://bedrock-runtime.us-west-2.amazonaws.com/"
 		disabled := false
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			DisplayName: &newDisplay,
@@ -172,6 +172,26 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, created.ID, recreated.ID)
 		require.Equal(t, req.Name, recreated.Name)
+	})
+
+	t.Run("CreateLegacyAnthropicBedrockNormalizesType", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "compat-bedrock",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeBedrock, created.Type)
 	})
 
 	t.Run("DefaultDisplayName", func(t *testing.T) {
@@ -598,7 +618,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// back, so callers cannot recover them after creation.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeAnthropic,
+			Type:    codersdk.AIProviderTypeBedrock,
 			Name:    "bedrock-secret-leak",
 			Enabled: true,
 			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",

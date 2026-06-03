@@ -719,12 +719,16 @@ export const ProviderFormBedrockAmbientCredentials: Story = {
 		await expect(apiKeyInput).not.toBeRequired();
 		await expect(apiKeyInput).toHaveAttribute(
 			"placeholder",
-			"Enter bearer token",
+			"Managed in AI settings",
 		);
+		await expect(apiKeyInput).toBeDisabled();
 		await expect(
 			body.findByText(
-				"Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials.",
+				"AWS credentials for Bedrock are managed in AI settings.",
 			),
+		).resolves.toBeInTheDocument();
+		await expect(
+			body.findByText("Configure AWS Bedrock in AI settings"),
 		).resolves.toBeInTheDocument();
 		await expect(
 			body.findByText(
@@ -736,24 +740,8 @@ export const ProviderFormBedrockAmbientCredentials: Story = {
 			baseURLInput,
 			"https://bedrock-runtime.us-east-1.amazonaws.com",
 		);
-		await waitFor(() => {
-			expect(createButton).toBeEnabled();
-		});
-
-		await userEvent.click(createButton);
-		await waitFor(() => {
-			expect(args.onCreateProvider).toHaveBeenCalledTimes(1);
-		});
-		const createProviderMock = args.onCreateProvider as ReturnType<typeof fn>;
-		const createRequest = createProviderMock.mock.calls[0][0] as Record<
-			string,
-			unknown
-		>;
-		expect(createRequest).toMatchObject({
-			provider: "bedrock",
-			base_url: "https://bedrock-runtime.us-east-1.amazonaws.com",
-		});
-		expect(createRequest).not.toHaveProperty("api_key");
+		await expect(createButton).toBeDisabled();
+		await expect(args.onCreateProvider).not.toHaveBeenCalled();
 	},
 };
 
@@ -785,21 +773,9 @@ export const ProviderFormBedrockBearerToken: Story = {
 
 		await expect(apiKeyInput).not.toBeRequired();
 		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
-
-		await userEvent.click(apiKeyInput);
-		await userEvent.type(apiKeyInput, "bedrock-bearer-token");
-		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
-		});
-		expect(args.onUpdateProvider).toHaveBeenCalledWith(
-			"provider-bedrock-bearer",
-			expect.objectContaining({ api_key: "bedrock-bearer-token" }),
-		);
+		await expect(apiKeyInput).toBeDisabled();
+		await expect(saveButton).toBeDisabled();
+		await expect(args.onUpdateProvider).not.toHaveBeenCalled();
 	},
 };
 
@@ -827,26 +803,15 @@ export const ProviderFormBedrockClearBearerToken: Story = {
 		);
 
 		const apiKeyInput = await body.findByLabelText(/^API Key$/i);
-		const clearStoredTokenButton = body.getByRole("button", {
-			name: /Clear stored token/i,
-		});
 		const saveButton = body.getByRole("button", { name: "Save changes" });
 
 		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
-		await userEvent.click(clearStoredTokenButton);
-		await waitFor(() => {
-			expect(apiKeyInput).toHaveValue("");
-			expect(saveButton).toBeEnabled();
-		});
-		await userEvent.click(saveButton);
-
-		await waitFor(() => {
-			expect(args.onUpdateProvider).toHaveBeenCalledTimes(1);
-		});
-		expect(args.onUpdateProvider).toHaveBeenCalledWith(
-			"provider-bedrock-clear",
-			expect.objectContaining({ api_key: "" }),
-		);
+		await expect(apiKeyInput).toBeDisabled();
+		expect(
+			body.queryByRole("button", { name: /Clear stored token/i }),
+		).not.toBeInTheDocument();
+		await expect(saveButton).toBeDisabled();
+		await expect(args.onUpdateProvider).not.toHaveBeenCalled();
 	},
 };
 

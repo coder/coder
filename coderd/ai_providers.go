@@ -159,21 +159,22 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
+	req.Type = codersdk.CanonicalAIProviderType(req.Type, req.Settings)
+
+	// Bedrock providers authenticate via the settings blob, not via a
+	// bearer key, so registering an api_keys list against them would
+	// be silently unused.
+	if req.Type == codersdk.AIProviderTypeBedrock && len(req.APIKeys) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
+		})
+		return
+	}
 
 	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",
 			Validations: validations,
-		})
-		return
-	}
-
-	// Bedrock providers authenticate via the settings blob, not via a
-	// bearer key, so registering an api_keys list against them would
-	// be silently unused.
-	if req.Settings.Bedrock != nil && len(req.APIKeys) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
 		})
 		return
 	}
@@ -320,14 +321,16 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
-		// Bedrock settings are only meaningful for anthropic- or
-		// bedrock-typed providers; rejecting the mismatch keeps a
-		// misconfiguration from sitting silently in the encrypted
-		// blob.
-		if existing.Bedrock != nil &&
-			old.Type != database.AiProviderTypeAnthropic &&
-			old.Type != database.AiProviderTypeBedrock {
+		targetType := canonicalDatabaseAIProviderType(old.Type, existing)
+		targetBaseURL := ptr.NilToDefault(req.BaseURL, old.BaseUrl)
+		// Bedrock settings are only meaningful for Bedrock providers;
+		// rejecting the mismatch keeps a misconfiguration from sitting
+		// silently in the encrypted blob.
+		if existing.Bedrock != nil && targetType != database.AiProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
+		}
+		if targetType == database.AiProviderTypeBedrock && (existing.Bedrock == nil || !codersdk.IsBedrockConfigured(targetBaseURL, *existing.Bedrock)) {
+			return errAIProviderBedrockSettingsRequired
 		}
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
@@ -336,11 +339,11 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 		// Reject keys against Bedrock providers (whether the existing
 		// row is Bedrock or the patch would make it so).
-		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
+		if req.APIKeys != nil && targetType == database.AiProviderTypeBedrock && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
 		}
 
-		if req.APIKeys != nil && old.Type == database.AiProviderTypeCopilot && len(*req.APIKeys) > 0 {
+		if req.APIKeys != nil && targetType == database.AiProviderTypeCopilot && len(*req.APIKeys) > 0 {
 			return errCopilotRejectsAPIKeys
 		}
 
@@ -351,9 +354,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 		params := database.UpdateAIProviderParams{
 			ID:          old.ID,
+			Type:        targetType,
 			DisplayName: displayName,
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
-			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
+			BaseUrl:     targetBaseURL,
 			Settings:    settings,
 			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
@@ -390,6 +394,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errCopilotRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Copilot providers do not accept api_keys; they authenticate via request-time GitHub OAuth tokens.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderBedrockSettingsRequired) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "type=bedrock requires bedrock settings or base_url.",
 		})
 		return
 	}
@@ -504,6 +514,10 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 // Bedrock block but the provider is not anthropic- or bedrock-typed;
 // the outer handler translates it into a 400.
 var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+
+// errAIProviderBedrockSettingsRequired is returned when a Bedrock provider
+// would be stored without enough Bedrock connection settings.
+var errAIProviderBedrockSettingsRequired = xerrors.New("type=bedrock requires bedrock settings or base_url")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.

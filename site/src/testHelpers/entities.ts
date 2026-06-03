@@ -5550,14 +5550,9 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
-/**
- * Bedrock providers come over the wire with `type: "anthropic"` and a
- * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
- * backend (see `coderd/ai_providers.go`) enforce this convention.
- */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
@@ -5572,6 +5567,13 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	} as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderBedrockAsAnthropic: TypesGen.AIProvider = {
+	...MockAIProviderBedrock,
+	id: "da8b7fcb-ec30-4e15-a31d-73dfd87a8501",
+	type: "anthropic",
+	name: "anthropic-bedrock",
 };
 
 export const MockAIProviderCopilot: TypesGen.AIProvider = {

@@ -12,7 +12,10 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { formatProviderLabel } from "#/utils/aiProviders";
+import {
+	canonicalAIProviderType,
+	formatProviderLabel,
+} from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -1662,20 +1665,23 @@ const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 const toChatProviderConfig = (
 	provider: TypesGen.AIProvider,
-): TypesGen.ChatProviderConfig => ({
-	id: provider.id,
-	provider: provider.type,
-	display_name: provider.display_name || provider.type,
-	enabled: provider.enabled,
-	has_api_key: provider.api_keys.length > 0,
-	central_api_key_enabled: true,
-	allow_user_api_key: true,
-	allow_central_api_key_fallback: true,
-	base_url: provider.base_url,
-	source: "database",
-	created_at: provider.created_at,
-	updated_at: provider.updated_at,
-});
+): TypesGen.ChatProviderConfig => {
+	const providerType = canonicalAIProviderType(provider);
+	return {
+		id: provider.id,
+		provider: providerType,
+		display_name: provider.display_name || providerType,
+		enabled: provider.enabled,
+		has_api_key: provider.api_keys.length > 0,
+		central_api_key_enabled: true,
+		allow_user_api_key: true,
+		allow_central_api_key_fallback: true,
+		base_url: provider.base_url,
+		source: "database",
+		created_at: provider.created_at,
+		updated_at: provider.updated_at,
+	};
+};
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
@@ -1776,6 +1782,9 @@ const normalizeAIProviderType = (provider: string): AIProviderType => {
 export const createChatProviderConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
 		const providerType = normalizeAIProviderType(req.provider);
+		if (providerType === "bedrock") {
+			throw new Error("Configure AWS Bedrock in AI settings.");
+		}
 		const apiKey = req.api_key;
 		return API.experimental.createAIProvider({
 			type: providerType,

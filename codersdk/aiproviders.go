@@ -60,8 +60,8 @@ const (
 // concrete settings struct directly.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
-	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
-	// AIProviderTypeAnthropic.
+	// AWS Bedrock. Only meaningful for AIProviderTypeBedrock and the
+	// compatibility input shape that pairs it with AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
 }
 
@@ -158,6 +158,18 @@ func marshalSettings(s settingsTyped) ([]byte, error) {
 	return json.Marshal(m)
 }
 
+// CanonicalAIProviderType returns the runtime provider type for a row
+// or request payload. Bedrock has a dedicated provider type, but older
+// clients may still send Bedrock settings with type=anthropic. Treat
+// that shape as Bedrock at API boundaries while new writes use the
+// dedicated type.
+func CanonicalAIProviderType(providerType AIProviderType, settings AIProviderSettings) AIProviderType {
+	if providerType == AIProviderTypeAnthropic && settings.Bedrock != nil {
+		return AIProviderTypeBedrock
+	}
+	return providerType
+}
+
 // AIProvider represents an AI provider configuration row as returned
 // by the API. Each APIKey entry carries the row's ID so callers can
 // reference it in an UpdateAIProviderRequest; the plaintext value is
@@ -234,10 +246,10 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "bedrock settings are only valid for type=anthropic or type=bedrock",
 		})
 	}
-	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
+	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !IsBedrockConfigured(req.BaseURL, *req.Settings.Bedrock)) {
 		validations = append(validations, ValidationError{
 			Field:  "settings",
-			Detail: "type=bedrock requires bedrock settings",
+			Detail: "type=bedrock requires bedrock settings or base_url",
 		})
 	}
 	if req.Type == AIProviderTypeBedrock && len(req.APIKeys) > 0 {

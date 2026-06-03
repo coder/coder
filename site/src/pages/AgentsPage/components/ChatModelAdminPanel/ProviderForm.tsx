@@ -94,23 +94,28 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const hasAPIKeyWhitespace =
 		hasTypedAPIKey && effectiveApiKey.trim() !== effectiveApiKey;
 	// Clearing a saved provider-scoped key switches the provider to
-	// BYOK-only behavior, or ambient AWS credentials for Bedrock.
+	// BYOK-only behavior.
 	const isClearingAPIKey =
 		providerState.hasManagedAPIKey && apiKeyModified && effectiveApiKey === "";
-	const hasPendingAPIKeyChange = hasTypedAPIKey || isClearingAPIKey;
-	const shouldCreateAPIKey = hasTypedAPIKey;
+	const hasPendingAPIKeyChange =
+		!isBedrockProvider && (hasTypedAPIKey || isClearingAPIKey);
+	const shouldCreateAPIKey = !isBedrockProvider && hasTypedAPIKey;
 	const apiKeyDescription = isBedrockProvider
-		? "Bearer token for Bedrock authentication. Leave empty to use ambient AWS credentials."
+		? "AWS credentials for Bedrock are managed in AI settings."
 		: "Secret key used to authenticate requests to this provider.";
 	const baseURLDescription = isBedrockProvider
 		? "Bedrock runtime endpoint. Use the AWS region for the models this provider should call."
 		: "Endpoint used to call this provider.";
-	const apiKeyPlaceholder = isBedrockProvider ? "Enter bearer token" : "sk-...";
+	const apiKeyPlaceholder = isBedrockProvider
+		? "Managed in AI settings"
+		: "sk-...";
 	const deleteProviderDescription =
 		"Are you sure you want to delete this provider? The provider will be " +
 		"disabled and hidden from new model configuration. Existing model " +
 		"configs that reference it remain saved but cannot run until updated.";
 	const hasNewProviderConfiguration = !providerConfig;
+
+	const requiresBedrockAISettings = isBedrockProvider && !providerConfig;
 
 	const isDirty =
 		displayName.trim() !== initialValues.displayName ||
@@ -123,6 +128,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		!providerConfigsUnavailable &&
 		!isProviderMutationPending &&
 		!isAPIKeyEnvManaged &&
+		!requiresBedrockAISettings &&
 		isDirty &&
 		hasBaseURL &&
 		!hasAPIKeyWhitespace &&
@@ -145,6 +151,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			providerConfigsUnavailable ||
 			isProviderMutationPending ||
 			isAPIKeyEnvManaged ||
+			requiresBedrockAISettings ||
 			!hasBaseURL ||
 			hasAPIKeyWhitespace
 		) {
@@ -255,6 +262,24 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					data-form-type="other"
 				>
 					<div className="space-y-5">
+						{requiresBedrockAISettings && (
+							<Alert severity="info">
+								<AlertTitle>Configure AWS Bedrock in AI settings</AlertTitle>
+								<AlertDescription>
+									Bedrock providers require AWS region and credential settings.
+									Create the provider in AI settings, then return here to add
+									models.
+								</AlertDescription>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => navigate("/ai/settings/add?type=bedrock")}
+								>
+									Open AI settings
+								</Button>
+							</Alert>
+						)}
 						<ProviderField
 							label="API Key"
 							htmlFor={apiKeyInputId}
@@ -282,31 +307,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										setApiKeyTouched(true);
 										setApiKeyModified(true);
 									}}
-									disabled={isDisabled}
+									disabled={isDisabled || isBedrockProvider}
 								/>
 								{hasAPIKeyWhitespace && (
 									<p className="m-0 text-xs text-content-destructive">
 										API key must not contain leading or trailing whitespace.
 									</p>
 								)}
-								{isBedrockProvider &&
-									providerState.hasManagedAPIKey &&
-									!isDisabled &&
-									(!apiKeyModified || apiKey !== "") && (
-										<div className="flex justify-end">
-											<button
-												type="button"
-												className="appearance-none border-0 bg-transparent p-0 text-xs text-content-link hover:cursor-pointer hover:underline"
-												onClick={() => {
-													setApiKey("");
-													setApiKeyTouched(true);
-													setApiKeyModified(true);
-												}}
-											>
-												Clear stored token
-											</button>
-										</div>
-									)}
 							</div>
 						</ProviderField>
 

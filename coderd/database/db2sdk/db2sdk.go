@@ -54,22 +54,22 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 	if row.DisplayName.Valid && row.DisplayName.String != "" {
 		display = row.DisplayName.String
 	}
+	s, err := AIProviderSettings(row.Settings)
+	if err != nil {
+		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
+	}
 	out := codersdk.AIProvider{
 		ID:          row.ID,
-		Type:        codersdk.AIProviderType(row.Type),
+		Type:        codersdk.CanonicalAIProviderType(codersdk.AIProviderType(row.Type), s),
 		Name:        row.Name,
 		DisplayName: display,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
+		Settings:    redactAIProviderSettings(s),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
-	s, err := AIProviderSettings(row.Settings)
-	if err != nil {
-		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
-	}
-	out.Settings = redactAIProviderSettings(s)
 	return out, nil
 }
 

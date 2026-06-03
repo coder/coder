@@ -103,6 +103,19 @@ func SeedAIProvidersFromEnv(
 			}
 
 			existing, found := byName[dp.Name]
+			if !found && dp.Type == database.AiProviderTypeBedrock {
+				candidate, ok := byName[aibridge.ProviderAnthropic]
+				if ok {
+					candidateSettings, err := db2sdk.AIProviderSettings(candidate.Settings)
+					if err != nil {
+						return xerrors.Errorf("decode existing settings for %q: %w", candidate.Name, err)
+					}
+					if canonicalDatabaseAIProviderType(candidate.Type, candidateSettings) == database.AiProviderTypeBedrock {
+						existing = candidate
+						found = true
+					}
+				}
+			}
 			switch {
 			case found && existing.Deleted:
 				// The provider was created here, then explicitly
@@ -127,7 +140,7 @@ func SeedAIProvidersFromEnv(
 					existingKeys = append(existingKeys, k.APIKey)
 				}
 				existingDP := desiredAIProvider{
-					Type:    existing.Type,
+					Type:    canonicalDatabaseAIProviderType(existing.Type, existingSettings),
 					BaseURL: existing.BaseUrl,
 					Bedrock: existingSettings.Bedrock,
 					Keys:    existingKeys,
@@ -310,11 +323,9 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		addLegacy(aibridge.ProviderOpenAI, dp)
 	}
 
-	// Legacy Anthropic + Bedrock. Anthropic is enabled if either an
-	// Anthropic key OR any Bedrock setting is explicitly configured.
-	// Detection goes through AIProviderBedrockSettings.IsConfigured()
-	// so the legacy and indexed paths agree on what counts as a
-	// Bedrock provider.
+	// Legacy Anthropic and Bedrock env vars seed independent providers.
+	// Detection goes through IsBedrockConfigured so the legacy and
+	// indexed paths agree on what counts as a Bedrock provider.
 	bedrock := codersdk.NewAIProviderBedrockSettings(
 		cfg.LegacyBedrock.Region.String(),
 		cfg.LegacyBedrock.AccessKey.String(),
@@ -323,28 +334,26 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		cfg.LegacyBedrock.SmallFastModel.String(),
 	)
 	hasAnthropicKey := cfg.LegacyAnthropic.Key.String() != ""
-	hasLegacyBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), bedrock)
-	if hasAnthropicKey || hasLegacyBedrock {
+	if hasAnthropicKey {
 		dp := desiredAIProvider{
-			Name: aibridge.ProviderAnthropic,
-			Type: database.AiProviderTypeAnthropic,
-		}
-		if hasLegacyBedrock {
-			if hasAnthropicKey {
-				logger.Warn(ctx, "ignoring legacy Anthropic API key because Bedrock credentials are configured; Bedrock authenticates via access keys or credential chain",
-					slog.F("provider", aibridge.ProviderAnthropic),
-				)
-			}
-			// Bedrock-only deployments use CODER_AIBRIDGE_BEDROCK_BASE_URL
-			// for custom VPC, FIPS, or proxy endpoints.
-			dp.BaseURL = cfg.LegacyBedrock.BaseURL.String()
-			dp.Bedrock = &bedrock
-		} else {
-			dp.BaseURL = cfg.LegacyAnthropic.BaseURL.String()
-			dp.Keys = []string{cfg.LegacyAnthropic.Key.String()}
+			Name:    aibridge.ProviderAnthropic,
+			Type:    database.AiProviderTypeAnthropic,
+			BaseURL: cfg.LegacyAnthropic.BaseURL.String(),
+			Keys:    []string{cfg.LegacyAnthropic.Key.String()},
 		}
 		dp.Hash = computeProviderHash(dp.canonical())
 		addLegacy(aibridge.ProviderAnthropic, dp)
+	}
+	hasLegacyBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), bedrock)
+	if hasLegacyBedrock {
+		dp := desiredAIProvider{
+			Name:    "bedrock",
+			Type:    database.AiProviderTypeBedrock,
+			BaseURL: cfg.LegacyBedrock.BaseURL.String(),
+			Bedrock: &bedrock,
+		}
+		dp.Hash = computeProviderHash(dp.canonical())
+		addLegacy(dp.Name, dp)
 	}
 
 	// Indexed providers.
@@ -398,6 +407,7 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			)
 			isBedrock = codersdk.IsBedrockConfigured(p.BedrockBaseURL, bedrock)
 			if isBedrock {
+				dp.Type = database.AiProviderTypeBedrock
 				dp.Bedrock = &bedrock
 				// Always overwrite the generic BaseURL so removing
 				// BASE_URL later doesn't trigger drift. Empty is fine:
