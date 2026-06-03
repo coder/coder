@@ -41,9 +41,37 @@ const anthropicModels: ModelSelectorOption[] = [
 		displayName: "Claude 3.5 Haiku",
 		contextLimit: 200_000,
 	},
+	{
+		id: "anthropic/claude-opus-4",
+		provider: "anthropic",
+		model: "claude-opus-4-20250514",
+		displayName: "Claude Opus 4",
+		contextLimit: 1_000_000,
+	},
 ];
 
-const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
+const googleModels: ModelSelectorOption[] = [
+	{
+		id: "google/gemini-2.5-pro",
+		provider: "google",
+		model: "gemini-2.5-pro",
+		displayName: "Gemini 2.5 Pro",
+		contextLimit: 1_000_000,
+	},
+	{
+		id: "google/gemini-2.5-flash",
+		provider: "google",
+		model: "gemini-2.5-flash",
+		displayName: "Gemini 2.5 Flash",
+		contextLimit: 1_000_000,
+	},
+];
+
+const allModels: ModelSelectorOption[] = [
+	...openAIModels,
+	...anthropicModels,
+	...googleModels,
+];
 
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
@@ -83,23 +111,6 @@ export const CustomPlaceholder: Story = {
 	},
 };
 
-export const InputBorderTreatment: Story = {
-	args: {
-		value: "openai/gpt-4o-mini",
-		className:
-			"h-10 border border-border border-solid bg-transparent px-3 shadow-sm",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const trigger = canvas.getByRole("combobox", { name: /gpt-4o mini/i });
-		const styles = getComputedStyle(trigger);
-
-		expect(styles.borderTopStyle).toBe("solid");
-		expect(styles.borderTopWidth).not.toBe("0px");
-		expect(styles.boxShadow).not.toBe("none");
-	},
-};
-
 export const Disabled: Story = {
 	args: {
 		disabled: true,
@@ -126,9 +137,23 @@ export const MultipleProvidersWithCustomLabel: Story = {
 			const labels: Record<string, string> = {
 				openai: "OpenAI",
 				anthropic: "Anthropic",
+				google: "Google AI",
 			};
 			return labels[provider] ?? provider;
 		},
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Open dropdown state
+// ---------------------------------------------------------------------------
+
+export const OpenDropdown: Story = {
+	args: {
+		options: allModels,
+		value: "anthropic/claude-sonnet-4",
+		open: true,
+		dropdownSide: "bottom",
 	},
 };
 
@@ -144,7 +169,7 @@ export const NoOptions: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Play function – selection interaction
+// Play function - selection interaction
 // ---------------------------------------------------------------------------
 
 export const SelectsModel: Story = {
@@ -157,14 +182,41 @@ export const SelectsModel: Story = {
 		const canvas = within(canvasElement);
 
 		// Open the popover by clicking the trigger.
-		const trigger = canvas.getByRole("combobox");
+		const trigger = canvas.getByRole("button");
 		await userEvent.click(trigger);
 
 		// The dropdown should appear with model options.
-		const listbox = await within(document.body).findByRole("listbox");
-		const option = within(listbox).getByText("GPT-4o Mini");
+		const option = await within(document.body).findByText("GPT-4o Mini");
 		await userEvent.click(option);
 
 		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Play function - search interaction
+// ---------------------------------------------------------------------------
+
+export const SearchFiltersModels: Story = {
+	args: {
+		options: allModels,
+		value: "",
+		onValueChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Open the popover.
+		const trigger = canvas.getByRole("button");
+		await userEvent.click(trigger);
+
+		// Type in the search input.
+		const searchInput = within(document.body).getByPlaceholderText("Search...");
+		await userEvent.type(searchInput, "claude");
+
+		// Anthropic models should be visible, OpenAI should not.
+		const body = within(document.body);
+		expect(body.getByText("Claude Sonnet 4")).toBeVisible();
+		expect(body.queryByText("GPT-4o")).not.toBeInTheDocument();
 	},
 };

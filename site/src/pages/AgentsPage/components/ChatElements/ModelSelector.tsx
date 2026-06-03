@@ -1,19 +1,20 @@
-import type { FC } from "react";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { type FC, useMemo, useState } from "react";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
+import { ProviderIcon } from "../ChatModelAdminPanel/ProviderIcon";
 
 export interface ModelSelectorOption {
 	id: string;
@@ -52,10 +53,10 @@ const defaultFormatProviderLabel = (provider: string): string => {
 const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M context window`;
+		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K context window`;
+	return `${k}K`;
 };
 
 export const ModelSelector: FC<ModelSelectorProps> = ({
@@ -70,13 +71,17 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
 	contentClassName,
-	open,
-	onOpenChange,
+	open: controlledOpen,
+	onOpenChange: controlledOnOpenChange,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
 }) => {
+	const [internalOpen, setInternalOpen] = useState(false);
+	const isOpen = controlledOpen ?? internalOpen;
+	const setIsOpen = controlledOnOpenChange ?? setInternalOpen;
+
 	const selectedModel = options.find((option) => option.id === value);
-	const optionsByProvider = (() => {
+	const optionsByProvider = useMemo(() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
@@ -89,115 +94,114 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		}
 
 		return Array.from(grouped.entries());
-	})();
+	}, [options]);
+
 	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Select
-			value={value}
-			onValueChange={onValueChange}
-			disabled={isDisabled}
-			open={open}
-			onOpenChange={onOpenChange}
-		>
-			<SelectTrigger
-				aria-label={selectedModel ? selectedModel.displayName : placeholder}
-				className={cn(
-					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
-					className,
-				)}
-				onTouchStart={onTriggerTouchStart}
-			>
-				<SelectValue placeholder={placeholder}>
-					{selectedModel ? selectedModel.displayName : placeholder}
-				</SelectValue>
-			</SelectTrigger>
-			<SelectContent
+		<Popover open={isOpen} onOpenChange={setIsOpen}>
+			<PopoverTrigger asChild disabled={isDisabled}>
+				<button
+					type="button"
+					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					className={cn(
+						"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						isDisabled && "pointer-events-none opacity-50",
+						className,
+					)}
+					onTouchStart={onTriggerTouchStart}
+				>
+					<span className="truncate max-w-32">
+						{selectedModel ? selectedModel.displayName : placeholder}
+					</span>
+					<ChevronDownIcon
+						className={cn(
+							"size-3 shrink-0 transition-transform",
+							isOpen && "rotate-180",
+						)}
+					/>
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
+					"w-72 p-0 overflow-hidden",
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
-					"border-border-default [&_[role=option]]:text-xs",
 					contentClassName,
 				)}
 			>
-				<TooltipProvider delayDuration={300}>
-					{optionsByProvider.map(([provider, providerOptions]) => {
-						const providerLabel = formatProviderLabel(provider);
-						return (
-							<SelectGroup key={provider}>
-								{providerOptions.map((option) => (
-									<ModelOptionItem
-										key={option.id}
-										option={option}
-										providerLabel={providerLabel}
-										isSelected={option.id === value}
-									/>
-								))}
-							</SelectGroup>
-						);
-					})}
-					{options.length === 0 && (
-						<SelectItem value="__empty__" disabled>
-							{emptyMessage}
-						</SelectItem>
-					)}
-				</TooltipProvider>
-			</SelectContent>
-		</Select>
-	);
-};
-
-interface ModelOptionItemProps {
-	option: ModelSelectorOption;
-	providerLabel: string;
-	isSelected: boolean;
-}
-
-const ModelOptionItem: FC<ModelOptionItemProps> = ({
-	option,
-	providerLabel,
-	isSelected,
-}) => {
-	const label = option.displayName;
-	const contextInfo =
-		option.contextLimit != null && option.contextLimit > 0
-			? formatContextLimit(option.contextLimit)
-			: null;
-	const subtext = contextInfo
-		? `via ${providerLabel}, ${contextInfo}`
-		: `via ${providerLabel}`;
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<SelectItem
-					value={option.id}
-					className={cn(isSelected && "bg-surface-secondary")}
+				<Command
+					className="bg-surface-primary"
+					filter={(value, search, keywords) => {
+						const searchLower = search.toLowerCase();
+						const extendedValue = (keywords?.join(" ") ?? value).toLowerCase();
+						if (extendedValue.includes(searchLower)) {
+							return 1;
+						}
+						return 0;
+					}}
 				>
-					<span className="flex flex-col">
-						<span>{label}</span>
-						<span className="text-content-secondary text-[11px] leading-tight md:hidden">
-							{subtext}
-						</span>
-					</span>
-				</SelectItem>
-			</TooltipTrigger>
-			<TooltipContent
-				side="right"
-				sideOffset={4}
-				className="hidden px-2.5 py-1.5 md:block"
-			>
-				<span className="block font-semibold text-content-primary leading-tight">
-					{label} via {providerLabel}
-				</span>
-				{contextInfo && (
-					<span className="block text-content-secondary leading-tight">
-						{contextInfo}
-					</span>
-				)}
-			</TooltipContent>
-		</Tooltip>
+					<CommandInput placeholder="Search..." className="text-xs" />
+					<CommandList className="max-h-72">
+						<CommandEmpty className="text-xs">{emptyMessage}</CommandEmpty>
+						{optionsByProvider.map(([provider, providerOptions]) => {
+							const providerLabel = formatProviderLabel(provider);
+							return (
+								<CommandGroup
+									key={provider}
+									heading={
+										<span className="flex items-center gap-2">
+											<ProviderIcon provider={provider} className="size-5" />
+											<span>{providerLabel}</span>
+										</span>
+									}
+								>
+									{providerOptions.map((option) => {
+										const isSelected = option.id === value;
+										const contextInfo =
+											option.contextLimit != null && option.contextLimit > 0
+												? formatContextLimit(option.contextLimit)
+												: null;
+										return (
+											<CommandItem
+												key={option.id}
+												value={option.id}
+												keywords={[
+													option.displayName,
+													option.model,
+													provider,
+													providerLabel,
+												]}
+												onSelect={() => {
+													onValueChange(option.id);
+													setIsOpen(false);
+												}}
+												className="cursor-pointer"
+											>
+												<span className="flex flex-1 items-center justify-between gap-2">
+													<span className="truncate">{option.displayName}</span>
+													<span className="flex shrink-0 items-center gap-2">
+														{contextInfo && (
+															<span className="text-xs text-content-secondary">
+																{contextInfo}
+															</span>
+														)}
+														{isSelected && (
+															<CheckIcon className="size-4 text-content-primary" />
+														)}
+													</span>
+												</span>
+											</CommandItem>
+										);
+									})}
+								</CommandGroup>
+							);
+						})}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 };

@@ -10,7 +10,7 @@ const mockModelOptions: readonly ModelSelectorOption[] = [
 	},
 ];
 
-test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selector trigger", () => {
+test("renders selected model display name in the trigger", () => {
 	render(
 		<ModelSelector
 			options={mockModelOptions}
@@ -19,11 +19,56 @@ test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selecto
 		/>,
 	);
 
-	const trigger = screen.getByRole("combobox");
+	const trigger = screen.getByRole("button", { name: /gpt-4o mini/i });
+	expect(trigger).toBeInTheDocument();
+});
 
-	// Mouse-focus ring should be suppressed.
-	expect(trigger.className).toContain("focus:ring-0");
-	// Keyboard-focus ring should remain.
-	expect(trigger.className).toContain("focus-visible:ring-2");
-	expect(trigger.className).not.toContain("focus-visible:ring-0");
+test("renders badge-style trigger with pill styling", () => {
+	render(
+		<ModelSelector
+			options={mockModelOptions}
+			value="gpt-4o-mini"
+			onValueChange={vi.fn()}
+		/>,
+	);
+
+	const trigger = screen.getByRole("button", { name: /gpt-4o mini/i });
+	expect(trigger.className).toContain("rounded-full");
+	expect(trigger.className).toContain("bg-surface-secondary");
+});
+
+test("renders placeholder when no value is selected", () => {
+	render(
+		<ModelSelector
+			options={mockModelOptions}
+			value=""
+			onValueChange={vi.fn()}
+			placeholder="Pick a model"
+		/>,
+	);
+
+	const trigger = screen.getByRole("button", { name: /pick a model/i });
+	expect(trigger).toBeInTheDocument();
+});
+
+test("disables trigger when disabled prop is true", () => {
+	render(
+		<ModelSelector
+			options={mockModelOptions}
+			value="gpt-4o-mini"
+			onValueChange={vi.fn()}
+			disabled
+		/>,
+	);
+
+	const trigger = screen.getByRole("button", { name: /gpt-4o mini/i });
+	expect(trigger.className).toContain("pointer-events-none");
+	expect(trigger.className).toContain("opacity-50");
+});
+
+test("disables trigger when options list is empty", () => {
+	render(<ModelSelector options={[]} value="" onValueChange={vi.fn()} />);
+
+	const trigger = screen.getByRole("button");
+	expect(trigger.className).toContain("pointer-events-none");
 });
