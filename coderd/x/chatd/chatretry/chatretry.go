@@ -6,7 +6,6 @@ package chatretry
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -73,13 +72,13 @@ func contextError(ctx context.Context) error {
 // context has been checked. A bare context.Canceled is treated as a provider
 // transport reset because provider clients can surface remote stream resets
 // that way.
-func classifyProviderAttemptError(err error) (error, ClassifiedError) {
+func classifyProviderAttemptError(err error) (ClassifiedError, error) {
 	classified := chaterror.Classify(err)
 	if classified.Retryable || classified.StatusCode != 0 || !errors.Is(err, context.Canceled) {
-		return err, classified
+		return classified, err
 	}
-	err = fmt.Errorf("%w: %w", chaterror.ErrProviderTransportReset, err)
-	return err, chaterror.Classify(err)
+	err = xerrors.Errorf("%w: %w", chaterror.ErrProviderTransportReset, err)
+	return chaterror.Classify(err), err
 }
 
 // RetryFn is the function to retry. It receives a context and returns
@@ -118,7 +117,7 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			return ctxErr
 		}
 
-		err, classified := classifyProviderAttemptError(err)
+		classified, err := classifyProviderAttemptError(err)
 		if !classified.Retryable {
 			return chaterror.WithClassification(err, classified)
 		}
