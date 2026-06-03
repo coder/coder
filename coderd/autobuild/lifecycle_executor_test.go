@@ -65,8 +65,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -127,7 +127,7 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
 	// Get both clients to perform a lifecycle execution tick
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := coderdtest.NextAutostartTick(t, workspace)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
@@ -237,7 +237,7 @@ func TestExecutorBuildNumberRaceIsHandled(t *testing.T) {
 
 	p, err := coderdtest.GetProvisionerForTags(realDB, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := coderdtest.NextAutostartTick(t, workspace)
 	coderdtest.UpdateProvisionerLastSeenAt(t, realDB, p.ID, next)
 
 	tickCh <- next
@@ -351,8 +351,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 
 			t.Log("sending autobuild tick")
 			// When: the autobuild executor ticks after the scheduled time
+			tickTime := coderdtest.NextAutostartTick(t, workspace)
 			go func() {
-				tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 				tickCh <- tickTime
 				close(tickCh)
@@ -984,8 +984,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks past the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		tickCh2 <- tickTime
@@ -1054,8 +1054,8 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -1927,7 +1927,7 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
-	next = sched.Next(workspace.LatestBuild.CreatedAt)
+	next = coderdtest.NextAutostartTick(t, workspace)
 	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
 	// Require that the provisioner time has actually been updated to the expected value.
@@ -2051,8 +2051,8 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// When: the autobuild executor ticks after the scheduled time
+		tickTime := coderdtest.NextAutostartTick(t, workspace)
 		go func() {
-			tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 			tickCh <- tickTime
 			close(tickCh)
