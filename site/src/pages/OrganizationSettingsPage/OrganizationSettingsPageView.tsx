@@ -4,12 +4,14 @@ import { type FC, useState } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type {
+	AssignableRoles,
 	Organization,
 	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
 } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
@@ -32,6 +34,7 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
+import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 
@@ -56,6 +59,21 @@ interface OrganizationSettingsPageViewProps {
 	shareableWorkspaceOwners: ShareableWorkspaceOwners;
 	onChangeShareableOwners: (value: ShareableWorkspaceOwners) => void;
 	isTogglingWorkspaceSharing: boolean;
+
+	/**
+	 * Whether to render the Default Roles section. Gated on the
+	 * minimum-implicit-member experiment at the page level.
+	 */
+	defaultRolesEnabled?: boolean;
+	/**
+	 * Whether the deployment is entitled to multi-org features. The
+	 * underlying PATCH endpoint is multi-org gated, so the edit button
+	 * is disabled when this is false.
+	 */
+	defaultRolesEntitled?: boolean;
+	availableOrgRoles?: AssignableRoles[];
+	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
+	isUpdatingDefaultRoles?: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
@@ -69,6 +87,11 @@ export const OrganizationSettingsPageView: FC<
 	shareableWorkspaceOwners,
 	onChangeShareableOwners,
 	isTogglingWorkspaceSharing,
+	defaultRolesEnabled,
+	defaultRolesEntitled,
+	availableOrgRoles,
+	onUpdateDefaultRoles,
+	isUpdatingDefaultRoles,
 }) => {
 	const form = useFormik<UpdateOrganizationRequest>({
 		initialValues: {
@@ -86,6 +109,7 @@ export const OrganizationSettingsPageView: FC<
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [pendingSharingChange, setPendingSharingChange] =
 		useState<ShareableWorkspaceOwners | null>(null);
+	const [isEditingDefaultRoles, setIsEditingDefaultRoles] = useState(false);
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -259,6 +283,50 @@ export const OrganizationSettingsPageView: FC<
 				</HorizontalContainer>
 			)}
 
+			{defaultRolesEnabled && onUpdateDefaultRoles && (
+				<HorizontalContainer className="mt-12">
+					<HorizontalSection
+						title={
+							<>
+								Default Roles
+								{!defaultRolesEntitled && <PremiumBadge />}
+							</>
+						}
+						description="Roles attached to every member of this organization. An empty selection limits new members to the floor permissions only."
+					>
+						<div className="flex flex-col gap-3">
+							<div className="text-sm">
+								{organization.default_org_member_roles.length === 0 ? (
+									<span className="text-content-secondary">
+										No default roles. New members receive only the floor.
+									</span>
+								) : (
+									<DefaultRolesSummary
+										roleNames={organization.default_org_member_roles}
+										availableRoles={availableOrgRoles}
+									/>
+								)}
+							</div>
+							<div>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setIsEditingDefaultRoles(true)}
+									disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
+								>
+									Edit default roles
+								</Button>
+								{!defaultRolesEntitled && (
+									<p className="text-xs text-content-secondary mt-2 mb-0">
+										Editing organization settings requires a Premium license.
+									</p>
+								)}
+							</div>
+						</div>
+					</HorizontalSection>
+				</HorizontalContainer>
+			)}
+
 			{!organization.is_default && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
@@ -305,6 +373,43 @@ export const OrganizationSettingsPageView: FC<
 				onCancel={() => setPendingSharingChange(null)}
 				isLoading={isTogglingWorkspaceSharing}
 			/>
+
+			{onUpdateDefaultRoles && (
+				<DefaultRolesDialog
+					open={isEditingDefaultRoles}
+					currentRoles={organization.default_org_member_roles}
+					availableRoles={availableOrgRoles}
+					onCancel={() => setIsEditingDefaultRoles(false)}
+					onConfirm={async (roles) => {
+						await onUpdateDefaultRoles(roles);
+						setIsEditingDefaultRoles(false);
+					}}
+					isUpdating={Boolean(isUpdatingDefaultRoles)}
+				/>
+			)}
 		</div>
+	);
+};
+
+interface DefaultRolesSummaryProps {
+	roleNames: readonly string[];
+	availableRoles?: AssignableRoles[];
+}
+
+const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
+	roleNames,
+	availableRoles,
+}) => {
+	const displayNameFor = (name: string): string => {
+		const role = availableRoles?.find((r) => r.name === name);
+		return role?.display_name || role?.name || name;
+	};
+
+	return (
+		<ul className="list-disc pl-5 m-0 flex flex-col gap-1">
+			{roleNames.map((name) => (
+				<li key={name}>{displayNameFor(name)}</li>
+			))}
+		</ul>
 	);
 };

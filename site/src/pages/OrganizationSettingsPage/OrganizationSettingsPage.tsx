@@ -9,8 +9,10 @@ import {
 	updateOrganization,
 	workspaceSharingSettings,
 } from "#/api/queries/organizations";
+import { organizationRoles } from "#/api/queries/roles";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -26,6 +28,10 @@ const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { experiments, entitlements } = useDashboard();
+	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
+	const defaultRolesEntitled =
+		entitlements.features.multiple_organizations.enabled;
 
 	const updateOrganizationMutation = useMutation(
 		updateOrganization(queryClient),
@@ -42,6 +48,11 @@ const OrganizationSettingsPage: FC = () => {
 	const patchSharingSettingsMutation = useMutation(
 		patchWorkspaceSharingSettings(organization?.id ?? "", queryClient),
 	);
+
+	const orgRolesQuery = useQuery({
+		...organizationRoles(organization?.name ?? ""),
+		enabled: defaultRolesEnabled && Boolean(organization),
+	});
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -126,6 +137,24 @@ const OrganizationSettingsPage: FC = () => {
 				}
 				onChangeShareableOwners={handleChangeShareableOwners}
 				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
+				defaultRolesEnabled={defaultRolesEnabled}
+				defaultRolesEntitled={defaultRolesEntitled}
+				availableOrgRoles={orgRolesQuery.data}
+				isUpdatingDefaultRoles={updateOrganizationMutation.isPending}
+				onUpdateDefaultRoles={async (roles) => {
+					try {
+						await updateOrganizationMutation.mutateAsync({
+							organizationId: organization.id,
+							req: { default_org_member_roles: roles },
+						});
+						toast.success("Default roles updated.");
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, "Failed to update default roles."),
+							{ description: getErrorDetail(error) },
+						);
+					}
+				}}
 			/>
 		</>
 	);
