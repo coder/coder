@@ -73,7 +73,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, codersdk.NewExperimentalClient(client), logger, llmMockURL)
+			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, workspaces[0].OrganizationID, workspaces[0].ID)
 			if err != nil {
 				return err
 			}

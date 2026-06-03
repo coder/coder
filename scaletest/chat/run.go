@@ -54,7 +54,7 @@ var (
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: newChatClient(client),
+		client: codersdk.NewExperimentalClient(client),
 		cfg:    cfg,
 	}
 }
