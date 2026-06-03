@@ -32,7 +32,8 @@ const (
 type ClassifiedError = chaterror.ClassifiedError
 
 // IsRetryable determines whether an error from an LLM provider is
-// transient and worth retrying.
+// transient and worth retrying. It is context-free and does not apply
+// Retry's normalization of bare context.Canceled into provider transport resets.
 func IsRetryable(err error) bool {
 	return chaterror.Classify(err).Retryable
 }
@@ -68,17 +69,20 @@ func contextError(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// classifyProviderAttemptError normalizes provider errors after the caller's
-// context has been checked. A bare context.Canceled is treated as a provider
-// transport reset because provider clients can surface remote stream resets
-// that way.
+// classifyProviderAttemptError must be called after the caller's context
+// has been checked. Provider clients can surface remote stream resets as
+// bare context.Canceled, which this converts into a retryable transport reset.
 func classifyProviderAttemptError(err error) (ClassifiedError, error) {
 	classified := chaterror.Classify(err)
 	if classified.Retryable || classified.StatusCode != 0 || !errors.Is(err, context.Canceled) {
 		return classified, err
 	}
-	err = errors.Join(chaterror.ErrProviderTransportReset, err)
-	return chaterror.Classify(err), err
+	wrapped := errors.Join(chaterror.ErrProviderTransportReset, err)
+	reclassified := chaterror.Classify(wrapped)
+	if !reclassified.Retryable {
+		return classified, err
+	}
+	return reclassified, wrapped
 }
 
 // RetryFn is the function to retry. It receives a context and returns

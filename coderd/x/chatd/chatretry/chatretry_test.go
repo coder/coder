@@ -178,6 +178,24 @@ func TestRetry_ContextCanceledStatus500ThenSuccess(t *testing.T) {
 	require.Equal(t, 2, calls)
 }
 
+func TestRetry_ContextCanceledWithStatusCodeDoesNotWrapAsTransportReset(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+		calls++
+		return xerrors.Errorf("received status 401 from upstream: %w", context.Canceled)
+	}, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, chaterror.ErrProviderTransportReset)
+	require.Equal(t, 1, calls)
+	classified := chaterror.Classify(err)
+	require.Equal(t, codersdk.ChatErrorKindAuth, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 401, classified.StatusCode)
+}
+
 func TestRetry_ContextCanceledFromAttemptWithHealthyParentRetries(t *testing.T) {
 	t.Parallel()
 
