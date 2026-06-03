@@ -23,6 +23,7 @@ import {
 } from "websocket-ts";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
+import { isWindows } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
 
@@ -245,6 +246,24 @@ export const WorkspaceTerminal = ({
 			copySelection();
 		});
 
+		// Chromium-based browsers on Windows show image actions like
+		// "Copy image" or "Save image as" when right-clicking on the
+		// canvas/WebGL renderer because the underlying <canvas> is
+		// treated as an image. xterm.js tries to mitigate this by
+		// repositioning its hidden helper textarea under the cursor on
+		// contextmenu, but that workaround does not reliably retarget
+		// the menu on Windows. Suppress the browser menu on Windows so
+		// the misleading entries never appear; copy still works via
+		// selection (which writes to the clipboard automatically) and
+		// Ctrl+Shift+C, and paste still works via Ctrl+V.
+		const suppressContextMenu = isWindows();
+		const handleContextMenu = (event: MouseEvent) => {
+			event.preventDefault();
+		};
+		if (suppressContextMenu) {
+			mountNode.addEventListener("contextmenu", handleContextMenu);
+		}
+
 		nextTerminal.open(mountNode);
 		refit();
 
@@ -260,6 +279,9 @@ export const WorkspaceTerminal = ({
 		return () => {
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
+			if (suppressContextMenu) {
+				mountNode.removeEventListener("contextmenu", handleContextMenu);
+			}
 			fitAddonRef.current = undefined;
 			nextTerminal.dispose();
 			setTerminal(undefined);

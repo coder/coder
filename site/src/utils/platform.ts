@@ -6,6 +6,13 @@ export function isMac(): boolean {
 }
 
 /**
+ * Returns true if the current platform is Windows.
+ */
+export function isWindows(): boolean {
+	return /Win/i.test(navigator.platform);
+}
+
+/**
  * Returns the platform-appropriate modifier key label: ⌘ on macOS,
  * Ctrl on everything else.
  */

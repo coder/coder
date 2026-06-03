@@ -199,6 +199,50 @@ describe("TerminalPage", () => {
 		expect(req.data).toBe("\x1b\r");
 	});
 
+	it("suppresses the browser context menu on Windows", async () => {
+		// Pretend we're on Windows. Chromium-based browsers on Windows
+		// surface image actions like "Copy image" when right-clicking on
+		// the canvas-based terminal renderer, so the terminal intercepts
+		// contextmenu and prevents the default browser handling.
+		vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
+
+		createWorkspaceTerminalWebSocket();
+		const { container } = await renderTerminal();
+
+		const terminal = container.querySelector<HTMLDivElement>(
+			".workspace-terminal",
+		);
+		expect(terminal).not.toBeNull();
+
+		const event = new MouseEvent("contextmenu", {
+			bubbles: true,
+			cancelable: true,
+		});
+		terminal?.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(true);
+	});
+
+	it("does not suppress the browser context menu on non-Windows platforms", async () => {
+		vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+
+		createWorkspaceTerminalWebSocket();
+		const { container } = await renderTerminal();
+
+		const terminal = container.querySelector<HTMLDivElement>(
+			".workspace-terminal",
+		);
+		expect(terminal).not.toBeNull();
+
+		const event = new MouseEvent("contextmenu", {
+			bubbles: true,
+			cancelable: true,
+		});
+		terminal?.dispatchEvent(event);
+
+		expect(event.defaultPrevented).toBe(false);
+	});
+
 	it("shows confirmation dialog when command param is present", async () => {
 		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
