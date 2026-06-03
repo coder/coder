@@ -89,7 +89,10 @@ const providerDefaults: Partial<
 		name: "google",
 		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
 	},
-	"openai-compat": { name: "openai-compat", baseUrl: "" },
+	"openai-compat": {
+		name: "openai-compat",
+		baseUrl: "https://provider.example.com/v1",
+	},
 	openrouter: { name: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
 	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
 };
