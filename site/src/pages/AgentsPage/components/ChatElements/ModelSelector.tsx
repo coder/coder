@@ -125,7 +125,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<ChevronDownIcon
 							strokeWidth={2.5}
 							className={cn(
-								"size-3.5 shrink-0 opacity-60 transition-transform",
+								"size-3.5 shrink-0 transition-transform",
 								isOpen && "rotate-180",
 							)}
 						/>
