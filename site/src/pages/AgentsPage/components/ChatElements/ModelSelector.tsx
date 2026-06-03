@@ -136,7 +136,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
-					"w-72 p-0 overflow-hidden",
+					"w-auto min-w-48 max-w-80 p-0 overflow-hidden",
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
 					contentClassName,
