@@ -3036,6 +3036,62 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 	require.NotContains(t, saRoles.Roles, wantMember)
 }
 
+// TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles verifies the
+// resolve-at-read semantics for organizations.default_org_member_roles:
+// every member's effective roles include the org's defaults, and changes
+// to the column propagate on the next request. The union applies to
+// regular users and to service accounts; the SQL array_cats the column
+// for both code paths.
+func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// New orgs default to organization-workspace-access; both the regular
+	// user's and the service account's effective roles must include the
+	// scoped form.
+	wantWorkspaceAccess := rbac.RoleOrgWorkspaceAccess() + ":" + org.ID.String()
+	initial, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.Contains(t, initial.Roles, wantWorkspaceAccess)
+	initialSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, initialSA.Roles, wantWorkspaceAccess)
+
+	// Shrinking the org default to empty must immediately drop the role
+	// from both effective sets without touching organization_members.
+	_, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: []string{},
+	})
+	require.NoError(t, err)
+
+	shrunk, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunk.Roles, wantWorkspaceAccess)
+	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
+}
+
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 	t.Parallel()
 

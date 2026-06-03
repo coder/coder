@@ -902,10 +902,11 @@ func Organization(organization database.Organization) codersdk.Organization {
 			DisplayName: organization.DisplayName,
 			Icon:        organization.Icon,
 		},
-		Description: organization.Description,
-		CreatedAt:   organization.CreatedAt,
-		UpdatedAt:   organization.UpdatedAt,
-		IsDefault:   organization.IsDefault,
+		Description:           organization.Description,
+		CreatedAt:             organization.CreatedAt,
+		UpdatedAt:             organization.UpdatedAt,
+		IsDefault:             organization.IsDefault,
+		DefaultOrgMemberRoles: organization.DefaultOrgMemberRoles,
 	}
 }
 

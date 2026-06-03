@@ -2266,9 +2266,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
 	}))
 	s.Run("InsertOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{})
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.InsertOrganizationMemberParams{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}}
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		dbm.EXPECT().InsertOrganizationMember(gomock.Any(), arg).Return(database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: arg.Roles}, nil).AnyTimes()
 		check.Args(arg).Asserts(
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
@@ -2305,12 +2306,17 @@ func (s *MethodTestSuite) TestOrganization() {
 		).WithNotAuthorized("no rows").WithCancelled(sql.ErrNoRows.Error())
 	}))
 	s.Run("UpdateOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique"})
-		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different"}
+		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique", DefaultOrgMemberRoles: []string{}})
+		// Change DefaultOrgMemberRoles so canAssignRoles fires alongside the
+		// ActionUpdate check; mirrors the InsertOrganizationMember pattern.
+		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different", DefaultOrgMemberRoles: []string{codersdk.RoleOrganizationAdmin}}
 
 		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		dbm.EXPECT().UpdateOrganization(gomock.Any(), arg).Return(o, nil).AnyTimes()
-		check.Args(arg).Asserts(o, policy.ActionUpdate)
+		check.Args(arg).Asserts(
+			o, policy.ActionUpdate,
+			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
+		)
 	}))
 	s.Run("UpdateOrganizationDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{Name: "doomed"})
@@ -2347,13 +2353,14 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(arg).Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead).Returns(rows)
 	}))
 	s.Run("UpdateMemberRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{})
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
 		u := testutil.Fake(s.T(), faker, database.User{})
 		mem := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}})
 		out := mem
 		out.Roles = []string{}
 
 		dbm.EXPECT().OrganizationMembers(gomock.Any(), database.OrganizationMembersParams{OrganizationID: o.ID, UserID: u.ID, IncludeSystem: false}).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		arg := database.UpdateMemberRolesParams{GrantedRoles: []string{}, UserID: u.ID, OrgID: o.ID}
 		dbm.EXPECT().UpdateMemberRoles(gomock.Any(), arg).Return(out, nil).AnyTimes()
 
