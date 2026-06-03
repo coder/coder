@@ -349,8 +349,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	for _, opt := range options {
 		opt(api)
 	}
-	// Use a real clock for the WebSocket watcher so it does not
-	// interfere with the mock clock used for container polling in tests.
+
 	api.wsWatcher = httpapi.NewWSWatcher(quartz.NewReal(), nil)
 	if api.commandEnv != nil {
 		api.execer = newCommandEnvExecer(
