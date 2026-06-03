@@ -166,10 +166,8 @@ type Options struct {
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
-	Database database.Store
-	Pubsub   pubsub.Pubsub
-	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
-	// It should always point to the same pubsub instance as Options.Pubsub unless NATS is explicitly being tested.
+	Database          database.Store
+	Pubsub            pubsub.Pubsub
 	ReplicaSyncPubsub *pubsub.PGPubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
