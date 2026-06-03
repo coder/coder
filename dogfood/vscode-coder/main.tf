@@ -216,7 +216,7 @@ data "coder_workspace_tags" "tags" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
