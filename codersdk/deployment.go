@@ -5003,6 +5003,7 @@ const (
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5021,6 +5022,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
+	case ExperimentNATSPubsub:
+		return "NATS Pubsub"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5037,6 +5040,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 }
 

@@ -163,7 +163,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub *pubsub.PGPubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -619,10 +622,9 @@ func New(options *Options) *API {
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          uuid.New(),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,

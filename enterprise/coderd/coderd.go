@@ -45,6 +45,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -655,7 +656,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
-	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.ReplicaSyncPubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		// #nosec G115 - DERP region IDs are small and fit in int32
@@ -756,6 +757,10 @@ type Options struct {
 	UseLegacySCIM bool
 
 	ExternalTokenEncryption []dbcrypt.Cipher
+
+	// ReplicaManager detects and syncs multiple Coder replicas. When provided,
+	// the API owns and closes it.
+	ReplicaManager *replicasync.Manager
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -965,7 +970,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.SetCallback(func() {
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(api.replicaManager)
+					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
+				}
+
+				api.replicaManager.SetCallback("derp", func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
@@ -985,11 +995,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.SetCallback(func() {
+				api.replicaManager.SetCallback("derp", func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)
 				})
+
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					api.replicaManager.SetCallback("nats", nil)
+				}
 			}
 
 			// Recheck changed in case the HA coordinator failed to set up.
