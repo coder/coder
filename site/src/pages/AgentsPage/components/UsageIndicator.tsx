@@ -27,6 +27,7 @@ import {
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
+import { SvgRingProgress } from "./SvgRingProgress";
 
 type UsageSeverity = "normal" | "warning" | "exceeded";
 
@@ -37,7 +38,7 @@ type UsageSectionData = {
 	percent: number;
 	detail: ReactNode;
 	icon: ReactNode;
-	summaryValue: string;
+	hoverLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
 	severity?: UsageSeverity;
@@ -77,12 +78,12 @@ export const UsageIndicator: FC = () => {
 
 		sections.push({
 			id: "ai-usage",
-			title: `${periodLabel} Usage`,
+			title: `${periodLabel} usage`,
 			progressLabel: `${periodLabel} spend usage`,
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
-			summaryValue: formatCostMicros(currentSpend),
+			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
@@ -110,6 +111,11 @@ export const UsageIndicator: FC = () => {
 				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
 				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
 
+		const workspaceHoverLabel =
+			quota.budget > 0
+				? `Workspaces ${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
+				: `Workspaces ${formatNumber(creditsConsumed)}`;
+
 		sections.push({
 			id: "workspace-quota",
 			title: "Workspace quota",
@@ -117,10 +123,7 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
-			summaryValue:
-				quota.budget > 0
-					? `${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
-					: formatNumber(creditsConsumed),
+			hoverLabel: workspaceHoverLabel,
 			detail: quotaDetail,
 			tooltip:
 				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
@@ -170,39 +173,70 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	);
 };
 
+const RING_SIZE = 28;
+const RING_STROKE = 1;
+
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	return (
-		<div className="flex shrink-0 flex-col gap-1">
-			{sections.map((section) => (
-				<div key={section.id} className="flex items-center gap-2">
-					<span
-						aria-hidden="true"
-						className={cn(
-							"flex shrink-0 items-center justify-center",
-							getTextClassName(section.severity),
-						)}
-					>
-						{section.icon}
-					</span>
-					<UsageProgress
-						ariaLabel={section.progressLabel}
-						percent={section.percent}
-						severity={section.severity}
-						size="compact"
-						className="w-20 shrink-0 [@container_(min-width:300px)]:w-24 [@container_(min-width:420px)]:w-32 [@container_(min-width:560px)]:w-40"
-					/>
-					<span
-						className={cn(
-							"hidden shrink-0 whitespace-nowrap text-xs tabular-nums [@container_(min-width:300px)]:inline",
-							getTextClassName(section.severity),
-						)}
-					>
-						{section.summaryValue}
-					</span>
-				</div>
-			))}
+		<TooltipProvider delayDuration={150}>
+			<div className="flex shrink-0 items-center gap-2">
+				{sections.map((section) => (
+					<Tooltip key={section.id}>
+						<TooltipTrigger asChild>
+							<div>
+								<UsageRingProgress
+									ariaLabel={section.progressLabel}
+									percent={section.percent}
+									severity={section.severity}
+									icon={section.icon}
+								/>
+							</div>
+						</TooltipTrigger>
+						<TooltipContent side="top" sideOffset={6}>
+							{section.hoverLabel}
+						</TooltipContent>
+					</Tooltip>
+				))}
+			</div>
+		</TooltipProvider>
+	);
+};
+
+const UsageRingProgress: FC<{
+	ariaLabel: string;
+	percent: number;
+	severity?: UsageSeverity;
+	icon: ReactNode;
+}> = ({ ariaLabel, percent, severity = "normal", icon }) => {
+	const clampedPercent = clampPercent(percent);
+
+	return (
+		<div
+			role="progressbar"
+			aria-label={ariaLabel}
+			aria-valuemin={0}
+			aria-valuemax={100}
+			aria-valuenow={Math.round(clampedPercent)}
+			className="relative flex shrink-0 items-center justify-center"
+			style={{ width: RING_SIZE, height: RING_SIZE }}
+		>
+			<SvgRingProgress
+				size={RING_SIZE}
+				strokeWidth={RING_STROKE}
+				percent={clampedPercent}
+				progressClassName={getRingStrokeClassName(severity)}
+			/>
+			<span
+				aria-hidden="true"
+				className={cn(
+					"absolute inset-0 flex items-center justify-center",
+					getTextClassName(severity),
+				)}
+			>
+				{icon}
+			</span>
 		</div>
 	);
 };
@@ -277,15 +311,8 @@ const UsageProgress: FC<{
 	ariaLabel: string;
 	percent: number;
 	severity?: UsageSeverity;
-	size?: "default" | "compact";
 	className?: string;
-}> = ({
-	ariaLabel,
-	percent,
-	severity = "normal",
-	size = "default",
-	className,
-}) => {
+}> = ({ ariaLabel, percent, severity = "normal", className }) => {
 	const clampedPercent = clampPercent(percent);
 
 	return (
@@ -296,8 +323,7 @@ const UsageProgress: FC<{
 			aria-valuemax={100}
 			aria-valuenow={Math.round(clampedPercent)}
 			className={cn(
-				size === "compact" ? "h-1" : "h-1.5",
-				"overflow-hidden rounded-full bg-surface-tertiary",
+				"h-1.5 overflow-hidden rounded-full bg-surface-tertiary",
 				className,
 			)}
 		>
@@ -350,6 +376,17 @@ function getProgressClassName(severity: UsageSeverity): string {
 			return "bg-content-warning";
 		case "normal":
 			return "bg-content-secondary";
+	}
+}
+
+function getRingStrokeClassName(severity: UsageSeverity): string {
+	switch (severity) {
+		case "exceeded":
+			return "stroke-content-destructive";
+		case "warning":
+			return "stroke-content-warning";
+		case "normal":
+			return "stroke-content-secondary";
 	}
 }
 

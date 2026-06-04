@@ -763,6 +763,7 @@ WITH updated_chat AS (
 INSERT INTO chat_messages (
     chat_id,
     created_by,
+    api_key_id,
     model_config_id,
     role,
     content,
@@ -783,6 +784,7 @@ INSERT INTO chat_messages (
 SELECT
     @chat_id::uuid,
     NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@api_key_id::text[]), ''),
     NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     UNNEST(@role::chat_message_role[]),
     UNNEST(@content::text[])::jsonb,
@@ -1688,11 +1690,12 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id)
 VALUES (
     @chat_id,
     @content,
-    sqlc.narg('model_config_id')::uuid
+    sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('api_key_id')::text
 )
 RETURNING *;
 

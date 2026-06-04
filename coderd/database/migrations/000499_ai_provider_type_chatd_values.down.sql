@@ -1,3 +1,4 @@
--- No-op: Postgres does not allow removing enum values safely.
--- Matches the precedent in 000495_ai_providers.down.sql for ALTER
--- TYPE resource_type / api_key_scope ADD VALUE.
+-- No-op: the up recreates ai_provider_type with a wider value set, but the
+-- down does not narrow it back. Narrowing would drop rows that already use the
+-- new values, and 000495_ai_providers.down.sql drops the type wholesale when
+-- migrating all the way down.

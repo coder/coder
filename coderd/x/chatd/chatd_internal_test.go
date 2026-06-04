@@ -19,9 +19,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -152,10 +155,11 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		context.Background(),
 		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		chatprovider.ProviderAPIKeys{},
+		newDirectModelRoute(modelProvider, chatprovider.ProviderAPIKeys{}),
 		provider,
 		modelProvider,
 		modelName,
+		modelBuildOptions{},
 	)
 	require.Error(t, err)
 	require.Nil(t, model)
@@ -165,6 +169,55 @@ func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
 	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
 	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
 	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
+}
+
+func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: uuid.New(), Type: database.AiProviderTypeAnthropic, Enabled: true},
+		{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true},
+	}, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil)
+
+	server := &Server{db: db}
+	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
+		ctx,
+		ownerID,
+		chattool.ComputerUseProviderOpenAI,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
+	require.NotNil(t, aiProvider)
+	require.Equal(t, providerID, aiProvider.ID)
+	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
+}
+
+func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
+
+	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	_, err := server.resolveModelRouteForProviderType(
+		ctx,
+		uuid.New(),
+		chattool.ComputerUseProviderOpenAI,
+	)
+	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
 }
 
 func TestAppendComputerUseProviderTool(t *testing.T) {
@@ -731,6 +784,11 @@ func TestRenameChatTitle(t *testing.T) {
 	})
 }
 
+func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
+	message.APIKeyID = sqlNullString(apiKeyID)
+	return message
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -749,6 +807,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	modelConfigID := uuid.New()
 	workerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -814,12 +873,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -1283,6 +1342,8 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
+	testAPIKeyID := uuid.NewString()
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 
@@ -1310,7 +1371,18 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 		gomock.Any(),
 		agentID,
 	).Return(workspaceAgent, nil).Times(1)
-	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().InsertChatMessages(gomock.Any(), gomock.Cond(func(x any) bool {
+		params, ok := x.(database.InsertChatMessagesParams)
+		if !ok {
+			return false
+		}
+		for i, role := range params.Role {
+			if role == database.ChatMessageRoleUser && params.APIKeyID[i] != testAPIKeyID {
+				return false
+			}
+		}
+		return true
+	})).Return(nil, nil).AnyTimes()
 	db.EXPECT().UpdateChatLastInjectedContext(gomock.Any(),
 		gomock.Cond(func(x any) bool {
 			arg, ok := x.(database.UpdateChatLastInjectedContextParams)
@@ -6559,4 +6631,83 @@ func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
 
 	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.False(t, ok, "primer must not cache anything when canceled")
+}
+
+func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           user.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID,
+	})
+
+	server := &Server{db: db}
+	persistAndAssertSummaryKey := func(
+		summaryCtx context.Context,
+		chatID uuid.UUID,
+		activeAPIKeyID string,
+		wantAPIKeyID string,
+		toolCallID string,
+	) {
+		t.Helper()
+
+		err := server.persistChatContextSummary(
+			summaryCtx,
+			chatID,
+			modelConfig.ID,
+			activeAPIKeyID,
+			toolCallID,
+			chatloop.CompactionResult{
+				SystemSummary:    "summarized context",
+				SummaryReport:    "context was summarized",
+				ThresholdPercent: 70,
+				UsagePercent:     85.0,
+				ContextTokens:    8500,
+				ContextLimit:     10000,
+			},
+		)
+		require.NoError(t, err)
+
+		msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+		require.NoError(t, err)
+
+		// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
+		// that selects compressed=true, visibility='model'. Only the user
+		// summary qualifies; the assistant (visibility=user) and tool
+		// result (visibility=both) are excluded by the CTE filter.
+		require.NotEmpty(t, msgs)
+
+		var foundUserSummary bool
+		for _, msg := range msgs {
+			if msg.Role == database.ChatMessageRoleUser {
+				foundUserSummary = true
+				require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
+				require.Equal(t, wantAPIKeyID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+			}
+		}
+		require.True(t, foundUserSummary, "expected to find compressed user summary message")
+	}
+
+	persistAndAssertSummaryKey(ctx, chat.ID, apiKey.ID, apiKey.ID, "tool-call-id-1")
+
+	fallbackChat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           user.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	fallbackKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID,
+	})
+	fallbackCtx := aibridge.WithDelegatedAPIKeyID(ctx, fallbackKey.ID)
+	persistAndAssertSummaryKey(fallbackCtx, fallbackChat.ID, "", fallbackKey.ID, "tool-call-id-2")
 }

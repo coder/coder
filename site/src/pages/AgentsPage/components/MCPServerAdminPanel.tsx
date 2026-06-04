@@ -248,7 +248,7 @@ const ServerList: FC<ServerListProps> = ({
 	return (
 		<>
 			<SectionHeader
-				label={sectionLabel ?? "MCP Servers"}
+				label={sectionLabel ?? "MCP servers"}
 				description={
 					sectionDescription ??
 					"Configure external MCP servers that provide additional tools for Coder Agents."
@@ -532,7 +532,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								}}
 								placeholder="e.g. Sentry"
 								disabled={isDisabled}
-								aria-label="Display Name"
+								aria-label="Display name"
 							/>
 						</Field>
 						<Field label="Slug" htmlFor={`${formId}-slug`} required>
@@ -698,7 +698,7 @@ const ServerForm: FC<ServerFormProps> = ({
 												/>
 											</Field>
 											<Field
-												label="Client Secret"
+												label="Client secret"
 												htmlFor={`${formId}-oauth-secret`}
 											>
 												<Input
@@ -773,7 +773,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								{form.values.authType === "api_key" && (
 									<div className="grid items-start gap-4 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4 sm:grid-cols-2">
 										<Field
-											label="Header Name"
+											label="Header name"
 											htmlFor={`${formId}-apikey-header`}
 										>
 											<Input
@@ -1048,7 +1048,7 @@ const ServerForm: FC<ServerFormProps> = ({
 
 								<div className="grid items-start gap-4 sm:grid-cols-2">
 									<Field
-										label="Tool Allow List"
+										label="Tool allow list"
 										htmlFor={`${formId}-allow-list`}
 										description="Comma-separated. Empty = all allowed."
 									>
@@ -1061,7 +1061,7 @@ const ServerForm: FC<ServerFormProps> = ({
 										/>
 									</Field>
 									<Field
-										label="Tool Deny List"
+										label="Tool deny list"
 										htmlFor={`${formId}-deny-list`}
 										description="Comma-separated names to block."
 									>

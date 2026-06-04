@@ -9,6 +9,7 @@ import {
 } from "../ChatElements";
 import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -36,7 +37,8 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 const StreamingThinkingPlaceholder: FC = () => (
 	<div data-transcript-row="" className="text-content-secondary">
 		<TranscriptRow className="w-full gap-2">
-			<Shimmer as="span" className="text-[13px] leading-relaxed">
+			<ToolIcon name="thinking" isError={false} />
+			<Shimmer as="span" className="text-[13px] leading-6">
 				Thinking
 			</Shimmer>
 		</TranscriptRow>
@@ -50,7 +52,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
@@ -60,7 +61,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -111,10 +111,7 @@ export const StreamingOutput: FC<{
 						)}
 						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
-							<ChatStatusCallout
-								status={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
+							<ChatStatusCallout status={liveStatus} />
 						)}
 					</div>
 				</MessageContent>

@@ -63,6 +63,10 @@ func TestUserSecretEnvNameValid(t *testing.T) {
 		{name: "WithDigits", input: "A1B2"},
 		{name: "Empty", input: ""},
 
+		// Length cap.
+		{name: "ExactlyAtLengthLimit", input: strings.Repeat("A", codersdk.MaxUserSecretEnvNameLength)},
+		{name: "OverLengthLimit", input: strings.Repeat("A", codersdk.MaxUserSecretEnvNameLength+1), wantErr: true, errMsg: "256 bytes"},
+
 		// Invalid POSIX names.
 		{name: "StartsWithDigit", input: "1FOO", wantErr: true, errMsg: "must start with"},
 		{name: "ContainsHyphen", input: "FOO-BAR", wantErr: true, errMsg: "must start with"},
@@ -214,8 +218,8 @@ func TestUserSecretValueValid(t *testing.T) {
 		{name: "WithNewlines", input: "line1\nline2\nline3"},
 		{name: "WithTabs", input: "key\tvalue"},
 		{name: "NullByte", input: "before\x00after", wantErr: true},
-		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize)},
-		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize+1), wantErr: true},
+		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes)},
+		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes+1), wantErr: true},
 	}
 
 	for _, tt := range tests {

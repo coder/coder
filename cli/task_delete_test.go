@@ -15,8 +15,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestExpTaskDelete(t *testing.T) {
@@ -186,6 +186,7 @@ func TestExpTaskDelete(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := testutil.Logger(t)
 
 			var counters testCounters
 			srv := httptest.NewServer(tc.buildHandler(&counters))
@@ -201,12 +202,13 @@ func TestExpTaskDelete(t *testing.T) {
 			var runErr error
 			var outBuf bytes.Buffer
 			if tc.promptYes {
-				pty := ptytest.New(t).Attach(inv)
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 				w := clitest.StartWithWaiter(t, inv)
-				pty.ExpectMatch("Delete these tasks:")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Delete these tasks:")
+				stdin.WriteLine("yes")
 				runErr = w.Wait()
-				outBuf.Write(pty.ReadAll())
+				outBuf.Write(stdout.ReadAll())
 			} else {
 				inv.Stdout = &outBuf
 				inv.Stderr = &outBuf

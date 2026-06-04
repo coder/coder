@@ -542,11 +542,11 @@ func TestRetryWithInterval(t *testing.T) {
 	const maxAttempts = 3
 
 	dnsErr := &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	t.Run("Succeeds_FirstTry", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		attempts := 0
 		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
@@ -560,6 +560,7 @@ func TestRetryWithInterval(t *testing.T) {
 	t.Run("Succeeds_AfterTransientFailures", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		attempts := 0
 		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
@@ -576,6 +577,7 @@ func TestRetryWithInterval(t *testing.T) {
 	t.Run("Stops_NonRetryableError", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		attempts := 0
 		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
@@ -589,6 +591,7 @@ func TestRetryWithInterval(t *testing.T) {
 	t.Run("Stops_MaxAttemptsExhausted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		attempts := 0
 		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {
@@ -602,6 +605,7 @@ func TestRetryWithInterval(t *testing.T) {
 	t.Run("Stops_ContextCanceled", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 		attempts := 0
 		err := retryWithInterval(ctx, logger, interval, maxAttempts, func() error {

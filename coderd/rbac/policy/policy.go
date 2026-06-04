@@ -422,6 +422,21 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read AI seat state",
 		},
 	},
+	"boundary_log": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create boundary log records",
+			ActionRead:   "read boundary logs and session metadata",
+			ActionDelete: "delete boundary logs",
+		},
+	},
+	"ai_gateway_key": {
+		Name: "AIGatewayKey",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an AI Gateway key",
+			ActionRead:   "read AI Gateway keys",
+			ActionDelete: "delete an AI Gateway key",
+		},
+	},
 	"boundary_usage": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read boundary usage statistics",

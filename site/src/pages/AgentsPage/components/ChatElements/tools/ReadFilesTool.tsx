@@ -8,6 +8,7 @@ import {
 import type { MergedTool } from "../../ChatConversation/types";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 
 type ReadFileItem = {
 	id: string;
@@ -50,7 +51,12 @@ export const ReadFilesTool: FC<{
 				onExpandedChange={onExpandedChange}
 				header={
 					<>
-						<span className="text-[13px]">{label}</span>
+						<ToolIcon
+							name="read_file"
+							isError={isError}
+							isRunning={isRunning}
+						/>
+						<span className="text-[13px] leading-6">{label}</span>
 						{isError && (
 							<Tooltip>
 								<TooltipTrigger asChild>

@@ -10,8 +10,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -21,7 +21,6 @@ func TestExternalAuth(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	ptty := ptytest.New(t)
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
 			var fetched atomic.Bool
@@ -42,16 +41,16 @@ func TestExternalAuth(t *testing.T) {
 	}
 
 	inv := cmd.Invoke().WithContext(ctx)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
-	ptty.Attach(inv)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
-	ptty.ExpectMatchContext(ctx, "You must authenticate with")
-	ptty.ExpectMatchContext(ctx, "https://example.com/gitauth/github")
-	ptty.ExpectMatchContext(ctx, "Successfully authenticated with GitHub")
+	stdout.ExpectMatch(ctx, "You must authenticate with")
+	stdout.ExpectMatch(ctx, "https://example.com/gitauth/github")
+	stdout.ExpectMatch(ctx, "Successfully authenticated with GitHub")
 	<-done
 }

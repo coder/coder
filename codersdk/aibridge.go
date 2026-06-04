@@ -175,9 +175,12 @@ type AIBridgeListSessionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the provider type column (openai, anthropic,
-	// copilot). Retained for backward compatibility; new clients should
-	// prefer ProviderName, which scopes to a specific configured row.
+	// Provider matches the runtime provider type column (openai,
+	// anthropic, copilot). The runtime type collapses the configured
+	// ai_provider_type: azure, google, openai-compat, openrouter, and
+	// vercel route through openai; bedrock routes through anthropic.
+	// Retained for backward compatibility; new clients should prefer
+	// ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`
@@ -202,9 +205,12 @@ type AIBridgeListInterceptionsFilter struct {
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the provider type column (openai, anthropic,
-	// copilot). Retained for backward compatibility; new clients should
-	// prefer ProviderName, which scopes to a specific configured row.
+	// Provider matches the runtime provider type column (openai,
+	// anthropic, copilot). The runtime type collapses the configured
+	// ai_provider_type: azure, google, openai-compat, openrouter, and
+	// vercel route through openai; bedrock routes through anthropic.
+	// Retained for backward compatibility; new clients should prefer
+	// ProviderName, which scopes to a specific configured row.
 	Provider     string `json:"provider,omitempty"`
 	ProviderName string `json:"provider_name,omitempty"`
 	Model        string `json:"model,omitempty"`
@@ -417,6 +423,74 @@ func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req U
 func (c *Client) DeleteGroupAIBudget(ctx context.Context, group uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type UserAIBudgetOverride struct {
+	UserID           uuid.UUID `json:"user_id" format:"uuid"`
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	SpendLimitMicros int64     `json:"spend_limit_micros"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+type UpsertUserAIBudgetOverrideRequest struct {
+	// GroupID is the group the user's spend is attributed to. The user must
+	// be a member of this group.
+	GroupID          uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
+	SpendLimitMicros int64     `json:"spend_limit_micros" validate:"gte=0"`
+}
+
+// UserAIBudgetOverride returns the AI spend budget override configured for the given user.
+func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (UserAIBudgetOverride, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		nil,
+	)
+	if err != nil {
+		return UserAIBudgetOverride{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAIBudgetOverride{}, ReadBodyAsError(res)
+	}
+	var resp UserAIBudgetOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
+func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID, req UpsertUserAIBudgetOverrideRequest) (UserAIBudgetOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		req,
+	)
+	if err != nil {
+		return UserAIBudgetOverride{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAIBudgetOverride{}, ReadBodyAsError(res)
+	}
+	var resp UserAIBudgetOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
+func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
 		nil,
 	)
 	if err != nil {

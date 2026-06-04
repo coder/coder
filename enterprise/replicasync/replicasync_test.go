@@ -207,6 +207,119 @@ func TestReplica(t *testing.T) {
 			return len(server.Regional()) == 0
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+	t.Run("MultipleCallbacks", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		first := make(chan struct{}, 2)
+		second := make(chan struct{}, 2)
+		server.SetCallback("first", func() { first <- struct{}{} })
+		server.SetCallback("second", func() { second <- struct{}{} })
+		testutil.RequireReceive(ctx, t, first)
+		testutil.RequireReceive(ctx, t, second)
+
+		require.NoError(t, server.UpdateNow(ctx))
+		testutil.RequireReceive(ctx, t, first)
+		testutil.RequireReceive(ctx, t, second)
+	})
+	t.Run("SetCallbackReplaces", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		first := make(chan struct{}, 2)
+		second := make(chan struct{}, 2)
+		server.SetCallback("same", func() { first <- struct{}{} })
+		testutil.RequireReceive(ctx, t, first)
+
+		server.SetCallback("same", func() { second <- struct{}{} })
+		testutil.RequireReceive(ctx, t, second)
+		require.NoError(t, server.UpdateNow(ctx))
+		testutil.RequireReceive(ctx, t, second)
+		requireNoCallback(t, first)
+	})
+	t.Run("SetCallbackDeletes", func(t *testing.T) {
+		t.Parallel()
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
+		defer srv.Close()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: srv.URL,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+
+		called := make(chan struct{}, 2)
+		server.SetCallback("same", func() { called <- struct{}{} })
+		testutil.RequireReceive(ctx, t, called)
+
+		server.SetCallback("same", nil)
+		require.NoError(t, server.UpdateNow(ctx))
+		requireNoCallback(t, called)
+	})
+	t.Run("PrimaryPeerAddresses", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		primary, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    dbtime.Now(),
+			StartedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			RelayAddress: "nats://primary.example:6222",
+			Primary:      true,
+		})
+		require.NoError(t, err)
+		_, err = db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:           uuid.New(),
+			CreatedAt:    dbtime.Now(),
+			StartedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			RelayAddress: "nats://proxy.example:6222",
+			Primary:      false,
+		})
+		require.NoError(t, err)
+		_, err = db.InsertReplica(ctx, database.InsertReplicaParams{
+			ID:        uuid.New(),
+			CreatedAt: dbtime.Now(),
+			StartedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
+			Primary:   true,
+		})
+		require.NoError(t, err)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress: "nats://self.example:6222",
+		})
+		require.NoError(t, err)
+		defer server.Close()
+		require.Contains(t, server.PrimaryPeerAddresses(), primary.RelayAddress)
+		require.ElementsMatch(t, []string{
+			"nats://primary.example:6222",
+			"nats://self.example:6222",
+		}, server.PrimaryPeerAddresses())
+	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all
 		// discover each other in parallel!
@@ -233,7 +346,7 @@ func TestReplica(t *testing.T) {
 			done := false
 
 			var m sync.Mutex
-			server.SetCallback(func() {
+			server.SetCallback("all-primary", func() {
 				m.Lock()
 				defer m.Unlock()
 				if len(server.AllPrimary()) != count {
@@ -267,6 +380,15 @@ func TestReplica(t *testing.T) {
 			return server.Self().UpdatedAt.After(deleteTime)
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+}
+
+func requireNoCallback(t *testing.T, ch <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-ch:
+		require.FailNow(t, "unexpected callback")
+	default:
+	}
 }
 
 type derpyHandler struct {

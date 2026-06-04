@@ -27,6 +27,51 @@ export const chatPromptsKey = (chatId: string) =>
 
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
+export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
+export type ChatListStatusFilter = "read" | "unread";
+
+type InfiniteChatsFilters = Readonly<{
+	archived?: boolean;
+	prStatuses?: readonly ChatListPRStatusFilter[];
+	chatStatus?: ChatListStatusFilter;
+}>;
+
+export const infiniteChatsKey = (filters?: {
+	archived?: boolean;
+	prStatuses?: readonly ChatListPRStatusFilter[];
+	chatStatus?: ChatListStatusFilter;
+}) => [...chatsKey, filters] as const;
+
+export const CHAT_LIST_PR_STATUS_ORDER = [
+	"draft",
+	"open",
+	"merged",
+	"closed",
+] as const satisfies readonly ChatListPRStatusFilter[];
+
+const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(
+	CHAT_LIST_PR_STATUS_ORDER,
+);
+
+type InfiniteChatsCacheData = InfiniteData<TypesGen.Chat[]>;
+
+/** Shared ordering keeps URL serialization stable. */
+export const canonicalizeChatListPRStatuses = (
+	prStatuses: Iterable<unknown>,
+): readonly ChatListPRStatusFilter[] => {
+	const selected = new Set<ChatListPRStatusFilter>();
+	for (const prStatus of prStatuses) {
+		if (
+			typeof prStatus === "string" &&
+			chatListPRStatusSet.has(prStatus as ChatListPRStatusFilter)
+		) {
+			selected.add(prStatus as ChatListPRStatusFilter);
+		}
+	}
+
+	return CHAT_LIST_PR_STATUS_ORDER.filter((status) => selected.has(status));
+};
+
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
@@ -48,17 +93,16 @@ export const updateInfiniteChatsCache = (
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
 	// Update ALL infinite chat queries regardless of their filter opts.
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev) return prev;
-		if (!prev.pages) return prev;
-		const nextPages = prev.pages.map((page) => updater(page));
-		// Only return a new reference if something actually changed.
-		const changed = nextPages.some((page, i) => page !== prev.pages[i]);
-		return changed ? { ...prev, pages: nextPages } : prev;
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			const nextPages = prev.pages.map((page) => updater(page));
+			// Only return a new reference if something actually changed.
+			const changed = nextPages.some((page, i) => page !== prev.pages[i]);
+			return changed ? { ...prev, pages: nextPages } : prev;
+		},
+	);
 };
 
 /**
@@ -72,22 +116,22 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev?.pages) return prev;
-		// Check across ALL pages to avoid duplicates.
-		const exists = prev.pages.some((page) =>
-			page.some((c) => c.id === chat.id),
-		);
-		if (exists) return prev;
-		// Only prepend to the first page.
-		const nextPages = prev.pages.map((page, i) =>
-			i === 0 ? [chat, ...page] : page,
-		);
-		return { ...prev, pages: nextPages };
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			// Check across ALL pages to avoid duplicates.
+			const exists = prev.pages.some((page) =>
+				page.some((c) => c.id === chat.id),
+			);
+			if (exists) return prev;
+			// Only prepend to the first page.
+			const nextPages = prev.pages.map((page, i) =>
+				i === 0 ? [chat, ...page] : page,
+			);
+			return { ...prev, pages: nextPages };
+		},
+	);
 };
 
 /**
@@ -97,10 +141,10 @@ export const prependToInfiniteChatsCache = (
 export const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
-	const queries = queryClient.getQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery });
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -504,21 +548,28 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
-export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
-	const limit = DEFAULT_CHAT_PAGE_LIMIT;
-
-	// Build the search query string including the archived filter.
+const getInfiniteChatsQueryString = (
+	filters: InfiniteChatsFilters | undefined,
+): string | undefined => {
 	const qParts: string[] = [];
-	if (opts?.q) {
-		qParts.push(opts.q);
+	if (filters?.archived !== undefined) {
+		qParts.push(`archived:${filters.archived}`);
 	}
-	if (opts?.archived !== undefined) {
-		qParts.push(`archived:${opts.archived}`);
+	if (filters?.prStatuses?.length) {
+		qParts.push(`pr_status:${filters.prStatuses.join(",")}`);
 	}
-	const q = qParts.length > 0 ? qParts.join(" ") : undefined;
+	if (filters?.chatStatus) {
+		qParts.push(`has_unread:${filters.chatStatus === "unread"}`);
+	}
+	return qParts.length > 0 ? qParts.join(" ") : undefined;
+};
+
+export const infiniteChats = (filters?: InfiniteChatsFilters) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+	const q = getInfiniteChatsQueryString(filters);
 
 	return {
-		queryKey: [...chatsKey, opts],
+		queryKey: infiniteChatsKey(filters),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
