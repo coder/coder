@@ -4,7 +4,7 @@ import { Button } from "#/components/Button/Button";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
 
-export const TaskWildcardWarning = () => {
+export const WorkspaceWildcardWarning = () => {
 	const { permissions } = useAuthenticated();
 
 	return (

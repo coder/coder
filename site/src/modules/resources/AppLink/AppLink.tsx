@@ -20,6 +20,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { isAppBlockedByMissingWildcard } from "#/modules/apps/workspaceApps";
 import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
@@ -76,7 +77,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		primaryTooltip = "Unhealthy";
 	}
 
-	if (!host && app.subdomain) {
+	if (isAppBlockedByMissingWildcard(app, host)) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon
