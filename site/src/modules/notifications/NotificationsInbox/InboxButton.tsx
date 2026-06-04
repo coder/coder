@@ -20,7 +20,7 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 			<span
 				className={cn(
 					"group/badge pointer-events-none",
-					"[--offset:calc(var(--unread-badge-size)/2)]",
+					"[--unread-badge-size:18px] [--offset:calc(var(--unread-badge-size)/2)]",
 					"absolute top-0 right-0 -mr-[--offset] -mt-[--offset]",
 					isOpen &&
 						"animate-in slide-in-from-left-2 slide-in-from-bottom-3 duration-[260ms] [animation-timing-function:cubic-bezier(0.22,1,0.36,1)]",
