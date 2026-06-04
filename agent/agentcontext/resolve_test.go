@@ -130,14 +130,99 @@ func TestResolver_SkillNameNonKebabInvalid(t *testing.T) {
 func TestResolver_MCPConfigEmitted(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, ".mcp.json"), `{"mcpServers": {}}`)
+	contents := `{"mcpServers": {"github": {"env": {"GITHUB_TOKEN": "secret-token"}}}}`
+	mustWriteFile(t, filepath.Join(dir, ".mcp.json"), contents)
 
 	r := &agentcontext.Resolver{}
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, agentcontext.KindMCPConfig, snap.Resources[0].Kind)
-	require.Equal(t, agentcontext.StatusOK, snap.Resources[0].Status)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindMCPConfig, got.Kind)
+	require.Equal(t, agentcontext.StatusOK, got.Status)
+	// The .mcp.json payload is intentionally not shipped:
+	// the file can contain secret-bearing Env/Headers values.
+	// Only the path + ContentHash are exposed, so consumers
+	// can detect changes without ever seeing the bytes.
+	require.Empty(t, got.Payload, "readMCPConfig must not include the file payload")
+	require.NotEqual(t, [32]byte{}, got.ContentHash, "readMCPConfig must populate ContentHash for change detection")
+	require.Equal(t, uint64(len(contents)), got.SizeBytes)
+}
+
+// TestResolver_SymlinkInsideScanRootAllowed exercises the
+// monorepo case where AGENTS.md is symlinked to shared content
+// inside the same workspace tree. The target lives under the
+// scan root, so the resolver follows the symlink and emits the
+// target bytes as if the symlink were a regular file.
+func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "docs", "AGENTS.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+	mustWriteFile(t, target, "shared monorepo guidance")
+	link := filepath.Join(dir, "AGENTS.md")
+	require.NoError(t, os.Symlink(target, link))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 2)
+	var linked agentcontext.Resource
+	for _, res := range snap.Resources {
+		if res.Source == link {
+			linked = res
+		}
+	}
+	require.Equal(t, agentcontext.StatusOK, linked.Status)
+	require.Equal(t, "shared monorepo guidance", string(linked.Payload))
+}
+
+// TestResolver_SymlinkOutsideScanRootRejected guards the
+// security boundary. A malicious workspace cannot ship a
+// snapshot containing ~/.ssh/id_rsa or /etc/passwd by placing a
+// symlink with that target at AGENTS.md, .mcp.json, or
+// SKILL.md inside the scan root.
+func TestResolver_SymlinkOutsideScanRootRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	secretDir := t.TempDir()
+	secret := filepath.Join(secretDir, "id_rsa")
+	mustWriteFile(t, secret, "-----BEGIN OPENSSH PRIVATE KEY-----")
+	link := filepath.Join(dir, "AGENTS.md")
+	require.NoError(t, os.Symlink(secret, link))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.StatusInvalid, got.Status)
+	require.Empty(t, got.Payload, "escaping symlink target must not be shipped")
+	require.Contains(t, got.Error, "escapes scan root")
+}
+
+// TestResolver_BrokenSymlink emits Unreadable for a dangling
+// link rather than crashing the walk.
+func TestResolver_BrokenSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	dir := t.TempDir()
+	link := filepath.Join(dir, "AGENTS.md")
+	require.NoError(t, os.Symlink(filepath.Join(dir, "does-not-exist"), link))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, agentcontext.StatusUnreadable, snap.Resources[0].Status)
 }
 
 func TestResolver_OversizeInstructionFile(t *testing.T) {
@@ -290,6 +375,38 @@ func TestResolver_MCPProviderResources(t *testing.T) {
 	got := findResource(t, snap.Resources, agentcontext.KindMCPServer, "github")
 	require.Equal(t, agentcontext.StatusOK, got.Status)
 	require.Equal(t, "GitHub MCP server", got.Description)
+}
+
+// TestResolver_MCPProviderRespectsAggregateByteCap guards the
+// contract that a single oversized MCP payload cannot blow past
+// MaxSnapshotBytes with StatusOK.
+func TestResolver_MCPProviderRespectsAggregateByteCap(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	big := make([]byte, 1024)
+	for i := range big {
+		big[i] = 'x'
+	}
+	mcpRes := agentcontext.Resource{
+		ID:          "mcp_server:big",
+		Kind:        agentcontext.KindMCPServer,
+		Source:      "big",
+		Status:      agentcontext.StatusOK,
+		Payload:     big,
+		ContentHash: sha256.Sum256(big),
+	}
+	r := &agentcontext.Resolver{
+		MaxSnapshotBytes: 512,
+		MCP:              &fakeMCPProvider{resources: []agentcontext.Resource{mcpRes}},
+	}
+
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	got := findResource(t, snap.Resources, agentcontext.KindMCPServer, "big")
+	require.Equal(t, agentcontext.StatusExcluded, got.Status,
+		"MCP payload exceeding MaxSnapshotBytes must be excluded")
+	require.Empty(t, got.Payload)
+	require.NotEmpty(t, snap.SnapshotError, "snapshot must surface the cap breach")
 }
 
 type fakeMCPProvider struct {

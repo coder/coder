@@ -20,10 +20,13 @@ import (
 // agentcontext.Manager pushes its initial Snapshot to coderd
 // over the v2.10 PushContextState RPC during a normal boot.
 //
-// The test does not depend on the chatd side; it asserts only
-// that the snapshot reaches the FakeAgentAPI, that it carries
-// the initial flag, and that it includes the seeded AGENTS.md.
+// The push goroutine is disabled in this PR because
+// tailnet/proto.CurrentMinor stays at 9 until coderd persists
+// context snapshots. Re-enable both the push site in
+// agent/agent.go and this test in the change that bumps the
+// version constant.
 func TestAgent_ContextStatePushed(t *testing.T) {
+	t.Skip("PushContextState gated until CurrentMinor=10 lands with coderd persistence")
 	t.Parallel()
 
 	dir := t.TempDir()

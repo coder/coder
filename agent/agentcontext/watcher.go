@@ -153,10 +153,17 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 		return
 	}
 	if w.watcher == nil {
-		// Degraded mode: nothing to wire up; fire the callback
-		// so the caller still gets a fresh resolve.
+		// Degraded mode: no fsnotify, so there is nothing
+		// to wire up. Do NOT fire the OnChange callback
+		// from here; the Manager's signal handler is the
+		// usual OnChange, and the Run loop calls back into
+		// Sync when it observes that signal. Firing here
+		// would re-arm an endless 250ms scan-and-push loop
+		// on hosts where inotify cannot initialize. Manual
+		// Resync, AddSource, and RemoveSource still drive
+		// re-resolves; auto-updates on file edits simply
+		// do not happen until fsnotify recovers.
 		w.mu.Unlock()
-		w.schedule()
 		return
 	}
 	w.mu.Unlock()

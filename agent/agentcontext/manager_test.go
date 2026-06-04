@@ -303,6 +303,40 @@ func TestManager_InitialSourcesSeeded(t *testing.T) {
 	require.Equal(t, src, snap.Resources[0].SourcePath)
 }
 
+// TestManager_SeedSourcesLateBindsAfterManifest models the
+// agent's behavior when CODER_AGENT_EXP_*_DIRS contains a
+// relative path that cannot resolve until the manifest's
+// working directory lands. SeedSources must adopt the
+// previously-unresolvable path, bypass AllowedRoots
+// validation, and trigger a re-resolve.
+func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
+	t.Parallel()
+	wd := t.TempDir()
+	late := t.TempDir()
+	mustWriteFile(t, filepath.Join(late, "AGENTS.md"), "late binding")
+
+	// AllowedRoots intentionally omits `late` so AddSource
+	// would reject it. SeedSources must accept it anyway,
+	// since the path comes from the trusted template config.
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return wd },
+		AllowedRoots: []string{wd},
+	})
+
+	require.Empty(t, m.Sources())
+
+	m.SeedSources([]agentcontext.Source{{Path: late}})
+
+	sources := m.Sources()
+	require.Len(t, sources, 1)
+	require.Equal(t, late, sources[0].Path)
+
+	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, late, snap.Resources[0].SourcePath)
+}
+
 func TestManager_CloseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	m := newTestManager(t, agentcontext.ManagerOptions{

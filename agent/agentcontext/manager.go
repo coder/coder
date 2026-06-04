@@ -316,6 +316,48 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 	return Source{Path: canonical}, nil
 }
 
+// SeedSources canonicalizes and inserts a batch of trusted
+// sources without applying AllowedRoots validation. It is the
+// late-binding equivalent of ManagerOptions.InitialSources for
+// callers that need the working directory to resolve relative
+// paths but only learn the working directory after Run has
+// started. Paths that fail canonicalization are silently
+// skipped, matching the boot-time seeding contract. SeedSources
+// is idempotent: previously seeded canonical paths are
+// deduplicated via the existing source index.
+//
+// AddSource is the correct entry point for untrusted HTTP
+// callers; this method exists only for the agent's manifest-
+// triggered seeding from CODER_AGENT_EXP_*_DIRS, where the
+// template author already authorized the paths.
+func (m *Manager) SeedSources(sources []Source) {
+	if len(sources) == 0 {
+		return
+	}
+	m.mu.Lock()
+	changed := false
+	for _, s := range sources {
+		canonical, err := CanonicalizePath(s.Path)
+		if err != nil {
+			m.logger.Warn(context.Background(),
+				"skipping invalid seeded source",
+				slog.F("path", s.Path),
+				slog.Error(err))
+			continue
+		}
+		if _, ok := m.sourceIndex[canonical]; ok {
+			continue
+		}
+		m.sourceIndex[canonical] = len(m.sources)
+		m.sources = append(m.sources, Source{Path: canonical})
+		changed = true
+	}
+	m.mu.Unlock()
+	if changed {
+		m.signal()
+	}
+}
+
 // RemoveSource removes the source matching path. Path is
 // canonicalized before matching. Returns ErrSourceNotFound when
 // no such source exists or when the path cannot be canonicalized.
@@ -435,12 +477,13 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		// strictly supersedes ours, so skip the publish to
 		// avoid overwriting a fresher Snapshot at a higher
 		// version. Return the currently published Snapshot,
-		// which is at least as fresh as ours.
+		// which is at least as fresh as ours. The watcher
+		// is NOT re-armed: the winning pass already synced
+		// with the current roots, and replaying our stale
+		// root set here would drop watches on sources that
+		// only the newer pass knows about.
 		published := m.snapshot
 		m.mu.Unlock()
-		if watcher != nil {
-			watcher.Sync(ctx, roots)
-		}
 		return published, nil
 	}
 	m.version++

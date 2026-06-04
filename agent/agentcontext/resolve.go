@@ -139,17 +139,19 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	if err := ctx.Err(); err != nil {
 		return Snapshot{SnapshotError: err.Error()}
 	}
-	resources = res.applyCaps(resources)
+	resources, totalBytes := res.applyCaps(resources)
 
 	// Append MCP server resources after the filesystem caps
 	// are applied so a runaway MCP server cannot crowd out
 	// instruction files.
 	if r.MCP != nil {
 		mcp := r.MCP.MCPResources()
+		startIdx := len(resources)
 		resources = append(resources, mcp...)
-		// MCP resources may push the aggregate over the cap.
-		// Re-apply count and size limits to MCP entries only.
-		resources, snapErrs = res.applyMCPCaps(resources, snapErrs)
+		// MCP resources may push the aggregate over the
+		// count or byte cap. Apply both, picking up
+		// where applyCaps left off.
+		resources, snapErrs = res.applyMCPCaps(resources, startIdx, totalBytes, snapErrs)
 	}
 
 	// Deterministic order by ID for stable IDs and hashes.
@@ -235,7 +237,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		if !info.IsDir() {
 			// Single-file roots are classified directly.
-			if res, ok := r.classifyFile(root.Path, info, root.UserSource); ok {
+			if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
 				if _, dup := seenID[res.ID]; !dup {
 					seenID[res.ID] = struct{}{}
 					resources = append(resources, res)
@@ -317,7 +319,7 @@ func (r *Resolver) walkDir(ctx context.Context, root ScanRoot, out *[]Resource, 
 		if statErr != nil {
 			return nil
 		}
-		if res, ok := r.classifyFile(path, info, root.UserSource); ok {
+		if res, ok := r.classifyFile(root.Path, path, info, root.UserSource); ok {
 			if _, dup := seenID[res.ID]; dup {
 				return nil
 			}
@@ -343,22 +345,59 @@ func kindFromFilename(name string) (kind ResourceKind, recognized bool) {
 	}
 }
 
+// resolveReadTarget produces the path and FileInfo that should
+// be used to read the resource. When the input is not a
+// symlink the original path and info are returned unchanged.
+// When it is a symlink the target is resolved and validated
+// against scanRoot so a malicious AGENTS.md ->
+// ~/.ssh/id_rsa cannot exfiltrate files outside the
+// contributing scan root.
+//
+// codex follows symlinks unconditionally because it trusts the
+// local user's filesystem. Coder workspaces may execute
+// templates and repositories that the agent operator did not
+// author, so the resolver follows symlinks only within the
+// scan-root boundary. Symlinks whose targets escape the
+// boundary are emitted as StatusInvalid; broken symlinks and
+// non-regular targets are emitted as StatusUnreadable.
+func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath string, readInfo fs.FileInfo, ok bool, status ResourceStatus, errMsg string) {
+	if info.Mode()&fs.ModeSymlink == 0 {
+		return path, info, true, StatusOK, ""
+	}
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", nil, false, StatusUnreadable, fmt.Sprintf("symlink resolve: %v", err)
+	}
+	rootClean := filepath.Clean(scanRoot)
+	if !pathHasPrefix(target, rootClean) {
+		return "", nil, false, StatusInvalid, fmt.Sprintf("symlink target %q escapes scan root %q", target, scanRoot)
+	}
+	tgtInfo, err := os.Stat(target)
+	if err != nil {
+		return "", nil, false, StatusUnreadable, err.Error()
+	}
+	if !tgtInfo.Mode().IsRegular() {
+		return "", nil, false, StatusInvalid, fmt.Sprintf("symlink target %q is not a regular file", target)
+	}
+	return target, tgtInfo, true, StatusOK, ""
+}
+
 // classifyFile inspects a single file path and produces a
 // Resource when the basename matches a recognized convention.
-func (r *Resolver) classifyFile(path string, info fs.FileInfo, userSource string) (Resource, bool) {
+func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	name := info.Name()
 	switch {
 	case recognizedInstructionFile(name):
-		return r.readInstructionFile(path, info, userSource), true
+		return r.readInstructionFile(scanRoot, path, info, userSource), true
 	case name == mcpConfigFileName:
-		return r.readMCPConfig(path, info, userSource), true
+		return r.readMCPConfig(scanRoot, path, info, userSource), true
 	case name == skillMetaFileName:
 		// SKILL.md outside a skills container is still a
 		// valid skill if its parent directory name matches
 		// the front-matter name. emitSkillsFromContainer
 		// already handles the common case; here we cover
 		// "user adds a single SKILL.md file as a source".
-		res, ok := r.readSkillMeta(path, info, userSource)
+		res, ok := r.readSkillMeta(scanRoot, path, info, userSource)
 		return res, ok
 	default:
 		return Resource{}, false
@@ -376,8 +415,8 @@ func (r *Resolver) classifyFile(path string, info fs.FileInfo, userSource string
 // follow-up chatd integration that consumes Snapshot.Resources.
 // Until that lands, downstream consumers that render these
 // payloads must sanitize themselves.
-func (r *Resolver) readInstructionFile(path string, info fs.FileInfo, userSource string) Resource {
-	res := r.readFileResource(KindInstructionFile, path, info, userSource)
+func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
+	res := r.readFileResource(KindInstructionFile, scanRoot, path, info, userSource)
 	if res.Status == StatusOK {
 		res.Description = firstLine(string(res.Payload))
 	}
@@ -385,11 +424,46 @@ func (r *Resolver) readInstructionFile(path string, info fs.FileInfo, userSource
 }
 
 // readMCPConfig reads a .mcp.json file and produces a
-// KindMCPConfig resource. Parsing is left to consumers; the
-// resolver only enforces the per-resource size cap. Future
-// work: detect malformed JSON and surface StatusInvalid.
-func (r *Resolver) readMCPConfig(path string, info fs.FileInfo, userSource string) Resource {
-	return r.readFileResource(KindMCPConfig, path, info, userSource)
+// KindMCPConfig resource carrying only path metadata and a
+// content hash.
+//
+// .mcp.json fragments frequently embed secret-bearing fields
+// (Env tokens, Authorization headers). The resolver hashes the
+// file for change detection but intentionally does not ship
+// the bytes; the live MCP server's tool list arrives via the
+// MCPProvider as a KindMCPServer resource, which is what
+// downstream consumers actually need.
+func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
+	res := Resource{
+		ID:         resourceID(KindMCPConfig, path),
+		Kind:       KindMCPConfig,
+		Source:     path,
+		SizeBytes:  safeUint64(info.Size()),
+		SourcePath: userSource,
+	}
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	if !ok {
+		res.Status = status
+		res.Error = errMsg
+		return res
+	}
+	res.SizeBytes = safeUint64(readInfo.Size())
+	if safeUint64(readInfo.Size()) > r.MaxResourceBytes {
+		res.Status = StatusOversize
+		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", readInfo.Size(), r.MaxResourceBytes)
+		if data, err := readFileCapped(readPath, safeInt64(r.MaxResourceBytes)); err == nil {
+			res.ContentHash = sha256.Sum256(data)
+		}
+		return res
+	}
+	data, err := os.ReadFile(readPath)
+	if err != nil {
+		res.Status = StatusUnreadable
+		res.Error = err.Error()
+		return res
+	}
+	res.ContentHash = sha256.Sum256(data)
+	return res
 }
 
 // readFileResource is the shared plumbing for kinds whose only
@@ -398,7 +472,7 @@ func (r *Resolver) readMCPConfig(path string, info fs.FileInfo, userSource strin
 // file, hash it, attach the bytes. Callers add kind-specific
 // post-processing (e.g. firstLine for instruction files) by
 // inspecting Status==StatusOK.
-func (r *Resolver) readFileResource(kind ResourceKind, path string, info fs.FileInfo, userSource string) Resource {
+func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	res := Resource{
 		ID:         resourceID(kind, path),
 		Kind:       kind,
@@ -406,17 +480,24 @@ func (r *Resolver) readFileResource(kind ResourceKind, path string, info fs.File
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
 	}
-	if safeUint64(info.Size()) > r.MaxResourceBytes {
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	if !ok {
+		res.Status = status
+		res.Error = errMsg
+		return res
+	}
+	res.SizeBytes = safeUint64(readInfo.Size())
+	if safeUint64(readInfo.Size()) > r.MaxResourceBytes {
 		res.Status = StatusOversize
-		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", info.Size(), r.MaxResourceBytes)
+		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", readInfo.Size(), r.MaxResourceBytes)
 		// Still hash the (capped) content so a fix is
 		// detectable.
-		if data, err := readFileCapped(path, safeInt64(r.MaxResourceBytes)); err == nil {
+		if data, err := readFileCapped(readPath, safeInt64(r.MaxResourceBytes)); err == nil {
 			res.ContentHash = sha256.Sum256(data)
 		}
 		return res
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(readPath)
 	if err != nil {
 		res.Status = StatusUnreadable
 		res.Error = err.Error()
@@ -431,7 +512,7 @@ func (r *Resolver) readFileResource(kind ResourceKind, path string, info fs.File
 // and emits a KindSkill resource. The name encoded in the
 // front-matter must match the parent directory's basename to
 // be considered valid; otherwise Status is StatusInvalid.
-func (r *Resolver) readSkillMeta(path string, info fs.FileInfo, userSource string) (Resource, bool) {
+func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	parent := filepath.Base(filepath.Dir(path))
 	res := Resource{
 		ID:         resourceID(KindSkill, filepath.Dir(path)),
@@ -440,19 +521,26 @@ func (r *Resolver) readSkillMeta(path string, info fs.FileInfo, userSource strin
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
 	}
-	if safeUint64(info.Size()) > r.MaxResourceBytes {
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	if !ok {
+		res.Status = status
+		res.Error = errMsg
+		return res, true
+	}
+	res.SizeBytes = safeUint64(readInfo.Size())
+	if safeUint64(readInfo.Size()) > r.MaxResourceBytes {
 		res.Status = StatusOversize
-		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", info.Size(), r.MaxResourceBytes)
+		res.Error = fmt.Sprintf("file size %d exceeds per-resource cap of %d bytes", readInfo.Size(), r.MaxResourceBytes)
 		// Hash the (capped) prefix so an edit that keeps
 		// the file oversize still shifts the aggregate
 		// hash and triggers a re-broadcast. Mirrors the
 		// behavior in readFileResource.
-		if data, err := readFileCapped(path, safeInt64(r.MaxResourceBytes)); err == nil {
+		if data, err := readFileCapped(readPath, safeInt64(r.MaxResourceBytes)); err == nil {
 			res.ContentHash = sha256.Sum256(data)
 		}
 		return res, true
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(readPath)
 	if err != nil {
 		res.Status = StatusUnreadable
 		res.Error = err.Error()
@@ -493,11 +581,14 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 			continue
 		}
 		meta := filepath.Join(container, e.Name(), skillMetaFileName)
-		info, err := os.Stat(meta)
+		// Lstat (not Stat) so a symlinked SKILL.md is
+		// detected and routed through resolveReadTarget,
+		// which enforces the scan-root boundary.
+		info, err := os.Lstat(meta)
 		if err != nil {
 			continue
 		}
-		res, ok := r.readSkillMeta(meta, info, root.UserSource)
+		res, ok := r.readSkillMeta(root.Path, meta, info, root.UserSource)
 		if !ok {
 			continue
 		}
@@ -511,8 +602,11 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 
 // applyCaps enforces the resource-count cap and aggregate
 // payload cap. Resources past either cap have their Status set
-// to StatusExcluded and their Payload cleared.
-func (r *Resolver) applyCaps(resources []Resource) []Resource {
+// to StatusExcluded and their Payload cleared. The returned
+// byte total is the sum of surviving payloads, so callers that
+// append additional resources (e.g. MCP server tool lists) can
+// apply the same byte cap to the appended slice.
+func (r *Resolver) applyCaps(resources []Resource) ([]Resource, uint64) {
 	// Stable sort by (Kind asc, Source asc) so excluded
 	// resources are deterministic.
 	slices.SortStableFunc(resources, func(a, b Resource) int {
@@ -540,22 +634,48 @@ func (r *Resolver) applyCaps(resources []Resource) []Resource {
 		}
 		total += size
 	}
-	return resources
+	return resources, total
 }
 
-// applyMCPCaps re-applies the count cap after MCP resources are
-// appended. MCP payloads are typically small JSON descriptors,
-// so we treat the aggregate budget as already consumed by the
-// filesystem pass.
-func (r *Resolver) applyMCPCaps(resources []Resource, snapErrs []string) ([]Resource, []string) {
-	if len(resources) <= r.MaxResources {
-		return resources, snapErrs
+// applyMCPCaps enforces both the count cap and the remaining
+// aggregate byte cap on MCP resources appended after
+// applyCaps. startIdx is the first index of the appended tail.
+// priorBytes is the sum of payload bytes already committed by
+// the filesystem pass; MCP resources whose payloads would push
+// the running total past MaxSnapshotBytes are stamped
+// StatusExcluded. Without this guard a provider returning one
+// large KindMCPServer payload would exceed the aggregate cap
+// with StatusOK, breaking the contract in
+// DefaultMaxSnapshotBytes.
+func (r *Resolver) applyMCPCaps(resources []Resource, startIdx int, priorBytes uint64, snapErrs []string) ([]Resource, []string) {
+	total := priorBytes
+	countCapHit := false
+	byteCapHit := false
+	for i := startIdx; i < len(resources); i++ {
+		if i >= r.MaxResources {
+			resources[i] = excluded(resources[i],
+				fmt.Sprintf("dropped to fit %d-resource snapshot count cap", r.MaxResources))
+			countCapHit = true
+			continue
+		}
+		if resources[i].Status != StatusOK {
+			continue
+		}
+		size := uint64(len(resources[i].Payload))
+		if total+size > r.MaxSnapshotBytes {
+			resources[i] = excluded(resources[i],
+				fmt.Sprintf("dropped to fit %d-byte aggregate cap", r.MaxSnapshotBytes))
+			byteCapHit = true
+			continue
+		}
+		total += size
 	}
-	for i := r.MaxResources; i < len(resources); i++ {
-		resources[i] = excluded(resources[i],
-			fmt.Sprintf("dropped to fit %d-resource snapshot count cap", r.MaxResources))
+	if countCapHit {
+		snapErrs = append(snapErrs, fmt.Sprintf("snapshot exceeds %d-resource count cap", r.MaxResources))
 	}
-	snapErrs = append(snapErrs, fmt.Sprintf("snapshot exceeds %d-resource count cap", r.MaxResources))
+	if byteCapHit {
+		snapErrs = append(snapErrs, fmt.Sprintf("snapshot exceeds %d-byte aggregate cap", r.MaxSnapshotBytes))
+	}
 	return resources, snapErrs
 }
 
