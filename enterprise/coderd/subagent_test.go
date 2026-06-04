@@ -337,7 +337,7 @@ func newMockSubAgentAPIWithMaxPortShareLevel(
 	return ctx, api, &upsertedApps
 }
 
-func TestDevcontainerCoderAppShareClampedByTemplateMaxPortShareLevel(t *testing.T) {
+func TestDevcontainerSubAgentAppShareClampedByTemplateMaxPortShareLevel(t *testing.T) {
 	t.Parallel()
 
 	ctx, db, client := newDevcontainerSubAgentClientWithMaxPortShareLevel(t, database.AppSharingLevelAuthenticated)
