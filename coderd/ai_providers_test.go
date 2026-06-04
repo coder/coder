@@ -614,7 +614,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := db.InsertAIProvider(ctx, database.InsertAIProviderParams{
+		_, err := db.InsertAIProvider(dbauthz.AsSystemRestricted(ctx), database.InsertAIProviderParams{
 			ID:          uuid.New(),
 			Type:        database.AiProviderTypeBedrock,
 			Name:        "bedrock-clear-settings",
