@@ -73,9 +73,10 @@ func TestShouldPatchGoogleUpstreamRequest(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "non gemini model",
+			name:    "direct endpoint does not require gemini model name",
 			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 			modelID: "gpt-4o",
+			want:    true,
 		},
 		{
 			name:    "openai endpoint",

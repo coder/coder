@@ -26,8 +26,8 @@ func ShouldPatchOpenAICompatRequest(baseURL string, modelID string) bool {
 
 // ShouldPatchGoogleUpstreamRequest reports whether an AI Bridge upstream
 // OpenAI-compatible request should carry Gemini thought signatures.
-func ShouldPatchGoogleUpstreamRequest(baseURL string, modelID string) bool {
-	return isDirectGeminiOpenAIEndpoint(baseURL) && isGeminiModelID(modelID)
+func ShouldPatchGoogleUpstreamRequest(baseURL string, _ string) bool {
+	return isDirectGeminiOpenAIEndpoint(baseURL)
 }
 
 // Vertex AI has different hosts and paths. Add it here only with a fixture that
