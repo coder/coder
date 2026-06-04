@@ -10297,8 +10297,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, name, or me",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -10336,8 +10335,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "User ID",
+                        "description": "User ID, name, or me",
                         "name": "user",
                         "in": "path",
                         "required": true

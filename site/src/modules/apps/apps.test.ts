@@ -117,6 +117,25 @@ describe("getAppHref", () => {
 		expect(href).toBe(externalApp.url);
 	});
 
+	it("returns an invalid external app URL without throwing", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `not-a-valid-url?token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		let href = "";
+		expect(() => {
+			href = getAppHref(externalApp, {
+				host: "*.apps-host.tld",
+				agent: MockWorkspaceAgent,
+				workspace: MockWorkspace,
+				path: "/path-base",
+				token: "user-session-token",
+			});
+		}).not.toThrow();
+		expect(href).toBe(externalApp.url);
+	});
+
 	it("returns a path when app doesn't use a subdomain", () => {
 		const app = {
 			...MockWorkspaceApp,

@@ -37,8 +37,9 @@ func TestUserEditRoles(t *testing.T) {
 
 		memberRoles, err := client.UserRoles(ctx, member.Username)
 		require.NoError(t, err)
+		expectedRoles := append([]string{rbac.RoleMember().String()}, roles...)
 
-		require.ElementsMatch(t, memberRoles.Roles, roles)
+		require.ElementsMatch(t, expectedRoles, memberRoles.Roles)
 	})
 
 	t.Run("UserNotFound", func(t *testing.T) {

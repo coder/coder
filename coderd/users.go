@@ -1705,7 +1705,8 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		err = tx.DeleteAPIKeysByUserID(ctx, user.ID)
+		//nolint:gocritic // The password update authorization check permits this session invalidation side effect.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}
@@ -1744,28 +1745,35 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Replace this with "GetAuthorizationUserRoles"
-	resp := codersdk.UserRoles{
-		Roles:             user.RBACRoles,
-		OrganizationRoles: make(map[uuid.UUID][]string),
-	}
-
-	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		UserID:         user.ID,
-		OrganizationID: uuid.Nil,
-		IncludeSystem:  false,
-		GithubUserID:   0,
-	})
+	//nolint:gocritic // The handler already authorizes reading the target user before expanding effective roles.
+	authorizationRoles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user's organization memberships.",
+			Message: "Internal error fetching user's roles.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	for _, mem := range memberships {
-		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = mem.OrganizationMember.Roles
+	roleNames, err := authorizationRoles.RoleNames()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error parsing user's roles.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.UserRoles{
+		Roles:             make([]string, 0, len(roleNames)),
+		OrganizationRoles: make(map[uuid.UUID][]string),
+	}
+	for _, role := range roleNames {
+		if role.OrganizationID == uuid.Nil {
+			resp.Roles = append(resp.Roles, role.Name)
+			continue
+		}
+		resp.OrganizationRoles[role.OrganizationID] = append(resp.OrganizationRoles[role.OrganizationID], role.Name)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

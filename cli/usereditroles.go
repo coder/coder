@@ -64,10 +64,13 @@ func (r *RootCmd) userEditRoles() *serpent.Command {
 
 				selectedRoles = givenRoles
 			} else {
+				defaultRoles := slices.DeleteFunc(slices.Clone(userRoles.Roles), func(role string) bool {
+					return !slices.Contains(siteRoleNames, role)
+				})
 				selectedRoles, err = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 					Message:  "Select the roles you'd like to assign to the user",
 					Options:  siteRoleNames,
-					Defaults: userRoles.Roles,
+					Defaults: defaultRoles,
 				})
 				if err != nil {
 					return xerrors.Errorf("selecting roles for user: %w", err)

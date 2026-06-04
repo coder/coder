@@ -802,6 +802,13 @@ func TestCreateWithRichParameters(t *testing.T) {
 			mutable: false,
 		},
 	}
+	ephemeralParam := param{
+		name:    "ephemeral_param",
+		ptype:   "string",
+		value:   "one-time value",
+		mutable: true,
+	}
+	paramsWithEphemeral := append(append([]param{}, params...), ephemeralParam)
 
 	type testContext struct {
 		client        *codersdk.Client
@@ -903,6 +910,24 @@ func TestCreateWithRichParameters(t *testing.T) {
 				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
+		},
+		{
+			name: "EphemeralParameterFlag",
+			setup: func() []string {
+				args := []string{}
+				for _, param := range params {
+					args = append(args, "--parameter", fmt.Sprintf("%s=%s", param.name, param.value))
+				}
+				args = append(args, "--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParam.name, ephemeralParam.value))
+				return args
+			},
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
+				// No prompts, we only need to confirm.
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
+			},
+			inputParameters:    paramsWithEphemeral,
+			expectedParameters: paramsWithEphemeral,
 		},
 		{
 			name: "MisspelledParameter",
@@ -1112,6 +1137,7 @@ cli_param: from file`)
 					Name:         param.name,
 					Type:         param.ptype,
 					Mutable:      param.mutable,
+					Ephemeral:    param.name == ephemeralParam.name,
 					DefaultValue: defaultValue,
 					Order:        int32(i), //nolint:gosec
 				})

@@ -3678,9 +3678,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `user` | path | string(uuid) | true     | User ID     |
+| Name   | In   | Type   | Required | Description          |
+|--------|------|--------|----------|----------------------|
+| `user` | path | string | true     | User ID, name, or me |
 
 ### Example responses
 
@@ -3747,7 +3747,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 | Name   | In   | Type                                                                                                   | Required | Description             |
 |--------|------|--------------------------------------------------------------------------------------------------------|----------|-------------------------|
-| `user` | path | string(uuid)                                                                                           | true     | User ID                 |
+| `user` | path | string                                                                                                 | true     | User ID, name, or me    |
 | `body` | body | [codersdk.UpdateUserQuietHoursScheduleRequest](schemas.md#codersdkupdateuserquiethoursschedulerequest) | true     | Update schedule request |
 
 ### Example responses

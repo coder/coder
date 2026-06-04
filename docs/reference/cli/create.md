@@ -100,6 +100,41 @@ Return immediately after creating the workspace. The build will run in the backg
 
 Bypass confirmation prompts.
 
+### --build-option
+
+|             |                                  |
+|-------------|----------------------------------|
+| Type        | <code>string-array</code>        |
+| Environment | <code>$CODER_BUILD_OPTION</code> |
+
+Build option value in the format "name=value".
+
+### --build-options
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Prompt for one-time build options defined with ephemeral parameters.
+
+### --ephemeral-parameter
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_EPHEMERAL_PARAMETER</code> |
+
+Set the value of ephemeral parameters defined in the template. The format is "name=value".
+
+### --prompt-ephemeral-parameters
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_PROMPT_EPHEMERAL_PARAMETERS</code> |
+
+Prompt to set values of ephemeral parameters defined in the template. If a value has been set via --ephemeral-parameter, it will not be prompted for.
+
 ### --parameter
 
 |             |                                    |

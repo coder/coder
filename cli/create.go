@@ -261,6 +261,11 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
+			ephemeralParameters, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
+			if err != nil {
+				return xerrors.Errorf("unable to parse ephemeral parameters: %w", err)
+			}
+
 			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 			if err != nil {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
@@ -324,6 +329,9 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 				Owner:             workspaceOwner,
+
+				PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
+				EphemeralParameters:       ephemeralParameters,
 
 				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
@@ -455,6 +463,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		},
 		cliui.SkipPromptOption(),
 	)
+	cmd.Options = append(cmd.Options, parameterFlags.cliEphemeralParameters()...)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
 	cmd.Options = append(cmd.Options, parameterFlags.useParameterDefaultsOption())

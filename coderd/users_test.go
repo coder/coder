@@ -1326,6 +1326,34 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
 
+	t.Run("UserAdminCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		member, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "member@coder.com",
+			Username:        "member",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err, "create member")
+		err = userAdmin.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "user admin should be able to update member password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "member@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "member should login successfully with the new password")
+	})
+
 	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -1594,11 +1622,14 @@ func TestInitialRoles(t *testing.T) {
 
 	roles, err := client.UserRoles(ctx, codersdk.Me)
 	require.NoError(t, err)
-	require.ElementsMatch(t, roles.Roles, []string{
+	require.ElementsMatch(t, []string{
 		codersdk.RoleOwner,
-	}, "should be a member and admin")
+		codersdk.RoleMember,
+	}, roles.Roles, "should be a member and owner")
 
-	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
+	require.ElementsMatch(t, []string{
+		rbac.RoleOrgMember(),
+	}, roles.OrganizationRoles[first.OrganizationID], "should be an organization member")
 }
 
 func TestPutUserSuspend(t *testing.T) {
