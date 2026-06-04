@@ -2793,6 +2793,14 @@ func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg database.GetTemplateRankingSignalsByOwnerIDParams) ([]database.GetTemplateRankingSignalsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateRankingSignalsByOwnerID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateRankingSignalsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateRankingSignalsByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateUsageStats(ctx, arg)
@@ -3638,14 +3646,6 @@ func (m queryMetricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context
 	r0, r1 := m.s.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
 	m.queryLatencies.WithLabelValues("GetWorkspaceUniqueOwnerCountByTemplateIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceUniqueOwnerCountByTemplateIDs").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceUsageGroupedByTemplateIDByOwnerID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceUsageGroupedByTemplateIDByOwnerID").Inc()
 	return r0, r1
 }
 

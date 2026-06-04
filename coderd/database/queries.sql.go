@@ -34767,6 +34767,124 @@ func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]Ge
 	return items, nil
 }
 
+const getTemplateRankingSignalsByOwnerID = `-- name: GetTemplateRankingSignalsByOwnerID :many
+WITH org_usage AS (
+	-- org_usage measures how many distinct developers currently have a
+	-- non-deleted workspace on each template. The prebuilds system user is
+	-- excluded so unclaimed prebuilds do not inflate popularity.
+	SELECT
+		w.template_id,
+		COUNT(DISTINCT w.owner_id) AS org_devs
+	FROM
+		workspaces w
+	WHERE
+		w.template_id = ANY($1 :: uuid[])
+		AND NOT w.deleted
+		AND w.owner_id != $2 :: uuid
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+),
+user_usage AS (
+	-- user_usage counts workspaces owned by the requesting user within the
+	-- lookback window, splitting active from recently deleted so deleted
+	-- history can be counted at reduced weight. The window is keyed on
+	-- last_used_at.
+	SELECT
+		w.template_id,
+		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
+		COUNT(*) FILTER (WHERE w.deleted) AS deleted_recent_count,
+		MAX(w.last_used_at) :: timestamptz AS last_used_at
+	FROM
+		workspaces w
+	WHERE
+		w.owner_id = $4
+		AND w.template_id = ANY($1 :: uuid[])
+		AND w.last_used_at > $5 :: timestamptz
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+)
+SELECT
+	t.template_id :: uuid AS template_id,
+	COALESCE(u.active_count, 0) :: bigint AS active_count,
+	COALESCE(u.deleted_recent_count, 0) :: bigint AS deleted_recent_count,
+	u.last_used_at,
+	COALESCE(o.org_devs, 0) :: bigint AS org_devs
+FROM
+	unnest($1 :: uuid[]) AS t(template_id)
+LEFT JOIN user_usage u ON u.template_id = t.template_id
+LEFT JOIN org_usage o ON o.template_id = t.template_id
+`
+
+type GetTemplateRankingSignalsByOwnerIDParams struct {
+	TemplateIDs     []uuid.UUID `db:"template_ids" json:"template_ids"`
+	PrebuildsUserID uuid.UUID   `db:"prebuilds_user_id" json:"prebuilds_user_id"`
+	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID   `db:"owner_id" json:"owner_id"`
+	LookbackCutoff  time.Time   `db:"lookback_cutoff" json:"lookback_cutoff"`
+}
+
+type GetTemplateRankingSignalsByOwnerIDRow struct {
+	TemplateID         uuid.UUID    `db:"template_id" json:"template_id"`
+	ActiveCount        int64        `db:"active_count" json:"active_count"`
+	DeletedRecentCount int64        `db:"deleted_recent_count" json:"deleted_recent_count"`
+	LastUsedAt         sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	OrgDevs            int64        `db:"org_devs" json:"org_devs"`
+}
+
+// GetTemplateRankingSignalsByOwnerID returns the raw ranking signals for the
+// given templates relative to a single owner: how many active and recently
+// deleted workspaces the owner used within the lookback window, when the
+// template was last used, and how many distinct developers in the organization
+// currently have a non-deleted workspace on it. The affinity score itself is
+// computed in Go (see listtemplates.go); the parameterized recency-decay math
+// cannot be expressed through sqlc reliably, so this query returns the exact
+// raw signals the score is built from. The lookback window is applied with a
+// caller-computed cutoff timestamp.
+func (q *sqlQuerier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateRankingSignalsByOwnerID,
+		pq.Array(arg.TemplateIDs),
+		arg.PrebuildsUserID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.LookbackCutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateRankingSignalsByOwnerIDRow
+	for rows.Next() {
+		var i GetTemplateRankingSignalsByOwnerIDRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.ActiveCount,
+			&i.DeletedRecentCount,
+			&i.LastUsedAt,
+			&i.OrgDevs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one
 SELECT
 	group_acl as groups,
@@ -35133,60 +35251,6 @@ func (q *sqlQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Conte
 	for rows.Next() {
 		var i GetWorkspaceUniqueOwnerCountByTemplateIDsRow
 		if err := rows.Scan(&i.TemplateID, &i.UniqueOwnersSum); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWorkspaceUsageGroupedByTemplateIDByOwnerID = `-- name: GetWorkspaceUsageGroupedByTemplateIDByOwnerID :many
-SELECT
-	template_id,
-	COUNT(*) AS workspace_count,
-	MAX(last_used_at)::timestamptz AS last_used_at
-FROM
-	workspaces
-WHERE
-	owner_id = $1
-	AND deleted = false
-	AND CASE
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			organization_id = $2
-		ELSE true
-	END
-	AND template_id = ANY($3 :: uuid[])
-GROUP BY template_id
-`
-
-type GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams struct {
-	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
-	TemplateIDs    []uuid.UUID `db:"template_ids" json:"template_ids"`
-}
-
-type GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow struct {
-	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
-	WorkspaceCount int64     `db:"workspace_count" json:"workspace_count"`
-	LastUsedAt     time.Time `db:"last_used_at" json:"last_used_at"`
-}
-
-func (q *sqlQuerier) GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx context.Context, arg GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams) ([]GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceUsageGroupedByTemplateIDByOwnerID, arg.OwnerID, arg.OrganizationID, pq.Array(arg.TemplateIDs))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow
-	for rows.Next() {
-		var i GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow
-		if err := rows.Scan(&i.TemplateID, &i.WorkspaceCount, &i.LastUsedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

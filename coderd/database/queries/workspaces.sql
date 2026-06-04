@@ -497,23 +497,71 @@ LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.del
 WHERE templates.id = ANY(@template_ids :: uuid[])
 GROUP BY templates.id;
 
--- name: GetWorkspaceUsageGroupedByTemplateIDByOwnerID :many
+-- name: GetTemplateRankingSignalsByOwnerID :many
+-- GetTemplateRankingSignalsByOwnerID returns the raw ranking signals for the
+-- given templates relative to a single owner: how many active and recently
+-- deleted workspaces the owner used within the lookback window, when the
+-- template was last used, and how many distinct developers in the organization
+-- currently have a non-deleted workspace on it. The affinity score itself is
+-- computed in Go (see listtemplates.go); the parameterized recency-decay math
+-- cannot be expressed through sqlc reliably, so this query returns the exact
+-- raw signals the score is built from. The lookback window is applied with a
+-- caller-computed cutoff timestamp.
+WITH org_usage AS (
+	-- org_usage measures how many distinct developers currently have a
+	-- non-deleted workspace on each template. The prebuilds system user is
+	-- excluded so unclaimed prebuilds do not inflate popularity.
+	SELECT
+		w.template_id,
+		COUNT(DISTINCT w.owner_id) AS org_devs
+	FROM
+		workspaces w
+	WHERE
+		w.template_id = ANY(@template_ids :: uuid[])
+		AND NOT w.deleted
+		AND w.owner_id != @prebuilds_user_id :: uuid
+		AND CASE
+			WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = @organization_id
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+),
+user_usage AS (
+	-- user_usage counts workspaces owned by the requesting user within the
+	-- lookback window, splitting active from recently deleted so deleted
+	-- history can be counted at reduced weight. The window is keyed on
+	-- last_used_at.
+	SELECT
+		w.template_id,
+		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
+		COUNT(*) FILTER (WHERE w.deleted) AS deleted_recent_count,
+		MAX(w.last_used_at) :: timestamptz AS last_used_at
+	FROM
+		workspaces w
+	WHERE
+		w.owner_id = @owner_id
+		AND w.template_id = ANY(@template_ids :: uuid[])
+		AND w.last_used_at > @lookback_cutoff :: timestamptz
+		AND CASE
+			WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = @organization_id
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+)
 SELECT
-	template_id,
-	COUNT(*) AS workspace_count,
-	MAX(last_used_at)::timestamptz AS last_used_at
+	t.template_id :: uuid AS template_id,
+	COALESCE(u.active_count, 0) :: bigint AS active_count,
+	COALESCE(u.deleted_recent_count, 0) :: bigint AS deleted_recent_count,
+	u.last_used_at,
+	COALESCE(o.org_devs, 0) :: bigint AS org_devs
 FROM
-	workspaces
-WHERE
-	owner_id = @owner_id
-	AND deleted = false
-	AND CASE
-		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			organization_id = @organization_id
-		ELSE true
-	END
-	AND template_id = ANY(@template_ids :: uuid[])
-GROUP BY template_id;
+	unnest(@template_ids :: uuid[]) AS t(template_id)
+LEFT JOIN user_usage u ON u.template_id = t.template_id
+LEFT JOIN org_usage o ON o.template_id = t.template_id;
 
 -- name: InsertWorkspace :one
 INSERT INTO

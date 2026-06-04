@@ -4362,6 +4362,33 @@ func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateI
 	return q.db.GetTemplatePresetsWithPrebuilds(ctx, templateID)
 }
 
+func (q *querier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg database.GetTemplateRankingSignalsByOwnerIDParams) ([]database.GetTemplateRankingSignalsByOwnerIDRow, error) {
+	// The personal frecency signal reads the owner's own workspaces, which a
+	// user can always read.
+	workspaceObj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String())
+	if arg.OrganizationID != uuid.Nil {
+		workspaceObj = workspaceObj.InOrg(arg.OrganizationID)
+	} else {
+		workspaceObj = workspaceObj.AnyOrganization()
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspaceObj); err != nil {
+		return nil, err
+	}
+	// The org-popularity signal is a cross-user COUNT(DISTINCT owner_id) that we
+	// treat as template popularity metadata, not as permission to read other
+	// users' workspaces. Callers only ever pass template IDs already authorized
+	// via GetTemplatesWithFilter, so a template read check is the minimal,
+	// intentional authorization here instead of a system escalation.
+	templateObj := rbac.ResourceTemplate.AnyOrganization()
+	if arg.OrganizationID != uuid.Nil {
+		templateObj = rbac.ResourceTemplate.InOrg(arg.OrganizationID)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, templateObj); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateRankingSignalsByOwnerID(ctx, arg)
+}
+
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -5392,19 +5419,6 @@ func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context,
 		return nil, err
 	}
 	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
-}
-
-func (q *querier) GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow, error) {
-	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String())
-	if arg.OrganizationID != uuid.Nil {
-		obj = obj.InOrg(arg.OrganizationID)
-	} else {
-		obj = obj.AnyOrganization()
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, arg)
 }
 
 func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {

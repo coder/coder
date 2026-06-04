@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -24,10 +25,54 @@ import (
 const (
 	listTemplatesPageSize = 10
 
-	listTemplatesMinPersonalWorkspacesForRecommendation = 2
-	listTemplatesMinActiveDevelopersForRecommendation   = 2
-	listTemplatesRecentUsageWindow                      = 90 * 24 * time.Hour
+	// listTemplatesMinActiveDevelopersForRecommendation is the organization
+	// popularity floor: a template needs at least this many active developers
+	// before organization popularity on its own is a confident recommendation.
+	listTemplatesMinActiveDevelopersForRecommendation = 2
+
+	// The following constants parameterize the affinity score, a "frecency"
+	// signal (frequency discounted by recency). The personal term is the count
+	// of the user's recent workspaces (active plus a fraction of
+	// recently-deleted) multiplied by a recency decay; the organization term is
+	// a log-scaled active-developer count. Only the ratio of the personal to
+	// organization weight matters. They are deliberately explicit so the
+	// ranking can be calibrated as ranking-quality signal accrues.
+	//
+	// The score is computed in Go (computeAffinityScore) rather than SQL
+	// because sqlc cannot reliably compile the parameterized decay expression;
+	// see GetTemplateRankingSignalsByOwnerID. Keeping the score and the
+	// confidence thresholds in the same place also avoids Postgres-versus-Go
+	// floating-point differences at confidence boundaries.
+	listTemplatesLookbackDays   = 60
+	listTemplatesHalfLife       = 14 * 24 * time.Hour
+	listTemplatesPersonalWeight = 10.0
+	listTemplatesOrgWeight      = 1.0
+	listTemplatesDeletedWeight  = 0.5
 )
+
+var (
+	// minConfidentAffinityScore preserves today's floor: organization
+	// popularity alone is confident once a template reaches the active-developer
+	// minimum. math.Log1p(n) == ln(1+n) is exactly the organization term of the
+	// affinity score, so the threshold and the score stay float-consistent.
+	minConfidentAffinityScore = listTemplatesOrgWeight * math.Log1p(listTemplatesMinActiveDevelopersForRecommendation)
+
+	// minConfidentGap requires rank 1 to lead rank 2 by at least the score
+	// difference between "min" and "min-1" active developers before
+	// recommending when both clear the floor. It is derived, not tuned, so
+	// "2 developers versus 1" still recommends while "16 versus 15" does not.
+	minConfidentGap = listTemplatesOrgWeight * (math.Log1p(listTemplatesMinActiveDevelopersForRecommendation) - math.Log1p(listTemplatesMinActiveDevelopersForRecommendation-1))
+)
+
+// affinityScoreEpsilon absorbs floating-point rounding so a score sitting
+// exactly on a threshold boundary counts as meeting it.
+const affinityScoreEpsilon = 1e-9
+
+// affinityScoreAtLeast reports whether score meets threshold within the
+// comparison epsilon.
+func affinityScoreAtLeast(score, threshold float64) bool {
+	return score >= threshold-affinityScoreEpsilon
+}
 
 const (
 	listTemplatesHintOnlyAvailable  = "only_available_template"
@@ -57,32 +102,30 @@ type listTemplatesArgs struct {
 }
 
 type rankedTemplate struct {
-	Template         database.Template
-	QueryScore       int
-	ActiveDevelopers int64
-	Usage            templateUsage
-	Rank             int
+	Template      database.Template
+	QueryScore    int
+	Signals       templateRankingSignals
+	AffinityScore float64
+	Rank          int
 }
 
-type templateUsage struct {
-	WorkspaceCount int64
-	LastUsedAt     time.Time
+// templateRankingSignals holds the raw, per-template ranking inputs returned by
+// GetTemplateRankingSignalsByOwnerID. ActiveCount and DeletedRecentCount are the
+// user's in-window workspace counts; LastUsedAt is the most recent usage within
+// the window (zero when there is none); OrgDevs is the count of distinct active
+// developers in the organization.
+type templateRankingSignals struct {
+	ActiveCount        int64
+	DeletedRecentCount int64
+	LastUsedAt         time.Time
+	OrgDevs            int64
 }
 
-type templateRankSignals struct {
-	QueryScore         int
-	WorkspaceCount     int64
-	LastUsedAtUnixNano int64
-	ActiveDevelopers   int64
-}
-
-type templateRankingSignalErrors struct {
-	ActiveDeveloperCounts error
-	Usage                 error
-}
-
-func (e templateRankingSignalErrors) hasAny() bool {
-	return e.ActiveDeveloperCounts != nil || e.Usage != nil
+// hasPersonalUsage reports whether the user used the template within the
+// lookback window, counting recently-deleted workspaces so deleted history is
+// still treated as personal usage.
+func (s templateRankingSignals) hasPersonalUsage() bool {
+	return s.ActiveCount+s.DeletedRecentCount > 0
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
@@ -145,39 +188,29 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			for i, t := range ranked {
 				templateIDs[i] = t.Template.ID
 			}
-			ownerCounts, ownerCountsErr := loadTemplateActiveDeveloperCounts(ctx, db, templateIDs)
-			if ownerCountsErr != nil {
-				options.Logger.Warn(ctx, "failed to load template active developer counts",
-					slog.F("template_count", len(templateIDs)),
-					slog.Error(ownerCountsErr),
-				)
-			}
-			usageByTemplate, usageErr := loadTemplateUsage(
-				ctx, db, options.OwnerID, organizationID, templateIDs,
+			now := clock.Now()
+			signalsByTemplate, signalsErr := loadTemplateRankingSignals(
+				ctx, db, options.OwnerID, organizationID, templateIDs, now,
 			)
-			if usageErr != nil {
-				options.Logger.Warn(ctx, "failed to load template usage",
+			if signalsErr != nil {
+				options.Logger.Warn(ctx, "failed to load template ranking signals",
 					slog.F("owner_id", options.OwnerID),
 					slog.F("organization_id", organizationID),
 					slog.F("template_count", len(templateIDs)),
-					slog.Error(usageErr),
+					slog.Error(signalsErr),
 				)
 			}
 
 			for i := range ranked {
-				ranked[i].ActiveDevelopers = ownerCounts[ranked[i].Template.ID]
-				ranked[i].Usage = usageByTemplate[ranked[i].Template.ID]
+				ranked[i].Signals = signalsByTemplate[ranked[i].Template.ID]
+				ranked[i].AffinityScore = computeAffinityScore(ranked[i].Signals, now)
 			}
 
 			rankTemplates(ranked, query)
 			selectionHint, recommendedID, recommendationReason := selectTemplateRecommendation(
 				ranked,
 				visibleTemplateCount,
-				templateRankingSignalErrors{
-					ActiveDeveloperCounts: ownerCountsErr,
-					Usage:                 usageErr,
-				},
-				clock.Now(),
+				signalsErr,
 			)
 
 			// Paginate.
@@ -239,65 +272,78 @@ func scoreTemplateCandidates(templates []database.Template, query string) []rank
 	return candidates
 }
 
-func loadTemplateActiveDeveloperCounts(
-	ctx context.Context,
-	db database.Store,
-	templateIDs []uuid.UUID,
-) (map[uuid.UUID]int64, error) {
-	ownerCounts := make(map[uuid.UUID]int64)
-	if len(templateIDs) == 0 {
-		return ownerCounts, nil
-	}
-
-	// Templates are already filtered with the owner's permissions. The
-	// aggregate count query requires system read because it spans workspace
-	// owners, but it only receives IDs the owner can already see.
-	rows, err := db.GetWorkspaceUniqueOwnerCountByTemplateIDs(dbauthz.AsSystemRestricted(ctx), templateIDs) //nolint:gocritic // see above
-	if err != nil {
-		return ownerCounts, err
-	}
-	for _, row := range rows {
-		ownerCounts[row.TemplateID] = row.UniqueOwnersSum
-	}
-	return ownerCounts, nil
-}
-
-func loadTemplateUsage(
+func loadTemplateRankingSignals(
 	ctx context.Context,
 	db database.Store,
 	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	templateIDs []uuid.UUID,
-) (map[uuid.UUID]templateUsage, error) {
-	usageByTemplate := make(map[uuid.UUID]templateUsage)
-	if ownerID == uuid.Nil || len(templateIDs) == 0 {
-		return usageByTemplate, nil
+	now time.Time,
+) (map[uuid.UUID]templateRankingSignals, error) {
+	signals := make(map[uuid.UUID]templateRankingSignals)
+	if len(templateIDs) == 0 {
+		return signals, nil
 	}
 
-	rows, err := db.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams{
-		OwnerID:        ownerID,
-		OrganizationID: organizationID,
-		TemplateIDs:    templateIDs,
+	// The templates were already authorized with the owner's permissions by
+	// GetTemplatesWithFilter. GetTemplateRankingSignalsByOwnerID authorizes the
+	// owner reading their own workspaces plus a template-metadata read for the
+	// cross-user popularity count, so no system escalation is needed here.
+	rows, err := db.GetTemplateRankingSignalsByOwnerID(ctx, database.GetTemplateRankingSignalsByOwnerIDParams{
+		TemplateIDs:     templateIDs,
+		OwnerID:         ownerID,
+		OrganizationID:  organizationID,
+		PrebuildsUserID: database.PrebuildsSystemUserID,
+		LookbackCutoff:  now.Add(-listTemplatesLookbackDays * 24 * time.Hour),
 	})
 	if err != nil {
-		return usageByTemplate, err
+		return signals, err
 	}
 	for _, row := range rows {
-		usageByTemplate[row.TemplateID] = templateUsage{
-			WorkspaceCount: row.WorkspaceCount,
-			LastUsedAt:     row.LastUsedAt,
+		s := templateRankingSignals{
+			ActiveCount:        row.ActiveCount,
+			DeletedRecentCount: row.DeletedRecentCount,
+			OrgDevs:            row.OrgDevs,
 		}
+		if row.LastUsedAt.Valid {
+			s.LastUsedAt = row.LastUsedAt.Time
+		}
+		signals[row.TemplateID] = s
 	}
-	return usageByTemplate, nil
+	return signals, nil
 }
 
+// computeAffinityScore folds the raw signals into a single "frecency" score:
+// the personal workspace count (active plus a fraction of recently-deleted)
+// multiplied by a recency decay, plus a log-scaled organization-popularity
+// term. When the user has no in-window usage the personal term is zero and the
+// score collapses to organization popularity.
+func computeAffinityScore(s templateRankingSignals, now time.Time) float64 {
+	personal := 0.0
+	if !s.LastUsedAt.IsZero() {
+		count := float64(s.ActiveCount) + listTemplatesDeletedWeight*float64(s.DeletedRecentCount)
+		age := now.Sub(s.LastUsedAt)
+		if age < 0 {
+			age = 0
+		}
+		decay := math.Pow(0.5, float64(age)/float64(listTemplatesHalfLife))
+		personal = listTemplatesPersonalWeight * count * decay
+	}
+	org := listTemplatesOrgWeight * math.Log1p(float64(s.OrgDevs))
+	return personal + org
+}
+
+// rankTemplates orders templates by query relevance first (only when a query is
+// present), then by affinity score, with template name and ID as deterministic
+// tiebreakers.
 func rankTemplates(ranked []rankedTemplate, query string) {
 	slices.SortStableFunc(ranked, func(a, b rankedTemplate) int {
-		if c := compareTemplateRankSignals(
-			templateRankSignalsFor(a),
-			templateRankSignalsFor(b),
-			query,
-		); c != 0 {
+		if query != "" {
+			if c := cmp.Compare(b.QueryScore, a.QueryScore); c != 0 {
+				return c
+			}
+		}
+		if c := cmp.Compare(b.AffinityScore, a.AffinityScore); c != 0 {
 			return c
 		}
 		if c := cmp.Compare(a.Template.Name, b.Template.Name); c != 0 {
@@ -311,42 +357,15 @@ func rankTemplates(ranked []rankedTemplate, query string) {
 	}
 }
 
-func templateRankSignalsFor(t rankedTemplate) templateRankSignals {
-	return templateRankSignals{
-		QueryScore:         t.QueryScore,
-		WorkspaceCount:     t.Usage.WorkspaceCount,
-		LastUsedAtUnixNano: templateRankTime(t.Usage.LastUsedAt),
-		ActiveDevelopers:   t.ActiveDevelopers,
-	}
-}
-
-func templateRankTime(t time.Time) int64 {
-	if t.IsZero() {
-		return 0
-	}
-	return t.UnixNano()
-}
-
-func compareTemplateRankSignals(a, b templateRankSignals, query string) int {
-	if query != "" {
-		if c := cmp.Compare(b.QueryScore, a.QueryScore); c != 0 {
-			return c
-		}
-	}
-	if c := cmp.Compare(b.WorkspaceCount, a.WorkspaceCount); c != 0 {
-		return c
-	}
-	if c := cmp.Compare(b.LastUsedAtUnixNano, a.LastUsedAtUnixNano); c != 0 {
-		return c
-	}
-	return cmp.Compare(b.ActiveDevelopers, a.ActiveDevelopers)
-}
-
+// selectTemplateRecommendation decides whether to recommend the top-ranked
+// template or ask the user to choose. Query relevance is the primary signal: a
+// decisive query match recommends on its own. Otherwise confidence comes from
+// the affinity score, which must clear a floor and lead the runner-up by a
+// margin before recommending.
 func selectTemplateRecommendation(
 	ranked []rankedTemplate,
 	visibleTemplateCount int,
-	rankingSignalErrors templateRankingSignalErrors,
-	now time.Time,
+	rankingSignalsErr error,
 ) (string, uuid.UUID, string) {
 	if len(ranked) == 0 {
 		return listTemplatesHintNoConfidence, uuid.Nil, "no_matching_templates"
@@ -356,67 +375,46 @@ func selectTemplateRecommendation(
 	if visibleTemplateCount == 1 && len(ranked) == 1 {
 		return listTemplatesHintOnlyAvailable, top.Template.ID, "only_available_template"
 	}
-	if rankingSignalErrors.hasAny() {
-		if templateHasDecisiveQuerySignal(ranked) {
-			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
-		}
-		if rankingSignalErrors.Usage == nil &&
-			templateHasConfidentPersonalUsageSignal(top, now) &&
-			(len(ranked) == 1 || !templatesAreAmbiguous(top, ranked[1])) {
-			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
-		}
+
+	// A decisive query match (strictly outscoring the runner-up, or the only
+	// match) is a confident recommendation on its own, even when the affinity
+	// signals failed to load.
+	if top.QueryScore > 0 && (len(ranked) == 1 || top.QueryScore > ranked[1].QueryScore) {
+		return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
+	}
+
+	// Without a decisive query tier the affinity score decides confidence, so an
+	// unreliable (failed) signal load means we must ask the user.
+	if rankingSignalsErr != nil {
 		return listTemplatesHintNoConfidence, uuid.Nil, "ranking_signals_unavailable"
 	}
-	if !templateHasRankingSignal(top) {
-		return listTemplatesHintNoConfidence, uuid.Nil, "no_ranking_signal"
-	}
-	if len(ranked) > 1 && templatesAreAmbiguous(top, ranked[1]) {
+
+	// Query present but the top two tie on relevance: break the tie with the
+	// affinity score when the gap is clear, otherwise ask the user.
+	if top.QueryScore > 0 {
+		if len(ranked) > 1 && affinityScoreAtLeast(top.AffinityScore-ranked[1].AffinityScore, minConfidentGap) {
+			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
+		}
 		return listTemplatesHintAmbiguous, uuid.Nil, "top_templates_are_ambiguous"
 	}
-	if !templateHasConfidentRankingSignal(top, now) {
+
+	// No query: recommend purely on the affinity score.
+	if !affinityScoreAtLeast(top.AffinityScore, minConfidentAffinityScore) {
+		if top.AffinityScore <= 0 {
+			return listTemplatesHintNoConfidence, uuid.Nil, "no_ranking_signal"
+		}
 		return listTemplatesHintNoConfidence, uuid.Nil, "weak_ranking_signal"
+	}
+	if len(ranked) > 1 &&
+		affinityScoreAtLeast(ranked[1].AffinityScore, minConfidentAffinityScore) &&
+		!affinityScoreAtLeast(top.AffinityScore-ranked[1].AffinityScore, minConfidentGap) {
+		return listTemplatesHintAmbiguous, uuid.Nil, "top_templates_are_ambiguous"
 	}
 	return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
 }
 
 func userSelectionRequired(selectionHint string) bool {
 	return selectionHint == listTemplatesHintAmbiguous || selectionHint == listTemplatesHintNoConfidence
-}
-
-func templatesAreAmbiguous(a, b rankedTemplate) bool {
-	return templateRankSignalsFor(a) == templateRankSignalsFor(b)
-}
-
-func templateHasRankingSignal(t rankedTemplate) bool {
-	signals := templateRankSignalsFor(t)
-	return signals.QueryScore > 0 || signals.WorkspaceCount > 0 || signals.ActiveDevelopers > 0
-}
-
-func templateHasDecisiveQuerySignal(ranked []rankedTemplate) bool {
-	if len(ranked) == 0 || ranked[0].QueryScore == 0 {
-		return false
-	}
-	return len(ranked) == 1 || ranked[0].QueryScore > ranked[1].QueryScore
-}
-
-func templateHasConfidentPersonalUsageSignal(t rankedTemplate, now time.Time) bool {
-	if t.Usage.WorkspaceCount >= listTemplatesMinPersonalWorkspacesForRecommendation {
-		return true
-	}
-	return t.Usage.WorkspaceCount > 0 &&
-		!t.Usage.LastUsedAt.IsZero() &&
-		now.Sub(t.Usage.LastUsedAt) <= listTemplatesRecentUsageWindow
-}
-
-func templateHasConfidentRankingSignal(t rankedTemplate, now time.Time) bool {
-	signals := templateRankSignalsFor(t)
-	if signals.QueryScore > 0 {
-		return true
-	}
-	if templateHasConfidentPersonalUsageSignal(t, now) {
-		return true
-	}
-	return signals.ActiveDevelopers >= listTemplatesMinActiveDevelopersForRecommendation
 }
 
 func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
@@ -433,12 +431,16 @@ func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
 	if desc := strings.TrimSpace(t.Template.Description); desc != "" {
 		item["description"] = truncateRunes(desc, 200)
 	}
-	if t.ActiveDevelopers > 0 {
-		item["active_developers"] = t.ActiveDevelopers
+	if t.Signals.OrgDevs > 0 {
+		item["active_developers"] = t.Signals.OrgDevs
 	}
-	if t.Usage.WorkspaceCount > 0 {
-		item["your_workspace_count"] = t.Usage.WorkspaceCount
-		item["last_used_by_you"] = t.Usage.LastUsedAt.Format(time.RFC3339Nano)
+	// your_workspace_count exposes only active workspaces so deleted history is
+	// not surfaced to the model, though it still contributes to the score.
+	if t.Signals.ActiveCount > 0 {
+		item["your_workspace_count"] = t.Signals.ActiveCount
+		if !t.Signals.LastUsedAt.IsZero() {
+			item["last_used_by_you"] = t.Signals.LastUsedAt.Format(time.RFC3339Nano)
+		}
 	}
 	if t.Template.ID == recommendedID {
 		item["recommended"] = true
@@ -447,15 +449,16 @@ func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
 }
 
 func relevanceSignals(t rankedTemplate) string {
-	signals := templateRankSignalsFor(t)
+	hasQuery := t.QueryScore > 0
+	hasPersonal := t.Signals.hasPersonalUsage()
 	switch {
-	case signals.QueryScore > 0 && signals.WorkspaceCount > 0:
+	case hasQuery && hasPersonal:
 		return "matches_query_and_used_by_you"
-	case signals.QueryScore > 0:
+	case hasQuery:
 		return "matches_query"
-	case signals.WorkspaceCount > 0:
+	case hasPersonal:
 		return "used_by_you"
-	case signals.ActiveDevelopers > 0:
+	case t.Signals.OrgDevs > 0:
 		return "popular_in_org"
 	default:
 		return "ordered_by_name"

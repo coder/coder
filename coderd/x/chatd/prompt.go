@@ -9,7 +9,7 @@ Do not create or start a workspace by default. Many requests can be completed us
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
 const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
+If a workspace is needed, use list_templates before create_workspace. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
 

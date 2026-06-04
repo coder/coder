@@ -343,7 +343,7 @@ func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     used.ID,
-		LastUsedAt:     time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		LastUsedAt:     time.Now().Add(-14 * 24 * time.Hour),
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
@@ -533,14 +533,17 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, oldUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
-	require.Equal(t, float64(1), templates[0]["your_workspace_count"])
+	// The 180-day-old workspace is outside the 60-day lookback window, so it no
+	// longer counts as in-window personal usage.
+	_, hasCount := templates[0]["your_workspace_count"]
+	require.False(t, hasCount)
 	require.Equal(t, "no_confident_match", result["selection_hint"])
 	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
 	_, ok := result["recommended_template_id"]
 	require.False(t, ok)
 }
 
-func TestListTemplates_PersonalUsageCountRecommendsStaleTemplate(t *testing.T) {
+func TestListTemplates_StaleFrequentPersonalUsageDoesNotRecommend(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
@@ -564,6 +567,9 @@ func TestListTemplates_PersonalUsageCountRecommendsStaleTemplate(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "unused",
 	})
+	// Two workspaces used 180 days ago. Frequency no longer dominates recency:
+	// usage outside the lookback window decays out of the personal signal, so a
+	// frequently-but-stalely-used template is no longer a confident match.
 	for range 2 {
 		dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
@@ -582,9 +588,64 @@ func TestListTemplates_PersonalUsageCountRecommendsStaleTemplate(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, staleUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
+	require.Equal(t, "no_confident_match", result["selection_hint"])
+	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
+	_, ok := result["recommended_template_id"]
+	require.False(t, ok)
+	// The stale workspaces fall outside the lookback window, so no in-window
+	// personal count is surfaced.
+	_, hasCount := templates[0]["your_workspace_count"]
+	require.False(t, hasCount)
+}
+
+func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	clock.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	recentUsage := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "recent-usage",
+	})
+	unused := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "unused",
+	})
+	// Two workspaces used two days ago. Recent, in-window usage is a confident
+	// signal: this is the frecency improvement over the old count-only ranking.
+	for range 2 {
+		dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     recentUsage.ID,
+			LastUsedAt:     now.Add(-2 * 24 * time.Hour),
+		})
+	}
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+		Clock:   clock,
+	})
+	result := runListTemplates(ctx, t, tool, `{}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, recentUsage.ID.String(), templates[0]["id"])
+	require.Equal(t, unused.ID.String(), templates[1]["id"])
 	require.Equal(t, float64(2), templates[0]["your_workspace_count"])
+	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
 	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
-	require.Equal(t, staleUsage.ID.String(), result["recommended_template_id"])
+	require.Equal(t, recentUsage.ID.String(), result["recommended_template_id"])
 }
 
 func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
@@ -809,6 +870,83 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.False(t, createCalled, "CreateFn should not be called for blocked template")
 		})
 	})
+}
+
+// TestGetTemplateRankingSignalsByOwnerID exercises the raw SQL signals query:
+// the lookback window, the active/deleted split, and excluding the prebuilds
+// system user from the organization developer count.
+func TestGetTemplateRankingSignalsByOwnerID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	now := time.Now()
+	lookbackCutoff := now.Add(-60 * 24 * time.Hour)
+
+	user := dbgen.User(t, db, database.User{})
+	otherUser := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	for _, u := range []uuid.UUID{user.ID, otherUser.ID} {
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u, OrganizationID: org.ID})
+	}
+
+	used := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "used"})
+	unused := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "unused"})
+
+	// Active, in-window workspace for the requesting user.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
+		LastUsedAt: now.Add(-2 * 24 * time.Hour),
+	})
+	// Recently-deleted, in-window workspace for the requesting user.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
+		LastUsedAt: now.Add(-3 * 24 * time.Hour), Deleted: true,
+	})
+	// Non-deleted but outside the lookback window: it must not count toward the
+	// in-window active count, though it still keeps the user in the org count.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
+		LastUsedAt: now.Add(-90 * 24 * time.Hour),
+	})
+	// Another developer's active workspace contributes to org popularity.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID: otherUser.ID, OrganizationID: org.ID, TemplateID: used.ID,
+		LastUsedAt: now.Add(-1 * 24 * time.Hour),
+	})
+	// The prebuilds system user must be excluded from the org developer count.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID: database.PrebuildsSystemUserID, OrganizationID: org.ID, TemplateID: used.ID,
+		LastUsedAt: now.Add(-1 * 24 * time.Hour),
+	})
+
+	rows, err := db.GetTemplateRankingSignalsByOwnerID(ctx, database.GetTemplateRankingSignalsByOwnerIDParams{
+		TemplateIDs:     []uuid.UUID{used.ID, unused.ID},
+		OwnerID:         user.ID,
+		OrganizationID:  org.ID,
+		PrebuildsUserID: database.PrebuildsSystemUserID,
+		LookbackCutoff:  lookbackCutoff,
+	})
+	require.NoError(t, err)
+
+	byTemplate := make(map[uuid.UUID]database.GetTemplateRankingSignalsByOwnerIDRow, len(rows))
+	for _, row := range rows {
+		byTemplate[row.TemplateID] = row
+	}
+	// The unnest LEFT JOIN returns a row for every requested template.
+	require.Len(t, byTemplate, 2)
+
+	usedRow := byTemplate[used.ID]
+	require.Equal(t, int64(1), usedRow.ActiveCount, "only the in-window active workspace counts")
+	require.Equal(t, int64(1), usedRow.DeletedRecentCount, "the in-window deleted workspace counts")
+	require.Equal(t, int64(2), usedRow.OrgDevs, "user and otherUser count; prebuilds user is excluded")
+	require.True(t, usedRow.LastUsedAt.Valid)
+
+	unusedRow := byTemplate[unused.ID]
+	require.Equal(t, int64(0), unusedRow.ActiveCount)
+	require.Equal(t, int64(0), unusedRow.DeletedRecentCount)
+	require.Equal(t, int64(0), unusedRow.OrgDevs)
+	require.False(t, unusedRow.LastUsedAt.Valid)
 }
 
 func runListTemplates(
