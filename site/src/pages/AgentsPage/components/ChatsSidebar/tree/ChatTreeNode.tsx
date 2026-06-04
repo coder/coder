@@ -14,7 +14,6 @@ import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -30,6 +29,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";

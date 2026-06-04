@@ -29,7 +29,7 @@ export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
-export type ChatListSourceFilter = "created_by_me" | "shared_with_me" | "all";
+type ChatListSourceFilter = "created_by_me" | "shared_with_me" | "all";
 
 type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;

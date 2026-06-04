@@ -368,6 +368,7 @@ func TestSharedReaderStreamChat(t *testing.T) {
 	require.False(t, persisted.LastReadMessageID.Valid)
 }
 
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestListChatsSharedScope(t *testing.T) {
 	t.Parallel()
 
