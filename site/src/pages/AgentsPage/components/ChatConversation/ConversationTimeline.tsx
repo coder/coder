@@ -3,6 +3,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -776,6 +777,7 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	hasActiveStream?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
@@ -787,6 +789,7 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		hasActiveStream = false,
 		prevUserMessageId,
 		nextUserMessageId,
 		onJumpToUserMessage,
@@ -803,6 +806,13 @@ const StickyUserMessage = memo<{
 		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+
+		// Ref so the ResizeObserver (created once in a [] effect) reads
+		// the latest streaming flag without recreating the observer.
+		const hasActiveStreamRef = useRef(hasActiveStream);
+		useEffect(() => {
+			hasActiveStreamRef.current = hasActiveStream;
+		}, [hasActiveStream]);
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -925,12 +935,15 @@ const StickyUserMessage = memo<{
 			// Re-run the visual update when the scrollable content height
 			// changes (e.g. streaming responses growing the transcript).
 			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
+			// bottom so no scroll event fires, but the content wrapper
 			// resizes and this observer catches that.
+			// During active streaming, skip resize updates so agent output
+			// doesn't bounce the pinned prompt or overlap with content.
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
+						if (hasActiveStreamRef.current) return;
 						if (contentRafId !== null) return;
 						contentRafId = requestAnimationFrame(() => {
 							contentRafId = null;
@@ -966,6 +979,16 @@ const StickyUserMessage = memo<{
 		useLayoutEffect(() => {
 			updateFnRef.current?.();
 		}, [isStuck]);
+
+		// Final position update after streaming ends to catch up with
+		// any resize updates that were suppressed while streaming.
+		const wasStreamingRef = useRef(false);
+		useLayoutEffect(() => {
+			if (wasStreamingRef.current && !hasActiveStream) {
+				updateFnRef.current?.();
+			}
+			wasStreamingRef.current = hasActiveStream;
+		}, [hasActiveStream]);
 
 		const handleEditUserMessage = onEditUserMessage
 			? (
@@ -1258,6 +1281,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hasActiveStream={Boolean(hasActiveStream)}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
