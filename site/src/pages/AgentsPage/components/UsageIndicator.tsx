@@ -6,6 +6,7 @@ import { Link } from "react-router";
 import { chatUsageLimitStatus } from "#/api/queries/chats";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
 import { workspaces } from "#/api/queries/workspaces";
+import { AnimatedNumber } from "#/components/AnimatedNumber/AnimatedNumber";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -253,7 +254,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				<span
 					className={cn("shrink-0 text-xs", getTextClassName(section.severity))}
 				>
-					{roundedPercent}%
+					<AnimatedNumber value={`${roundedPercent}%`} />
 				</span>
 			</div>
 
