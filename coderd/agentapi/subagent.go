@@ -139,6 +139,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 		}
 
+		// This read intentionally uses the SubAgentAPI authorization context so
+		// template policy is enforced from the current template row. Workspaces
+		// depend on their template remaining readable through the template ACL.
 		template, err = a.Database.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
 			return nil, xerrors.Errorf("get template by id: %w", err)
@@ -171,6 +174,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		return nil, xerrors.Errorf("insert sub agent: %w", err)
 	}
 
+	// A nil PortSharer uses the AGPL default, which permits all share levels.
 	portSharer := portsharing.DefaultPortSharer
 	if a.PortSharer != nil {
 		if loaded := a.PortSharer.Load(); loaded != nil {
@@ -221,8 +225,13 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
+			// Devcontainer customizations can come from repository changes or local
+			// edits. Clamp instead of rejecting so a too-permissive app share does
+			// not prevent the devcontainer sub-agent from starting.
 			if err := portSharer.AuthorizedLevel(template, codersdk.WorkspaceAgentPortShareLevel(sharingLevel)); err != nil {
-				a.Log.Warn(ctx, "clamping workspace app sharing level to template max port sharing level",
+				a.Log.Warn(ctx, "clamping sub-agent app sharing level to template max port sharing level",
+					slog.F("sub_agent_name", subAgent.Name),
+					slog.F("sub_agent_id", subAgent.ID),
 					slog.F("app_slug", slug),
 					slog.F("requested_share_level", sharingLevel),
 					slog.F("max_port_share_level", template.MaxPortSharingLevel),

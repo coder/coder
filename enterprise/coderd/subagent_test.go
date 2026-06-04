@@ -46,7 +46,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 		expectedStoredApps []expectedApp
 	}{
 		{
-			name:              "AuthenticatedClampsOrganizationAndPublic",
+			name:              "AuthenticatedClampsPublicOnly",
 			maxPortShareLevel: database.AppSharingLevelAuthenticated,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -248,7 +248,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			})
 
 			for i, expectedApp := range tt.expectedStoredApps {
-				require.True(t, strings.HasSuffix((*upsertedApps)[i].Slug, expectedApp.slugSuffix))
+				require.Equal(t, expectedApp.slugSuffix, appSlugSuffix((*upsertedApps)[i].Slug))
 				require.Equal(t, expectedApp.sharingLevel, (*upsertedApps)[i].SharingLevel)
 			}
 		})
@@ -368,9 +368,9 @@ func TestDevcontainerCoderAppShareClampedByTemplateMaxPortShareLevel(t *testing.
 	slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
 		return cmp.Compare(appSlugSuffix(a.Slug), appSlugSuffix(b.Slug))
 	})
-	require.True(t, strings.HasSuffix(apps[0].Slug, "-owner-app"))
+	require.Equal(t, "-owner-app", appSlugSuffix(apps[0].Slug))
 	require.Equal(t, database.AppSharingLevelOwner, apps[0].SharingLevel)
-	require.True(t, strings.HasSuffix(apps[1].Slug, "-public-app"))
+	require.Equal(t, "-public-app", appSlugSuffix(apps[1].Slug))
 	require.Equal(t, database.AppSharingLevelAuthenticated, apps[1].SharingLevel)
 }
 
