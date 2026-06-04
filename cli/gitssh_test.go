@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -194,7 +193,6 @@ func TestGitSSH(t *testing.T) {
 		}, "\n")), 0o600)
 		require.NoError(t, err)
 
-		pty := ptytest.New(t)
 		cmdArgs := []string{
 			"gitssh",
 			"--agent-url", client.SDK.URL.String(),
@@ -205,8 +203,6 @@ func TestGitSSH(t *testing.T) {
 		}
 		// Test authentication via local private key.
 		inv, _ := clitest.New(t, cmdArgs...)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
 		// This occasionally times out at 15s on Windows CI runners. Use a
 		// longer timeout to reduce flakes.
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -225,8 +221,6 @@ func TestGitSSH(t *testing.T) {
 
 		// With the local file deleted, the coder key should be used.
 		inv, _ = clitest.New(t, cmdArgs...)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
 		// This occasionally times out at 15s on Windows CI runners. Use a
 		// longer timeout to reduce flakes.
 		ctx = testutil.Context(t, testutil.WaitSuperLong) // Reset context for second cmd test.

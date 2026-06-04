@@ -2117,7 +2117,7 @@ export const SettingsUserAgentsNonAdmin: Story = {
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
 		expect(
-			canvas.queryByRole("link", { name: "Manage Agents" }),
+			canvas.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -2192,7 +2192,7 @@ export const SettingsUserAgentsAdmin: Story = {
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
 		expect(
-			canvas.getByRole("link", { name: "Manage Agents" }),
+			canvas.getByRole("link", { name: "Manage agents" }),
 		).toBeInTheDocument();
 	},
 };
@@ -2212,7 +2212,7 @@ export const SettingsAdminAgentsEntryPreserved: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(canvas.getByText("Manage Agents")).toBeInTheDocument();
+		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
 	},
 };
 

@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -72,11 +71,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyA)),
 		"--yes",
 	)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
@@ -95,11 +91,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--old-keys", base64.StdEncoding.EncodeToString([]byte(keyA)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher B.
 	for _, usr := range users {
@@ -137,11 +130,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--keys", base64.StdEncoding.EncodeToString([]byte(keyB)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that both keys have been revoked.
 	keys, err = db.GetDBCryptKeys(ctx)
@@ -167,12 +157,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyC)),
 		"--yes",
 	)
-
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher C.
 	for _, usr := range users {
@@ -186,11 +172,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyC)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Assert that no user links remain.
 	for _, usr := range users {
@@ -204,6 +187,12 @@ func TestServerDBCrypt(t *testing.T) {
 		userSecrets, err := db.ListUserSecretsWithValues(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user secrets for user %s", usr.ID)
 		require.Empty(t, userSecrets)
+
+		// gitsshkey rows are preserved so the user can regenerate; only the ciphertext is wiped.
+		sshKey, err := db.GetGitSSHKey(ctx, usr.ID)
+		require.NoError(t, err, "expected gitsshkey row to remain for user %s", usr.ID)
+		require.Empty(t, sshKey.PrivateKey, "expected private_key to be cleared for user %s", usr.ID)
+		require.False(t, sshKey.PrivateKeyKeyID.Valid, "expected private_key_key_id to be cleared for user %s", usr.ID)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -244,6 +233,13 @@ func genData(t *testing.T, db database.Store) []database.User {
 				_ = dbgen.AIProviderKey(t, db, database.AIProviderKey{
 					ProviderID: provider.ID,
 					APIKey:     "provider-key-" + usr.ID.String(),
+				})
+				// gitsshkeys are not removed by the user soft-delete trigger,
+				// so seed one for every user including deleted ones.
+				_ = dbgen.GitSSHKey(t, db, database.GitSSHKey{
+					UserID:     usr.ID,
+					PrivateKey: "private-" + usr.ID.String(),
+					PublicKey:  "public-" + usr.ID.String(),
 				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
@@ -324,6 +320,13 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 		requireEncryptedEquals(t, c, "value-"+userID.String(), s.Value)
 		require.Equal(t, c.HexDigest(), s.ValueKeyID.String)
 	}
+
+	sshKey, err := db.GetGitSSHKey(ctx, userID)
+	require.NoError(t, err, "failed to get gitsshkey for user %s", userID)
+	requireEncryptedEquals(t, c, "private-"+userID.String(), sshKey.PrivateKey)
+	require.Equal(t, c.HexDigest(), sshKey.PrivateKeyKeyID.String)
+	// Public key is never encrypted.
+	require.Equal(t, "public-"+userID.String(), sshKey.PublicKey)
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,

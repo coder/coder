@@ -3415,8 +3415,9 @@ func TestReinit(t *testing.T) {
 			triedToSubscribe: make(chan string),
 		}
 		client := coderdtest.New(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   &pubsubSpy,
+			Database:          db,
+			Pubsub:            &pubsubSpy,
+			ReplicaSyncPubsub: ps.(*pubsub.PGPubsub),
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 

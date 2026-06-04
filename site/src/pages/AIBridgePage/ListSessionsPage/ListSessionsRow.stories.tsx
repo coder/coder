@@ -30,6 +30,33 @@ export const Default: Story = {
 	},
 };
 
+export const SingleProvider: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: ["anthropic"],
+		},
+	},
+};
+
+export const MultipleProviders: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: ["anthropic", "openai", "copilot"],
+		},
+	},
+};
+
+export const EmptyProviders: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: [],
+		},
+	},
+};
+
 export const NullClient: Story = {
 	args: {
 		session: { ...MockSession, client: null },

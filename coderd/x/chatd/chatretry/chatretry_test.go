@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestIsRetryableDelegatesToClassification(t *testing.T) {
@@ -160,6 +161,130 @@ func TestRetry_MultipleTransientThenSuccess(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, 4, calls)
+}
+
+func TestRetry_ContextCanceledStatus500ThenSuccess(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls == 1 {
+			return xerrors.Errorf("received status 500 from upstream: %w", context.Canceled)
+		}
+		return nil
+	}, nil)
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+}
+
+func TestRetry_ContextCanceledNonRetryableDoesNotWrapAsTransportReset(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantKind   codersdk.ChatErrorKind
+		wantStatus int
+	}{
+		{
+			name:       "Status401",
+			err:        xerrors.Errorf("received status 401 from upstream: %w", context.Canceled),
+			wantKind:   codersdk.ChatErrorKindAuth,
+			wantStatus: 401,
+		},
+		{
+			name:     "QuotaNoStatus",
+			err:      xerrors.Errorf("insufficient_quota: %w", context.Canceled),
+			wantKind: codersdk.ChatErrorKindUsageLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := 0
+			err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+				calls++
+				return tt.err
+			}, nil)
+			require.Error(t, err)
+			require.ErrorIs(t, err, context.Canceled)
+			require.NotErrorIs(t, err, chaterror.ErrProviderTransportReset)
+			require.Equal(t, 1, calls)
+			classified := chaterror.Classify(err)
+			require.Equal(t, tt.wantKind, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Equal(t, tt.wantStatus, classified.StatusCode)
+		})
+	}
+}
+
+func TestRetry_ContextCanceledFromAttemptWithHealthyParentRetries(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	var retryErr error
+	var retryClassified chatretry.ClassifiedError
+	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls == 1 {
+			return context.Canceled
+		}
+		return nil
+	}, func(
+		_ int,
+		err error,
+		classified chatretry.ClassifiedError,
+		_ time.Duration,
+	) {
+		retryErr = err
+		retryClassified = classified
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, calls)
+	require.ErrorIs(t, retryErr, chaterror.ErrProviderTransportReset)
+	require.ErrorIs(t, retryErr, context.Canceled)
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "The AI provider is temporarily unavailable.",
+		Kind:       codersdk.ChatErrorKindTimeout,
+		Retryable:  true,
+		StatusCode: 0,
+	}, retryClassified)
+}
+
+func TestRetry_ContextCanceledFromParentDoesNotRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	calls := 0
+	err := chatretry.Retry(ctx, func(_ context.Context) error {
+		calls++
+		cancel()
+		return context.Canceled
+	}, nil)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, chaterror.ErrProviderTransportReset)
+	require.Equal(t, 1, calls)
+}
+
+func TestRetry_ParentCancelCauseIsPreserved(t *testing.T) {
+	t.Parallel()
+
+	cause := xerrors.New("retry parent stopped")
+	ctx, cancel := context.WithCancelCause(context.Background())
+
+	calls := 0
+	err := chatretry.Retry(ctx, func(_ context.Context) error {
+		calls++
+		cancel(cause)
+		return context.Canceled
+	}, nil)
+	require.ErrorIs(t, err, cause)
+	require.NotErrorIs(t, err, chaterror.ErrProviderTransportReset)
+	require.Equal(t, 1, calls)
 }
 
 func TestRetry_NonRetryableError(t *testing.T) {

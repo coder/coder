@@ -202,7 +202,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
-	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
+	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, api.wsWatcher, rw, r, job, after)
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -493,14 +493,15 @@ func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 }
 
 type logFollower struct {
-	ctx    context.Context
-	logger slog.Logger
-	db     database.Store
-	pubsub pubsub.Pubsub
-	r      *http.Request
-	rw     http.ResponseWriter
-	conn   *websocket.Conn
-	enc    *wsjson.Encoder[codersdk.ProvisionerJobLog]
+	ctx       context.Context
+	logger    slog.Logger
+	db        database.Store
+	pubsub    pubsub.Pubsub
+	wsWatcher *httpapi.WSWatcher
+	r         *http.Request
+	rw        http.ResponseWriter
+	conn      *websocket.Conn
+	enc       *wsjson.Encoder[codersdk.ProvisionerJobLog]
 
 	jobID         uuid.UUID
 	after         int64
@@ -511,13 +512,15 @@ type logFollower struct {
 
 func newLogFollower(
 	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
-	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
+	wsWatcher *httpapi.WSWatcher, rw http.ResponseWriter, r *http.Request,
+	job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
 		ctx:           ctx,
 		logger:        logger,
 		db:            db,
 		pubsub:        ps,
+		wsWatcher:     wsWatcher,
 		r:             r,
 		rw:            rw,
 		jobID:         job.ID,
@@ -579,26 +582,30 @@ func (f *logFollower) follow() {
 		return
 	}
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
-	go httpapi.HeartbeatClose(f.ctx, f.logger, cancel, f.conn)
+	// Do not reassign f.ctx here; the listener method reads
+	// f.ctx on the pubsub goroutine concurrently. Use a local
+	// variable instead. The watched context is a child of f.ctx,
+	// so canceling f.ctx still cascades.
+	watchCtx := f.wsWatcher.Watch(f.ctx, f.logger, f.conn)
 	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
 
 	// query for logs once right away, so we can get historical data from before
 	// subscription
-	if err := f.query(); err != nil {
-		if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+	if err := f.query(watchCtx); err != nil {
+		if watchCtx.Err() == nil && !xerrors.Is(err, io.EOF) {
 			// neither context expiry, nor EOF, close and log
-			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+			f.logger.Error(watchCtx, "failed to query logs", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
+				f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 			}
 		}
 		return
 	}
 
 	// Log the request immediately instead of after it completes.
-	if rl := loggermw.RequestLoggerFromContext(f.ctx); rl != nil {
-		rl.WriteLog(f.ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(watchCtx); rl != nil {
+		rl.WriteLog(watchCtx, http.StatusAccepted)
 	}
 
 	// no need to wait if the job is done
@@ -614,14 +621,14 @@ func (f *logFollower) follow() {
 			// We could soldier on and retry, but loss of database connectivity
 			// is fairly serious, so instead just 500 and bail out.  Client
 			// can retry and hopefully find a healthier node.
-			f.logger.Error(f.ctx, "dropped or corrupted notification", slog.Error(err))
+			f.logger.Error(watchCtx, "dropped or corrupted notification", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
+				f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 			}
 			return
-		case <-f.ctx.Done():
-			// client disconnect
+		case <-watchCtx.Done():
+			// client disconnect or probe failure
 			return
 		case n := <-f.notifications:
 			if n.EndOfLogs {
@@ -630,14 +637,14 @@ func (f *logFollower) follow() {
 				// gotten all logs prior to the start of our subscription.
 				return
 			}
-			err = f.query()
+			err = f.query(watchCtx)
 			if err != nil {
-				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+				if watchCtx.Err() == nil && !xerrors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
-					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+					f.logger.Error(watchCtx, "failed to query logs", slog.Error(err))
 					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
 					if err != nil {
-						f.logger.Warn(f.ctx, "failed to close websocket", slog.Error(err))
+						f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 					}
 				}
 				return
@@ -673,9 +680,9 @@ func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 
 // query fetches the latest job logs from the database and writes them to the
 // connection.
-func (f *logFollower) query() error {
-	f.logger.Debug(f.ctx, "querying logs", slog.F("after", f.after))
-	logs, err := f.db.GetProvisionerLogsAfterID(f.ctx, database.GetProvisionerLogsAfterIDParams{
+func (f *logFollower) query(watchCtx context.Context) error {
+	f.logger.Debug(watchCtx, "querying logs", slog.F("after", f.after))
+	logs, err := f.db.GetProvisionerLogsAfterID(watchCtx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        f.jobID,
 		CreatedAfter: f.after,
 	})
@@ -688,7 +695,7 @@ func (f *logFollower) query() error {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}
 		f.after = log.ID
-		f.logger.Debug(f.ctx, "wrote log to websocket", slog.F("id", log.ID))
+		f.logger.Debug(watchCtx, "wrote log to websocket", slog.F("id", log.ID))
 	}
 	return nil
 }

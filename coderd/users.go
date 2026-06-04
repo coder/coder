@@ -1967,11 +1967,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-			UserID:     user.ID,
-			CreatedAt:  dbtime.Now(),
-			UpdatedAt:  dbtime.Now(),
-			PrivateKey: privateKey,
-			PublicKey:  publicKey,
+			UserID:          user.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			PrivateKey:      privateKey,
+			PrivateKeyKeyID: sql.NullString{}, // dbcrypt will set as required
+			PublicKey:       publicKey,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert user gitsshkey: %w", err)

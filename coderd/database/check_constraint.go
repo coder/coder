@@ -6,6 +6,9 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAiGatewayKeysHashedSecretCheck               CheckConstraint = "ai_gateway_keys_hashed_secret_check"                 // ai_gateway_keys
+	CheckAiGatewayKeysNameCheck                       CheckConstraint = "ai_gateway_keys_name_check"                          // ai_gateway_keys
+	CheckAiGatewayKeysSecretPrefixCheck               CheckConstraint = "ai_gateway_keys_secret_prefix_check"                 // ai_gateway_keys
 	CheckAiModelPricesCacheReadPriceCheck             CheckConstraint = "ai_model_prices_cache_read_price_check"              // ai_model_prices
 	CheckAiModelPricesCacheWritePriceCheck            CheckConstraint = "ai_model_prices_cache_write_price_check"             // ai_model_prices
 	CheckAiModelPricesInputPriceCheck                 CheckConstraint = "ai_model_prices_input_price_check"                   // ai_model_prices
@@ -44,6 +47,7 @@ const (
 	CheckTelemetryLockEventTypeConstraint             CheckConstraint = "telemetry_lock_event_type_constraint"                // telemetry_locks
 	CheckValidationMonotonicOrder                     CheckConstraint = "validation_monotonic_order"                          // template_version_parameters
 	CheckUsageEventTypeCheck                          CheckConstraint = "usage_event_type_check"                              // usage_events
+	CheckUserAiBudgetOverridesSpendLimitMicrosCheck   CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"   // user_ai_budget_overrides
 	CheckUserAiProviderKeysAPIKeyCheck                CheckConstraint = "user_ai_provider_keys_api_key_check"                 // user_ai_provider_keys
 	CheckUserSkillsContentSize                        CheckConstraint = "user_skills_content_size"                            // user_skills
 	CheckUserSkillsDescriptionSize                    CheckConstraint = "user_skills_description_size"                        // user_skills

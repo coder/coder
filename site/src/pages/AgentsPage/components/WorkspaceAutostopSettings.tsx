@@ -121,7 +121,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
-						Workspace Autostop Fallback
+						Workspace autostop fallback
 					</h3>
 				</div>
 				<Switch
@@ -140,7 +140,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 				<DurationField
 					valueMs={form.values.workspace_ttl_ms}
 					onChange={handleTTLChange}
-					label="Autostop Fallback"
+					label="Autostop fallback"
 					disabled={isSavingWorkspaceTTL || isWorkspaceTTLLoading}
 					error={Boolean(fieldError)}
 					helperText={fieldError}

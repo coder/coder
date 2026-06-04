@@ -726,7 +726,7 @@ export const EmptyStateZoom200Desktop: Story = {
 		});
 
 		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Collapse sidebar" }),
 		).toBeVisible();
@@ -936,23 +936,7 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
-	if (settingsLink) {
-		await userEvent.click(settingsLink);
-		return;
-	}
-
-	const mobileMoreOptionsButton = canvas
-		.getAllByRole("button", { name: "More options" })
-		.find((button) => button.getAttribute("aria-haspopup") === "menu");
-	if (!mobileMoreOptionsButton) {
-		throw new Error("Expected a mobile More options menu button.");
-	}
-	await userEvent.click(mobileMoreOptionsButton);
-	const body = within(canvasElement.ownerDocument.body);
-	await userEvent.click(
-		await body.findByRole("menuitem", { name: "Settings" }),
-	);
+	await userEvent.click(await canvas.findByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -1030,7 +1014,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		});
 
 		expect(
-			screen.queryByRole("link", { name: "Manage Agents" }),
+			screen.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -1048,7 +1032,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 	play: async () => {
 		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage Agents" }),
+			await screen.findByRole("link", { name: "Manage agents" }),
 		);
 
 		await expect(
@@ -1075,7 +1059,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
 		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
@@ -1087,11 +1071,11 @@ export const SettingsViewResets: Story = {
 
 		// Step back to the top-level settings panel, then back to conversations.
 		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to Settings",
+			name: "Back to settings",
 		});
 		await userEvent.click(backToSettingsButton);
 		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to Agents",
+			name: "Back to agents",
 		});
 		await userEvent.click(backToAgentsButton);
 

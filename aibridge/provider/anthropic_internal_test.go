@@ -257,7 +257,9 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			setHeaders:         map[string]string{},
 			wantXApiKey:        "test-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			wantCredentialHint: "t...y",
+			// Centralized hint is empty at CreateInterceptor; set
+			// by the key failover loop during ProcessRequest.
+			wantCredentialHint: "",
 		},
 		{
 			name: "Messages_BYOK_BearerToken_And_APIKey",

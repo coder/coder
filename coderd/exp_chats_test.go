@@ -1804,13 +1804,6 @@ func TestWatchChats(t *testing.T) {
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {
 		t.Parallel()
 
-		// This test verifies that the pubsub "created" event
-		// carries a fully-populated codersdk.Chat. Exhaustive
-		// field-level coverage of the converter is handled by
-		// TestChat_AllFieldsPopulated (db2sdk) and
-		// TestChat_JSONRoundTrip (codersdk). This integration
-		// test only checks that key fields survive the full
-		// API → pubsub → websocket pipeline.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -1929,31 +1922,11 @@ func TestWatchChats(t *testing.T) {
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
 
-		// Publish the event in a goroutine that keeps retrying.
-		// When the WebSocket Dial returns, the server has completed
-		// the HTTP upgrade but may not have called SubscribeWithErr
-		// yet. If we publish only once, the message can arrive
-		// before the subscription is active and be silently dropped,
-		// causing the read loop to block until the context deadline.
-		// Re-publishing on a short ticker guarantees that at least
-		// one publish lands after the subscription is ready.
-		publishDone := make(chan struct{})
-		go func() {
-			ticker := time.NewTicker(testutil.IntervalFast)
-			defer ticker.Stop()
-			for {
-				// Publish immediately on the first iteration,
-				// then again on each tick.
-				_ = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
-				select {
-				case <-publishDone:
-					return
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-				}
-			}
-		}()
+		// A single publish is sufficient because the subscription
+		// is active before websocket.Accept (and thus before Dial
+		// returns). This serves as a regression test for the fix.
+		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
+		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
 		for {
@@ -1965,7 +1938,6 @@ func TestWatchChats(t *testing.T) {
 				break
 			}
 		}
-		close(publishDone)
 
 		// Verify the event carries the full DiffStatus.
 		require.NotNil(t, received.Chat.DiffStatus, "diff_status_change event must include DiffStatus")
@@ -3744,6 +3716,33 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
 	})
 
+	t.Run("RejectsOpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openrouter",
+			Enabled: true,
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "anthropic/claude-opus-4.6",
+			ContextLimit: &contextLimit,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
+	})
+
 	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -3821,6 +3820,108 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NotNil(t, updated.AIProviderID)
 		require.Equal(t, *modelConfig.AIProviderID, *updated.AIProviderID)
 		require.Equal(t, "gpt-4o-mini-updated", updated.Model)
+	})
+
+	t.Run("RejectsOpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openrouter",
+			Enabled: true,
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Model: "anthropic/claude-opus-4.6",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
+	})
+
+	t.Run("AllowsUnrelatedEditOnExistingMisconfiguredOpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openrouter",
+			Enabled: true,
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:     string(database.AiProviderTypeOpenai),
+			Model:        "anthropic/claude-opus-4.6",
+			AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		})
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "Existing OpenRouter Config",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Existing OpenRouter Config", updated.DisplayName)
+		require.Equal(t, modelConfig.Model, updated.Model)
+	})
+
+	t.Run("RejectsProviderChangeToMisconfiguredOpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		validProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenrouter,
+			Name:    "openrouter-valid",
+			Enabled: true,
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+		misconfiguredProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openrouter",
+			Enabled: true,
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &validProvider.ID,
+			Model:        "anthropic/claude-opus-4.6",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			AIProviderID: &misconfiguredProvider.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
 	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {

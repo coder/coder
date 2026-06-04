@@ -111,6 +111,112 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
+DELETE FROM ai_gateway_keys WHERE id = $1
+RETURNING id, name, secret_prefix, created_at, last_used_at
+`
+
+type DeleteAIGatewayKeyRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIGatewayKey, id)
+	var i DeleteAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayKey = `-- name: InsertAIGatewayKey :one
+INSERT INTO ai_gateway_keys (id, name, secret_prefix, hashed_secret, created_at)
+VALUES ($1, $4, $2, $3, NOW())
+RETURNING id, name, secret_prefix, created_at
+`
+
+type InsertAIGatewayKeyParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name         string    `db:"name" json:"name"`
+}
+
+type InsertAIGatewayKeyRow struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	Name         string    `db:"name" json:"name"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayKey,
+		arg.ID,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.Name,
+	)
+	var i InsertAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
+SELECT id, name, secret_prefix, created_at, last_used_at
+FROM ai_gateway_keys
+ORDER BY created_at ASC
+`
+
+type ListAIGatewayKeysRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIGatewayKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIGatewayKeysRow
+	for rows.Next() {
+		var i ListAIGatewayKeysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SecretPrefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
@@ -2389,20 +2495,28 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = $1::timestamptz
+	SET ended_at = $1::timestamptz,
+		-- BYOK records its hint at the start of the interception.
+		-- Centralized uses key failover, so its hint is only known
+		-- at end-of-interception.
+		credential_hint = CASE
+			WHEN credential_kind = 'centralized' THEN $2::text
+			ELSE credential_hint
+		END
 WHERE
-	id = $2::uuid
+	id = $3::uuid
 	AND ended_at IS NULL
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt time.Time `db:"ended_at" json:"ended_at"`
-	ID      uuid.UUID `db:"id" json:"id"`
+	EndedAt        time.Time `db:"ended_at" json:"ended_at"`
+	CredentialHint string    `db:"credential_hint" json:"credential_hint"`
+	ID             uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.CredentialHint, arg.ID)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,
@@ -2433,6 +2547,23 @@ func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID)
 	row := q.db.QueryRowContext(ctx, deleteGroupAIBudget, groupID)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteUserAIBudgetOverride = `-- name: DeleteUserAIBudgetOverride :one
+DELETE FROM user_ai_budget_overrides WHERE user_id = $1 RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -2478,6 +2609,25 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 	row := q.db.QueryRowContext(ctx, getGroupAIBudget, groupID)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
+SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
+FROM user_ai_budget_overrides
+WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, getUserAIBudgetOverride, userID)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -2532,6 +2682,35 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 	row := q.db.QueryRowContext(ctx, upsertGroupAIBudget, arg.GroupID, arg.SpendLimitMicros)
 	var i GroupAiBudget
 	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
+INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id) DO UPDATE SET
+	group_id           = EXCLUDED.group_id,
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
+	updated_at         = NOW()
+RETURNING user_id, group_id, spend_limit_micros, created_at, updated_at
+`
+
+type UpsertUserAIBudgetOverrideParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
+	var i UserAiBudgetOverride
+	err := row.Scan(
+		&i.UserID,
 		&i.GroupID,
 		&i.SpendLimitMicros,
 		&i.CreatedAt,
@@ -3627,7 +3806,7 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id FROM boundary_sessions WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
@@ -3639,11 +3818,12 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
-const insertBoundaryLog = `-- name: InsertBoundaryLog :one
+const insertBoundaryLogs = `-- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
@@ -3654,62 +3834,80 @@ INSERT INTO boundary_logs (
     method,
     detail,
     matched_rule
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9
-) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
+)
+SELECT
+    unnest($1 :: uuid[]),
+    $2 :: uuid,
+    unnest($3 :: int[]),
+    unnest($4 :: timestamptz[]),
+    unnest($5 :: timestamptz[]),
+    unnest($6 :: text[]),
+    unnest($7 :: text[]),
+    unnest($8 :: text[]),
+    unnest($9 :: text[])
+RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 `
 
-type InsertBoundaryLogParams struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
-	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
-	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	Proto          string         `db:"proto" json:"proto"`
-	Method         string         `db:"method" json:"method"`
-	Detail         string         `db:"detail" json:"detail"`
-	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+type InsertBoundaryLogsParams struct {
+	ID             []uuid.UUID `db:"id" json:"id"`
+	SessionID      uuid.UUID   `db:"session_id" json:"session_id"`
+	SequenceNumber []int32     `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     []time.Time `db:"captured_at" json:"captured_at"`
+	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
+	Proto          []string    `db:"proto" json:"proto"`
+	Method         []string    `db:"method" json:"method"`
+	Detail         []string    `db:"detail" json:"detail"`
+	MatchedRule    []string    `db:"matched_rule" json:"matched_rule"`
 }
 
-func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLogParams) (BoundaryLog, error) {
-	row := q.db.QueryRowContext(ctx, insertBoundaryLog,
-		arg.ID,
+func (q *sqlQuerier) InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertBoundaryLogs,
+		pq.Array(arg.ID),
 		arg.SessionID,
-		arg.SequenceNumber,
-		arg.CapturedAt,
-		arg.CreatedAt,
-		arg.Proto,
-		arg.Method,
-		arg.Detail,
-		arg.MatchedRule,
+		pq.Array(arg.SequenceNumber),
+		pq.Array(arg.CapturedAt),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Proto),
+		pq.Array(arg.Method),
+		pq.Array(arg.Detail),
+		pq.Array(arg.MatchedRule),
 	)
-	var i BoundaryLog
-	err := row.Scan(
-		&i.ID,
-		&i.SessionID,
-		&i.SequenceNumber,
-		&i.CapturedAt,
-		&i.CreatedAt,
-		&i.Proto,
-		&i.Method,
-		&i.Detail,
-		&i.MatchedRule,
-	)
-	return i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BoundaryLog
+	for rows.Next() {
+		var i BoundaryLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.SequenceNumber,
+			&i.CapturedAt,
+			&i.CreatedAt,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertBoundarySession = `-- name: InsertBoundarySession :one
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
+    owner_id,
     confined_process_name,
     started_at,
     updated_at
@@ -3718,22 +3916,25 @@ INSERT INTO boundary_sessions (
     $2,
     $3,
     $4,
-    $5
-) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
+    $5,
+    $6
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id
 `
 
 type InsertBoundarySessionParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
-	StartedAt           time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID     `db:"workspace_agent_id" json:"workspace_agent_id"`
+	OwnerID             uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	ConfinedProcessName string        `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
 	row := q.db.QueryRowContext(ctx, insertBoundarySession,
 		arg.ID,
 		arg.WorkspaceAgentID,
+		arg.OwnerID,
 		arg.ConfinedProcessName,
 		arg.StartedAt,
 		arg.UpdatedAt,
@@ -3745,6 +3946,7 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
@@ -12370,7 +12572,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 
 const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 FROM
 	gitsshkeys
 WHERE
@@ -12386,6 +12588,7 @@ func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSH
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -12397,18 +12600,20 @@ INSERT INTO
 		created_at,
 		updated_at,
 		private_key,
+		private_key_key_id,
 		public_key
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING user_id, created_at, updated_at, private_key, public_key
+	($1, $2, $3, $4, $5, $6) RETURNING user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type InsertGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
 }
 
 func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
@@ -12417,6 +12622,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.PrivateKey,
+		arg.PrivateKeyKeyID,
 		arg.PublicKey,
 	)
 	var i GitSSHKey
@@ -12426,6 +12632,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -12436,18 +12643,20 @@ UPDATE
 SET
 	updated_at = $2,
 	private_key = $3,
-	public_key = $4
+	private_key_key_id = $4,
+	public_key = $5
 WHERE
 	user_id = $1
 RETURNING
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type UpdateGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
 }
 
 func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error) {
@@ -12455,6 +12664,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		arg.UserID,
 		arg.UpdatedAt,
 		arg.PrivateKey,
+		arg.PrivateKeyKeyID,
 		arg.PublicKey,
 	)
 	var i GitSSHKey
@@ -12464,6 +12674,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }

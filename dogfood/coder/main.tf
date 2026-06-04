@@ -126,8 +126,7 @@ locals {
     // Older style option values, where the option value was just supposed to
     // be the exact name of the image on Docker hub. In practice, this is rather
     // restrictive because the image_type parameter is immutable.
-    "codercom/oss-dogfood:latest"     = "codercom/oss-dogfood:latest"
-    "codercom/oss-dogfood-nix:latest" = "codercom/oss-dogfood-nix:latest"
+    "codercom/oss-dogfood:latest" = "codercom/oss-dogfood:latest"
 
     "ubuntu-latest" = "codercom/oss-dogfood:26.04"
   }
@@ -147,11 +146,6 @@ data "coder_parameter" "image_type" {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 22.04 (Legacy)"
     value = "codercom/oss-dogfood:latest"
-  }
-  option {
-    icon  = "/icon/nix.svg"
-    name  = "Dogfood Nix (Experimental)"
-    value = "codercom/oss-dogfood-nix:latest"
   }
 }
 
@@ -277,7 +271,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -366,7 +359,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -990,10 +983,6 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
-  }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
   }
 }
 

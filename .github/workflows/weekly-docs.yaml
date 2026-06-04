@@ -14,7 +14,54 @@ permissions:
   contents: read
 
 jobs:
+  prepare-linkspector-browser:
+    # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      CHROME_BUILD_ID: "145.0.7632.77"
+    outputs:
+      browser-cache-key: ${{ steps.browser-versions.outputs.cache-key }}
+      chrome-path: ${{ steps.install-chrome.outputs.path }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node npm:@puppeteer/browsers"
+
+      - name: Get browser versions
+        id: browser-versions
+        run: |
+          set -euo pipefail
+          installer_version="$(mise current npm:@puppeteer/browsers)"
+          echo "cache-key=puppeteer-${RUNNER_OS}-${RUNNER_ARCH}-browsers-${installer_version}-chrome-${CHROME_BUILD_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Puppeteer browser cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ steps.browser-versions.outputs.cache-key }}
+
+      - name: Install Linkspector Chrome
+        id: install-chrome
+        run: |
+          set -euo pipefail
+          chrome_path="$(browsers install "chrome@${CHROME_BUILD_ID}" --path "${HOME}/.cache/puppeteer" --format '{{path}}')"
+          echo "path=${chrome_path}" >> "$GITHUB_OUTPUT"
+
   check-docs:
+    needs: prepare-linkspector-browser
     # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
     runs-on: ubuntu-22.04
     permissions:
@@ -54,10 +101,21 @@ jobs:
           corepack enable pnpm
           mkdir -p "$(pnpm store path --silent)"
 
+      - name: Restore Puppeteer browser cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ needs.prepare-linkspector-browser.outputs.browser-cache-key }}
+
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
+        uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
+        env:
+          # Use the Chrome build prepared from mise-pinned Puppeteer instead
+          # of letting linkspector download a mutable browser at runtime.
+          # See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
+          PUPPETEER_EXECUTABLE_PATH: ${{ needs.prepare-linkspector-browser.outputs.chrome-path }}
         with:
           reporter: github-pr-review
           config_file: ".github/.linkspector.yml"

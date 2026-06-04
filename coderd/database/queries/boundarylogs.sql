@@ -2,12 +2,14 @@
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
+    owner_id,
     confined_process_name,
     started_at,
     updated_at
 ) VALUES (
     @id,
     @workspace_agent_id,
+    @owner_id,
     @confined_process_name,
     @started_at,
     @updated_at
@@ -16,7 +18,7 @@ INSERT INTO boundary_sessions (
 -- name: GetBoundarySessionByID :one
 SELECT * FROM boundary_sessions WHERE id = @id;
 
--- name: InsertBoundaryLog :one
+-- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
@@ -27,17 +29,18 @@ INSERT INTO boundary_logs (
     method,
     detail,
     matched_rule
-) VALUES (
-    @id,
-    @session_id,
-    @sequence_number,
-    @captured_at,
-    @created_at,
-    @proto,
-    @method,
-    @detail,
-    @matched_rule
-) RETURNING *;
+)
+SELECT
+    unnest(@id :: uuid[]),
+    @session_id :: uuid,
+    unnest(@sequence_number :: int[]),
+    unnest(@captured_at :: timestamptz[]),
+    unnest(@created_at :: timestamptz[]),
+    unnest(@proto :: text[]),
+    unnest(@method :: text[]),
+    unnest(@detail :: text[]),
+    unnest(@matched_rule :: text[])
+RETURNING *;
 
 -- name: GetBoundaryLogByID :one
 SELECT * FROM boundary_logs WHERE id = @id;

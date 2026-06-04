@@ -24,7 +24,25 @@ import (
 // Actually testing the functionality of coder/boundary takes place in the
 // coder/boundary repo, since it's a dependency of coder.
 // Here we want to test basically that integrating it as a subcommand doesn't break anything.
-func TestBoundarySubcommand(t *testing.T) {
+func TestAgentFirewallSubcommand(t *testing.T) {
+	t.Parallel()
+
+	inv, _ := newCLI(t, "agent-firewall", "--help")
+	var buf bytes.Buffer
+	inv.Stdout = &buf
+	inv.Stderr = &buf
+
+	err := inv.Run()
+	require.NoError(t, err)
+
+	// Verify help output contains expected information.
+	// We're simply confirming that `coder agent-firewall --help` ran without a runtime error as
+	// a good chunk of serpent's self validation logic happens at runtime.
+	output := buf.String()
+	assert.Contains(t, output, boundarycli.BaseCommand("dev").Short)
+}
+
+func TestBoundaryAlias(t *testing.T) {
 	t.Parallel()
 
 	inv, _ := newCLI(t, "boundary", "--help")
@@ -35,14 +53,12 @@ func TestBoundarySubcommand(t *testing.T) {
 	err := inv.Run()
 	require.NoError(t, err)
 
-	// Verify help output contains expected information.
-	// We're simply confirming that `coder boundary --help` ran without a runtime error as
-	// a good chunk of serpents self validation logic happens at runtime.
+	// The alias should dispatch to the same command and display help.
 	output := buf.String()
 	assert.Contains(t, output, boundarycli.BaseCommand("dev").Short)
 }
 
-func TestBoundaryLicenseVerification(t *testing.T) {
+func TestAgentFirewallLicenseVerification(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EntitledAndEnabled", func(t *testing.T) {
@@ -56,13 +72,13 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 			},
 		})
 
-		inv, conf := newCLI(t, "boundary", "--version")
+		inv, conf := newCLI(t, "agent-firewall", "--version")
 		//nolint:gocritic // requires owner
 		clitest.SetupConfig(t, client, conf)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err := inv.WithContext(ctx).Run()
-		// Should succeed - boundary --version should work with valid license.
+		// Should succeed - agent-firewall --version should work with valid license.
 		require.NoError(t, err)
 	})
 
@@ -122,13 +138,13 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
-		inv, conf := newCLI(t, "boundary", "--version")
+		inv, conf := newCLI(t, "agent-firewall", "--version")
 		clitest.SetupConfig(t, proxyClient, conf)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err = inv.WithContext(ctx).Run()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "your license is not entitled to use the boundary feature")
+		require.ErrorContains(t, err, "your license is not entitled to use the agent-firewall feature")
 	})
 
 	t.Run("FeatureDisabled", func(t *testing.T) {
@@ -186,13 +202,13 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
-		inv, conf := newCLI(t, "boundary", "--version")
+		inv, conf := newCLI(t, "agent-firewall", "--version")
 		clitest.SetupConfig(t, proxyClient, conf)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err = inv.WithContext(ctx).Run()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "the boundary feature is disabled in your deployment configuration")
+		require.ErrorContains(t, err, "the agent-firewall feature is disabled in your deployment configuration")
 	})
 
 	t.Run("AGPLDeployment", func(t *testing.T) {
@@ -223,7 +239,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
-		inv, conf := newCLI(t, "boundary", "--version")
+		inv, conf := newCLI(t, "agent-firewall", "--version")
 		clitest.SetupConfig(t, proxyClient, conf)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -233,11 +249,11 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 	})
 }
 
-// TestBoundaryChildProcessSkipsCheck verifies that when CHILD=true, the license
-// check is skipped. This simulates boundary re-executing itself to run the
-// target process. We use a proxy that would fail the license check to verify
-// it's skipped.
-func TestBoundaryChildProcessSkipsCheck(t *testing.T) {
+// TestAgentFirewallChildProcessSkipsCheck verifies that when CHILD=true, the
+// license check is skipped. This simulates boundary re-executing itself to run
+// the target process. We use a proxy that would fail the license check to
+// verify it's skipped.
+func TestAgentFirewallChildProcessSkipsCheck(t *testing.T) {
 	// Cannot use t.Parallel() with t.Setenv().
 	client, _ := coderdenttest.New(t, &coderdenttest.Options{
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -290,7 +306,7 @@ func TestBoundaryChildProcessSkipsCheck(t *testing.T) {
 	proxyClient.SetSessionToken(client.SessionToken())
 	t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
-	inv, conf := newCLI(t, "boundary", "--version")
+	inv, conf := newCLI(t, "agent-firewall", "--version")
 	clitest.SetupConfig(t, proxyClient, conf)
 
 	// Set CHILD=true to simulate boundary re-execution. This should skip the

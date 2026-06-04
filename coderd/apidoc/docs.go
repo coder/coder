@@ -1474,6 +1474,100 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/aibridge/keys": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List AI Gateway keys",
+                "operationId": "list-ai-gateway-keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayKey"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create AI Gateway key",
+                "operationId": "create-ai-gateway-key",
+                "parameters": [
+                    {
+                        "description": "Create AI Gateway key request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/keys/{key}": {
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete AI Gateway key",
+                "operationId": "delete-ai-gateway-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Key ID",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/aibridge/models": {
             "get": {
                 "produces": [
@@ -9171,6 +9265,110 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai/budget": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI budget override",
+                "operationId": "get-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert user AI budget override",
+                "operationId": "upsert-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert user AI budget override request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertUserAIBudgetOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete user AI budget override",
+                "operationId": "delete-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/appearance": {
             "get": {
                 "produces": [
@@ -14944,6 +15142,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewayKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIProvider": {
             "type": "object",
             "properties": {
@@ -15165,6 +15386,10 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_gateway_key:*",
+                "ai_gateway_key:create",
+                "ai_gateway_key:delete",
+                "ai_gateway_key:read",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15199,6 +15424,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_log:*",
+                "boundary_log:create",
+                "boundary_log:delete",
+                "boundary_log:read",
                 "boundary_usage:*",
                 "boundary_usage:delete",
                 "boundary_usage:read",
@@ -15391,6 +15620,10 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiGatewayKeyAll",
+                "APIKeyScopeAiGatewayKeyCreate",
+                "APIKeyScopeAiGatewayKeyDelete",
+                "APIKeyScopeAiGatewayKeyRead",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -15425,6 +15658,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryLogAll",
+                "APIKeyScopeBoundaryLogCreate",
+                "APIKeyScopeBoundaryLogDelete",
+                "APIKeyScopeBoundaryLogRead",
                 "APIKeyScopeBoundaryUsageAll",
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
@@ -16486,22 +16723,24 @@ const docTemplate = `{
                 "overloaded",
                 "rate_limit",
                 "timeout",
-                "startup_timeout",
+                "stream_silence_timeout",
                 "auth",
                 "config",
                 "usage_limit",
-                "missing_key"
+                "missing_key",
+                "provider_disabled"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
                 "ChatErrorKindOverloaded",
                 "ChatErrorKindRateLimit",
                 "ChatErrorKindTimeout",
-                "ChatErrorKindStartupTimeout",
+                "ChatErrorKindStreamSilenceTimeout",
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
-                "ChatErrorKindMissingKey"
+                "ChatErrorKindMissingKey",
+                "ChatErrorKindProviderDisabled"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -17457,6 +17696,39 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -18979,12 +19251,14 @@ const docTemplate = `{
                 "workspace-usage",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-build-updates"
+                "workspace-build-updates",
+                "nats_pubsub"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -18997,7 +19271,8 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
-                "Enables publishing workspace build updates to the all builds pubsub channel."
+                "Enables publishing workspace build updates to the all builds pubsub channel.",
+                "Enables embedded NATS pubsub."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19006,7 +19281,8 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceBuildUpdates"
+                "ExperimentWorkspaceBuildUpdates",
+                "ExperimentNATSPubsub"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -22215,6 +22491,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_gateway_key",
                 "ai_model_price",
                 "ai_provider",
                 "ai_seat",
@@ -22223,6 +22500,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_log",
                 "boundary_usage",
                 "chat",
                 "connection_log",
@@ -22265,6 +22543,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAIGatewayKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",
                 "ResourceAiSeat",
@@ -22273,6 +22552,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
                 "ResourceConnectionLog",
@@ -22525,6 +22805,7 @@ const docTemplate = `{
                 "ai_seat",
                 "ai_provider",
                 "ai_provider_key",
+                "ai_gateway_key",
                 "group_ai_budget",
                 "chat",
                 "user_secret",
@@ -22560,6 +22841,7 @@ const docTemplate = `{
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
                 "ResourceTypeAIProviderKey",
+                "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
@@ -24651,6 +24933,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpsertUserAIBudgetOverrideRequest": {
+            "type": "object",
+            "required": [
+                "group_id"
+            ],
+            "properties": {
+                "group_id": {
+                    "description": "GroupID is the group the user's spend is attributed to. The user must\nbe a member of this group.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
         "codersdk.UpsertWorkspaceAgentPortShareRequest": {
             "type": "object",
             "properties": {
@@ -24802,6 +25101,30 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserAIBudgetOverride": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

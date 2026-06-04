@@ -304,6 +304,19 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * AIGatewayKey is a shared secret used by a standalone AI Gateway
+ * to authenticate into coderd.
+ */
+export interface AIGatewayKey {
+	readonly id: string;
+	readonly name: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+	readonly last_used_at?: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -518,6 +531,10 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_gateway_key:*"
+	| "ai_gateway_key:create"
+	| "ai_gateway_key:delete"
+	| "ai_gateway_key:read"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -554,6 +571,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_log:*"
+	| "boundary_log:create"
+	| "boundary_log:delete"
+	| "boundary_log:read"
 	| "boundary_usage:*"
 	| "boundary_usage:delete"
 	| "boundary_usage:read"
@@ -744,6 +765,10 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_gateway_key:*",
+	"ai_gateway_key:create",
+	"ai_gateway_key:delete",
+	"ai_gateway_key:read",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -780,6 +805,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_log:*",
+	"boundary_log:create",
+	"boundary_log:delete",
+	"boundary_log:read",
 	"boundary_usage:*",
 	"boundary_usage:delete",
 	"boundary_usage:read",
@@ -1961,8 +1990,9 @@ export type ChatErrorKind =
 	| "generic"
 	| "missing_key"
 	| "overloaded"
+	| "provider_disabled"
 	| "rate_limit"
-	| "startup_timeout"
+	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
 
@@ -1972,8 +2002,9 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"generic",
 	"missing_key",
 	"overloaded",
+	"provider_disabled",
 	"rate_limit",
-	"startup_timeout",
+	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
 ];
@@ -3226,12 +3257,34 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyRequest requests a new AI Gateway key.
+ */
+export interface CreateAIGatewayKeyRequest {
+	readonly name: string;
+}
+
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyResponse returns all key information.
+ * Key value is only returned here and cannot be recovered afterwards.
+ */
+export interface CreateAIGatewayKeyResponse {
+	readonly id: string;
+	readonly name: string;
+	readonly key: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
  * provider. Name and Type are required. APIKeys carries the plaintext
- * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
- * via Settings and must omit APIKeys.
+ * keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+ * must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+ * request-time GitHub OAuth tokens).
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -4339,6 +4392,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
@@ -4348,6 +4402,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"nats_pubsub",
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",
@@ -6862,6 +6917,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -6870,6 +6926,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
 	| "connection_log"
@@ -6912,6 +6969,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
@@ -6920,6 +6978,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_log",
 	"boundary_usage",
 	"chat",
 	"connection_log",
@@ -7067,6 +7126,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_provider_key"
 	| "ai_seat"
@@ -7102,6 +7162,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_provider_key",
 	"ai_seat",
@@ -9148,6 +9209,16 @@ export interface UpsertGroupAIBudgetRequest {
 	readonly spend_limit_micros: number;
 }
 
+// From codersdk/aibridge.go
+export interface UpsertUserAIBudgetOverrideRequest {
+	/**
+	 * GroupID is the group the user's spend is attributed to. The user must
+	 * be a member of this group.
+	 */
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+}
+
 // From codersdk/workspaceagentportshare.go
 export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -9190,6 +9261,15 @@ export interface User extends ReducedUser {
 	 * field, even when false.
 	 */
 	readonly has_ai_seat: boolean;
+}
+
+// From codersdk/aibridge.go
+export interface UserAIBudgetOverride {
+	readonly user_id: string;
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/chats.go

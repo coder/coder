@@ -673,7 +673,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 			require.NoError(t, err)
 			_ = ptty.Peek(ctx, 1) // wait for the prompt
 			ptty.WriteLine("echo test")
-			ptty.ExpectMatch("test")
+			ptty.ExpectMatch(ctx, "test")
 			ptty.WriteLine("exit")
 			err = session.Wait()
 			require.NoError(t, err)

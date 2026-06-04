@@ -6,6 +6,10 @@ const (
 	APIKeyScopeAll APIKeyScope = "all"
 	// Deprecated: use codersdk.APIKeyScopeCoderApplicationConnect instead.
 	APIKeyScopeApplicationConnect                  APIKeyScope = "application_connect"
+	APIKeyScopeAiGatewayKeyAll                     APIKeyScope = "ai_gateway_key:*"
+	APIKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	APIKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	APIKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
 	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
@@ -40,6 +44,10 @@ const (
 	APIKeyScopeAuditLogAll                         APIKeyScope = "audit_log:*"
 	APIKeyScopeAuditLogCreate                      APIKeyScope = "audit_log:create"
 	APIKeyScopeAuditLogRead                        APIKeyScope = "audit_log:read"
+	APIKeyScopeBoundaryLogAll                      APIKeyScope = "boundary_log:*"
+	APIKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	APIKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	APIKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
 	APIKeyScopeBoundaryUsageAll                    APIKeyScope = "boundary_usage:*"
 	APIKeyScopeBoundaryUsageDelete                 APIKeyScope = "boundary_usage:delete"
 	APIKeyScopeBoundaryUsageRead                   APIKeyScope = "boundary_usage:read"
@@ -264,6 +272,7 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeTemplateRead,
 	APIKeyScopeTemplateUpdate,
 	APIKeyScopeTemplateUse,
+	APIKeyScopeUserAll,
 	APIKeyScopeUserRead,
 	APIKeyScopeUserReadPersonal,
 	APIKeyScopeUserUpdatePersonal,

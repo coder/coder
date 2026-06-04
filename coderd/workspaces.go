@@ -2033,7 +2033,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspace(
@@ -2230,7 +2230,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	defer cancel()
 
 	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)

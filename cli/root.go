@@ -343,10 +343,11 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 					// support links.
 					return
 				}
-				if cmd.Name() == "boundary" {
-					// The boundary command is integrated from the boundary package
-					// and has YAML-only options (e.g., allowlist from config file)
-					// that don't have flags or env vars.
+				if cmd.Name() == "agent-firewall" || cmd.Name() == "boundary" {
+					// The agent-firewall command (and its "boundary" alias) is
+					// integrated from the boundary package and has YAML-only
+					// options (e.g., allowlist from config file) that don't
+					// have flags or env vars.
 					return
 				}
 				merr = errors.Join(
