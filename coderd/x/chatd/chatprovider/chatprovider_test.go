@@ -40,6 +40,7 @@ func TestProviderBaseURLHostname(t *testing.T) {
 		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
 		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
 		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
+		{name: "Empty", baseURL: "", want: ""},
 		{name: "Invalid", baseURL: "://", want: ""},
 	}
 	for _, tt := range tests {

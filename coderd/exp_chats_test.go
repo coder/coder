@@ -3739,7 +3739,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "AI provider type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
@@ -3850,7 +3850,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			Model: "anthropic/claude-opus-4.6",
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "AI provider type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 
@@ -3920,7 +3920,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			AIProviderID: &misconfiguredProvider.ID,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "AI provider type openai does not support slash-namespaced models.", sdkErr.Message)
+		require.Equal(t, "OpenRouter-like provider configured as type openai does not support slash-namespaced models.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "Change the AI provider type to openrouter or openai-compat.")
 	})
 

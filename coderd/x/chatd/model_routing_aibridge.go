@@ -98,7 +98,7 @@ func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) 
 	if !isSlashNamespacedAIGatewayModel(model) || !isOpenRouterLikeAIGatewayProvider(provider) {
 		return nil
 	}
-	return xerrors.New("AI provider type openai does not support slash-namespaced models for OpenRouter-like providers. Change the AI provider type to openrouter or openai-compat.")
+	return xerrors.New("OpenRouter-like provider configured as type openai does not support slash-namespaced models")
 }
 
 func isSlashNamespacedAIGatewayModel(model string) bool {

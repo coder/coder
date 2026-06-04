@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestValidateChatModelConfigAIProvider(t *testing.T) {
+func TestValidateChatModelConfigProviderModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -62,6 +62,17 @@ func TestValidateChatModelConfigAIProvider(t *testing.T) {
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
 		},
 		{
+			name:  "OpenRouterSubdomainWithOpenAIType",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AiProviderTypeOpenai,
+				BaseUrl: "https://api.openrouter.ai/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
 			name:  "OpenRouterTypeAllowsSlashModel",
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
@@ -100,10 +111,10 @@ func TestValidateChatModelConfigAIProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := validateChatModelConfigAIProvider(tt.provider, tt.model)
+			got := validateChatModelConfigProviderModel(tt.provider, tt.model)
 			if tt.wantErr {
 				require.NotNil(t, got)
-				require.Contains(t, got.Detail, tt.wantDetail)
+				require.Contains(t, got.Response.Detail, tt.wantDetail)
 				return
 			}
 			require.Nil(t, got)
