@@ -9,19 +9,15 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
-	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	entdbauthz "github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	entportsharing "github.com/coder/coder/v2/enterprise/coderd/portsharing"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -152,7 +148,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, db, api := newSubAgentAPIWithMaxPortShareLevel(t, tt.maxPortShareLevel)
+			ctx, api, upsertedApps := newMockSubAgentAPIWithMaxPortShareLevel(t, tt.maxPortShareLevel, len(tt.apps))
 			resp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
 				Name:            "child-agent",
 				Directory:       "/workspaces/coder",
@@ -163,14 +159,9 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			require.NoError(t, err)
 			require.NotNil(t, resp.Agent)
 			require.Empty(t, resp.AppCreationErrors)
+			require.Len(t, *upsertedApps, len(tt.expectedStoredApps))
 
-			agentID, err := uuid.FromBytes(resp.Agent.Id)
-			require.NoError(t, err)
-			apps, err := db.GetWorkspaceAppsByAgentID(agpldbauthz.AsSystemRestricted(ctx), agentID)
-			require.NoError(t, err)
-			require.Len(t, apps, len(tt.expectedStoredApps))
-
-			slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
+			slices.SortFunc(*upsertedApps, func(a, b database.UpsertWorkspaceAppParams) int {
 				return cmp.Compare(a.Slug, b.Slug)
 			})
 			slices.SortFunc(tt.expectedStoredApps, func(a, b expectedApp) int {
@@ -178,65 +169,75 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			})
 
 			for i, expectedApp := range tt.expectedStoredApps {
-				require.True(t, strings.HasSuffix(apps[i].Slug, expectedApp.slugSuffix))
-				require.Equal(t, expectedApp.sharingLevel, apps[i].SharingLevel)
+				require.True(t, strings.HasSuffix((*upsertedApps)[i].Slug, expectedApp.slugSuffix))
+				require.Equal(t, expectedApp.sharingLevel, (*upsertedApps)[i].SharingLevel)
 			}
 		})
 	}
 }
 
-func newSubAgentAPIWithMaxPortShareLevel(t *testing.T, maxPortShareLevel database.AppSharingLevel) (context.Context, database.Store, *agentapi.SubAgentAPI) {
+func newMockSubAgentAPIWithMaxPortShareLevel(
+	t *testing.T,
+	maxPortShareLevel database.AppSharingLevel,
+	appCount int,
+) (context.Context, *agentapi.SubAgentAPI, *[]database.UpsertWorkspaceAppParams) {
 	t.Helper()
 
+	ctx := testutil.Context(t, testutil.WaitShort)
 	log := testutil.Logger(t)
 	clock := quartz.NewMock(t)
-
-	rawDB, _ := dbtestutil.NewDB(t)
-	org := dbgen.Organization(t, rawDB, database.Organization{})
-	user := dbgen.User(t, rawDB, database.User{})
-	template := dbgen.Template(t, rawDB, database.Template{
-		OrganizationID:      org.ID,
-		CreatedBy:           user.ID,
+	ownerID := uuid.New()
+	organizationID := uuid.New()
+	templateID := uuid.New()
+	parentAgent := database.WorkspaceAgent{
+		ID:         uuid.New(),
+		ResourceID: uuid.New(),
+	}
+	workspace := database.Workspace{
+		ID:             uuid.New(),
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
+		TemplateID:     templateID,
+	}
+	template := database.Template{
+		ID:                  templateID,
 		MaxPortSharingLevel: maxPortShareLevel,
-	})
-	templateVersion := dbgen.TemplateVersion(t, rawDB, database.TemplateVersion{
-		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	workspace := dbgen.Workspace(t, rawDB, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		TemplateID:     template.ID,
-		OwnerID:        user.ID,
-	})
-	job := dbgen.ProvisionerJob(t, rawDB, nil, database.ProvisionerJob{
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		OrganizationID: org.ID,
-	})
-	build := dbgen.WorkspaceBuild(t, rawDB, database.WorkspaceBuild{
-		JobID:             job.ID,
-		WorkspaceID:       workspace.ID,
-		TemplateVersionID: templateVersion.ID,
-	})
-	resource := dbgen.WorkspaceResource(t, rawDB, database.WorkspaceResource{
-		JobID: build.JobID,
-	})
-	parentAgent := dbgen.WorkspaceAgent(t, rawDB, database.WorkspaceAgent{
-		ResourceID: resource.ID,
-	})
+	}
+	upsertedApps := []database.UpsertWorkspaceAppParams{}
 
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	accessControlStore := &atomic.Pointer[agpldbauthz.AccessControlStore]{}
-	var acs agpldbauthz.AccessControlStore = entdbauthz.EnterpriseTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
-	db := agpldbauthz.New(rawDB, auth, log, accessControlStore)
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentAgent.ID).Return(workspace, nil)
+	db.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(template, nil)
+	db.EXPECT().InsertWorkspaceAgent(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+			require.True(t, params.ParentID.Valid)
+			require.Equal(t, parentAgent.ID, params.ParentID.UUID)
+
+			return database.WorkspaceAgent{
+				ID:        params.ID,
+				Name:      params.Name,
+				AuthToken: params.AuthToken,
+			}, nil
+		},
+	)
+	db.EXPECT().UpsertWorkspaceApp(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.UpsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+			upsertedApps = append(upsertedApps, params)
+			return database.WorkspaceApp{
+				ID:           params.ID,
+				AgentID:      params.AgentID,
+				Slug:         params.Slug,
+				SharingLevel: params.SharingLevel,
+			}, nil
+		},
+	).Times(appCount)
+
 	portSharer := &atomic.Pointer[agplportsharing.PortSharer]{}
 	var ps agplportsharing.PortSharer = entportsharing.NewEnterprisePortSharer()
 	portSharer.Store(&ps)
-	ctx := testutil.Context(t, testutil.WaitShort)
 	api := &agentapi.SubAgentAPI{
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
 		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 			return parentAgent, nil
 		},
@@ -246,5 +247,5 @@ func newSubAgentAPIWithMaxPortShareLevel(t *testing.T, maxPortShareLevel databas
 		PortSharer: portSharer,
 	}
 
-	return ctx, db, api
+	return ctx, api, &upsertedApps
 }
