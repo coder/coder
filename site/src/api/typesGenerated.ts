@@ -2147,6 +2147,15 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatListScope = "all" | "created_by_me" | "shared_with_me";
+
+export const ChatListScopes: ChatListScope[] = [
+	"all",
+	"created_by_me",
+	"shared_with_me",
+];
+
+// From codersdk/chats.go
 /**
  * ChatMessage represents a single message in a chat.
  */
@@ -5109,6 +5118,7 @@ export interface LinkConfig {
  */
 export interface ListChatsOptions extends Pagination {
 	readonly Query: string;
+	readonly Scope: ChatListScope;
 	readonly Labels: Record<string, string>;
 }
 
