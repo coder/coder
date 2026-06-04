@@ -978,32 +978,20 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, session.Shell())
 
+		ctx := testutil.Context(t, testutil.WaitShort)
+		context.AfterFunc(ctx, func() { _ = session.Close() })
+
 		testutil.Go(t, func() {
-			retryDur := testutil.WaitShort
-			deadlineCh := time.After(retryDur)
-			ticker := time.NewTicker(testutil.IntervalFast)
-			defer ticker.Stop()
 			for {
 				if _, err := stdin.Write([]byte("exit 0\n")); err != nil {
 					return
 				}
-				select {
-				case <-deadlineCh:
-					t.Errorf("failed to exit shell within %s", retryDur)
-					return
-				case <-ticker.C:
-				}
+				time.Sleep(testutil.IntervalFast)
 			}
 		})
 
-		waitErr := make(chan error, 1)
-		go func() { waitErr <- session.Wait() }()
-		select {
-		case err = <-waitErr:
-			require.NoError(t, err)
-		case <-time.After(testutil.WaitLong):
-			require.FailNow(t, "timed out waiting for session to exit")
-		}
+		err = session.Wait()
+		require.NoError(t, err)
 
 		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
