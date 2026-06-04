@@ -520,10 +520,10 @@ func TestSecretDelete(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		waiter := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Delete secret")
-		stdout.ExpectMatchContext(ctx, "service-token")
+		stdout.ExpectMatch(ctx, "Delete secret")
+		stdout.ExpectMatch(ctx, "service-token")
 		stdin.WriteLine("yes")
-		stdout.ExpectMatchContext(ctx, "Deleted secret")
+		stdout.ExpectMatch(ctx, "Deleted secret")
 
 		require.NoError(t, waiter.Wait())
 
@@ -580,8 +580,8 @@ func TestSecretDelete(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		waiter := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "Delete secret")
-		stdout.ExpectMatchContext(ctx, "missing-secret")
+		stdout.ExpectMatch(ctx, "Delete secret")
+		stdout.ExpectMatch(ctx, "missing-secret")
 		stdin.WriteLine("yes")
 
 		err := waiter.Wait()

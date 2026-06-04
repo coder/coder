@@ -304,6 +304,19 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * AIGatewayKey is a shared secret used by a standalone AI Gateway
+ * to authenticate into coderd.
+ */
+export interface AIGatewayKey {
+	readonly id: string;
+	readonly name: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+	readonly last_used_at?: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -1979,7 +1992,7 @@ export type ChatErrorKind =
 	| "overloaded"
 	| "provider_disabled"
 	| "rate_limit"
-	| "startup_timeout"
+	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
 
@@ -1991,7 +2004,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"overloaded",
 	"provider_disabled",
 	"rate_limit",
-	"startup_timeout",
+	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
 ];
@@ -3244,6 +3257,27 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyRequest requests a new AI Gateway key.
+ */
+export interface CreateAIGatewayKeyRequest {
+	readonly name: string;
+}
+
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyResponse returns all key information.
+ * Key value is only returned here and cannot be recovered afterwards.
+ */
+export interface CreateAIGatewayKeyResponse {
+	readonly id: string;
+	readonly name: string;
+	readonly key: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
@@ -4358,6 +4392,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
@@ -4367,6 +4402,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"nats_pubsub",
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",

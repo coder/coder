@@ -107,10 +107,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
@@ -155,10 +155,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
@@ -209,10 +209,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
@@ -241,7 +241,7 @@ func TestLogin(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
 		matches := []string{
 			"first user?", "yes",
 			"username", coderdtest.FirstUserParams.Username,
@@ -260,10 +260,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -293,18 +293,18 @@ func TestLogin(t *testing.T) {
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "firstName")
+		stdout.ExpectMatch(ctx, "firstName")
 		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
-		stdout.ExpectMatchContext(ctx, "lastName")
+		stdout.ExpectMatch(ctx, "lastName")
 		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
-		stdout.ExpectMatchContext(ctx, "phoneNumber")
+		stdout.ExpectMatch(ctx, "phoneNumber")
 		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		stdout.ExpectMatchContext(ctx, "jobTitle")
+		stdout.ExpectMatch(ctx, "jobTitle")
 		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		stdout.ExpectMatchContext(ctx, "companyName")
+		stdout.ExpectMatch(ctx, "companyName")
 		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
 		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		w.RequireSuccess()
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
@@ -334,18 +334,18 @@ func TestLogin(t *testing.T) {
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		w := clitest.StartWithWaiter(t, inv)
-		stdout.ExpectMatchContext(ctx, "firstName")
+		stdout.ExpectMatch(ctx, "firstName")
 		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
-		stdout.ExpectMatchContext(ctx, "lastName")
+		stdout.ExpectMatch(ctx, "lastName")
 		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
-		stdout.ExpectMatchContext(ctx, "phoneNumber")
+		stdout.ExpectMatch(ctx, "phoneNumber")
 		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		stdout.ExpectMatchContext(ctx, "jobTitle")
+		stdout.ExpectMatch(ctx, "jobTitle")
 		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		stdout.ExpectMatchContext(ctx, "companyName")
+		stdout.ExpectMatch(ctx, "companyName")
 		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
 		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		w.RequireSuccess()
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
@@ -390,29 +390,29 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
 
 		// Validate that we reprompt for matching passwords.
-		stdout.ExpectMatchContext(ctx, "Passwords do not match")
-		stdout.ExpectMatchContext(ctx, "Enter a "+pretty.Sprint(cliui.DefaultStyles.Field, "password"))
+		stdout.ExpectMatch(ctx, "Passwords do not match")
+		stdout.ExpectMatch(ctx, "Enter a "+pretty.Sprint(cliui.DefaultStyles.Field, "password"))
 		stdin.WriteLine(coderdtest.FirstUserParams.Password)
-		stdout.ExpectMatchContext(ctx, "Confirm")
+		stdout.ExpectMatch(ctx, "Confirm")
 		stdin.WriteLine(coderdtest.FirstUserParams.Password)
-		stdout.ExpectMatchContext(ctx, "trial")
+		stdout.ExpectMatch(ctx, "trial")
 		stdin.WriteLine("yes")
-		stdout.ExpectMatchContext(ctx, "firstName")
+		stdout.ExpectMatch(ctx, "firstName")
 		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
-		stdout.ExpectMatchContext(ctx, "lastName")
+		stdout.ExpectMatch(ctx, "lastName")
 		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
-		stdout.ExpectMatchContext(ctx, "phoneNumber")
+		stdout.ExpectMatch(ctx, "phoneNumber")
 		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		stdout.ExpectMatchContext(ctx, "jobTitle")
+		stdout.ExpectMatch(ctx, "jobTitle")
 		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		stdout.ExpectMatchContext(ctx, "companyName")
+		stdout.ExpectMatch(ctx, "companyName")
 		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 	})
 
@@ -433,10 +433,10 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
-		stdout.ExpectMatchContext(ctx, "Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 	})
 
@@ -460,8 +460,8 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
 		<-doneChan
 	})
@@ -486,8 +486,8 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine(client.SessionToken())
 		<-doneChan
 	})
@@ -511,9 +511,9 @@ func TestLogin(t *testing.T) {
 			assert.Error(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Paste your token here:")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
 		stdin.WriteLine("an-invalid-token")
-		stdout.ExpectMatchContext(ctx, "That's not a valid token!")
+		stdout.ExpectMatch(ctx, "That's not a valid token!")
 		cancelFunc()
 		<-doneChan
 	})
@@ -603,7 +603,7 @@ func TestLoginToken(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		stdout.ExpectMatchContext(ctx, client.SessionToken())
+		stdout.ExpectMatch(ctx, client.SessionToken())
 	})
 
 	t.Run("NoTokenStored", func(t *testing.T) {

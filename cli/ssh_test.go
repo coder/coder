@@ -96,7 +96,7 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
-		stdout.ExpectMatchContext(ctx, "Waiting")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -138,7 +138,7 @@ func TestSSH(t *testing.T) {
 					err := inv.WithContext(ctx).Run()
 					assert.NoError(t, err)
 				})
-				stdout.ExpectMatchContext(ctx, "Waiting")
+				stdout.ExpectMatch(ctx, "Waiting")
 
 				_ = agenttest.New(t, client.URL, agentToken)
 				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -271,7 +271,7 @@ func TestSSH(t *testing.T) {
 		}
 
 		for _, stdout := range stdouts {
-			stdout.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+			stdout.ExpectMatch(ctx, "Workspace was stopped, starting workspace to allow connecting to")
 		}
 
 		// Allow one build to complete.
@@ -287,7 +287,7 @@ func TestSSH(t *testing.T) {
 		for _, stdout := range stdouts {
 			// Either allow the command to start the workspace or fail
 			// due to conflict (race), in which case it retries.
-			match := stdout.ExpectRegexMatchContext(ctx, "Waiting for the workspace agent to connect")
+			match := stdout.ExpectRegexMatch(ctx, "Waiting for the workspace agent to connect")
 			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
 				foundConflict++
 			}
@@ -388,7 +388,7 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.ErrorIs(t, err, cliui.ErrCanceled)
 		})
-		stdout.ExpectMatchContext(ctx, wantURL)
+		stdout.ExpectMatch(ctx, wantURL)
 		cancel()
 		<-cmdDone
 	})
@@ -421,14 +421,14 @@ func TestSSH(t *testing.T) {
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
 		})
-		stdout.ExpectMatchContext(ctx, "Waiting")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		_ = agenttest.New(t, client.URL, r.AgentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
 		// Ensure the agent is connected.
 		stdin.WriteLine("echo hell'o'")
-		stdout.ExpectMatchContext(ctx, "hello")
+		stdout.ExpectMatch(ctx, "hello")
 
 		_ = dbfake.WorkspaceBuild(t, store, r.Workspace).
 			Seed(database.WorkspaceBuild{
@@ -1188,12 +1188,12 @@ func TestSSH(t *testing.T) {
 		// Linux: /tmp/auth-agent3167016167/listener.sock
 		// macOS: /var/folders/ng/m1q0wft14hj0t3rtjxrdnzsr0000gn/T/auth-agent3245553419/listener.sock
 		stdin.WriteLine(`env | grep SSH_AUTH_SOCK=`)
-		stdout.ExpectMatchContext(ctx, "SSH_AUTH_SOCK=")
+		stdout.ExpectMatch(ctx, "SSH_AUTH_SOCK=")
 		// Ensure that ssh-add lists our key.
 		stdin.WriteLine("ssh-add -L")
 		keys, err := kr.List()
 		require.NoError(t, err, "list keys failed")
-		stdout.ExpectMatchContext(ctx, keys[0].String())
+		stdout.ExpectMatch(ctx, keys[0].String())
 
 		// And we're done.
 		stdin.WriteLine("exit")
@@ -1295,7 +1295,7 @@ func TestSSH(t *testing.T) {
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
 		stdin.WriteLine("echo $foo $baz")
-		stdout.ExpectMatchContext(ctx, "bar qux")
+		stdout.ExpectMatch(ctx, "bar qux")
 
 		// And we're done.
 		stdin.WriteLine("exit")
@@ -1342,7 +1342,7 @@ func TestSSH(t *testing.T) {
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
 		stdin.WriteLine("echo ping' 'pong")
-		stdout.ExpectMatchContext(ctx, "ping pong")
+		stdout.ExpectMatch(ctx, "ping pong")
 
 		// Start the listener on the "local machine".
 		l, err := net.Listen("unix", localSock)
@@ -1463,7 +1463,7 @@ func TestSSH(t *testing.T) {
 			// Ensure the SSH connection is ready by testing the shell
 			// input/output.
 			stdin.WriteLine("echo ping' 'pong")
-			stdout.ExpectMatchContext(ctx, "ping pong")
+			stdout.ExpectMatch(ctx, "ping pong")
 
 			d := &net.Dialer{}
 			fd, err := d.DialContext(ctx, "unix", remoteSock)
@@ -1557,7 +1557,7 @@ func TestSSH(t *testing.T) {
 		// Ensure the SSH connection is ready by testing the shell
 		// input/output.
 		stdin.WriteLine("echo ping' 'pong")
-		stdout.ExpectMatchContext(ctx, "ping pong")
+		stdout.ExpectMatch(ctx, "ping pong")
 
 		for i, sock := range sockets {
 			// Start the listener on the "local machine".
@@ -1619,7 +1619,7 @@ func TestSSH(t *testing.T) {
 		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Waiting")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -1726,7 +1726,7 @@ func TestSSH(t *testing.T) {
 					err := inv.WithContext(ctx).Run()
 					assert.NoError(t, err)
 				})
-				stdout.ExpectMatchContext(ctx, "Waiting")
+				stdout.ExpectMatch(ctx, "Waiting")
 
 				_ = agenttest.New(t, client.URL, agentToken)
 				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -2013,21 +2013,21 @@ Expire-Date: 0
 	_ = invOut.Peek(ctx, 1)
 
 	invIn.WriteLine("echo hello 'world'")
-	invOut.ExpectMatchContext(ctx, "hello world")
+	invOut.ExpectMatch(ctx, "hello world")
 
 	// Check the GNUPGHOME was correctly inherited via shell.
 	invIn.WriteLine("env && echo env-''-command-done")
-	match := invOut.ExpectMatchContext(ctx, "env--command-done")
+	match := invOut.ExpectMatch(ctx, "env--command-done")
 	require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
 
 	// Get the agent extra socket path in the "workspace" via shell.
 	invIn.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
-	invOut.ExpectMatchContext(ctx, workspaceAgentSocketPath)
-	invOut.ExpectMatchContext(ctx, "gpgconf--agentsocket-command-done")
+	invOut.ExpectMatch(ctx, workspaceAgentSocketPath)
+	invOut.ExpectMatch(ctx, "gpgconf--agentsocket-command-done")
 
 	// List the keys in the "workspace".
 	invIn.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
-	listKeysOutput := invOut.ExpectMatchContext(ctx, "gpg--listkeys-command-done")
+	listKeysOutput := invOut.ExpectMatch(ctx, "gpg--listkeys-command-done")
 	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
 	// It's fine that this key is expired. We're just testing that the key trust
 	// gets synced properly.
@@ -2037,10 +2037,10 @@ Expire-Date: 0
 	// working as expected, since the workspace doesn't have access to the
 	// private key directly and must use the forwarded agent.
 	invIn.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
-	invOut.ExpectMatchContext(ctx, "BEGIN PGP SIGNED MESSAGE")
-	invOut.ExpectMatchContext(ctx, "Hash:")
-	invOut.ExpectMatchContext(ctx, "hello world")
-	invOut.ExpectMatchContext(ctx, "gpg--sign-command-done")
+	invOut.ExpectMatch(ctx, "BEGIN PGP SIGNED MESSAGE")
+	invOut.ExpectMatch(ctx, "Hash:")
+	invOut.ExpectMatch(ctx, "hello world")
+	invOut.ExpectMatch(ctx, "gpg--sign-command-done")
 
 	// And we're done.
 	invIn.WriteLine("exit")
@@ -2099,9 +2099,9 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, " #")
+		stdout.ExpectMatch(ctx, " #")
 		stdin.WriteLine("hostname")
-		stdout.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
+		stdout.ExpectMatch(ctx, ct.Container.Config.Hostname)
 		stdin.WriteLine("exit")
 		<-cmdDone
 	})
@@ -2142,8 +2142,8 @@ func TestSSH_Container(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Container not found: %q", cID))
-		stdout.ExpectMatchContext(ctx, "Available containers: [something_completely_different]")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Container not found: %q", cID))
+		stdout.ExpectMatch(ctx, "Available containers: [something_completely_different]")
 		<-cmdDone
 	})
 

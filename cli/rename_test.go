@@ -35,9 +35,9 @@ func TestRename(t *testing.T) {
 	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 	clitest.Start(t, inv)
 
-	stdout.ExpectMatchContext(ctx, "confirm rename:")
+	stdout.ExpectMatch(ctx, "confirm rename:")
 	stdin.WriteLine(workspace.Name)
-	stdout.ExpectMatchContext(ctx, "renamed to")
+	stdout.ExpectMatch(ctx, "renamed to")
 
 	ws, err := client.Workspace(ctx, workspace.ID)
 	assert.NoError(t, err)

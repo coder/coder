@@ -49,8 +49,8 @@ func TestExternalAuth(t *testing.T) {
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
-	stdout.ExpectMatchContext(ctx, "You must authenticate with")
-	stdout.ExpectMatchContext(ctx, "https://example.com/gitauth/github")
-	stdout.ExpectMatchContext(ctx, "Successfully authenticated with GitHub")
+	stdout.ExpectMatch(ctx, "You must authenticate with")
+	stdout.ExpectMatch(ctx, "https://example.com/gitauth/github")
+	stdout.ExpectMatch(ctx, "Successfully authenticated with GitHub")
 	<-done
 }

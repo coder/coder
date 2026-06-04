@@ -52,7 +52,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		stdout.ExpectMatchContext(ctx, "has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 	})
 
@@ -81,7 +81,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		stdout.ExpectMatchContext(ctx, "has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		testutil.TryReceive(ctx, t, doneChan)
 
 		_, err := client.Workspace(ctx, workspace.ID)
@@ -126,7 +126,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		stdout.ExpectMatchContext(ctx, "has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 	})
 
@@ -160,7 +160,7 @@ func TestDelete(t *testing.T) {
 			}
 		}()
 
-		stdout.ExpectMatchContext(ctx, "has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 
 		workspace, err = client.Workspace(context.Background(), workspace.ID)
@@ -216,7 +216,7 @@ func TestDelete(t *testing.T) {
 			defer close(doneChan)
 			_ = inv.WithContext(ctx).Run()
 		}()
-		stdout.ExpectMatchContext(ctx, "there are no provisioners that accept the required tags")
+		stdout.ExpectMatch(ctx, "there are no provisioners that accept the required tags")
 		cancel()
 		<-doneChan
 	})
@@ -324,7 +324,7 @@ func TestDelete(t *testing.T) {
 						require.Error(t, runErr)
 						require.Contains(t, runErr.Error(), expectedErr)
 					} else {
-						stdout.ExpectMatchContext(ctx, "has been deleted")
+						stdout.ExpectMatch(ctx, "has been deleted")
 						<-doneChan
 
 						// When running with the race detector on, we sometimes get an EOF.

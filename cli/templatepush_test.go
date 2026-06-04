@@ -65,7 +65,7 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			stdin.WriteLine(m.write)
 		}
 
@@ -154,7 +154,7 @@ func TestTemplatePush(t *testing.T) {
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
-			stdout.ExpectMatchContext(ctx, tt.wantMatch)
+			stdout.ExpectMatch(ctx, tt.wantMatch)
 
 			w.RequireSuccess()
 
@@ -209,7 +209,7 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "no"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if m.write != "" {
 				stdin.WriteLine(m.write)
 			}
@@ -298,7 +298,7 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			stdin.WriteLine(m.write)
 		}
 
@@ -361,7 +361,7 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			stdin.WriteLine(m.write)
 		}
 
@@ -568,7 +568,7 @@ func TestTemplatePush(t *testing.T) {
 					}, testutil.WaitShort, testutil.IntervalFast)
 
 					if tt.expectOutput != "" {
-						stdout.ExpectMatchContext(ctx, tt.expectOutput)
+						stdout.ExpectMatch(ctx, tt.expectOutput)
 					}
 				})
 			}
@@ -627,7 +627,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -695,7 +695,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -754,7 +754,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -831,7 +831,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -896,7 +896,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -963,7 +963,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 
@@ -1018,7 +1018,7 @@ func TestTemplatePush(t *testing.T) {
 				{match: "template has been created"},
 			}
 			for _, m := range matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				if m.write != "" {
 					stdin.WriteLine(m.write)
 				}
@@ -1115,23 +1115,23 @@ func TestTemplatePush(t *testing.T) {
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			stdout.ExpectMatchContext(ctx, "Upload")
+			stdout.ExpectMatch(ctx, "Upload")
 			stdin.WriteLine("yes")
 
 			// Variables are prompted in alphabetical order.
 			// Boolean variable automatically selects the first option ("true")
-			stdout.ExpectMatchContext(ctx, "var.bool_var")
+			stdout.ExpectMatch(ctx, "var.bool_var")
 
-			stdout.ExpectMatchContext(ctx, "var.number_var")
-			stdout.ExpectMatchContext(ctx, "Enter value:")
+			stdout.ExpectMatch(ctx, "var.number_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
 			stdin.WriteLine("42")
 
-			stdout.ExpectMatchContext(ctx, "var.sensitive_var")
-			stdout.ExpectMatchContext(ctx, "Enter value:")
+			stdout.ExpectMatch(ctx, "var.sensitive_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
 			stdin.WriteLine("secret-value")
 
-			stdout.ExpectMatchContext(ctx, "var.string_var")
-			stdout.ExpectMatchContext(ctx, "Enter value:")
+			stdout.ExpectMatch(ctx, "var.string_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
 			stdin.WriteLine("test-string")
 
 			w.RequireSuccess()
@@ -1164,13 +1164,13 @@ func TestTemplatePush(t *testing.T) {
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			stdout.ExpectMatchContext(ctx, "Upload")
+			stdout.ExpectMatch(ctx, "Upload")
 			stdin.WriteLine("yes")
 
-			stdout.ExpectMatchContext(ctx, "var.number_var")
+			stdout.ExpectMatch(ctx, "var.number_var")
 
 			stdin.WriteLine("not-a-number")
-			stdout.ExpectMatchContext(ctx, "must be a valid number")
+			stdout.ExpectMatch(ctx, "must be a valid number")
 
 			stdin.WriteLine("123.45")
 
@@ -1209,10 +1209,10 @@ func TestTemplatePush(t *testing.T) {
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			stdout.ExpectMatchContext(ctx, "Upload")
+			stdout.ExpectMatch(ctx, "Upload")
 			stdin.WriteLine("yes")
 
-			stdout.ExpectMatchContext(ctx, "var.without_default")
+			stdout.ExpectMatch(ctx, "var.without_default")
 			stdin.WriteLine("test-value")
 
 			w.RequireSuccess()
@@ -1280,12 +1280,12 @@ cli_overrides_file_var: from-file`)
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			stdout.ExpectMatchContext(ctx, "Upload")
+			stdout.ExpectMatch(ctx, "Upload")
 			stdin.WriteLine("yes")
 
 			// Only check for prompt_var, other variables should not prompt
-			stdout.ExpectMatchContext(ctx, "var.prompt_var")
-			stdout.ExpectMatchContext(ctx, "Enter value:")
+			stdout.ExpectMatch(ctx, "var.prompt_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
 			stdin.WriteLine("from-prompt")
 
 			w.RequireSuccess()

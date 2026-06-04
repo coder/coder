@@ -144,7 +144,7 @@ func TestConfigSSH(t *testing.T) {
 		{match: "Continue?", write: "yes"},
 	}
 	for _, m := range matches {
-		stdout.ExpectMatchContext(ctx, m.match)
+		stdout.ExpectMatch(ctx, m.match)
 		stdin.WriteLine(m.write)
 	}
 
@@ -731,7 +731,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			})
 
 			for _, m := range tt.matches {
-				stdout.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				stdin.WriteLine(m.write)
 			}
 

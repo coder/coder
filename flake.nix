@@ -263,8 +263,6 @@
           ]
           ++ frontendPackages;
 
-        docker = pkgs.callPackage ./nix/docker.nix { };
-
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
           inherit nodejs pnpm;
@@ -340,59 +338,20 @@
           };
         };
 
-        packages =
-          {
-            default = packages.${system};
+        packages = {
+          default = packages.${system};
 
-            proto_gen_go = proto_gen_go_1_30;
-            site = buildSite;
+          proto_gen_go = proto_gen_go_1_30;
+          site = buildSite;
 
-            # Copying `OS_ARCHES` from the Makefile.
-            x86_64-linux = buildFat "linux_amd64";
-            aarch64-linux = buildFat "linux_arm64";
-            x86_64-darwin = buildFat "darwin_amd64";
-            aarch64-darwin = buildFat "darwin_arm64";
-            x86_64-windows = buildFat "windows_amd64.exe";
-            aarch64-windows = buildFat "windows_arm64.exe";
-          }
-          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = docker.buildNixShellImage rec {
-              name = "codercom/oss-dogfood-nix";
-              tag = "latest-${system}";
-
-              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
-              # to have issues on dogfood envs.
-              maxLayers = 32;
-
-              uname = "coder";
-              homeDirectory = "/home/${uname}";
-              releaseName = version;
-
-              drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs =
-                  (with pkgs; [
-                    coreutils
-                    nix.out
-                    curl.bin # Ensure the actual curl binary is included in the PATH
-                    glibc.bin # Ensure the glibc binaries are included in the PATH
-                    jq.bin
-                    binutils # ld and strings
-                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
-                    systemd.out
-                    service-wrapper
-                    docker_26
-                    shadow.out
-                    su
-                    ncurses.out # clear
-                    unzip
-                    zip
-                    gzip
-                    procps # free
-                  ])
-                  ++ oldAttrs.buildInputs;
-              });
-            };
-          });
+          # Copying `OS_ARCHES` from the Makefile.
+          x86_64-linux = buildFat "linux_amd64";
+          aarch64-linux = buildFat "linux_arm64";
+          x86_64-darwin = buildFat "darwin_amd64";
+          aarch64-darwin = buildFat "darwin_arm64";
+          x86_64-windows = buildFat "windows_amd64.exe";
+          aarch64-windows = buildFat "windows_arm64.exe";
+        };
       }
     );
 }

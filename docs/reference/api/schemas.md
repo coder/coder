@@ -1248,6 +1248,28 @@
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
+## codersdk.AIGatewayKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key_prefix": "string",
+  "last_used_at": "2019-08-24T14:15:22Z",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `created_at`   | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `key_prefix`   | string | false    |              |             |
+| `last_used_at` | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
@@ -2681,9 +2703,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -4405,6 +4427,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateAIGatewayKeyRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `name` | string | true     |              |             |
+
+## codersdk.CreateAIGatewayKeyResponse
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `key`        | string | false    |              |             |
+| `key_prefix` | string | false    |              |             |
+| `name`       | string | false    |              |             |
 
 ## codersdk.CreateAIProviderRequest
 
@@ -7161,9 +7219,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                     |
+|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

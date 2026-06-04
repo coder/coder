@@ -113,11 +113,11 @@ func TestTracker_MultipleInstances(t *testing.T) {
 
 	// Given we have two coderd instances connected to the same database
 	var (
-		ctx   = testutil.Context(t, testutil.WaitLong)
-		db, _ = dbtestutil.NewDB(t)
+		ctx    = testutil.Context(t, testutil.WaitLong)
+		db, ps = dbtestutil.NewDB(t)
 		// real pubsub is not safe for concurrent use, and this test currently
 		// does not depend on pubsub
-		ps       = pubsub.NewInMemory()
+		psmem    = pubsub.NewInMemory()
 		wuTickA  = make(chan time.Time)
 		wuFlushA = make(chan int, 1)
 		wuTickB  = make(chan time.Time)
@@ -132,7 +132,8 @@ func TestTracker_MultipleInstances(t *testing.T) {
 			WorkspaceUsageTrackerTick:  wuTickB,
 			WorkspaceUsageTrackerFlush: wuFlushB,
 			Database:                   db,
-			Pubsub:                     ps,
+			Pubsub:                     psmem,
+			ReplicaSyncPubsub:          ps.(*pubsub.PGPubsub),
 		})
 		owner = coderdtest.CreateFirstUser(t, clientA)
 		now   = dbtime.Now()

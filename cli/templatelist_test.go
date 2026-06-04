@@ -52,7 +52,7 @@ func TestTemplateList(t *testing.T) {
 		require.NoError(t, <-errC)
 
 		for _, name := range templatesList {
-			stdout.ExpectMatchContext(ctx, name)
+			stdout.ExpectMatch(ctx, name)
 		}
 	})
 	t.Run("ListTemplatesJSON", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestTemplateList(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		stdout.ExpectMatchContext(ctx, "No templates found")
-		stdout.ExpectMatchContext(ctx, "Create one:")
+		stdout.ExpectMatch(ctx, "No templates found")
+		stdout.ExpectMatch(ctx, "Create one:")
 	})
 }
