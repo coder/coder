@@ -1,11 +1,15 @@
 import { Link } from "#/components/Link/Link";
+import {
+	ConfigurationField,
+	type ConfigurationFieldDefinition,
+} from "./ConfigurationField";
 
 type TemplateConfigurationProps = {
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
-	children?: React.ReactNode;
+	fields?: ConfigurationFieldDefinition[];
 };
 
 export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
@@ -13,7 +17,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	description,
 	iconUrl,
 	detailsUrl,
-	children,
+	fields,
 }) => {
 	return (
 		<div className="flex flex-col gap-6 pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -52,7 +56,13 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 				</div>
 			</div>
 
-			{children && <div className="flex flex-col gap-6">{children}</div>}
+			{fields && fields.length > 0 && (
+				<div className="flex flex-col gap-6">
+					{fields.map((field) => (
+						<ConfigurationField key={field.id} field={field} />
+					))}
+				</div>
+			)}
 		</div>
 	);
 };

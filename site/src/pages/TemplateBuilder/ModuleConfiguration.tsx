@@ -1,6 +1,10 @@
 import { TrashIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
+import {
+	ConfigurationField,
+	type ConfigurationFieldDefinition,
+} from "./ConfigurationField";
 
 type ModuleConfigurationProps = {
 	name: string;
@@ -8,7 +12,7 @@ type ModuleConfigurationProps = {
 	iconUrl?: string;
 	detailsUrl?: string;
 	onRemove?: () => void;
-	children?: React.ReactNode;
+	fields?: ConfigurationFieldDefinition[];
 };
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
@@ -17,7 +21,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	iconUrl,
 	detailsUrl,
 	onRemove,
-	children,
+	fields,
 }) => {
 	return (
 		<div className="flex flex-col gap-6 pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -68,9 +72,11 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 				)}
 			</div>
 
-			{children && (
+			{fields && fields.length > 0 && (
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-					{children}
+					{fields.map((field) => (
+						<ConfigurationField key={field.id} field={field} />
+					))}
 				</div>
 			)}
 		</div>
