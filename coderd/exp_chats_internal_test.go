@@ -9,6 +9,42 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		display string
+		wantErr string
+	}{
+		{name: "Summarized", display: "summarized"},
+		{name: "Omitted", display: " omitted "},
+		{name: "Empty", display: " "},
+		{
+			name:    "Invalid",
+			display: "summrized",
+			wantErr: "provider_options.anthropic.thinking_display must be one of summarized, omitted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			display := tt.display
+			err := validateChatModelProviderOptions(&codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					ThinkingDisplay: &display,
+				},
+			})
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestValidateChatModelConfigProviderModel(t *testing.T) {
 	t.Parallel()
 

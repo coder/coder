@@ -371,6 +371,77 @@ func TestReasoningEffortFromChat(t *testing.T) {
 	}
 }
 
+func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasyanthropic.ThinkingDisplay
+	}{
+		{
+			name:  "Summarized",
+			input: ptr.Ref(" SUMMARIZED "),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+		},
+		{
+			name:  "Omitted",
+			input: ptr.Ref("omitted"),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: ptr.Ref("summary"),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.AnthropicThinkingDisplayFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(nil, &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+		},
+	})
+
+	require.NotNil(t, providerOptions)
+	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, anthropicOptions.ThinkingDisplay)
+	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
+}
+
+func TestMergeMissingProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	options := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+	}
+	defaults := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref("summarized"),
+		},
+	}
+
+	chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+	require.NotNil(t, options.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *options.Anthropic.ThinkingDisplay)
+}
+
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	t.Parallel()
 
