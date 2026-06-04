@@ -239,7 +239,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, bedrockKeys)
 	})
 
-	t.Run("LegacyBedrockRowNamedAnthropicDoesNotBlockAnthropicEnv", func(t *testing.T) {
+	t.Run("LegacyBedrockRowSkipsBothEnvSeeds", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -279,6 +279,39 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
 		require.Empty(t, keys)
+	})
+
+	t.Run("LegacyBedrockRowNamedAnthropicReportsBedrockDrift", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		legacySettings := `{"_type":"bedrock","_version":1,"region":"us-west-2","model":"anthropic.claude-3-5-sonnet","access_key":"AKIA","access_key_secret":"secret"}`
+		_, err := db.InsertAIProvider(ctx, database.InsertAIProviderParams{
+			ID:            uuid.New(),
+			Type:          database.AiProviderTypeAnthropic,
+			Name:          "anthropic",
+			DisplayName:   sql.NullString{String: "anthropic", Valid: true},
+			Enabled:       true,
+			BaseUrl:       "",
+			Settings:      sql.NullString{String: legacySettings, Valid: true},
+			SettingsKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+
+		cfg := codersdk.AIBridgeConfig{
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region:          serpent.String("eu-west-1"),
+				AccessKey:       serpent.String("AKIA"),
+				AccessKeySecret: serpent.String("secret"),
+				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+			},
+		}
+
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `AI provider "bedrock" matches existing legacy row "anthropic"`)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
 	t.Run("BedrockWithoutCredentialsUsesAWSEnvAuth", func(t *testing.T) {
