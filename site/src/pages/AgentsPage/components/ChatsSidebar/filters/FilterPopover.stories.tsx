@@ -62,6 +62,7 @@ export const AppliesStagedFilters: Story = {
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
 		});
 	},
 };
@@ -73,6 +74,7 @@ export const KeepsOneChatStatusSelected: Story = {
 			groupBy: "date",
 			prStatuses: [],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
 		} satisfies AgentSidebarFilters,
 		onFiltersChange: fn(),
 	},
@@ -91,6 +93,7 @@ export const KeepsOneChatStatusSelected: Story = {
 			groupBy: "date",
 			prStatuses: [],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
 		});
 	},
 };

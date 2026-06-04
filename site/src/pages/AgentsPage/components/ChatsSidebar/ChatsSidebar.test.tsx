@@ -671,32 +671,6 @@ describe("ChatsSidebar subtitles", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("shows who shared chats owned by another user", () => {
-		render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "shared-chat",
-							title: "Shared chat",
-							owner_id: "sharing-user",
-							owner_name: "Sharing User",
-							owner_username: "sharing-user",
-							last_turn_summary: "This summary is hidden for shared chats",
-						}),
-					]}
-					modelOptions={modelOptions}
-				/>
-			</Wrapper>,
-		);
-
-		expect(screen.getByText("Shared by Sharing User")).toBeInTheDocument();
-		expect(
-			screen.queryByText("This summary is hidden for shared chats"),
-		).not.toBeInTheDocument();
-	});
-
 	it("falls back to the model name when no last turn summary exists", () => {
 		render(
 			<Wrapper>

@@ -56,6 +56,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const defaultModelOptions: ModelSelectorOption[] = [

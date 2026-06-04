@@ -61,7 +61,9 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
-	owner_id: "owner-1",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
@@ -181,6 +183,31 @@ export const ChatWithTurnSummary: Story = {
  * holds the previous turn's text. The sidebar replaces it with a live
  * "{model} streaming…" label so the status does not look stuck.
  */
+export const SharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-chat",
+				title: "Shared chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				last_turn_summary: "This summary is hidden for shared chats",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Shared by Sharing User"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("This summary is hidden for shared chats"),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
