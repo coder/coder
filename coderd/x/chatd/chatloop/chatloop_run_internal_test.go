@@ -700,12 +700,12 @@ func TestRun_RetriesSilenceTimeoutWhileOpeningStream(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {
@@ -930,12 +930,12 @@ func TestRun_RetriesSilenceTimeoutBeforeFirstPart(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {
@@ -1161,7 +1161,7 @@ func TestRun_RetriesSilenceTimeoutBetweenParts(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	select {
@@ -1278,12 +1278,12 @@ func TestRun_RetriesSilenceTimeoutWhenStreamStaysSilent(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {

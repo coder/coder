@@ -981,21 +981,21 @@ func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
 	}
 }
 
-func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
+func TestClassify_StreamSilenceTimeoutWrappedClassificationWins(t *testing.T) {
 	t.Parallel()
 
 	wrapped := chaterror.WithClassification(
 		xerrors.New("context canceled"),
 		chaterror.ClassifiedError{
-			Kind:      codersdk.ChatErrorKindStartupTimeout,
+			Kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 			Provider:  "openai",
 			Retryable: true,
 		},
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI did not start responding in time.",
-		Kind:       codersdk.ChatErrorKindStartupTimeout,
+		Message:    "OpenAI did not send response data in time.",
+		Kind:       codersdk.ChatErrorKindStreamSilenceTimeout,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 0,
