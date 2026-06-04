@@ -411,20 +411,23 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		i.req.Messages = append(i.req.Messages, openai.ToolMessage(out.String(), id))
 	}
 
-	// Send termination marker.
-	if err := events.SendRaw(streamCtx, i.encodeForStream([]byte("[DONE]"))); err != nil {
-		logger.Debug(ctx, "failed to send termination marker", slog.Error(err))
+	var shutdownErr error
+	if events.IsStreaming() {
+		// Send termination marker.
+		if err := events.SendRaw(streamCtx, i.encodeForStream([]byte("[DONE]"))); err != nil {
+			logger.Debug(ctx, "failed to send termination marker", slog.Error(err))
+		}
+
+		// Give the events stream 30 seconds (TODO: configurable) to gracefully shutdown.
+		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, time.Second*30)
+		defer shutdownCancel()
+		if shutdownErr = events.Shutdown(shutdownCtx); shutdownErr != nil {
+			logger.Warn(ctx, "event stream shutdown", slog.Error(shutdownErr))
+		}
 	}
 
-	// Give the events stream 30 seconds (TODO: configurable) to gracefully shutdown.
-	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, time.Second*30)
-	defer shutdownCancel()
-	if err = events.Shutdown(shutdownCtx); err != nil {
-		logger.Warn(ctx, "event stream shutdown", slog.Error(err))
-	}
-
-	if err != nil {
-		streamCancel(xerrors.Errorf("stream err: %w", err))
+	if shutdownErr != nil {
+		streamCancel(xerrors.Errorf("stream err: %w", shutdownErr))
 	} else {
 		streamCancel(xerrors.New("gracefully done"))
 	}

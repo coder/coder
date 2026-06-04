@@ -113,6 +113,7 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			// Verify error body contains expected error info
 			body := w.Body.String()
 			assert.Contains(t, body, tc.expectedBody, "expected error type in response body")
+			assert.NotContains(t, body, "data: [DONE]", "direct JSON error response must not include SSE data")
 		})
 	}
 }
@@ -236,10 +237,14 @@ func TestStreamingInterception_HandlesUpstreamSSEEdgeCases(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+			body := w.Body.String()
 			assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
-			assert.Contains(t, w.Body.String(), tc.expectedBody, "response body")
+			assert.Contains(t, body, tc.expectedBody, "response body")
+			if tc.expectErr {
+				assert.NotContains(t, body, "data: [DONE]", "direct JSON error response must not include SSE data")
+			}
 			if tc.unexpectedBody != "" {
-				assert.NotContains(t, w.Body.String(), tc.unexpectedBody, "response body")
+				assert.NotContains(t, body, tc.unexpectedBody, "response body")
 			}
 		})
 	}
