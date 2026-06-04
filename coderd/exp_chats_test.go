@@ -2133,6 +2133,35 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.False(t, cfg.HasUserAPIKey)
 	})
 
+	t.Run("CorruptProviderSettingsUseRawType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:        database.AiProviderTypeAnthropic,
+			Name:        "test-corrupt-settings-" + uuid.NewString(),
+			DisplayName: sql.NullString{String: "Corrupt Settings", Valid: true},
+			Settings:    sql.NullString{String: "{", Valid: true},
+		})
+
+		cfgValue, err := memberClient.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, cfgValue.Provider.ID)
+		require.Equal(t, codersdk.AIProviderTypeAnthropic, cfgValue.Provider.Type)
+
+		configs, err := memberClient.ListUserAIProviderKeyConfigs(ctx, "me")
+		require.NoError(t, err)
+		cfg := findUserAIProviderKeyConfig(t, configs, provider.ID)
+		require.NotNil(t, cfg)
+		require.Equal(t, codersdk.AIProviderTypeAnthropic, cfg.Provider.Type)
+		require.True(t, cfg.HasUserAPIKey)
+	})
+
 	t.Run("ListsDisabledProviderWithSavedUserKey", func(t *testing.T) {
 		t.Parallel()
 
@@ -3524,7 +3553,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "bedrock", createdConfig.Provider)
 
-		storedCreatedConfig, err := db.GetChatModelConfigByID(ctx, createdConfig.ID)
+		storedCreatedConfig, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), createdConfig.ID)
 		require.NoError(t, err)
 		require.Equal(t, "bedrock", storedCreatedConfig.Provider)
 

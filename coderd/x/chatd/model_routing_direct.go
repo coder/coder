@@ -77,7 +77,7 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 	}
 	providerHint := normalizedProviderType
 	if provider != nil {
-		providerHint = chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(*provider))
+		providerHint = chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(ctx, p.logger, *provider))
 	}
 	return newDirectModelRoute(providerHint, keys), nil
 }
@@ -93,5 +93,5 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	if err != nil {
 		return "", nil, err
 	}
-	return bestEffortAIProviderTypeString(provider), &provider, nil
+	return bestEffortAIProviderTypeString(ctx, p.logger, provider), &provider, nil
 }

@@ -8642,10 +8642,10 @@ func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvi
 	if err != nil {
 		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("get AI provider keys: %w", err)
 	}
-	return p.aiProviderConfigFromKeys(provider, keys)
+	return p.aiProviderConfigFromKeys(ctx, provider, keys)
 }
 
-func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
+func (p *Server) aiProviderConfigFromKeys(ctx context.Context, provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
 	if !provider.Enabled {
 		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
 	}
@@ -8660,7 +8660,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   bestEffortAIProviderTypeString(provider),
+		Provider:                   bestEffortAIProviderTypeString(ctx, p.logger, provider),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -8687,7 +8687,7 @@ func (p *Server) aiProviderConfigs(ctx context.Context, providers []database.AIP
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		configuredProvider, err := p.aiProviderConfigFromKeys(provider, keysByProviderID[provider.ID])
+		configuredProvider, err := p.aiProviderConfigFromKeys(ctx, provider, keysByProviderID[provider.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -8775,7 +8775,11 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 	}
 	for _, provider := range providers {
 		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderType)
-		if err != nil || !matches {
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
+		}
+		if !matches {
 			continue
 		}
 		keys, matchedProvider, err := keysForProvider(provider, normalizedProviderType)
@@ -8787,7 +8791,7 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		if !aiProviderMatchesRawType(provider, normalizedProviderType) {
 			continue
 		}
-		providerKeysType := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(provider))
+		providerKeysType := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(ctx, p.logger, provider))
 		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
 		if err != nil || matchedProvider != nil {
 			return keys, matchedProvider, err

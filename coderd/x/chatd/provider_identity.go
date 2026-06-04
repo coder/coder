@@ -1,6 +1,9 @@
 package chatd
 
 import (
+	"context"
+
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -22,16 +25,17 @@ func effectiveAIProviderTypeString(provider database.AIProvider) (string, error)
 	return string(effectiveType), nil
 }
 
-func bestEffortAIProviderType(provider database.AIProvider) database.AIProviderType {
+func bestEffortAIProviderType(ctx context.Context, logger slog.Logger, provider database.AIProvider) database.AIProviderType {
 	effectiveType, err := effectiveAIProviderType(provider)
 	if err != nil {
+		logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 		return provider.Type
 	}
 	return effectiveType
 }
 
-func bestEffortAIProviderTypeString(provider database.AIProvider) string {
-	return string(bestEffortAIProviderType(provider))
+func bestEffortAIProviderTypeString(ctx context.Context, logger slog.Logger, provider database.AIProvider) string {
+	return string(bestEffortAIProviderType(ctx, logger, provider))
 }
 
 func aiProviderMatchesEffectiveType(provider database.AIProvider, normalizedProviderType string) (bool, error) {

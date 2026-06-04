@@ -6530,11 +6530,8 @@ func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
 	return uuid.Parse(chi.URLParam(r, "aiProvider"))
 }
 
-func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProviderSummary, error) {
-	effectiveType, err := db2sdk.EffectiveAIProviderType(provider)
-	if err != nil {
-		return codersdk.AIProviderSummary{}, xerrors.Errorf("effective AI provider type: %w", err)
-	}
+func (api *API) convertAIProviderSummary(ctx context.Context, provider database.AIProvider) codersdk.AIProviderSummary {
+	effectiveType := api.effectiveAIProviderTypeOrRaw(ctx, provider)
 	return codersdk.AIProviderSummary{
 		ID:          provider.ID,
 		Type:        effectiveType,
@@ -6542,7 +6539,7 @@ func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProvider
 		DisplayName: db2sdk.AIProviderDisplayName(provider, effectiveType),
 		Enabled:     provider.Enabled,
 		Deleted:     provider.Deleted,
-	}, nil
+	}
 }
 
 func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Request) {
@@ -6597,15 +6594,7 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	for _, provider := range visibleProviders {
 		_, hasUserKey := keysByProviderID[provider.ID]
 		_, hasProviderKey := providerKeysByProviderID[provider.ID]
-		providerSummary, err := convertAIProviderSummary(provider)
-		if err != nil {
-			api.Logger.Error(ctx, "convert AI provider summary", slog.F("provider_id", provider.ID), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "AI provider settings could not be parsed.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+		providerSummary := api.convertAIProviderSummary(ctx, provider)
 		configs = append(configs, codersdk.UserAIProviderKeyConfig{
 			Provider:          providerSummary,
 			HasUserAPIKey:     hasUserKey,
@@ -6684,15 +6673,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update user AI provider key."})
 		return
 	}
-	providerSummary, err := convertAIProviderSummary(provider)
-	if err != nil {
-		api.Logger.Error(ctx, "convert AI provider summary", slog.F("provider_id", provider.ID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "AI provider settings could not be parsed.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	providerSummary := api.convertAIProviderSummary(ctx, provider)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
 		Provider:          providerSummary,
 		HasUserAPIKey:     true,

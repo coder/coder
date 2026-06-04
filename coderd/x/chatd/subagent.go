@@ -155,13 +155,19 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
+	ctx context.Context,
+	logger slog.Logger,
 	providers []database.AIProvider,
 	providerName string,
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
 		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderName)
-		if err == nil && matches {
+		if err != nil {
+			logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
+		}
+		if matches {
 			return true
 		}
 	}
@@ -512,7 +518,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
 		}
-		providerName := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(provider))
+		providerName := chatprovider.NormalizeProvider(bestEffortAIProviderTypeString(ctx, p.logger, provider))
 		if providerName == "" {
 			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
 		}
@@ -529,7 +535,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
-	if !enabledProviderContainsName(enabledProviders, providerName) {
+	if !enabledProviderContainsName(ctx, p.logger, enabledProviders, providerName) {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	return modelConfig, providerName, nil

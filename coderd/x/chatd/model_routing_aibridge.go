@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -88,7 +89,7 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 func (p *Server) newAIGatewayModel(
-	_ context.Context,
+	ctx context.Context,
 	req modelClientRequest,
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
@@ -131,7 +132,7 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(bestEffortAIProviderType(route.Provider))
+	config := fantasyConfigForAIBridge(bestEffortAIProviderType(ctx, p.logger, route.Provider))
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -225,7 +226,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(bestEffortAIProviderType(provider)),
+		aiGatewayRequestFormatForProviderType(bestEffortAIProviderType(ctx, p.logger, provider)),
 	)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -242,7 +243,7 @@ func (p *Server) resolveAIGatewayModelRouteForConfig(
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(ctx, ownerID, provider, bestEffortAIProviderTypeString(provider))
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, bestEffortAIProviderTypeString(ctx, p.logger, provider))
 }
 
 func (p *Server) resolveAIGatewayModelRouteForProviderType(
@@ -258,7 +259,7 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 		ctx,
 		ownerID,
 		provider,
-		bestEffortAIProviderTypeString(provider),
+		bestEffortAIProviderTypeString(ctx, p.logger, provider),
 	)
 }
 
@@ -290,7 +291,11 @@ func (p *Server) aiProviderForProviderType(
 			continue
 		}
 		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderType)
-		if err != nil || !matches {
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
+		}
+		if !matches {
 			continue
 		}
 		return provider, nil
