@@ -591,26 +591,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		// Fetch user secrets for build-time injection, but only on start
-		// transitions where the workspace actually needs them.
-		var userSecrets []*sdkproto.UserSecretValue
-		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			dbSecrets, err := s.Database.ListUserSecretsWithValues(ctx, owner.ID)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("get user secrets: %s", err))
-			}
-			for _, secret := range dbSecrets {
-				if secret.EnvName == "" && secret.FilePath == "" {
-					continue
-				}
-				userSecrets = append(userSecrets, &sdkproto.UserSecretValue{
-					EnvName:  secret.EnvName,
-					FilePath: secret.FilePath,
-					Value:    []byte(secret.Value),
-				})
-			}
-		}
-
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -793,8 +773,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
-				LogLevel:    input.LogLevel,
-				UserSecrets: userSecrets,
+				LogLevel: input.LogLevel,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -1609,7 +1588,10 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	if err != nil {
+		return fail(xerrors.Errorf("prepare file upload: %w", err))
+	}
 
 	err = stream.Send(&sdkproto.FileUpload{
 		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},

@@ -33,6 +33,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
+		canViewAISettings: true,
 		canViewOrganizations: true,
 		canCreateChat: true,
 		supportLinks: [],
@@ -58,6 +59,7 @@ export const ForAuditor: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 	},
 	play: async ({ canvasElement }) => {
@@ -74,6 +76,7 @@ export const ForOrgAdmin: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: true,
 	},
 	play: async ({ canvasElement }) => {
@@ -90,6 +93,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 		canViewOrganizations: false,
 		canViewConnectionLog: false,
 		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -105,6 +109,7 @@ export const ForMember: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		canCreateChat: false,
 	},
@@ -116,6 +121,7 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		canCreateChat: true,
 	},
@@ -138,6 +144,7 @@ export const SupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{
@@ -178,6 +185,7 @@ export const DefaultSupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },

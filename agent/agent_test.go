@@ -673,7 +673,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 			require.NoError(t, err)
 			_ = ptty.Peek(ctx, 1) // wait for the prompt
 			ptty.WriteLine("echo test")
-			ptty.ExpectMatch("test")
+			ptty.ExpectMatch(ctx, "test")
 			ptty.WriteLine("exit")
 			err = session.Wait()
 			require.NoError(t, err)
@@ -2164,8 +2164,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	_, err := exec.LookPath("screen")
 	hasScreen := err == nil
 
-	// Make sure UTF-8 works even with LANG set to something like C.
+	tmuxPath, err := exec.LookPath("tmux")
+	hasTmux := err == nil
+
+	// Make sure UTF-8 works even with locale variables set to C.
 	t.Setenv("LANG", "C")
+	t.Setenv("LC_CTYPE", "C")
+	t.Setenv("LC_ALL", "")
 
 	for _, backendType := range backends {
 		t.Run(backendType, func(t *testing.T) {
@@ -2229,12 +2234,25 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
-			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
-			// will sometimes put the command output on the same line as the command and the test will flake
+			// Wait for the prompt before writing commands. If the command
+			// arrives before the prompt is written, screen will sometimes put
+			// the command output on the same line as the command and the test
+			// will flake.
 			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
 			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
 
 			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "printf '%s\\n' \"$TERM\"\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+			require.NoError(t, tr1.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr2.ReadUntilString(ctx, "xterm-256color"), "find TERM output")
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err = json.Marshal(workspacesdk.ReconnectingPTYRequest{
 				Data: "echo test\r",
 			})
 			require.NoError(t, err)
@@ -2295,6 +2313,46 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			bytes, err := io.ReadAll(netConn5)
 			require.NoError(t, err)
 			require.Contains(t, string(bytes), "❯")
+
+			if !hasTmux {
+				t.Log("`tmux` not found, skipping tmux glyph regression")
+			} else {
+				glyphs := "⚠╭╮╰╯•›│─█▓░▄❯✔╌"
+				tmuxSocket := "coder-test-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				t.Cleanup(func() {
+					_ = exec.Command(tmuxPath, "-L", tmuxSocket, "kill-server").Run()
+				})
+				// Keep the pane alive with a shell builtin until the read loop sees
+				// the glyphs, otherwise tmux can restore the alternate screen first.
+				command := fmt.Sprintf(
+					"%s -L %s new-session %q",
+					strconv.Quote(tmuxPath),
+					tmuxSocket,
+					fmt.Sprintf("printf '%%s\\n' '%s'; read _", glyphs),
+				)
+				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
+				require.NoError(t, err)
+				defer netConn6.Close()
+
+				var output strings.Builder
+				buffer := make([]byte, 1024)
+				deadline := time.Now().Add(testutil.WaitMedium)
+				for !strings.Contains(output.String(), glyphs) {
+					if time.Now().After(deadline) {
+						require.Contains(t, output.String(), glyphs)
+					}
+					require.NoError(t, netConn6.SetReadDeadline(time.Now().Add(testutil.IntervalMedium)))
+					read, err := netConn6.Read(buffer)
+					if read > 0 {
+						_, _ = output.Write(buffer[:read])
+					}
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						continue
+					}
+					require.NoError(t, err)
+				}
+			}
 		})
 	}
 }

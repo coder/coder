@@ -14,6 +14,7 @@ import type { AutofillBuildParameter } from "#/utils/richParameters";
 interface AutoCreateConsentDialogProps {
 	open: boolean;
 	autofillParameters: AutofillBuildParameter[];
+	presetName?: string;
 	onConfirm: () => void;
 	onDeny: () => void;
 }
@@ -21,6 +22,7 @@ interface AutoCreateConsentDialogProps {
 export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 	open,
 	autofillParameters,
+	presetName,
 	onConfirm,
 	onDeny,
 }) => {
@@ -42,6 +44,17 @@ export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 						sources can be dangerous.
 					</DialogDescription>
 				</DialogHeader>
+
+				{presetName && (
+					<div className="flex min-w-0 flex-col gap-2">
+						<span className="text-sm font-semibold text-content-primary">
+							Preset:
+						</span>
+						<code className="block whitespace-pre overflow-x-auto">
+							{presetName}
+						</code>
+					</div>
+				)}
 
 				{autofillParameters.length > 0 && (
 					<div className="flex min-w-0 flex-col gap-2">

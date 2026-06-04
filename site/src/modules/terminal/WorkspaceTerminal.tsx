@@ -164,6 +164,12 @@ export const WorkspaceTerminal = ({
 		const nextTerminal = new Terminal({
 			allowProposedApi: true,
 			allowTransparency: true,
+			// Use the selected terminal font for block element, box drawing,
+			// quadrant, and powerline glyphs. xterm's custom glyph renderer helps
+			// when fonts lack powerline glyphs, but it changes block and quadrant
+			// shapes and breaks TUIs that use them for pixel art, like Claude
+			// Code's logo.
+			customGlyphs: false,
 			disableStdin: false,
 			fontFamily: terminalFontFamily,
 			fontSize: 16,

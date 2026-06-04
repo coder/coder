@@ -257,14 +257,14 @@ func TestAttachFile(t *testing.T) {
 			Return(io.NopCloser(strings.NewReader("build succeeded\n")), "text/plain", nil)
 
 		tool := newAttachFileTool(t, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
-			return chattool.AttachmentMetadata{}, xerrors.New("chat already has the maximum of 20 linked files")
+			return chattool.AttachmentMetadata{}, xerrors.New("ETOOMANYFILES")
 		})
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID: "call-cap", Name: "attach_file", Input: `{"path":"/home/coder/build.log"}`,
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "chat already has the maximum of 20 linked files")
+		assert.Contains(t, resp.Content, "ETOOMANYFILES")
 	})
 }
 

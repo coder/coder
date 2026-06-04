@@ -65,6 +65,9 @@ const SSHKeysPage = lazy(
 const TokensPage = lazy(
 	() => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
 );
+const SecretsPage = lazy(
+	() => import("./pages/UserSettingsPage/SecretsPage/SecretsPage"),
+);
 const WorkspaceProxyPage = lazy(
 	() =>
 		import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
@@ -348,6 +351,9 @@ const ProvisionerJobsPage = lazy(
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const DesktopPopoutPage = lazy(
+	() => import("./pages/AgentsPage/DesktopPopoutPage"),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
@@ -375,8 +381,8 @@ const AgentSettingsAgentsPage = lazy(
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
-const AgentSettingsProvidersPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
+const AgentSettingsPersonalSkillsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
 );
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
@@ -424,6 +430,25 @@ const AIBridgeListSessionsPage = lazy(
 );
 const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
+);
+
+const AISettingsLayout = lazy(
+	() => import("./pages/AISettingsPage/AISettingsLayout"),
+);
+const AISettingsProvidersPage = lazy(
+	() => import("./pages/AISettingsPage/ProvidersPage/ProvidersPage"),
+);
+const AISettingsUpdateProviderPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"
+		),
+);
+const AISettingsAddProviderPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
+		),
 );
 
 const GlobalLayout = () => {
@@ -578,10 +603,7 @@ export const router = createBrowserRouter(
 								path="observability"
 								element={<ObservabilitySettingsPage />}
 							/>
-							<Route
-								path="ai-governance"
-								element={<AIGovernanceSettingsPage />}
-							/>
+
 							<Route path="network" element={<NetworkSettingsPage />} />
 							<Route path="userauth" element={<UserAuthSettingsPage />} />
 							<Route
@@ -640,6 +662,7 @@ export const router = createBrowserRouter(
 							<Route index element={<TokensPage />} />
 							<Route path="new" element={<CreateTokenPage />} />
 						</Route>
+						<Route path="secrets" element={<SecretsPage />} />
 						<Route path="notifications" element={<UserNotificationsPage />} />
 					</Route>
 
@@ -673,6 +696,18 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
 						<Route index element={<AIBridgeListSessionsPage />} />
 						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
+					</Route>
+
+					<Route path="/ai/settings" element={<AISettingsLayout />}>
+						<Route element={<DeploymentConfigProvider />}>
+							<Route path="governance" element={<AIGovernanceSettingsPage />} />
+						</Route>
+						<Route index element={<AISettingsProvidersPage />} />
+						<Route path="add" element={<AISettingsAddProviderPage />} />
+						<Route
+							path=":providerId"
+							element={<AISettingsUpdateProviderPage />}
+						/>
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
@@ -746,10 +781,17 @@ export const router = createBrowserRouter(
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
 						/>
+						<Route
+							path="personal-skills"
+							element={<AgentSettingsPersonalSkillsPage />}
+						/>
 						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
-						<Route path="providers" element={<AgentSettingsProvidersPage />} />
+						<Route
+							path="providers"
+							element={<Navigate to="/ai/settings" replace />}
+						/>
 						<Route path="models" element={<AgentSettingsModelsPage />} />
 						<Route
 							path="mcp-servers"
@@ -771,6 +813,18 @@ export const router = createBrowserRouter(
 						}
 					/>
 				</Route>
+				<Route
+					path="/agents/:agentId/desktop"
+					element={
+						<Suspense
+							fallback={
+								<div className="flex h-screen w-screen items-center justify-center" />
+							}
+						>
+							<DesktopPopoutPage />
+						</Suspense>
+					}
+				/>
 			</Route>
 
 			<Route

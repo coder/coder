@@ -17,7 +17,8 @@ import (
 	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/sessionstore/testhelpers"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -66,12 +67,11 @@ func TestUseKeyring(t *testing.T) {
 			t.Skip("keyring is not supported on this OS")
 		}
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Create a test server
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
 
 		// Create CLI invocation which defaults to using the keyring
 		env := setupKeyringTestEnv(t, client.URL.String(),
@@ -80,8 +80,8 @@ func TestUseKeyring(t *testing.T) {
 			"--no-open",
 			client.URL.String())
 		inv := env.inv
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		// Run login in background
 		doneChan := make(chan struct{})
@@ -92,9 +92,9 @@ func TestUseKeyring(t *testing.T) {
 		}()
 
 		// Provide the token when prompted
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file was NOT created (using keyring instead)
@@ -115,12 +115,11 @@ func TestUseKeyring(t *testing.T) {
 			t.Skip("keyring is not supported on this OS")
 		}
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Create a test server
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
 
 		// First, login with the keyring (default)
 		env := setupKeyringTestEnv(t, client.URL.String(),
@@ -130,8 +129,8 @@ func TestUseKeyring(t *testing.T) {
 			client.URL.String(),
 		)
 		loginInv := env.inv
-		loginInv.Stdin = pty.Input()
-		loginInv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, loginInv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), loginInv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -140,9 +139,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify credential exists in OS keyring
@@ -181,12 +180,11 @@ func TestUseKeyring(t *testing.T) {
 			t.Skip("file storage is the default for Linux")
 		}
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Create a test server
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
 
 		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
@@ -195,8 +193,8 @@ func TestUseKeyring(t *testing.T) {
 			client.URL.String(),
 		)
 		inv := env.inv
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -205,9 +203,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -224,12 +222,11 @@ func TestUseKeyring(t *testing.T) {
 	t.Run("EnvironmentVariable", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Create a test server
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
 
 		// Login using CODER_USE_KEYRING environment variable set to disable keyring usage,
 		// which should have the same behavior on all platforms.
@@ -240,8 +237,8 @@ func TestUseKeyring(t *testing.T) {
 			client.URL.String(),
 		)
 		inv := env.inv
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		inv.Environ.Set("CODER_USE_KEYRING", "false")
 
 		doneChan := make(chan struct{})
@@ -251,9 +248,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -270,9 +267,10 @@ func TestUseKeyring(t *testing.T) {
 	t.Run("DisableKeyringWithFlag", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		pty := ptytest.New(t)
 
 		// Login with --use-keyring=false to explicitly disable keyring usage, which
 		// should have the same behavior on all platforms.
@@ -284,8 +282,8 @@ func TestUseKeyring(t *testing.T) {
 			client.URL.String(),
 		)
 		inv := env.inv
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -294,9 +292,9 @@ func TestUseKeyring(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (not using keyring)
@@ -324,9 +322,10 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 	t.Run("LoginWithDefaultKeyring", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		pty := ptytest.New(t)
 
 		env := setupKeyringTestEnv(t, client.URL.String(),
 			"login",
@@ -335,8 +334,8 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			client.URL.String(),
 		)
 		inv := env.inv
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -345,9 +344,9 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify that session file WAS created (automatic fallback to file storage)
@@ -363,9 +362,10 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 	t.Run("LogoutWithDefaultKeyring", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		pty := ptytest.New(t)
 
 		// First login to create a session (will use file storage due to automatic fallback)
 		env := setupKeyringTestEnv(t, client.URL.String(),
@@ -375,8 +375,8 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			client.URL.String(),
 		)
 		loginInv := env.inv
-		loginInv.Stdin = pty.Input()
-		loginInv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, loginInv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), loginInv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -385,9 +385,9 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 
 		// Verify session file exists

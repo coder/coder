@@ -1,0 +1,137 @@
+// The backend's search-query parser toggles its quoted-state on every `"` and
+// has no backslash-escape handling, so escaping quotes here would produce a
+// query the backend cannot parse. Stripping quotes from bare text keeps the
+// resulting `title:"..."` filter well-formed for the backend.
+const sanitizeChatSearchValue = (value: string): string => {
+	return value.replaceAll('"', "");
+};
+
+// Filter keys that may pass through to the backend unchanged. `title` is not
+// listed here because bare text and `title:` filters are merged into a single
+// title filter; see the title-handling branch in normalizeChatSearchInput.
+const passthroughChatSearchFilterKeys = new Set([
+	"archived",
+	"diff_url",
+	"has_unread",
+	"pr_status",
+]);
+
+const splitSearchInput = (input: string): string[] => {
+	const tokens: string[] = [];
+	let token = "";
+	let quoted = false;
+
+	for (const character of input) {
+		if (character === '"') {
+			quoted = !quoted;
+		}
+
+		if (/\s/.test(character) && !quoted) {
+			if (token !== "") {
+				tokens.push(token);
+				token = "";
+			}
+			continue;
+		}
+
+		token += character;
+	}
+
+	if (token !== "") {
+		tokens.push(token);
+	}
+
+	return tokens;
+};
+
+const getKeyValueDelimiterIndex = (token: string): number | undefined => {
+	let quoted = false;
+
+	for (const [index, character] of [...token].entries()) {
+		if (character === '"') {
+			quoted = !quoted;
+		}
+
+		if (character === ":" && !quoted) {
+			return index;
+		}
+	}
+
+	return undefined;
+};
+
+const getKeyValuePair = (
+	token: string,
+): { key: string; value: string } | undefined => {
+	const delimiterIndex = getKeyValueDelimiterIndex(token);
+	if (
+		delimiterIndex === undefined ||
+		delimiterIndex === 0 ||
+		delimiterIndex === token.length - 1
+	) {
+		return undefined;
+	}
+
+	return {
+		key: token.slice(0, delimiterIndex).replaceAll('"', "").toLowerCase(),
+		value: token.slice(delimiterIndex + 1).replace(/^"|"$/g, ""),
+	};
+};
+
+/**
+ * Normalizes raw search input into a query string the chat search API accepts.
+ *
+ * Bare text and `title:` filters are merged into a single `title:"..."`
+ * filter (the backend rejects a parameter that appears more than once).
+ * Recognized `key:value` filters pass through unchanged.
+ */
+export const normalizeChatSearchInput = (
+	rawInput: string,
+): string | undefined => {
+	const trimmedInput = rawInput.trim();
+	if (trimmedInput === "") {
+		return undefined;
+	}
+
+	const tokens = splitSearchInput(trimmedInput);
+	const keyValuePairs: string[] = [];
+	const titleTerms: string[] = [];
+	let hasBareTitleText = false;
+
+	for (const token of tokens) {
+		const keyValuePair = getKeyValuePair(token);
+		if (!keyValuePair) {
+			titleTerms.push(token);
+			hasBareTitleText = true;
+			continue;
+		}
+
+		if (keyValuePair.key === "title") {
+			titleTerms.push(keyValuePair.value);
+			continue;
+		}
+
+		if (!passthroughChatSearchFilterKeys.has(keyValuePair.key)) {
+			titleTerms.push(token);
+			hasBareTitleText = true;
+			continue;
+		}
+
+		keyValuePairs.push(token);
+	}
+
+	// Multiple title values must be merged into a single title filter because
+	// the backend's query parser rejects the same key appearing more than once.
+	if (titleTerms.length > 1) {
+		hasBareTitleText = true;
+	}
+
+	if (!hasBareTitleText) {
+		return trimmedInput;
+	}
+
+	return [
+		...keyValuePairs,
+		`title:"${sanitizeChatSearchValue(titleTerms.join(" "))}"`,
+	].join(" ");
+};

@@ -10,6 +10,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
+import { TranscriptRow } from "../TranscriptRow";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
@@ -72,8 +74,13 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<div className="flex items-center gap-1.5 py-0.5 text-content-secondary">
-				<span className="text-[13px]">
+			<TranscriptRow className="gap-2 text-content-secondary">
+				<ToolIcon
+					name="propose_plan"
+					isError={effectiveError}
+					isRunning={isRunning}
+				/>
+				<span className="text-[13px] leading-6">
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
@@ -81,7 +88,7 @@ export const ProposePlanTool: React.FC<{
 						<TooltipTrigger asChild>
 							<TriangleAlertIcon
 								aria-label="Error"
-								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+								className="size-3.5 shrink-0 text-content-secondary"
 							/>
 						</TooltipTrigger>
 						<TooltipContent>
@@ -90,9 +97,9 @@ export const ProposePlanTool: React.FC<{
 					</Tooltip>
 				)}
 				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 				)}
-			</div>
+			</TranscriptRow>
 			{hasDisplayContent ? (
 				<>
 					<Response>{displayContent}</Response>
@@ -114,7 +121,7 @@ export const ProposePlanTool: React.FC<{
 										aria-label="Implement plan"
 									>
 										{implementPlanMutation.isPending ? (
-											<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+											<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 										) : (
 											<PlayIcon />
 										)}
@@ -137,10 +144,10 @@ export const ProposePlanTool: React.FC<{
 				)
 			)}
 			{fetchLoading && (
-				<div className="flex items-center gap-1.5 py-2 text-[13px] text-content-secondary">
-					<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
+					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
-				</div>
+				</TranscriptRow>
 			)}
 		</div>
 	);

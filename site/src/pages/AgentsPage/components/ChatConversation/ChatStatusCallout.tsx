@@ -1,12 +1,12 @@
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { Response, Shimmer } from "../ChatElements";
+import { Shimmer } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
 
-const RESPONSE_STARTUP_GRACE_MS = 15_000;
-const DELAYED_STARTUP_TEXT = "Response startup is taking longer than expected";
 const THINKING_TEXT = "Thinking...";
 
 type RetryOrFailedStatus = Extract<
@@ -18,43 +18,21 @@ type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
 const StatusPlaceholder: FC<{
 	text: string;
 	shimmer?: boolean;
-}> = ({ text, shimmer = false }) => {
+	showThinkingIcon?: boolean;
+}> = ({ text, shimmer = false, showThinkingIcon = false }) => {
 	return (
-		<div className="relative">
-			{/* Reserve the final response height without exposing a selectable copy. */}
-			<Response aria-hidden className="invisible select-none">
-				{text}
-			</Response>
-			<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-				{shimmer ? (
-					<Shimmer as="div" className="text-[13px] leading-relaxed">
-						{text}
-					</Shimmer>
-				) : (
-					<span className="text-[13px] leading-relaxed text-content-secondary">
-						{text}
-					</span>
-				)}
-			</div>
-		</div>
-	);
-};
-
-const StartingPlaceholder: FC = () => {
-	const [isDelayed, setIsDelayed] = useState(false);
-
-	useEffect(() => {
-		const timeout = window.setTimeout(() => {
-			setIsDelayed(true);
-		}, RESPONSE_STARTUP_GRACE_MS);
-		return () => window.clearTimeout(timeout);
-	}, []);
-
-	return (
-		<StatusPlaceholder
-			text={isDelayed ? DELAYED_STARTUP_TEXT : THINKING_TEXT}
-			shimmer={!isDelayed}
-		/>
+		<TranscriptRow className="gap-2 text-content-secondary">
+			{showThinkingIcon && <ToolIcon name="thinking" isError={false} />}
+			{shimmer ? (
+				<Shimmer as="span" className="text-[13px] leading-6">
+					{text}
+				</Shimmer>
+			) : (
+				<span className="text-[13px] leading-6 text-content-secondary">
+					{text}
+				</span>
+			)}
+		</TranscriptRow>
 	);
 };
 
@@ -158,11 +136,17 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						</Link>
 					)}
 				</span>
-				{status.phase === "failed" && status.detail && (
-					<span className="mt-1 block text-content-secondary">
-						{status.detail}
-					</span>
-				)}
+				{status.phase === "failed" &&
+					status.detail &&
+					(status.kind === "generic" ? (
+						<code className="mt-1 block whitespace-pre-wrap text-xs text-content-secondary font-mono bg-surface-secondary rounded-md">
+							{status.detail}
+						</code>
+					) : (
+						<span className="mt-1 block text-content-secondary">
+							{status.detail}
+						</span>
+					))}
 			</AlertDescription>
 		</Alert>
 	);
@@ -190,14 +174,15 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 
 export const ChatStatusCallout: FC<{
 	status: LiveStatusModel;
-	startingResetKey?: string;
-}> = ({ status, startingResetKey }) => {
+}> = ({ status }) => {
 	switch (status.phase) {
 		case "idle":
 		case "streaming":
 			return null;
 		case "starting":
-			return <StartingPlaceholder key={startingResetKey ?? "starting"} />;
+			return (
+				<StatusPlaceholder text={THINKING_TEXT} shimmer showThinkingIcon />
+			);
 		case "retrying":
 			return (
 				<>

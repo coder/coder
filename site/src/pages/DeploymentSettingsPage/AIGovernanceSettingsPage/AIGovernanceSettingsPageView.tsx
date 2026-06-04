@@ -31,11 +31,11 @@ export const AIGovernanceSettingsPageView: FC<
 			<div>
 				<SettingsHeader
 					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-gateway")} />
 					}
 				>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
-						AI Bridge
+						AI Gateway
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Monitor and manage AI requests across your deployment.
@@ -47,13 +47,13 @@ export const AIGovernanceSettingsPageView: FC<
 						{!featureAIBridgeEnabled && (
 							<Alert className="mb-12" severity="warning" prominent>
 								<AlertTitle>
-									AI Bridge is included in your license, but not set up yet.
+									AI Gateway is included in your license, but not set up yet.
 								</AlertTitle>
 								<AlertDescription>
 									You have access to AI Governance, but it still needs to be
 									setup. Check out the{" "}
-									<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
-										AI Bridge
+									<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
+										AI Gateway
 									</Link>{" "}
 									documentation to get started.
 								</AlertDescription>
@@ -61,7 +61,7 @@ export const AIGovernanceSettingsPageView: FC<
 						)}
 						<OptionsTable
 							options={options
-								.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
+								.filter((o) => deploymentGroupHasParent(o.group, "AI Gateway"))
 								.filter((o) => !o.annotations?.secret === true)}
 						/>
 					</>

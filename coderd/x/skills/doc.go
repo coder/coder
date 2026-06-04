@@ -26,7 +26,7 @@
 // and workspace/<name> for the workspace skill. One source must not silently
 // override the other.
 //
-// Site admins can read and modify personal skill content. Personal skills are
+// Site admins can read and delete personal skill content. Personal skills are
 // user-authored instructions, not secret material. Audit records can include
 // raw Markdown content diffs alongside the actor, target user, and relevant
 // metadata.

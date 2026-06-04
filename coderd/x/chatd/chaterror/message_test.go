@@ -11,7 +11,7 @@ import (
 )
 
 // TestTerminalMessage covers the per-provider "temporarily
-// unavailable" copy, the startup-timeout copy, and the generic
+// unavailable" copy, the stream-silence timeout copy, and the generic
 // fallback string for its intended (unclassified, non-retryable)
 // path.
 func TestTerminalMessage(t *testing.T) {
@@ -54,18 +54,18 @@ func TestTerminalMessage(t *testing.T) {
 			want:      "The request timed out before it completed.",
 		},
 		{
-			name:      "StartupTimeout_Anthropic",
-			kind:      codersdk.ChatErrorKindStartupTimeout,
+			name:      "StreamSilenceTimeout_Anthropic",
+			kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 			provider:  "anthropic",
 			retryable: true,
-			want:      "Anthropic did not start responding in time.",
+			want:      "Anthropic did not send response data in time.",
 		},
 		{
-			name:      "StartupTimeout_OpenAI",
-			kind:      codersdk.ChatErrorKindStartupTimeout,
+			name:      "StreamSilenceTimeout_OpenAI",
+			kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 			provider:  "openai",
 			retryable: true,
-			want:      "OpenAI did not start responding in time.",
+			want:      "OpenAI did not send response data in time.",
 		},
 		{
 			// Generic fallback reserved for genuinely
@@ -75,6 +75,27 @@ func TestTerminalMessage(t *testing.T) {
 			provider:  "",
 			retryable: false,
 			want:      "The chat request failed unexpectedly.",
+		},
+		{
+			name:      "UsageLimit_OpenAI",
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			provider:  "openai",
+			retryable: false,
+			want:      "The usage quota for OpenAI has been exceeded. Check the billing and quota settings for the provider account.",
+		},
+		{
+			name:      "UsageLimit_UnknownProvider",
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			provider:  "",
+			retryable: false,
+			want:      "The usage quota for the AI provider has been exceeded. Check the billing and quota settings for the provider account.",
+		},
+		{
+			name:      "MissingKey",
+			kind:      codersdk.ChatErrorKindMissingKey,
+			provider:  "",
+			retryable: false,
+			want:      "This conversation was started with an API key that is no longer available. Send your message again to continue.",
 		},
 	}
 

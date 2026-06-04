@@ -54,9 +54,9 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 	className,
 }) => {
 	const icon = iconUrl ? (
-		<ExternalImage src={iconUrl} alt={`${name} icon`} className="h-3/5 w-3/5" />
+		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
 	) : (
-		<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+		<ServerIcon className="size-3/5 text-content-secondary" />
 	);
 
 	return (
@@ -78,13 +78,17 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 export const getDefaultMCPSelection = (
 	servers: readonly TypesGen.MCPServerConfig[],
 ): string[] => {
-	return servers
-		.filter(
-			(s) =>
-				s.enabled &&
-				(s.availability === "force_on" || s.availability === "default_on"),
-		)
-		.map((s) => s.id);
+	const ids: string[] = [];
+	for (const server of servers) {
+		if (
+			server.enabled &&
+			(server.availability === "force_on" ||
+				server.availability === "default_on")
+		) {
+			ids.push(server.id);
+		}
+	}
+	return ids;
 };
 
 /** localStorage key for persisting the user's MCP server selection. */
@@ -113,13 +117,15 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 		if (!Array.isArray(parsed)) {
 			return null;
 		}
-		const enabledIds = new Set(
-			servers.filter((s) => s.enabled).map((s) => s.id),
-		);
-		// Always include force_on servers even if the user didn't save them.
-		const forceOnIds = servers
-			.filter((s) => s.enabled && s.availability === "force_on")
-			.map((s) => s.id);
+		const enabledIds = new Set<string>();
+		const forceOnIds: string[] = [];
+		for (const server of servers) {
+			if (!server.enabled) continue;
+			enabledIds.add(server.id);
+			if (server.availability === "force_on") {
+				forceOnIds.push(server.id);
+			}
+		}
 		const restored = parsed.filter(
 			(id): id is string => typeof id === "string" && enabledIds.has(id),
 		);
@@ -162,12 +168,12 @@ const TriggerIconStack: FC<{
 					<MCPIcon
 						iconUrl={s.icon_url}
 						name={s.display_name}
-						className="h-4 w-4"
+						className="size-4"
 					/>
 				</span>
 			))}
 			{servers.length > ICON_STACK_MAX && (
-				<span className="-ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
+				<span className="-ml-1 inline-flex size-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
 					+{servers.length - ICON_STACK_MAX}
 				</span>
 			)}
@@ -266,14 +272,14 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 				<button
 					type="button"
 					disabled={disabled}
-					aria-label="MCP Servers"
+					aria-label="MCP servers"
 					className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<span>MCP</span>
 					{activeServers.length > 0 && (
 						<TriggerIconStack servers={activeServers} />
 					)}
-					<ChevronDownIcon className="ml-auto h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
+					<ChevronDownIcon className="ml-auto size-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">
@@ -294,13 +300,13 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											<MCPIcon
 												iconUrl={server.icon_url}
 												name={server.display_name}
-												className="h-5 w-5"
+												className="size-5"
 											/>
 											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
 												{server.display_name}
 											</span>
 											{isForceOn && (
-												<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+												<LockIcon className="size-3 shrink-0 text-content-secondary" />
 											)}
 											{needsAuth ? (
 												<Button

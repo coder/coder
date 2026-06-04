@@ -293,9 +293,10 @@ func TestRecordStreamRetry(t *testing.T) {
 		{name: "overloaded", kind: codersdk.ChatErrorKindOverloaded},
 		{name: "rate_limit", kind: codersdk.ChatErrorKindRateLimit},
 		{name: "timeout", kind: codersdk.ChatErrorKindTimeout},
-		{name: "startup_timeout", kind: codersdk.ChatErrorKindStartupTimeout},
+		{name: "stream_silence_timeout", kind: codersdk.ChatErrorKindStreamSilenceTimeout},
 		{name: "auth", kind: codersdk.ChatErrorKindAuth},
 		{name: "config", kind: codersdk.ChatErrorKindConfig},
+		{name: "missing_key", kind: codersdk.ChatErrorKindMissingKey},
 		{name: "generic", kind: codersdk.ChatErrorKindGeneric},
 		{name: "chain_broken", kind: codersdk.ChatErrorKindGeneric, chainBroken: true},
 	}
@@ -576,24 +577,30 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	})
 }
 
-// TestRun_StreamRetry_CanceledDoesNotIncrement pins the invariant
-// that canceled streams never increment stream_retries_total.
-// chaterror.Classify routes context.Canceled to
-// ClassifiedError{Retryable: false}, so chatretry.Retry returns
-// immediately without calling onRetry. This test guards against
-// future classification changes that could silently introduce
-// misleading retry samples.
-func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
+// TestRun_StreamRetry_ContextCanceledTransportResetIncrements pins the
+// invariant that provider-originated context cancellation is counted as
+// a retryable transport reset when the chat context is still alive.
+func TestRun_StreamRetry_ContextCanceledTransportResetIncrements(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
 	metrics := chatloop.NewMetrics(reg)
 
+	attempts := 0
 	model := &chattest.FakeModel{
 		ProviderName: "test-provider",
 		ModelName:    "test-model",
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-			return nil, context.Canceled
+			attempts++
+			if attempts == 1 {
+				return nil, context.Canceled
+			}
+			return func(yield func(fantasy.StreamPart) bool) {
+				_ = yield(fantasy.StreamPart{
+					Type:         fantasy.StreamPartTypeFinish,
+					FinishReason: fantasy.FinishReasonStop,
+				})
+			}, nil
 		},
 	}
 
@@ -606,19 +613,15 @@ func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
 		},
 		Metrics: metrics,
 	})
-	// Expect an error (the stream failed); we don't care which error
-	// kind as long as no retry was recorded.
-	require.Error(t, err)
-
-	families, err := reg.Gather()
 	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
 
-	for _, f := range families {
-		if f.GetName() == "coderd_chatd_stream_retries_total" {
-			assert.Empty(t, f.GetMetric(),
-				"stream_retries_total should have no samples after a canceled stream")
-		}
-	}
+	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+		"provider":     "test-provider",
+		"model":        "test-model",
+		"kind":         string(codersdk.ChatErrorKindTimeout),
+		"chain_broken": "false",
+	})
 }
 
 func TestRun_ToolError_RecordsMetric(t *testing.T) {

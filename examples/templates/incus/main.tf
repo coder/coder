@@ -356,7 +356,7 @@ module "code-server" {
 module "git-clone" {
   count    = data.coder_workspace.me.start_count == 1 && data.coder_parameter.git_repo.value != "" ? 1 : 0
   source   = "registry.coder.com/coder/git-clone/coder"
-  version  = "~> 1.0"
+  version  = "~> 2.0"
   agent_id = coder_agent.main[0].id
   url      = data.coder_parameter.git_repo.value
 }

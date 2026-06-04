@@ -36,8 +36,11 @@ type Auditable interface {
 		database.AiSeatState |
 		database.AIProvider |
 		database.AIProviderKey |
+		database.AIGatewayKey |
 		database.Chat |
-		database.UserSecret
+		database.AuditableGroupAiBudget |
+		database.UserSecret |
+		database.UserSkill
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

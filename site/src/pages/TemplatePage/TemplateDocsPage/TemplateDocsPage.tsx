@@ -17,7 +17,7 @@ export default function TemplateDocsPage() {
 				<div className="text-content-secondary font-semibold py-4 px-6 border-b border-border">
 					README.md
 				</div>
-				<div className="px-6 pb-10 max-w-[800px] mx-auto">
+				<div className="px-8 pt-2 pb-12 max-w-[860px]">
 					<MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
 				</div>
 			</div>
