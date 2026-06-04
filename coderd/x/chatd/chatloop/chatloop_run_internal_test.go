@@ -799,8 +799,10 @@ func TestRun_RetriesProviderContextCanceledStreamError(t *testing.T) {
 	t.Parallel()
 
 	attempts := 0
-	var retries []chatretry.ClassifiedError
+	retryErrs := make(chan error, chatretry.MaxAttempts)
+	retries := make(chan chatretry.ClassifiedError, chatretry.MaxAttempts)
 	var persisted []fantasy.Content
+	ctx := testutil.Context(t, testutil.WaitShort)
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
@@ -821,7 +823,7 @@ func TestRun_RetriesProviderContextCanceledStreamError(t *testing.T) {
 		},
 	}
 
-	err := Run(context.Background(), RunOptions{
+	err := Run(ctx, RunOptions{
 		Model:                model,
 		MaxSteps:             1,
 		ContextLimitFallback: 4096,
@@ -835,18 +837,22 @@ func TestRun_RetriesProviderContextCanceledStreamError(t *testing.T) {
 			classified chatretry.ClassifiedError,
 			_ time.Duration,
 		) {
-			require.ErrorIs(t, retryErr, chaterror.ErrProviderTransportReset)
-			require.ErrorIs(t, retryErr, context.Canceled)
-			retries = append(retries, classified)
+			retryErrs <- retryErr
+			retries <- classified
 		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 2, attempts)
+	require.Len(t, retryErrs, 1)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindTimeout, retries[0].Kind)
-	require.True(t, retries[0].Retryable)
-	require.Equal(t, "openai", retries[0].Provider)
-	require.Equal(t, "OpenAI is temporarily unavailable.", retries[0].Message)
+	retryErr := testutil.RequireReceive(ctx, t, retryErrs)
+	classified := testutil.RequireReceive(ctx, t, retries)
+	require.ErrorIs(t, retryErr, chaterror.ErrProviderTransportReset)
+	require.ErrorIs(t, retryErr, context.Canceled)
+	require.Equal(t, codersdk.ChatErrorKindTimeout, classified.Kind)
+	require.True(t, classified.Retryable)
+	require.Equal(t, "openai", classified.Provider)
+	require.Equal(t, "OpenAI is temporarily unavailable.", classified.Message)
 
 	text := requireTextContent(t, persisted, "done")
 	require.Equal(t, "done", text.Text)

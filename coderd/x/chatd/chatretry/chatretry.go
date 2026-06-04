@@ -108,8 +108,8 @@ type OnRetryFn func(attempt int, err error, classified ClassifiedError, delay ti
 func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 	var attempt int
 	for {
-		if err := contextError(ctx); err != nil {
-			return err
+		if ctxErr := contextError(ctx); ctxErr != nil {
+			return ctxErr
 		}
 
 		err := fn(ctx)
