@@ -15925,7 +15925,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+	user_id = $2 AND login_type = $3 AND linked_id = '' RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -15934,6 +15934,9 @@ type UpdateUserLinkedIDParams struct {
 	LoginType LoginType `db:"login_type" json:"login_type"`
 }
 
+// Backfills linked_id for legacy user_links that were created before
+// linked_id tracking was added. Only updates when linked_id is empty
+// to avoid overwriting a valid binding.
 func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
 	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
 	var i UserLink
