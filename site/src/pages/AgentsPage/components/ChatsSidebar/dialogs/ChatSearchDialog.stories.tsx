@@ -156,7 +156,7 @@ export const Results: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"Fix"',
+				q: "title:Fix",
 			});
 		});
 		await expect(
@@ -224,7 +224,7 @@ export const OverflowResults: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"review"',
+				q: "title:review",
 			});
 		});
 
@@ -260,7 +260,7 @@ export const CappedResults: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"Fix"',
+				q: "title:Fix",
 			});
 		});
 		await expect(
@@ -379,6 +379,36 @@ export const ErrorStateWithStackTrace: Story = {
 		const details = body.getByText("Stack Trace");
 		await userEvent.click(details);
 		await expect(body.getByText(/fetchChats/)).toBeInTheDocument();
+	},
+};
+
+// Regression coverage for CODAGT-556: a backend validation error echoing a
+// long diff URL must wrap inside the 560px dialog instead of spilling out the
+// right side. The story renders the dialog with the offending alert pre-shown
+// so visual regression tooling and reviewers can verify the wrap behavior.
+export const ErrorStateWithLongURL: Story = {
+	beforeEach: () => {
+		const err = new Error(
+			"Query element \"diff_url:https://github.com/coder/coder/pull/25391\" can only contain 1 ':'",
+		);
+		spyOn(API.experimental, "getChats").mockRejectedValue(err);
+	},
+	play: async () => {
+		const body = within(document.body);
+		await userEvent.type(
+			body.getByRole("combobox", { name: "Search chats" }),
+			"title:x",
+		);
+		const alert = await body.findByRole("alert");
+		await expect(alert).toBeInTheDocument();
+
+		// The alert must not exceed the dialog content width (max 560px).
+		const dialog = body.getByRole("dialog");
+		await waitFor(() => {
+			expect(alert.getBoundingClientRect().right).toBeLessThanOrEqual(
+				dialog.getBoundingClientRect().right + 1,
+			);
+		});
 	},
 };
 
@@ -537,7 +567,68 @@ export const CombinedFilterAndText: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'has_unread:true title:"Fix"',
+				q: "has_unread:true title:Fix",
+			});
+		});
+	},
+};
+
+// Regression coverage for CODAGT-556: pasting a diff URL into a `diff_url:`
+// pill must quote the value so the backend doesn't reject it with
+// "can only contain 1 ':'". A scheme-less URL must also be sent to the
+// backend with `https://` prepended so it passes the URL validator.
+export const DiffURLFilterPill: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Diff URL"));
+		await userEvent.click(searchInput);
+		await userEvent.type(
+			searchInput,
+			"https://github.com/coder/coder/pull/25391{Enter}",
+		);
+
+		await expect(
+			await body.findByText(
+				"diff_url:https://github.com/coder/coder/pull/25391",
+			),
+		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'diff_url:"https://github.com/coder/coder/pull/25391"',
+			});
+		});
+	},
+};
+
+// Regression coverage for CODAGT-556: a bare URL pasted into the input
+// should be auto-routed to a `diff_url:` filter pill instead of falling
+// through as a title search (which would never match).
+export const BareURLAutoRoutesToDiffURL: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.type(
+			searchInput,
+			"https://github.com/coder/coder/pull/25391{Enter}",
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'diff_url:"https://github.com/coder/coder/pull/25391"',
 			});
 		});
 	},

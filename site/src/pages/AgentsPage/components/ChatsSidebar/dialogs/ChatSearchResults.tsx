@@ -51,7 +51,12 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 			<div className="min-h-[260px]">
 				<ErrorAlert
 					error={error}
-					className="max-h-[340px] overflow-y-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-all [&_pre]:w-auto [&_pre]:min-w-0"
+					// `[overflow-wrap:anywhere]` on the alert title/description
+					// keeps long unbreakable strings (URLs, raw error tokens)
+					// from overflowing the dialog's 560px max width. Backend
+					// validation errors echo the offending query element, which
+					// is often a diff URL with no spaces.
+					className="max-h-[340px] overflow-y-auto [&_h2]:[overflow-wrap:anywhere] [&_span]:[overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap [&_pre]:break-all [&_pre]:w-auto [&_pre]:min-w-0"
 				/>
 			</div>
 		);

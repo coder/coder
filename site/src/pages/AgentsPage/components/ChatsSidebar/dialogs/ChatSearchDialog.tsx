@@ -21,7 +21,12 @@ import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
-import { normalizeChatSearchInput } from "./searchQuery";
+import {
+	formatChatSearchFilterToken,
+	looksLikeChatDiffURL,
+	normalizeChatDiffURLValue,
+	normalizeChatSearchInput,
+} from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
 // pills (e.g. has_unread:true). Filters without one are inserted as
@@ -133,6 +138,10 @@ type ChatSearchDialogContentProps = Omit<
 
 // Build a raw query string from structured filters + freeform text, then
 // normalize it through the existing parser that the backend expects.
+// formatChatSearchFilterToken handles quoting (including for values that
+// contain `:` like diff URLs) and prepends `https://` for scheme-less
+// diff_url values, both of which the raw backend parser would otherwise
+// reject with "can only contain 1 ':'" or "http or https scheme" errors.
 const buildQuery = (
 	filters: readonly SearchFilter[],
 	freeText: string,
@@ -140,11 +149,7 @@ const buildQuery = (
 	const parts: string[] = [];
 	for (const f of filters) {
 		if (f.value !== null && f.value !== "") {
-			// Strip internal quotes before wrapping so the resulting
-			// key:"value" token stays well-formed for the backend.
-			const stripped = f.value.replaceAll('"', "");
-			const v = stripped.includes(" ") ? `"${stripped}"` : stripped;
-			parts.push(`${f.key}:${v}`);
+			parts.push(formatChatSearchFilterToken(f.key, f.value));
 		}
 	}
 	if (freeText.trim()) {
@@ -242,10 +247,16 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 
 	const commitIncompleteFilter = () => {
 		if (incompleteFilterKey && freeText.trim()) {
-			setFilters((prev) => [
-				...prev,
-				{ key: incompleteFilterKey, value: freeText.trim() },
-			]);
+			const rawValue = freeText.trim();
+			// `diff_url` pills accept URLs without a scheme as a convenience
+			// (so the user can paste `github.com/...` and have it work). The
+			// backend's validator rejects scheme-less URLs, so normalize the
+			// value into the committed pill rather than only at query time.
+			const value =
+				incompleteFilterKey === "diff_url"
+					? normalizeChatDiffURLValue(rawValue)
+					: rawValue;
+			setFilters((prev) => [...prev, { key: incompleteFilterKey, value }]);
 			setFreeText("");
 			setIncompleteFilterKey(null);
 		}
@@ -328,11 +339,24 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 						// Drop duplicate filter keys silently instead of
 						// letting them fall through to freeform text.
 						if (!activeKeys.has(key)) {
-							newFilters.push({ key, value: val });
+							const normalizedVal =
+								key === "diff_url" ? normalizeChatDiffURLValue(val) : val;
+							newFilters.push({ key, value: normalizedVal });
 							activeKeys.add(key);
 						}
 						continue;
 					}
+				}
+				// A bare URL paste is almost always a diff link; promote it to a
+				// `diff_url` pill instead of running an always-empty title
+				// search on the URL string.
+				if (!activeKeys.has("diff_url") && looksLikeChatDiffURL(token)) {
+					newFilters.push({
+						key: "diff_url",
+						value: normalizeChatDiffURLValue(token),
+					});
+					activeKeys.add("diff_url");
+					continue;
 				}
 				remaining.push(token);
 			}
