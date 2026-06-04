@@ -9,15 +9,23 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
+	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	entdbauthz "github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	entportsharing "github.com/coder/coder/v2/enterprise/coderd/portsharing"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -327,4 +335,126 @@ func newMockSubAgentAPIWithMaxPortShareLevel(
 	}
 
 	return ctx, api, &upsertedApps
+}
+
+func TestDevcontainerCoderAppShareClampedByTemplateMaxPortShareLevel(t *testing.T) {
+	t.Parallel()
+
+	ctx, db, client := newDevcontainerSubAgentClientWithMaxPortShareLevel(t, database.AppSharingLevelAuthenticated)
+	subAgent, err := client.Create(ctx, agentcontainers.SubAgent{
+		Name:            "devcontainer",
+		Directory:       "/workspaces/coder",
+		Architecture:    "amd64",
+		OperatingSystem: "linux",
+		Apps: []agentcontainers.SubAgentApp{
+			{
+				Slug:  "public-app",
+				URL:   "http://localhost:8080",
+				Share: codersdk.WorkspaceAppSharingLevelPublic,
+			},
+			{
+				Slug:  "owner-app",
+				URL:   "http://localhost:8081",
+				Share: codersdk.WorkspaceAppSharingLevelOwner,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, uuid.Nil, subAgent.ID)
+
+	apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
+	require.NoError(t, err)
+	require.Len(t, apps, 2)
+	slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
+		return cmp.Compare(appSlugSuffix(a.Slug), appSlugSuffix(b.Slug))
+	})
+	require.True(t, strings.HasSuffix(apps[0].Slug, "-owner-app"))
+	require.Equal(t, database.AppSharingLevelOwner, apps[0].SharingLevel)
+	require.True(t, strings.HasSuffix(apps[1].Slug, "-public-app"))
+	require.Equal(t, database.AppSharingLevelAuthenticated, apps[1].SharingLevel)
+}
+
+func newDevcontainerSubAgentClientWithMaxPortShareLevel(
+	t *testing.T,
+	maxPortShareLevel database.AppSharingLevel,
+) (context.Context, database.Store, agentcontainers.SubAgentClient) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	log := testutil.Logger(t)
+	clock := quartz.NewMock(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	user := dbgen.User(t, rawDB, database.User{})
+	template := dbgen.Template(t, rawDB, database.Template{
+		OrganizationID:      org.ID,
+		CreatedBy:           user.ID,
+		MaxPortSharingLevel: maxPortShareLevel,
+	})
+	templateVersion := dbgen.TemplateVersion(t, rawDB, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, rawDB, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+	})
+	job := dbgen.ProvisionerJob(t, rawDB, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: org.ID,
+	})
+	build := dbgen.WorkspaceBuild(t, rawDB, database.WorkspaceBuild{
+		JobID:             job.ID,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, rawDB, database.WorkspaceResource{
+		JobID: build.JobID,
+	})
+	parentAgent := dbgen.WorkspaceAgent(t, rawDB, database.WorkspaceAgent{
+		ResourceID: resource.ID,
+	})
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	accessControlStore := &atomic.Pointer[agpldbauthz.AccessControlStore]{}
+	var acs agpldbauthz.AccessControlStore = entdbauthz.EnterpriseTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
+	db := agpldbauthz.New(rawDB, auth, log, accessControlStore)
+	portSharer := &atomic.Pointer[agplportsharing.PortSharer]{}
+	var ps agplportsharing.PortSharer = entportsharing.NewEnterprisePortSharer()
+	portSharer.Store(&ps)
+	api := &agentapi.SubAgentAPI{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+			return parentAgent, nil
+		},
+		Log:        log,
+		Clock:      clock,
+		Database:   db,
+		PortSharer: portSharer,
+	}
+
+	client := agentcontainers.NewSubAgentClientFromAPI(log, devcontainerSubAgentDRPCClient{api: api})
+	return ctx, rawDB, client
+}
+
+type devcontainerSubAgentDRPCClient struct {
+	proto.DRPCAgentClient28
+	api *agentapi.SubAgentAPI
+}
+
+func (c devcontainerSubAgentDRPCClient) CreateSubAgent(ctx context.Context, req *proto.CreateSubAgentRequest) (*proto.CreateSubAgentResponse, error) {
+	return c.api.CreateSubAgent(ctx, req)
+}
+
+func (c devcontainerSubAgentDRPCClient) DeleteSubAgent(ctx context.Context, req *proto.DeleteSubAgentRequest) (*proto.DeleteSubAgentResponse, error) {
+	return c.api.DeleteSubAgent(ctx, req)
+}
+
+func (c devcontainerSubAgentDRPCClient) ListSubAgents(ctx context.Context, req *proto.ListSubAgentsRequest) (*proto.ListSubAgentsResponse, error) {
+	return c.api.ListSubAgents(ctx, req)
 }
