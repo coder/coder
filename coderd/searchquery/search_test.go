@@ -1519,7 +1519,7 @@ func TestSearchChats(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			values, errs := searchquery.Chats(c.Query)
+			values, _, errs := searchquery.Chats(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder

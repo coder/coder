@@ -8,6 +8,7 @@ import {
 	PinOffIcon,
 	SquarePenIcon,
 	Trash2Icon,
+	UsersIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
@@ -125,9 +126,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
-	const ownerName = chat.owner_name || chat.owner_username;
-	const sharedSubtitle =
-		chat.owner_id !== user.id ? `Shared by ${ownerName}` : undefined;
+	const isSharedChat = chat.owner_id !== user.id;
+	const ownerName = chat.owner_name || chat.owner_username || "another user";
+	const sharedSubtitle = isSharedChat ? `Shared by ${ownerName}` : undefined;
 	const subtitle =
 		errorReason ||
 		streamingSubtitle ||
@@ -289,6 +290,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										>
 											{chat.title}
 										</span>
+										{isSharedChat && (
+											<span className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-surface-tertiary px-1 py-0.5 text-[10px] font-medium leading-none text-content-secondary">
+												<UsersIcon className="size-3" />
+												Shared
+											</span>
+										)}
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
 										)}

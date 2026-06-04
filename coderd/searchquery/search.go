@@ -560,14 +560,24 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - repo: string (case-insensitive substring match against git remote origin or URL)
 //   - pr_title: string (case-insensitive PR title substring match)
 //   - source: created_by_me, shared_with_me, or all
-func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
+type ChatSourceFilter string
+
+const (
+	ChatSourceFilterDefault      ChatSourceFilter = ""
+	ChatSourceFilterCreatedByMe  ChatSourceFilter = "created_by_me"
+	ChatSourceFilterSharedWithMe ChatSourceFilter = "shared_with_me"
+	ChatSourceFilterAll          ChatSourceFilter = "all"
+)
+
+func Chats(query string) (database.GetChatsParams, ChatSourceFilter, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
 		Archived: sql.NullBool{Bool: false, Valid: true},
 	}
+	var sourceFilter ChatSourceFilter
 
 	if query == "" {
-		return filter, nil
+		return filter, sourceFilter, nil
 	}
 
 	// Lowercase the keys so they match regardless of how the caller
@@ -578,7 +588,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 		return xerrors.Errorf("unsupported search term: %q", term)
 	})
 	if len(errors) > 0 {
-		return filter, errors
+		return filter, sourceFilter, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -608,12 +618,13 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
 	if source := parser.String(values, "", "source"); source != "" {
-		switch codersdk.ChatListScope(source) {
-		case codersdk.ChatListScopeCreatedByMe:
+		sourceFilter = ChatSourceFilter(source)
+		switch sourceFilter {
+		case ChatSourceFilterCreatedByMe:
 			filter.OwnedOnly = true
-		case codersdk.ChatListScopeSharedWithMe:
+		case ChatSourceFilterSharedWithMe:
 			filter.SharedOnly = true
-		case codersdk.ChatListScopeAll:
+		case ChatSourceFilterAll:
 		default:
 			parser.Errors = append(parser.Errors, codersdk.ValidationError{
 				Field:  "source",
@@ -636,7 +647,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return filter, sourceFilter, parser.Errors
 }
 
 // validateDiffURL checks that the value is a syntactically valid HTTP(S)

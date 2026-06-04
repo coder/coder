@@ -354,7 +354,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	searchParams, errs := searchquery.Chats(queryStr)
+	searchParams, sourceFilter, errs := searchquery.Chats(queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid chat search query.",
@@ -390,15 +390,13 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ownedOnly := searchParams.OwnedOnly
-	sharedOnly := searchParams.SharedOnly
-	if !ownedOnly && !sharedOnly && !strings.Contains(queryStr, "source:") {
-		ownedOnly = true
+	if sourceFilter == searchquery.ChatSourceFilterDefault {
+		searchParams.OwnedOnly = true
 	}
 
 	params := database.GetChatsParams{
-		OwnedOnly:           ownedOnly,
-		SharedOnly:          sharedOnly,
+		OwnedOnly:           searchParams.OwnedOnly,
+		SharedOnly:          searchParams.SharedOnly,
 		ViewerID:            apiKey.UserID,
 		Archived:            searchParams.Archived,
 		AfterID:             paginationParams.AfterID,

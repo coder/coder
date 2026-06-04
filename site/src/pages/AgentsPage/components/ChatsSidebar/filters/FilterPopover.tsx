@@ -144,19 +144,14 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 	onFiltersChange,
 }) => {
 	const id = useId();
-	const filtersWithDefaults: AgentSidebarFilters = {
-		...DEFAULT_AGENT_SIDEBAR_FILTERS,
-		...filters,
-		sources: filters.sources ?? DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-	};
 	const [open, setOpen] = useState(false);
 	const [stagedFilters, setStagedFilters] =
-		useState<AgentSidebarFilters>(filtersWithDefaults);
+		useState<AgentSidebarFilters>(filters);
 	const [optionSearch, setOptionSearch] = useState("");
 
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (nextOpen) {
-			setStagedFilters(filtersWithDefaults);
+			setStagedFilters(filters);
 			setOptionSearch("");
 		}
 		setOpen(nextOpen);
@@ -234,19 +229,17 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 	};
 
 	const setSource = (source: AgentSourceFilter, checked: boolean) => {
-		const selected = new Set(stagedFilters.sources);
-		if (checked) {
-			selected.add(source);
-		} else {
-			selected.delete(source);
-		}
-		if (selected.size === 0) {
+		const nextSources = checked
+			? AGENT_SOURCE_ORDER.filter(
+					(value) => value === source || stagedFilters.sources.includes(value),
+				)
+			: stagedFilters.sources.filter((value) => value !== source);
+
+		if (nextSources.length === 0) {
 			return;
 		}
-		setStagedFilters({
-			...stagedFilters,
-			sources: AGENT_SOURCE_ORDER.filter((value) => selected.has(value)),
-		});
+
+		setStagedFilters({ ...stagedFilters, sources: nextSources });
 	};
 
 	const applyFilters = () => {
@@ -268,7 +261,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 					aria-label="Filter agents"
 					className={cn(
 						"h-7 w-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
-						hasActiveFilters(filtersWithDefaults) && "text-content-primary",
+						hasActiveFilters(filters) && "text-content-primary",
 					)}
 				>
 					<FilterIcon />
