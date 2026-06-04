@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -609,24 +610,25 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("BedrockUpdateCannotClearSettings", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeBedrock,
-			Name:    "bedrock-clear-settings",
-			Enabled: true,
-			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
-			Settings: codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+		_, err := db.InsertAIProvider(ctx, database.InsertAIProviderParams{
+			ID:          uuid.New(),
+			Type:        database.AiProviderTypeBedrock,
+			Name:        "bedrock-clear-settings",
+			DisplayName: sql.NullString{String: "bedrock-clear-settings", Valid: true},
+			Enabled:     true,
+			Settings: sql.NullString{
+				String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
+				Valid:  true,
 			},
 		})
 		require.NoError(t, err)
 
 		enabled := false
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+		_, err = client.UpdateAIProvider(ctx, "bedrock-clear-settings", codersdk.UpdateAIProviderRequest{
 			Enabled:  &enabled,
 			Settings: &codersdk.AIProviderSettings{},
 		})
