@@ -80,6 +80,13 @@ func TestAIProviderSettings_Unmarshal(t *testing.T) {
 		require.True(t, s.IsZero())
 	})
 
+	t.Run("EmptyObjectZeroes", func(t *testing.T) {
+		t.Parallel()
+		var s codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal([]byte(`{}`), &s))
+		require.True(t, s.IsZero())
+	})
+
 	t.Run("BedrockSupportedVersion", func(t *testing.T) {
 		t.Parallel()
 		var s codersdk.AIProviderSettings

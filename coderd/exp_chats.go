@@ -6731,7 +6731,7 @@ func (api *API) configuredProvidersFromAIProviders(ctx context.Context, provider
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		configuredProvider, err := api.configuredProviderFromAIProviderKeys(provider, keysByProviderID[provider.ID])
+		configuredProvider, err := api.configuredProviderFromAIProviderKeys(ctx, provider, keysByProviderID[provider.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -6740,9 +6740,10 @@ func (api *API) configuredProvidersFromAIProviders(ctx context.Context, provider
 	return configuredProviders, nil
 }
 
-func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
+func (api *API) configuredProviderFromAIProviderKeys(ctx context.Context, provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
 	providerType, err := canonicalAIProviderTypeForRow(provider)
 	if err != nil {
+		api.Logger.Error(ctx, "failed to decode AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 		return chatprovider.ConfiguredProvider{}, err
 	}
 	apiKey := ""
@@ -6838,6 +6839,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	for _, provider := range providers {
 		providerType, err := canonicalAIProviderTypeForRow(provider)
 		if err != nil {
+			api.Logger.Error(ctx, "failed to decode AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to decode AI provider settings.",
 				Detail:  err.Error(),
