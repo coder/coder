@@ -12,8 +12,8 @@ export const menuItemClass = `
 	no-underline
 	focus:bg-surface-secondary focus:text-content-primary
 	data-[disabled]:pointer-events-none data-[disabled]:opacity-50
-	[&_svg]:size-icon-sm [&>svg]:shrink-0
-	[&_img]:size-icon-sm [&>img]:shrink-0
+	[&>svg]:size-icon-sm [&>svg]:shrink-0
+	[&>img]:size-icon-sm [&>img]:shrink-0
 	`;
 
 export const menuSeparatorClass = "-mx-1 my-2 h-px bg-border";
