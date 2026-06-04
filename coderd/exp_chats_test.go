@@ -3905,6 +3905,45 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.Equal(t, "gpt-4o-mini-updated", updated.Model)
 	})
 
+	t.Run("CanonicalizesLegacyBedrockProviderWithoutAIProviderID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AiProviderTypeAnthropic,
+			Name: "legacy-bedrock-update-provider",
+			Settings: sql.NullString{
+				String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
+				Valid:  true,
+			},
+		})
+		storedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:             "anthropic",
+			AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:                "anthropic.claude-3-5-sonnet",
+			DisplayName:          "Claude via Bedrock",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+		})
+
+		updated, err := client.UpdateChatModelConfig(ctx, storedConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			Provider:    "bedrock",
+			DisplayName: "Claude via Bedrock Updated",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", updated.Provider)
+		require.Equal(t, "Claude via Bedrock Updated", updated.DisplayName)
+
+		persisted, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), storedConfig.ID)
+		require.NoError(t, err)
+		require.Equal(t, "bedrock", persisted.Provider)
+	})
+
 	t.Run("DisablePreservesRecordAndHidesItFromNonAdmins", func(t *testing.T) {
 		t.Parallel()
 

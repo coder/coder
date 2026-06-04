@@ -7079,20 +7079,43 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	provider := existing.Provider
+	aiProviderID := existing.AIProviderID
+	if req.AIProviderID == nil && aiProviderID.Valid {
+		//nolint:gocritic // The route already authorized chat model config updates.
+		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), aiProviderID.UUID)
+		if err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get AI provider.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		} else {
+			providerType, err := canonicalAIProviderTypeForRow(aiProvider)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to decode AI provider settings.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			provider = string(providerType)
+		}
+	}
+
 	if strings.TrimSpace(req.Provider) != "" && req.AIProviderID == nil {
 		requestedProvider := chatprovider.NormalizeProvider(req.Provider)
 		if requestedProvider == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid provider."})
 			return
 		}
-		if requestedProvider != existing.Provider {
+		if requestedProvider != provider {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required when updating provider."})
 			return
 		}
 	}
-
-	provider := existing.Provider
-	aiProviderID := existing.AIProviderID
 	if req.AIProviderID != nil {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
