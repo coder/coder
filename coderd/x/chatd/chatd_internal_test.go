@@ -202,7 +202,7 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
 }
 
-func TestResolveDirectModelRouteForProviderTypeFallsBackToRawTypeForBedrock(t *testing.T) {
+func TestResolveDirectModelRouteForProviderTypeMatchesEffectiveBedrockForAnthropicRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
