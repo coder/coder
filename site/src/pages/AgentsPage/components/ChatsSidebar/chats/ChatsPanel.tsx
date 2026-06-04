@@ -3,7 +3,6 @@ import {
 	DndContext,
 	type DragEndEvent,
 	KeyboardSensor,
-	type Modifier,
 	MouseSensor,
 	TouchSensor,
 	useSensor,
