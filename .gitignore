@@ -103,3 +103,6 @@ PLAN.md
 
 # Ignore any dev licenses
 license.txt
+
+# Release action build artifact
+/release-action
