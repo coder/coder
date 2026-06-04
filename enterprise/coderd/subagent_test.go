@@ -1,7 +1,9 @@
 package coderd_test
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -28,10 +30,6 @@ import (
 func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T) {
 	t.Parallel()
 
-	type expectedAppCreationError struct {
-		index  int32
-		detail string
-	}
 	type expectedApp struct {
 		slugSuffix   string
 		sharingLevel database.AppSharingLevel
@@ -41,11 +39,10 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 		name               string
 		maxPortShareLevel  database.AppSharingLevel
 		apps               []*proto.CreateSubAgentRequest_App
-		expectedErrors     []expectedAppCreationError
 		expectedStoredApps []expectedApp
 	}{
 		{
-			name:              "AuthenticatedRejectsPublic",
+			name:              "AuthenticatedClampsPublic",
 			maxPortShareLevel: database.AppSharingLevelAuthenticated,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -58,11 +55,10 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
 					Url:   ptr.Ref("http://localhost:8081"),
 				},
-			},
-			expectedErrors: []expectedAppCreationError{
 				{
-					index:  0,
-					detail: `"public" sharing level is not allowed under max level "authenticated"`,
+					Slug:  "owner-app",
+					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
+					Url:   ptr.Ref("http://localhost:8082"),
 				},
 			},
 			expectedStoredApps: []expectedApp{
@@ -70,10 +66,53 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					slugSuffix:   "-authenticated-app",
 					sharingLevel: database.AppSharingLevelAuthenticated,
 				},
+				{
+					slugSuffix:   "-owner-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
+					slugSuffix:   "-public-app",
+					sharingLevel: database.AppSharingLevelAuthenticated,
+				},
 			},
 		},
 		{
-			name:              "OwnerRejectsAuthenticatedAndPublic",
+			name:              "PublicAllowsPublicAuthenticatedAndOwner",
+			maxPortShareLevel: database.AppSharingLevelPublic,
+			apps: []*proto.CreateSubAgentRequest_App{
+				{
+					Slug:  "public-app",
+					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					Url:   ptr.Ref("http://localhost:8080"),
+				},
+				{
+					Slug:  "authenticated-app",
+					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+					Url:   ptr.Ref("http://localhost:8081"),
+				},
+				{
+					Slug:  "owner-app",
+					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
+					Url:   ptr.Ref("http://localhost:8082"),
+				},
+			},
+			expectedStoredApps: []expectedApp{
+				{
+					slugSuffix:   "-authenticated-app",
+					sharingLevel: database.AppSharingLevelAuthenticated,
+				},
+				{
+					slugSuffix:   "-owner-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
+					slugSuffix:   "-public-app",
+					sharingLevel: database.AppSharingLevelPublic,
+				},
+			},
+		},
+		{
+			name:              "OwnerClampsAuthenticatedAndPublic",
 			maxPortShareLevel: database.AppSharingLevelOwner,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -92,19 +131,17 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					Url:   ptr.Ref("http://localhost:8082"),
 				},
 			},
-			expectedErrors: []expectedAppCreationError{
-				{
-					index:  0,
-					detail: `"authenticated" sharing level is not allowed under max level "owner"`,
-				},
-				{
-					index:  1,
-					detail: `"public" sharing level is not allowed under max level "owner"`,
-				},
-			},
 			expectedStoredApps: []expectedApp{
 				{
+					slugSuffix:   "-authenticated-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
 					slugSuffix:   "-owner-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
+					slugSuffix:   "-public-app",
 					sharingLevel: database.AppSharingLevelOwner,
 				},
 			},
@@ -125,21 +162,21 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			})
 			require.NoError(t, err)
 			require.NotNil(t, resp.Agent)
-
-			require.Len(t, resp.AppCreationErrors, len(tt.expectedErrors))
-			for i, expectedErr := range tt.expectedErrors {
-				appErr := resp.AppCreationErrors[i]
-				require.EqualValues(t, expectedErr.index, appErr.Index)
-				require.NotNil(t, appErr.Field)
-				require.Equal(t, "share", *appErr.Field)
-				require.Contains(t, appErr.Error, expectedErr.detail)
-			}
+			require.Empty(t, resp.AppCreationErrors)
 
 			agentID, err := uuid.FromBytes(resp.Agent.Id)
 			require.NoError(t, err)
 			apps, err := db.GetWorkspaceAppsByAgentID(agpldbauthz.AsSystemRestricted(ctx), agentID)
 			require.NoError(t, err)
 			require.Len(t, apps, len(tt.expectedStoredApps))
+
+			slices.SortFunc(apps, func(a, b database.WorkspaceApp) int {
+				return cmp.Compare(a.Slug, b.Slug)
+			})
+			slices.SortFunc(tt.expectedStoredApps, func(a, b expectedApp) int {
+				return cmp.Compare(a.slugSuffix, b.slugSuffix)
+			})
+
 			for i, expectedApp := range tt.expectedStoredApps {
 				require.True(t, strings.HasSuffix(apps[i].Slug, expectedApp.slugSuffix))
 				require.Equal(t, expectedApp.sharingLevel, apps[i].SharingLevel)

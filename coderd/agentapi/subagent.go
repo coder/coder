@@ -222,10 +222,12 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			}
 			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
 			if err := portSharer.AuthorizedLevel(template, codersdk.WorkspaceAgentPortShareLevel(sharingLevel)); err != nil {
-				return codersdk.ValidationError{
-					Field:  "share",
-					Detail: err.Error(),
-				}
+				a.Log.Warn(ctx, "clamping workspace app sharing level to template max port sharing level",
+					slog.F("app_slug", slug),
+					slog.F("requested_share_level", sharingLevel),
+					slog.F("max_port_share_level", template.MaxPortSharingLevel),
+					slog.Error(err))
+				sharingLevel = template.MaxPortSharingLevel
 			}
 
 			var openIn database.WorkspaceAppOpenIn
