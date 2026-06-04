@@ -117,6 +117,9 @@ type Options struct {
 	ContextConfig                agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
+	// StatsReportInterval is the interval for the connstats callback
+	// installed at statsReporter creation.
+	StatsReportInterval time.Duration
 }
 
 type Client interface {
@@ -183,6 +186,10 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 
+	if options.StatsReportInterval == 0 {
+		options.StatsReportInterval = DefaultStatsReportInterval
+	}
+
 	if options.ListeningPortsGetter == nil {
 		options.ListeningPortsGetter = &osListeningPortsGetter{
 			cacheDuration: 1 * time.Second,
@@ -216,6 +223,7 @@ func New(options Options) Agent {
 			ignorePorts: maps.Clone(options.IgnorePorts),
 		},
 		reportMetadataInterval:             options.ReportMetadataInterval,
+		statsReportInterval:                options.StatsReportInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
 		subsystems:                         options.Subsystems,
@@ -289,6 +297,7 @@ type agent struct {
 	// values. Callers that need secrets must explicitly load this.
 	secrets                            atomic.Pointer[[]agentsdk.WorkspaceSecret]
 	reportMetadataInterval             time.Duration
+	statsReportInterval                time.Duration
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
@@ -1500,7 +1509,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			closing := a.closing
 			if !closing {
 				a.network = network
-				a.statsReporter = newStatsReporter(a.logger, network, a)
+				a.statsReporter = newStatsReporter(a.logger, network, a, a.statsReportInterval)
 			}
 			a.closeMutex.Unlock()
 			if closing {
