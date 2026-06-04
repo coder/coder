@@ -1128,7 +1128,8 @@ func TestUserOIDC(t *testing.T) {
 				"sub": uuid.NewString(),
 			},
 			AccessTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
 			},
 			IgnoreUserInfo: true,
 			AllowSignups:   true,
@@ -1151,14 +1152,38 @@ func TestUserOIDC(t *testing.T) {
 		{
 			Name: "EmailOnly",
 			IDTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
-				"sub":   uuid.NewString(),
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
 			},
+		},
+		{
+			Name: "EmailVerifiedAsStringTrue",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": "true",
+				"sub":            uuid.NewString(),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
+		},
+		{
+			Name: "EmailVerifiedAsStringFalse",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": "false",
+				"sub":            uuid.NewString(),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusForbidden,
 		},
 		{
 			Name: "EmailNotVerified",
@@ -1417,6 +1442,7 @@ func TestUserOIDC(t *testing.T) {
 			// See: https://github.com/coder/coder/issues/4472
 			Name: "UsernameIsEmail",
 			IDTokenClaims: jwt.MapClaims{
+				"email_verified":     true,
 				"preferred_username": "kyle@kwc.io",
 				"sub":                uuid.NewString(),
 			},
@@ -1466,9 +1492,10 @@ func TestUserOIDC(t *testing.T) {
 		{
 			Name: "GroupsDoesNothing",
 			IDTokenClaims: jwt.MapClaims{
-				"email":  "coolin@coder.com",
-				"groups": []string{"pingpong"},
-				"sub":    uuid.NewString(),
+				"email":          "coolin@coder.com",
+				"email_verified": true,
+				"groups":         []string{"pingpong"},
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1641,6 +1668,57 @@ func TestUserOIDC(t *testing.T) {
 		})
 	}
 
+	// Absent email_verified claim tests use a FakeIDP that suppresses the
+	// default email_verified=true injection so the handler's absent-claim
+	// branch is exercised end-to-end.
+	t.Run("EmailVerifiedMissing", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("EmailVerifiedMissingIgnored", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.IgnoreEmailVerified = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		userClient, _ := fake.Login(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user, err := userClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle", user.Username)
+	})
+
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -1670,8 +1748,9 @@ func TestUserOIDC(t *testing.T) {
 		auditor.ResetLogs()
 
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
-			"email": user.Email,
-			"sub":   uuid.NewString(),
+			"email":          user.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1947,8 +2026,9 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
 		claims := jwt.MapClaims{
-			"email": userData.Email,
-			"sub":   uuid.NewString(),
+			"email":          userData.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
@@ -2018,8 +2098,9 @@ func TestUserOIDC(t *testing.T) {
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		claims := jwt.MapClaims{
-			"email": userData.Email,
-			"sub":   uuid.NewString(),
+			"email":          userData.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
@@ -2089,8 +2170,9 @@ func TestUserOIDC(t *testing.T) {
 
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
-			"email": "jon@coder.com",
-			"sub":   uuid.NewString(),
+			"email":          "jon@coder.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 
 		userClient, _ := fake.Login(t, client, claims)
@@ -2104,8 +2186,9 @@ func TestUserOIDC(t *testing.T) {
 		// Pass a different subject field so that we prompt creating a
 		// new user
 		userClient, _ = fake.Login(t, client, jwt.MapClaims{
-			"email": "jon@example2.com",
-			"sub":   "diff",
+			"email":          "jon@example2.com",
+			"email_verified": true,
+			"sub":            "diff",
 		})
 		numLogs++ // add an audit log for login
 
@@ -2470,9 +2553,10 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	//nolint:bodyclose
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
-		"iss":   secondaryURLString,
-		"email": "alice@coder.com",
-		"sub":   uuid.NewString(),
+		"iss":            secondaryURLString,
+		"email":          "alice@coder.com",
+		"email_verified": true,
+		"sub":            uuid.NewString(),
 	})
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)
