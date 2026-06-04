@@ -30,8 +30,6 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 						"group/badge pointer-events-none",
 						"[--unread-badge-size:18px] [--offset:calc(var(--unread-badge-size)/2)]",
 						"absolute top-0 right-0 -mr-[--offset] -mt-[--offset]",
-						isOpen &&
-							"animate-in slide-in-from-left-2 slide-in-from-bottom-3 duration-[260ms] [animation-timing-function:cubic-bezier(0.22,1,0.36,1)]",
 					)}
 					data-open={isOpen}
 					aria-hidden={!isOpen || undefined}
