@@ -149,11 +149,14 @@ const AgentsPage: FC = () => {
 		sidebarFilters.chatStatuses.length === 1
 			? sidebarFilters.chatStatuses[0]
 			: undefined;
+	const sourceFilter =
+		sidebarFilters.sources.length === 2 ? "all" : sidebarFilters.sources[0];
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
+			source: sourceFilter,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays

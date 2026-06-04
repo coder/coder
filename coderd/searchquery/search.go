@@ -559,6 +559,7 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - pr: positive integer (exact PR number match)
 //   - repo: string (case-insensitive substring match against git remote origin or URL)
 //   - pr_title: string (case-insensitive PR title substring match)
+//   - source: created_by_me, shared_with_me, or all
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
@@ -606,6 +607,20 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
+	if source := parser.String(values, "", "source"); source != "" {
+		switch codersdk.ChatListScope(source) {
+		case codersdk.ChatListScopeCreatedByMe:
+			filter.OwnedOnly = true
+		case codersdk.ChatListScopeSharedWithMe:
+			filter.SharedOnly = true
+		case codersdk.ChatListScopeAll:
+		default:
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "source",
+				Detail: fmt.Sprintf("%q is not a valid value", source),
+			})
+		}
+	}
 
 	// pr: requires a positive integer.
 	if prStr := parser.String(values, "", "pr"); prStr != "" {

@@ -12,18 +12,21 @@ export const AGENT_CHAT_STATUS_ORDER = [
 	"read",
 ] as const satisfies readonly ChatListStatusFilter[];
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
+export const AGENT_SOURCE_ORDER = ["created_by_me", "shared_with_me"] as const;
 
 export type AgentArchiveStatusFilter =
 	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
 export type AgentChatStatusFilter = ChatListStatusFilter;
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
+export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];
 
 export type AgentSidebarFilters = Readonly<{
 	archiveStatus: AgentArchiveStatusFilter;
 	groupBy: AgentSidebarGroupBy;
 	prStatuses: readonly AgentPRStatusFilter[];
 	chatStatuses: readonly AgentChatStatusFilter[];
+	sources: readonly AgentSourceFilter[];
 }>;
 
 type AgentSidebarFiltersResult = readonly [
@@ -36,11 +39,13 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	sources: ["created_by_me"],
 };
 
 const agentChatStatusSet = new Set<AgentChatStatusFilter>(
 	AGENT_CHAT_STATUS_ORDER,
 );
+const agentSourceSet = new Set<AgentSourceFilter>(AGENT_SOURCE_ORDER);
 
 const canonicalizeChatStatuses = (
 	values: Iterable<string>,
@@ -54,11 +59,24 @@ const canonicalizeChatStatuses = (
 	return AGENT_CHAT_STATUS_ORDER.filter((status) => selected.has(status));
 };
 
+const canonicalizeSources = (
+	values: Iterable<string>,
+): readonly AgentSourceFilter[] => {
+	const selected = new Set<AgentSourceFilter>();
+	for (const value of values) {
+		if (agentSourceSet.has(value as AgentSourceFilter)) {
+			selected.add(value as AgentSourceFilter);
+		}
+	}
+	return AGENT_SOURCE_ORDER.filter((source) => selected.has(source));
+};
+
 const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
 	searchParams.delete("archived");
 	searchParams.delete("group_by");
 	searchParams.delete("pr_status");
 	searchParams.delete("chat_status");
+	searchParams.delete("source");
 };
 
 const writeSidebarFilters = (
@@ -84,6 +102,16 @@ const writeSidebarFilters = (
 	if (chatStatuses.length === 1) {
 		searchParams.set("chat_status", chatStatuses[0]);
 	}
+
+	const sources = canonicalizeSources(filters.sources);
+	if (
+		sources.length !== DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		sources.some(
+			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
+		)
+	) {
+		searchParams.set("source", sources.join(","));
+	}
 };
 
 export const getAgentSidebarFilters = (
@@ -95,6 +123,9 @@ export const getAgentSidebarFilters = (
 	);
 	const chatStatuses = canonicalizeChatStatuses(
 		(searchParams.get("chat_status") ?? "").split(",").filter(Boolean),
+	);
+	const sources = canonicalizeSources(
+		(searchParams.get("source") ?? "").split(",").filter(Boolean),
 	);
 
 	const filters: AgentSidebarFilters = {
@@ -109,6 +140,8 @@ export const getAgentSidebarFilters = (
 			chatStatuses.length > 0
 				? chatStatuses
 				: DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
+		sources:
+			sources.length > 0 ? sources : DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 	};
 
 	const setFilters = (next: AgentSidebarFilters) => {

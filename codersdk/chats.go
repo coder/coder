@@ -2036,9 +2036,18 @@ type UpdateChatACL struct {
 	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
 }
 
+type ChatListScope string
+
+const (
+	ChatListScopeCreatedByMe  ChatListScope = "created_by_me"
+	ChatListScopeSharedWithMe ChatListScope = "shared_with_me"
+	ChatListScopeAll          ChatListScope = "all"
+)
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query  string
+	Scope  ChatListScope
 	Labels map[string]string
 	Pagination
 }
@@ -2048,10 +2057,17 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	var reqOpts []RequestOption
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
-		if opts.Query != "" {
+		query := opts.Query
+		if opts.Scope != "" {
+			if query != "" {
+				query += " "
+			}
+			query += "source:" + string(opts.Scope)
+		}
+		if query != "" {
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
-				q.Set("q", opts.Query)
+				q.Set("q", query)
 				r.URL.RawQuery = q.Encode()
 			})
 		}

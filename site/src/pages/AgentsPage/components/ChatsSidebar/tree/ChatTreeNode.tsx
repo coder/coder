@@ -13,6 +13,7 @@ import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -45,6 +46,7 @@ interface ChatTreeNodeProps {
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
+	const { user } = useAuthenticated();
 	const {
 		chatTree,
 		chatById,
@@ -123,8 +125,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const ownerName = chat.owner_name || chat.owner_username;
+	const sharedSubtitle =
+		chat.owner_id !== user.id ? `Shared by ${ownerName}` : undefined;
 	const subtitle =
-		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
+		errorReason ||
+		streamingSubtitle ||
+		sharedSubtitle ||
+		displayedTurnSummary ||
+		modelName;
 	const {
 		icon: StatusIcon,
 		className: statusClassName,

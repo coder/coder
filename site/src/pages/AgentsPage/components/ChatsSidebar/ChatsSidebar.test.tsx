@@ -57,7 +57,9 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
-	owner_id: "owner-1",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: "model-1",
@@ -110,6 +112,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -665,6 +668,32 @@ describe("ChatsSidebar subtitles", () => {
 		expect(screen.getByText("Workspace startup failed")).toBeInTheDocument();
 		expect(
 			screen.queryByText("Provisioned a workspace"),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows who shared chats owned by another user", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user",
+							owner_name: "Sharing User",
+							owner_username: "sharing-user",
+							last_turn_summary: "This summary is hidden for shared chats",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("Shared by Sharing User")).toBeInTheDocument();
+		expect(
+			screen.queryByText("This summary is hidden for shared chats"),
 		).not.toBeInTheDocument();
 	});
 

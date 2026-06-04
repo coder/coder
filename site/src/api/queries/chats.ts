@@ -29,18 +29,17 @@ export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
+export type ChatListSourceFilter = "created_by_me" | "shared_with_me" | "all";
 
 type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
+	source?: ChatListSourceFilter;
 }>;
 
-export const infiniteChatsKey = (filters?: {
-	archived?: boolean;
-	prStatuses?: readonly ChatListPRStatusFilter[];
-	chatStatus?: ChatListStatusFilter;
-}) => [...chatsKey, filters] as const;
+export const infiniteChatsKey = (filters?: InfiniteChatsFilters) =>
+	[...chatsKey, filters] as const;
 
 export const CHAT_LIST_PR_STATUS_ORDER = [
 	"draft",
@@ -560,6 +559,9 @@ const getInfiniteChatsQueryString = (
 	}
 	if (filters?.chatStatus) {
 		qParts.push(`has_unread:${filters.chatStatus === "unread"}`);
+	}
+	if (filters?.source) {
+		qParts.push(`source:${filters.source}`);
 	}
 	return qParts.length > 0 ? qParts.join(" ") : undefined;
 };
