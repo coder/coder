@@ -159,6 +159,14 @@ func marshalSettings(s settingsTyped) ([]byte, error) {
 	return json.Marshal(m)
 }
 
+func IsBedrockProviderConfigured(baseURL string, settings *AIProviderBedrockSettings) bool {
+	var bedrock AIProviderBedrockSettings
+	if settings != nil {
+		bedrock = *settings
+	}
+	return IsBedrockConfigured(baseURL, bedrock)
+}
+
 // CanonicalAIProviderType returns the runtime provider type for a row
 // or request payload. Bedrock has a dedicated provider type, but older
 // clients may still send Bedrock settings with type=anthropic. Treat
@@ -245,7 +253,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "bedrock settings are only valid for type=bedrock",
 		})
 	}
-	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !IsBedrockConfigured(req.BaseURL, *req.Settings.Bedrock)) {
+	if req.Type == AIProviderTypeBedrock && !IsBedrockProviderConfigured(req.BaseURL, req.Settings.Bedrock) {
 		validations = append(validations, ValidationError{
 			Field:  "settings",
 			Detail: "type=bedrock requires bedrock settings or base_url",

@@ -319,7 +319,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if existing.Bedrock != nil && targetType != database.AiProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
-		if targetType == database.AiProviderTypeBedrock && (existing.Bedrock == nil || !codersdk.IsBedrockConfigured(targetBaseURL, *existing.Bedrock)) {
+		if targetType == database.AiProviderTypeBedrock && !codersdk.IsBedrockProviderConfigured(targetBaseURL, existing.Bedrock) {
 			return errAIProviderBedrockSettingsRequired
 		}
 		settings, err := encodeAIProviderSettings(existing)
