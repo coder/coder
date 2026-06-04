@@ -3920,19 +3920,15 @@ func TestAPI(t *testing.T) {
 		// Call RefreshContainers directly to trigger CommandEnv usage.
 		_ = api.RefreshContainers(ctx) // Ignore error since docker commands will fail.
 
-		// Verify commands were executed through the custom shell and environment.
+		// Verify commands were executed through the custom environment.
 		require.NotEmpty(t, fakeExec.commands, "commands should be executed")
 
-		// Want: /bin/custom-shell -c '"docker" "ps" "--all" "--quiet" "--no-trunc"'
-		require.Equal(t, testShell, fakeExec.commands[0][0], "custom shell should be used")
-		if runtime.GOOS == "windows" {
-			require.Equal(t, "/c", fakeExec.commands[0][1], "shell should be called with /c on Windows")
-		} else {
-			require.Equal(t, "-c", fakeExec.commands[0][1], "shell should be called with -c")
-		}
-		require.Len(t, fakeExec.commands[0], 3, "command should have 3 arguments")
-		require.GreaterOrEqual(t, strings.Count(fakeExec.commands[0][2], " "), 2, "command/script should have multiple arguments")
-		require.True(t, strings.HasPrefix(fakeExec.commands[0][2], `"docker" "ps"`), "command should start with \"docker\" \"ps\"")
+		// Want: docker ps --all --quiet --no-trunc (no shell, no -c).
+		require.NotEqual(t, testShell, fakeExec.commands[0][0],
+			"commands must no longer be wrapped in the user shell")
+		require.Equal(t, []string{"docker", "ps", "--all", "--quiet", "--no-trunc"},
+			fakeExec.commands[0],
+			"argv must be forwarded verbatim, with no shell wrapper")
 
 		// Verify the environment was set on the command.
 		lastCmd := fakeExec.getLastCommand()
