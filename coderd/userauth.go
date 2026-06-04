@@ -1896,9 +1896,15 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			// Defense-in-depth: if a concurrent transaction backfilled
-			// linked_id between findLinkedUser and this point, reject.
+			// linked_id between findLinkedUser and this point, reject the
+			// login with a 403 instead of letting it bubble up as a 500.
 			if link.LinkedID != "" && link.LinkedID != params.LinkedID {
-				return xerrors.Errorf("identity mismatch: account bound to different subject")
+				return &idpsync.HTTPError{
+					Code:             http.StatusForbidden,
+					Msg:              "Account already linked",
+					Detail:           "This account is already linked to a different identity provider subject. Contact your administrator.",
+					RenderStaticPage: true,
+				}
 			}
 
 			// Backfill linked_id for legacy links.
