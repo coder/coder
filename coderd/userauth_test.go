@@ -386,6 +386,67 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
+	t.Run("EmailFallbackBlockedByExistingLink", func(t *testing.T) {
+		t.Parallel()
+
+		// A victim already has a GitHub link bound to a specific GitHub user
+		// ID. An attacker authenticates with a different GitHub user ID but
+		// the victim's verified email. The email fallback must not hand the
+		// attacker the victim's account, even with signups enabled.
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:  &testutil.OAuth2Config{},
+				AllowSignups:  true,
+				AllowEveryone: true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(_ context.Context, _ *http.Client, _, _, _ string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					// Attacker's GitHub ID differs from the victim's link.
+					return &github.User{
+						ID:    github.Int64(200),
+						Login: github.String("attacker"),
+						Name:  github.String("Attacker"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("victim@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+
+		// Seed the victim with an existing GitHub link (a different linked_id).
+		victim := dbgen.User(t, db, database.User{
+			Email:     "victim@coder.com",
+			LoginType: database.LoginTypeGithub,
+		})
+		const victimLinkedID = "100"
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    victim.ID,
+			LoginType: database.LoginTypeGithub,
+			LinkedID:  victimLinkedID,
+		})
+
+		resp := oauth2Callback(t, owner)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"attacker with a different GitHub ID must not authenticate as the victim")
+
+		// The victim's link must be untouched.
+		victimLink, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    victim.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+		require.Equal(t, victimLinkedID, victimLink.LinkedID,
+			"victim's linked_id must remain unchanged")
+	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1803,6 +1864,63 @@ func TestUserOIDC(t *testing.T) {
 		expectedLinkedID := fake.IssuerURL().String() + "||" + sub
 		require.Equal(t, expectedLinkedID, link.LinkedID,
 			"linked_id should be backfilled with the correct value after login")
+	})
+
+	// Tests that changing the OIDC issuer URL blocks an existing user whose
+	// linked_id was recorded under the old issuer. This is a deliberate
+	// breaking change: before this fix the email fallback silently rescued
+	// such users. Now the login is rejected because the existing link's
+	// linked_id (old issuer) differs from the newly computed one (new issuer).
+	t.Run("OIDCEmailFallbackBlockedByIssuerChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Seed a user whose link was created under a different (old) issuer
+		// but with the same subject the IdP presents on login.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		const sub = "stable-subject"
+		oldLinkedID := "https://old-issuer.example.com||" + sub
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  oldLinkedID,
+		})
+
+		// Login presents the same subject but the current issuer, so the
+		// computed linked_id differs from the stored one and is blocked.
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   sub,
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"issuer change must block the email fallback for an existing link")
+
+		// The stored link must remain unchanged.
+		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, oldLinkedID, link.LinkedID,
+			"linked_id must not be modified when the login is blocked")
 	})
 
 	t.Run("OIDCConvert", func(t *testing.T) {
