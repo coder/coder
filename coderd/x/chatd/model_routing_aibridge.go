@@ -88,9 +88,8 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 // ValidateAIGatewayProviderModel rejects slash-namespaced models on
-// OpenRouter-like providers typed as openai, where canonical-prefix
-// parsing strips the vendor prefix and resolves to the wrong provider
-// and request format.
+// OpenRouter-like providers typed as openai, where the provider type
+// strips the vendor prefix.
 func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) error {
 	if provider.Type != database.AiProviderTypeOpenai {
 		return nil
