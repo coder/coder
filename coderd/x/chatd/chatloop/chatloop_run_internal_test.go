@@ -795,6 +795,74 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 	}
 }
 
+func TestRun_RetriesProviderContextCanceledStreamError(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	retryErrs := make(chan error, chatretry.MaxAttempts)
+	retries := make(chan chatretry.ClassifiedError, chatretry.MaxAttempts)
+	var persisted []fantasy.Content
+	ctx := testutil.Context(t, testutil.WaitShort)
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial"},
+					{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-2"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-2", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-2"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	err := Run(ctx, RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persisted = append([]fantasy.Content(nil), step.Content...)
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retryErrs <- retryErr
+			retries <- classified
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retryErrs, 1)
+	require.Len(t, retries, 1)
+	retryErr := testutil.RequireReceive(ctx, t, retryErrs)
+	classified := testutil.RequireReceive(ctx, t, retries)
+	require.ErrorIs(t, retryErr, chaterror.ErrProviderTransportReset)
+	require.ErrorIs(t, retryErr, context.Canceled)
+	require.Equal(t, codersdk.ChatErrorKindTimeout, classified.Kind)
+	require.True(t, classified.Retryable)
+	require.Equal(t, "openai", classified.Provider)
+	require.Equal(t, "OpenAI is temporarily unavailable.", classified.Message)
+
+	text := requireTextContent(t, persisted, "done")
+	require.Equal(t, "done", text.Text)
+	for _, block := range persisted {
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			require.NotContains(t, text.Text, "partial")
+		}
+	}
+}
+
 func TestRun_RetriesSilenceTimeoutBeforeFirstPart(t *testing.T) {
 	t.Parallel()
 
