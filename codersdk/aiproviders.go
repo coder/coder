@@ -87,7 +87,7 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 	*s = AIProviderSettings{}
 	trimmed := bytes.TrimSpace(data)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) || bytes.Equal(trimmed, []byte("{}")) {
 		return nil
 	}
 	var header aiProviderSettingsHeader
@@ -279,6 +279,31 @@ type UpdateAIProviderRequest struct {
 	BaseURL     *string                  `json:"base_url,omitempty"`
 	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
 	Settings    *AIProviderSettings      `json:"settings,omitempty"`
+}
+
+func (req UpdateAIProviderRequest) MarshalJSON() ([]byte, error) {
+	var settings any
+	if req.Settings != nil {
+		if req.Settings.IsZero() {
+			settings = struct{}{}
+		} else {
+			settings = req.Settings
+		}
+	}
+	type wireUpdateAIProviderRequest struct {
+		DisplayName *string                  `json:"display_name,omitempty"`
+		Enabled     *bool                    `json:"enabled,omitempty"`
+		BaseURL     *string                  `json:"base_url,omitempty"`
+		APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
+		Settings    any                      `json:"settings,omitempty"`
+	}
+	return json.Marshal(wireUpdateAIProviderRequest{
+		DisplayName: req.DisplayName,
+		Enabled:     req.Enabled,
+		BaseURL:     req.BaseURL,
+		APIKeys:     req.APIKeys,
+		Settings:    settings,
+	})
 }
 
 // AIProviderKeyMutation describes the intended state of a single key
