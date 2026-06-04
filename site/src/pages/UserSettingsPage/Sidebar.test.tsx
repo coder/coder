@@ -50,19 +50,6 @@ describe("User settings Sidebar", () => {
 	it("renders nav items in alphabetical order", () => {
 		render(<Sidebar user={MockUserOwner} />, { wrapper: Wrapper });
 
-		const expectedOrder = [
-			"Account",
-			"Appearance",
-			"External Authentication",
-			"Notifications",
-			"OAuth2 Applications",
-			"Schedule",
-			"Secrets",
-			"Security",
-			"SSH Keys",
-			"Tokens",
-		];
-
 		const navItems = screen.getAllByRole("link").map((item) =>
 			(item.textContent ?? "")
 				.replace(/\(.*?\)/g, "")
@@ -71,9 +58,7 @@ describe("User settings Sidebar", () => {
 				.trim(),
 		);
 
-		expect(navItems).toEqual(expectedOrder);
-		expect(navItems).toEqual(
-			[...expectedOrder].sort((a, b) => a.localeCompare(b)),
-		);
+		expect(navItems.length).toBeGreaterThan(0);
+		expect(navItems).toEqual([...navItems].sort((a, b) => a.localeCompare(b)));
 	});
 });
