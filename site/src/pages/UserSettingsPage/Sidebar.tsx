@@ -36,6 +36,9 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 				<SettingsSidebarNavItem href="external-auth">
 					External Authentication
 				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="notifications">
+					Notifications
+				</SettingsSidebarNavItem>
 				{showOAuth2Page && (
 					<SettingsSidebarNavItem href="oauth2-provider">
 						OAuth2 Applications
@@ -46,13 +49,6 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 						Schedule
 					</SettingsSidebarNavItem>
 				)}
-				<SettingsSidebarNavItem href="security">
-					Security
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="secrets">
 					<span className="flex min-w-0 items-center gap-2">
 						<span>Secrets</span>
@@ -63,9 +59,13 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 						/>
 					</span>
 				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="notifications">
-					Notifications
+				<SettingsSidebarNavItem href="security">
+					Security
 				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="ssh-keys">
+					SSH Keys
+				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
 			</div>
 		</BaseSidebar>
 	);
