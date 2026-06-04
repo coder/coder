@@ -84,7 +84,7 @@ pages.
 | [2.31](https://coder.com/changelog/coder-2-31) | February 23, 2026 | Not Supported            | [v2.31.14](https://github.com/coder/coder/releases/tag/v2.31.14) |
 | [2.32](https://coder.com/changelog/coder-2-32) | April 14, 2026    | Security Support         | [v2.32.5](https://github.com/coder/coder/releases/tag/v2.32.5)   |
 | [2.33](https://coder.com/changelog/coder-2-33) | May 05, 2026      | Stable                   | [v2.33.6](https://github.com/coder/coder/releases/tag/v2.33.6)   |
-| [2.34](https://coder.com/changelog/coder-2-34) | June 02, 2026     | Mainline                 | [v2.34.0](https://github.com/coder/coder/releases/tag/v2.34.0)   |
+| [2.34](https://coder.com/changelog/coder-2-34) | June 02, 2026     | Mainline (ESR)           | [v2.34.0](https://github.com/coder/coder/releases/tag/v2.34.0)   |
 | 2.35                                           |                   | Not Released             | N/A                                                              |
 <!-- RELEASE_CALENDAR_END -->
 
