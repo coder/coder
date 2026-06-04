@@ -361,9 +361,11 @@ func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentCli
 
 	// Wake often enough to honor both interval and duration. The branches
 	// inside the tick func gate which action (if any) fires on each tick.
+	// A zero duration (instant disconnect) is excluded from the min so the
+	// tick period stays the positive interval rather than collapsing to 0.
 	tick := a.connReportInterval
-	if a.connReportDuration > 0 && a.connReportDuration < tick {
-		tick = a.connReportDuration
+	if a.connReportDuration > 0 {
+		tick = min(tick, a.connReportDuration)
 	}
 
 	var (
