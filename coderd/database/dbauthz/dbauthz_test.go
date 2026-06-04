@@ -2564,6 +2564,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
 	}))
+	s.Run("UpdateUserLinkedID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.UserLink{})
+		arg := database.UpdateUserLinkedIDParams{LinkedID: link.LinkedID, UserID: link.UserID, LoginType: link.LoginType}
+		dbm.EXPECT().UpdateUserLinkedID(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdate).Returns(link)
+	}))
 	s.Run("UpdateUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		o := u
