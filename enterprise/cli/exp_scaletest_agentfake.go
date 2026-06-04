@@ -181,7 +181,7 @@ func (r *RootCmd) scaletestAgentFake() *serpent.Command {
 		{
 			Flag:        "connection-report-duration",
 			Env:         "CODER_SCALETEST_AGENTFAKE_CONNECTION_REPORT_DURATION",
-			Description: "Synthetic SSH session length per fake agent. Ignored when --connection-report-interval is zero.",
+			Description: "Synthetic SSH session length per fake agent. Zero disables connection reporting.",
 			Default:     "5s",
 			Value:       serpent.DurationOf(&connReportDuration),
 		},

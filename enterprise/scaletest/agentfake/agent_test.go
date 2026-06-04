@@ -236,58 +236,72 @@ func TestAgent_ReportsConnections(t *testing.T) {
 	}
 }
 
-// Assert that a zero connection-report interval disables reporting entirely.
+// Assert that a zero interval or duration disables reporting entirely.
 func TestAgent_ReportsConnections_Disabled(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	for _, tc := range []struct {
+		name     string
+		interval time.Duration
+		duration time.Duration
+	}{
+		{"BothZero", 0, 0},
+		{"ZeroInterval", 0, 5 * time.Second},
+		{"ZeroDuration", 30 * time.Second, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
 
-	agentID := uuid.New()
-	manifest := agentsdk.Manifest{
-		AgentID:     agentID,
-		WorkspaceID: uuid.New(),
-	}
-	statsCh := make(chan *agentproto.Stats, 1)
-	coord := tailnet.NewCoordinator(logger)
-	t.Cleanup(func() { _ = coord.Close() })
-	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
-	t.Cleanup(dialer.Close)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	a := agentfake.NewAgent(logger, nil, "",
-		agentfake.WithDialer(dialer),
-		agentfake.WithConnectionReports(0, 0),
-	)
-	t.Cleanup(a.Close)
-
-	runCtx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
-	runErr := make(chan error, 1)
-	go func() { runErr <- a.Run(runCtx) }()
-
-	// Wait for lifecycle=READY so the reporting goroutine has had its chance
-	// to start before we assert it stayed silent.
-	require.Eventually(t, func() bool {
-		for _, state := range dialer.GetLifecycleStates() {
-			if state == codersdk.WorkspaceAgentLifecycleReady {
-				return true
+			agentID := uuid.New()
+			manifest := agentsdk.Manifest{
+				AgentID:     agentID,
+				WorkspaceID: uuid.New(),
 			}
-		}
-		return false
-	}, testutil.WaitShort, testutil.IntervalFast,
-		"agent never reported Lifecycle=ready")
+			statsCh := make(chan *agentproto.Stats, 1)
+			coord := tailnet.NewCoordinator(logger)
+			t.Cleanup(func() { _ = coord.Close() })
+			dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
+			t.Cleanup(dialer.Close)
 
-	// Give any (buggy) reporting a brief window to leak through.
-	time.Sleep(testutil.IntervalSlow)
+			a := agentfake.NewAgent(logger, nil, "",
+				agentfake.WithDialer(dialer),
+				agentfake.WithConnectionReports(tc.interval, tc.duration),
+			)
+			t.Cleanup(a.Close)
 
-	require.Empty(t, dialer.GetConnectionReports(),
-		"expected no ReportConnection calls when reporting is disabled")
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+			runErr := make(chan error, 1)
+			go func() { runErr <- a.Run(runCtx) }()
 
-	cancel()
-	select {
-	case err := <-runErr:
-		require.NoError(t, err, "Agent.Run returned unexpected error")
-	case <-ctx.Done():
-		t.Fatalf("timed out waiting for Agent.Run to return: %v", ctx.Err())
+			// Wait for lifecycle=READY so the reporting goroutine has had its
+			// chance to start before we assert it stayed silent.
+			require.Eventually(t, func() bool {
+				for _, state := range dialer.GetLifecycleStates() {
+					if state == codersdk.WorkspaceAgentLifecycleReady {
+						return true
+					}
+				}
+				return false
+			}, testutil.WaitShort, testutil.IntervalFast,
+				"agent never reported Lifecycle=ready")
+
+			// Give any (buggy) reporting a brief window to leak through.
+			time.Sleep(testutil.IntervalSlow)
+
+			require.Empty(t, dialer.GetConnectionReports(),
+				"expected no ReportConnection calls when reporting is disabled")
+
+			cancel()
+			select {
+			case err := <-runErr:
+				require.NoError(t, err, "Agent.Run returned unexpected error")
+			case <-ctx.Done():
+				t.Fatalf("timed out waiting for Agent.Run to return: %v", ctx.Err())
+			}
+		})
 	}
 }

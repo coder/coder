@@ -68,7 +68,8 @@ type ManagerOptions struct {
 	// before enumerating.
 	ExpectedAgents          int64
 	ExpectedAgentsTolerance int64
-	// Zero ConnectionReportInterval disables synthetic SSH connection reporting.
+	// A zero ConnectionReportInterval or ConnectionReportDuration disables
+	// synthetic SSH connection reporting.
 	ConnectionReportInterval time.Duration
 	ConnectionReportDuration time.Duration
 	// Clock is used for the workspace-count polling interval.

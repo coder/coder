@@ -62,7 +62,8 @@ type Agent struct {
 	firstConnect   chan<- time.Duration
 	firstConnected atomic.Bool
 
-	// Zero connReportInterval disables synthetic SSH connection reporting.
+	// A zero connReportInterval or connReportDuration disables synthetic SSH
+	// connection reporting.
 	connReportInterval time.Duration
 	connReportDuration time.Duration
 
@@ -113,7 +114,7 @@ func WithFirstConnect(ch chan<- time.Duration) Option {
 }
 
 // WithConnectionReports enables periodic synthetic SSH connection reporting.
-// A zero interval disables reporting.
+// A zero interval or duration disables reporting.
 func WithConnectionReports(interval, duration time.Duration) Option {
 	return func(a *Agent) {
 		a.connReportInterval = interval
@@ -346,16 +347,14 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 // DISCONNECT) via ReportConnection. Each session reuses one connection_id so
 // coderd pairs the two halves onto a single connection_log row.
 func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentClient29) {
-	if a.connReportInterval <= 0 {
+	// A zero-length session is meaningless, so a zero interval or duration
+	// disables reporting entirely.
+	if a.connReportInterval <= 0 || a.connReportDuration <= 0 {
 		return
 	}
 
-	// Tick at the smaller of the two so neither boundary is overshot. A zero
-	// duration is excluded so the tick period can't collapse to 0.
-	tick := a.connReportInterval
-	if a.connReportDuration > 0 {
-		tick = min(tick, a.connReportDuration)
-	}
+	// Tick at the smaller of the two so neither boundary is overshot.
+	tick := min(a.connReportInterval, a.connReportDuration)
 
 	var (
 		openID   uuid.UUID
