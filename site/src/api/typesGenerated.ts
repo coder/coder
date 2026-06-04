@@ -7712,6 +7712,13 @@ export interface SubmitToolResultsRequest {
 	readonly results: readonly ToolResult[];
 }
 
+// From codersdk/client.go
+/**
+ * SupportBundleLogsTruncatedHeader is set when support bundle log collection
+ * reached a size cap and omitted some logs.
+ */
+export const SupportBundleLogsTruncatedHeader = "X-Coder-Logs-Truncated";
+
 // From codersdk/deployment.go
 export interface SupportConfig {
 	readonly links: SerpentStruct<LinkConfig[]>;

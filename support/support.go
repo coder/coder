@@ -88,6 +88,7 @@ type Agent struct {
 	ConnectionInfo      *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
 	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs                []byte                                         `json:"logs"`
+	LogsTruncated       bool                                           `json:"logs_truncated"`
 	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
 	AgentMagicsockHTML  []byte                                         `json:"agent_magicsock_html"`
 	Manifest            *agentsdk.Manifest                             `json:"manifest"`
@@ -665,11 +666,12 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
-		logBytes, err := conn.DebugLogs(ctx)
+		logBytes, header, err := conn.DebugLogsWithOptions(ctx, workspacesdk.DebugLogsOptions{After: time.Now().Add(-24 * time.Hour)})
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
 		}
 		a.Logs = logBytes
+		a.LogsTruncated = strings.EqualFold(header.Get(codersdk.SupportBundleLogsTruncatedHeader), "true")
 		return nil
 	})
 

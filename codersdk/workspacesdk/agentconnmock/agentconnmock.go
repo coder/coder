@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -142,6 +141,22 @@ func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), ctx)
+}
+
+// DebugLogsWithOptions mocks base method.
+func (m *MockAgentConn) DebugLogsWithOptions(ctx context.Context, opts workspacesdk.DebugLogsOptions) ([]byte, http.Header, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugLogsWithOptions", ctx, opts)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(http.Header)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DebugLogsWithOptions indicates an expected call of DebugLogsWithOptions.
+func (mr *MockAgentConnMockRecorder) DebugLogsWithOptions(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogsWithOptions", reflect.TypeOf((*MockAgentConn)(nil).DebugLogsWithOptions), ctx, opts)
 }
 
 // DebugMagicsock mocks base method.

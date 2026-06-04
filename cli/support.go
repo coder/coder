@@ -549,6 +549,16 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
+	if src.Agent.LogsTruncated {
+		f, err := dest.Create("agent/logs_truncated.txt")
+		if err != nil {
+			return xerrors.Errorf("create file %q in archive: %w", "agent/logs_truncated.txt", err)
+		}
+		if _, err := f.Write([]byte("Agent logs were truncated.\n")); err != nil {
+			return xerrors.Errorf("write file %q in archive: %w", "agent/logs_truncated.txt", err)
+		}
+	}
+
 	// Write pprof binary data
 	if err := writePprofData(src.Pprof, dest); err != nil {
 		return xerrors.Errorf("write pprof data: %w", err)

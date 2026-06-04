@@ -99,6 +99,7 @@ type AgentConn interface {
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, http.Header, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
@@ -443,23 +444,41 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
+type DebugLogsOptions struct {
+	After time.Time
+}
+
+// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`.
 func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+	bs, _, err := c.DebugLogsWithOptions(ctx, DebugLogsOptions{})
+	return bs, err
+}
+
+// DebugLogsWithOptions returns the agent debug log with optional rotated logs.
+func (c *agentConn) DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, http.Header, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(opts), nil)
 	if err != nil {
-		return nil, xerrors.Errorf("do request: %w", err)
+		return nil, nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, xerrors.Errorf("read response body: %w", err)
+		return nil, nil, xerrors.Errorf("read response body: %w", err)
 	}
-	return bs, nil
+	return bs, res.Header.Clone(), nil
+}
+
+func debugLogsPath(opts DebugLogsOptions) string {
+	query := neturl.Values{}
+	if !opts.After.IsZero() {
+		query.Set("after", opts.After.UTC().Format(time.RFC3339Nano))
+	}
+	return agentAPIPath("/debug/logs", query)
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
