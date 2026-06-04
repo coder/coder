@@ -16,13 +16,11 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { useMutation, useQuery } from "react-query";
+import { useMutation } from "react-query";
 import * as Yup from "yup";
-import { API } from "#/api/api";
 import {
 	deleteWorkspacePortShare,
 	upsertWorkspacePortShare,
-	workspacePortShares,
 } from "#/api/queries/workspaceportsharing";
 import {
 	type Template,
@@ -53,6 +51,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { usePortsData } from "#/modules/resources/usePortsData";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
@@ -76,19 +75,11 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 }) => {
 	const { entitlements } = useDashboard();
 
-	const { data: listeningPorts } = useQuery({
-		queryKey: ["portForward", agent.id],
-		queryFn: () => API.getAgentListeningPorts(agent.id),
-		enabled: agent.status === "connected",
-		refetchInterval: 5_000,
-		select: (res) => res.ports,
-	});
-
-	const { data: sharedPorts, refetch: refetchSharedPorts } = useQuery({
-		...workspacePortShares(workspace.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.shares,
-	});
+	const { listeningPorts, sharedPorts, refetchSharedPorts } = usePortsData(
+		workspace,
+		agent,
+		agent.status === "connected",
+	);
 
 	return (
 		<Popover>

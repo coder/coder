@@ -10,15 +10,13 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useRef } from "react";
-import { useQuery } from "react-query";
 import { Link } from "react-router";
-import { API } from "#/api/api";
-import { workspacePortShares } from "#/api/queries/workspaceportsharing";
 import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentListeningPort,
 	WorkspaceAgentPortShare,
+	WorkspaceAgentPortShareProtocol,
 } from "#/api/typesGenerated";
 import {
 	DropdownMenuItem,
@@ -27,60 +25,35 @@ import {
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import {
-	getWorkspaceListeningPortsProtocol,
-	portForwardURL,
-} from "#/utils/portForward";
+import type { PortsData } from "#/modules/resources/usePortsData";
+import { portForwardURL } from "#/utils/portForward";
 
-interface PortsData {
-	listeningPorts: readonly WorkspaceAgentListeningPort[] | undefined;
-	sharedPorts: readonly WorkspaceAgentPortShare[] | undefined;
-	privateListeningPorts: readonly WorkspaceAgentListeningPort[];
-	totalCount: number | undefined;
-	protocol: "http" | "https";
-}
+/**
+ * Source of a port preview tab. Listening ports come from the agent's detected
+ * open ports; shared ports come from configured port shares.
+ */
+export type PortTabSource = "listening" | "shared";
 
-export const usePortsData = (
-	workspace: Workspace,
-	agent: WorkspaceAgent,
-	enabled: boolean,
-): PortsData => {
-	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
-
-	const { data: listeningPorts } = useQuery({
-		queryKey: ["portForward", agent.id],
-		queryFn: () => API.getAgentListeningPorts(agent.id),
-		enabled,
-		refetchInterval: enabled ? 5_000 : false,
-		staleTime: 0,
-		select: (res) => res.ports,
-	});
-
-	const { data: sharedPorts } = useQuery({
-		...workspacePortShares(workspace.id),
-		enabled,
-		staleTime: 0,
-		select: (res) => res.shares.filter((s) => s.agent_name === agent.name),
-	});
-
-	// Listening ports that haven't been explicitly shared appear in their own
-	// section; shared ports bubble up to the "Shared" section.
-	const sharedPortNumbers = new Set((sharedPorts ?? []).map((s) => s.port));
-	const privateListeningPorts = (listeningPorts ?? []).filter(
-		(p) => !sharedPortNumbers.has(p.port),
-	);
-
-	const totalCount =
-		listeningPorts !== undefined ? listeningPorts.length : undefined;
-
-	return {
-		listeningPorts,
-		sharedPorts,
-		privateListeningPorts,
-		totalCount,
-		protocol,
-	};
+/**
+ * A port chosen from the ports menu. The right-panel add-tab control turns this
+ * into a port preview tab instead of opening the port in a new browser tab.
+ */
+export type PortSelection = {
+	label: string;
+	port: number;
+	protocol: WorkspaceAgentPortShareProtocol;
+	source: PortTabSource;
 };
+
+/**
+ * Whether the ports menu can be shown for an agent. Requires a configured
+ * wildcard access URL (host) and the agent's port-forwarding helper.
+ */
+export function canShowPortsMenu(agent: WorkspaceAgent, host: string): boolean {
+	return (
+		host.trim() !== "" && agent.display_apps.includes("port_forwarding_helper")
+	);
+}
 
 export const PortsMenuItem: FC<{
 	workspace: Workspace;
@@ -90,8 +63,14 @@ export const PortsMenuItem: FC<{
 	isRunning: boolean;
 	isBelowMd: boolean;
 	focusOnMount: boolean;
-	onFocusApplied: () => void;
-	onSelectInline: () => void;
+	onFocusApplied?: () => void;
+	onSelectInline?: () => void;
+	/**
+	 * When set, selecting a port calls this instead of opening the port in a new
+	 * browser tab. Used by the right-panel add-tab control to create a port
+	 * preview tab.
+	 */
+	onPortSelect?: (selection: PortSelection) => void;
 }> = ({
 	workspace,
 	agent,
@@ -102,6 +81,7 @@ export const PortsMenuItem: FC<{
 	focusOnMount,
 	onFocusApplied,
 	onSelectInline,
+	onPortSelect,
 }) => {
 	const itemRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +95,7 @@ export const PortsMenuItem: FC<{
 			return;
 		}
 		itemRef.current?.focus();
-		onFocusApplied();
+		onFocusApplied?.();
 	}, [focusOnMount, isBelowMd, onFocusApplied]);
 
 	if (isBelowMd) {
@@ -125,7 +105,7 @@ export const PortsMenuItem: FC<{
 				disabled={!isRunning}
 				onSelect={(event) => {
 					event.preventDefault();
-					onSelectInline();
+					onSelectInline?.();
 				}}
 			>
 				<NetworkIcon className="size-3.5" />
@@ -147,6 +127,7 @@ export const PortsMenuItem: FC<{
 					agent={agent}
 					workspace={workspace}
 					data={portsData}
+					onPortSelect={onPortSelect}
 				/>
 			</DropdownMenuSubContent>
 		</DropdownMenuSub>
@@ -194,7 +175,8 @@ const PortsList: FC<{
 	agent: WorkspaceAgent;
 	workspace: Workspace;
 	data: PortsData;
-}> = ({ host, agent, workspace, data }) => {
+	onPortSelect?: (selection: PortSelection) => void;
+}> = ({ host, agent, workspace, data, onPortSelect }) => {
 	const route = `/@${workspace.owner_name}/${workspace.name}`;
 	const { listeningPorts, sharedPorts, privateListeningPorts, protocol } = data;
 
@@ -217,6 +199,7 @@ const PortsList: FC<{
 					workspaceName={workspace.name}
 					ownerName={workspace.owner_name}
 					protocol={protocol}
+					onPortSelect={onPortSelect}
 				/>
 			))}
 
@@ -245,6 +228,7 @@ const PortsList: FC<{
 							agentName={agent.name}
 							workspaceName={workspace.name}
 							ownerName={workspace.owner_name}
+							onPortSelect={onPortSelect}
 						/>
 					))}
 				</>
@@ -268,7 +252,16 @@ const ListeningPortItem: FC<{
 	workspaceName: string;
 	ownerName: string;
 	protocol: "http" | "https";
-}> = ({ port, host, agentName, workspaceName, ownerName, protocol }) => {
+	onPortSelect?: (selection: PortSelection) => void;
+}> = ({
+	port,
+	host,
+	agentName,
+	workspaceName,
+	ownerName,
+	protocol,
+	onPortSelect,
+}) => {
 	const url = portForwardURL(
 		host,
 		port.port,
@@ -277,6 +270,27 @@ const ListeningPortItem: FC<{
 		ownerName,
 		protocol,
 	);
+	const selection: PortSelection = {
+		label: `Port ${port.port}`,
+		port: port.port,
+		protocol,
+		source: "listening",
+	};
+
+	if (onPortSelect) {
+		return (
+			<DropdownMenuItem onSelect={() => onPortSelect(selection)}>
+				<RadioIcon className="size-3.5 shrink-0" />
+				<span className="font-mono tabular-nums">{port.port}</span>
+				{port.process_name !== "" && (
+					<span className="truncate text-content-tertiary">
+						{port.process_name}
+					</span>
+				)}
+			</DropdownMenuItem>
+		);
+	}
+
 	return (
 		<DropdownMenuItem asChild>
 			<a href={url} target="_blank" rel="noreferrer">
@@ -299,7 +313,8 @@ const SharedPortItem: FC<{
 	agentName: string;
 	workspaceName: string;
 	ownerName: string;
-}> = ({ share, host, agentName, workspaceName, ownerName }) => {
+	onPortSelect?: (selection: PortSelection) => void;
+}> = ({ share, host, agentName, workspaceName, ownerName, onPortSelect }) => {
 	const url = portForwardURL(
 		host,
 		share.port,
@@ -314,6 +329,25 @@ const SharedPortItem: FC<{
 			: share.share_level === "organization"
 				? BuildingIcon
 				: LockIcon;
+	const selection: PortSelection = {
+		label: `Port ${share.port}`,
+		port: share.port,
+		protocol: share.protocol,
+		source: "shared",
+	};
+
+	if (onPortSelect) {
+		return (
+			<DropdownMenuItem onSelect={() => onPortSelect(selection)}>
+				<ShareIcon className="size-3.5 shrink-0" />
+				<span className="font-mono tabular-nums">{share.port}</span>
+				<span className="truncate capitalize text-content-tertiary">
+					{share.share_level}
+				</span>
+			</DropdownMenuItem>
+		);
+	}
+
 	return (
 		<DropdownMenuItem asChild>
 			<a href={url} target="_blank" rel="noreferrer">

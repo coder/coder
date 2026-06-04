@@ -44,13 +44,10 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { usePortsData } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
-import {
-	MobilePortsPanel,
-	PortsMenuItem,
-	usePortsData,
-} from "./WorkspacePillPorts";
+import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
 interface WorkspacePillProps {
 	workspace: Workspace;

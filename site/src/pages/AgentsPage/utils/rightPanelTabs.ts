@@ -1,7 +1,54 @@
-export type UserRightPanelTab = {
-	id: string;
-	kind: "terminal";
-	reconnectionToken: string;
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentPortShareProtocol,
+} from "#/api/typesGenerated";
+import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
+import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
+import { findWorkspaceAgent } from "#/utils/workspace";
+import type { PortTabSource } from "../components/WorkspacePillPorts";
+
+export type UserRightPanelTab =
+	| {
+			id: string;
+			kind: "terminal";
+			label?: string;
+			reconnectionToken: string;
+			/**
+			 * Command run when the PTY session is first created. Used by command
+			 * apps that open as a renamed terminal tab instead of a browser
+			 * window. The backend only runs the command for a fresh reconnect
+			 * token, so reattaching after a reload does not re-run it.
+			 */
+			initialCommand?: string;
+			/**
+			 * Set when the terminal was opened from a command app. Used to
+			 * deduplicate so reopening the same command app activates the
+			 * existing terminal tab instead of starting another session.
+			 */
+			sourceAppId?: string;
+	  }
+	| {
+			id: string;
+			kind: "workspace_app";
+			label: string;
+			appId: string;
+			agentId: string;
+	  }
+	| {
+			id: string;
+			kind: "port";
+			label: string;
+			agentId: string;
+			port: number;
+			protocol: WorkspaceAgentPortShareProtocol;
+			source: PortTabSource;
+	  };
+
+type ValidateUserRightPanelTabsOptions = {
+	workspace: Workspace | undefined;
+	workspaceAgent: WorkspaceAgent | undefined;
+	wildcardHostname: string;
 };
 
 export function isUserRightPanelTab(
@@ -16,8 +63,64 @@ export function isUserRightPanelTab(
 	}
 
 	if (record.kind === "terminal") {
-		return typeof record.reconnectionToken === "string";
+		return (
+			typeof record.reconnectionToken === "string" &&
+			(record.label === undefined || typeof record.label === "string") &&
+			(record.initialCommand === undefined ||
+				typeof record.initialCommand === "string") &&
+			(record.sourceAppId === undefined ||
+				typeof record.sourceAppId === "string")
+		);
+	}
+
+	if (record.kind === "workspace_app") {
+		return (
+			typeof record.label === "string" &&
+			typeof record.appId === "string" &&
+			typeof record.agentId === "string"
+		);
+	}
+
+	if (record.kind === "port") {
+		return (
+			typeof record.label === "string" &&
+			typeof record.agentId === "string" &&
+			typeof record.port === "number" &&
+			Number.isInteger(record.port) &&
+			record.port > 0 &&
+			(record.protocol === "http" || record.protocol === "https") &&
+			(record.source === "listening" || record.source === "shared")
+		);
 	}
 
 	return false;
+}
+
+export function validateUserRightPanelTabs(
+	tabs: readonly UserRightPanelTab[],
+	{
+		workspace,
+		workspaceAgent,
+		wildcardHostname,
+	}: ValidateUserRightPanelTabsOptions,
+): UserRightPanelTab[] {
+	return tabs.filter((tab) => {
+		if (tab.kind === "terminal") {
+			return workspace !== undefined && workspaceAgent !== undefined;
+		}
+
+		if (!workspace) {
+			return false;
+		}
+
+		if (tab.kind === "workspace_app") {
+			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
+			return app !== undefined && isWorkspaceAppEmbeddable(app);
+		}
+
+		return (
+			wildcardHostname.trim() !== "" &&
+			findWorkspaceAgent(workspace, tab.agentId) !== undefined
+		);
+	});
 }

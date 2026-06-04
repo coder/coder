@@ -1,4 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
+import {
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+} from "#/testHelpers/entities";
 import {
 	clearPersistedRightPanelState,
 	getPersistedDefaultTerminalHidden,
@@ -7,16 +17,144 @@ import {
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
 } from "./rightPanelTabStorage";
-import type { UserRightPanelTab } from "./rightPanelTabs";
+import {
+	type UserRightPanelTab,
+	validateUserRightPanelTabs,
+} from "./rightPanelTabs";
+
+type TerminalRightPanelTab = Extract<UserRightPanelTab, { kind: "terminal" }>;
 
 const terminalTab = (
-	overrides: Partial<UserRightPanelTab> = {},
-): UserRightPanelTab => ({
+	overrides: Partial<TerminalRightPanelTab> = {},
+): TerminalRightPanelTab => ({
 	id: "terminal-2",
 	kind: "terminal",
 	reconnectionToken: "11111111-1111-4111-8111-111111111111",
 	...overrides,
 });
+
+describe("right-panel tab validation", () => {
+	const tabs: UserRightPanelTab[] = [
+		terminalTab(),
+		{
+			id: "app-preview",
+			kind: "workspace_app",
+			label: "Preview",
+			agentId: MockWorkspaceAgent.id,
+			appId: MockWorkspaceApp.id,
+		},
+		{
+			id: "port-3000",
+			kind: "port",
+			label: "Port 3000",
+			agentId: MockWorkspaceAgent.id,
+			port: 3000,
+			protocol: "http",
+			source: "listening",
+		},
+	];
+
+	it("keeps tabs that still match the workspace and wildcard host", () => {
+		expect(
+			validateUserRightPanelTabs(tabs, {
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+			}),
+		).toEqual(tabs);
+	});
+
+	it("drops terminal tabs when there is no workspace agent", () => {
+		const validated = validateUserRightPanelTabs(tabs, {
+			workspace: MockWorkspace,
+			workspaceAgent: undefined,
+			wildcardHostname: "*.apps.example.com",
+		});
+
+		expect(validated.some((tab) => tab.kind === "terminal")).toBe(false);
+	});
+
+	it("drops port tabs when wildcard access is unavailable", () => {
+		const validated = validateUserRightPanelTabs(tabs, {
+			workspace: MockWorkspace,
+			workspaceAgent: MockWorkspaceAgent,
+			wildcardHostname: "",
+		});
+
+		expect(validated.some((tab) => tab.kind === "port")).toBe(false);
+	});
+
+	it("drops app tabs when the app no longer exists", () => {
+		const validated = validateUserRightPanelTabs(
+			[
+				{
+					id: "missing-app",
+					kind: "workspace_app",
+					label: "Missing",
+					agentId: MockWorkspaceAgent.id,
+					appId: "missing-app",
+				},
+			],
+			{
+				workspace: MockWorkspace,
+				workspaceAgent: MockWorkspaceAgent,
+				wildcardHostname: "*.apps.example.com",
+			},
+		);
+
+		expect(validated).toEqual([]);
+	});
+
+	it("drops app tabs when the app is no longer embeddable", () => {
+		const commandApp = buildApp("command-app", { command: "run-preview" });
+		const workspace = buildWorkspace([buildAgent("agent-1", [commandApp])]);
+		const appTab: UserRightPanelTab = {
+			id: "command-app-tab",
+			kind: "workspace_app",
+			label: "Command",
+			agentId: "agent-1",
+			appId: "command-app",
+		};
+
+		const validated = validateUserRightPanelTabs([appTab], {
+			workspace,
+			workspaceAgent: workspace.latest_build.resources[0].agents?.[0],
+			wildcardHostname: "*.apps.example.com",
+		});
+
+		expect(validated).toEqual([]);
+	});
+});
+
+function buildWorkspace(resourceAgents: readonly WorkspaceAgent[]): Workspace {
+	const resourceTemplate = MockWorkspace.latest_build.resources[0];
+	return {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: [{ ...resourceTemplate, agents: resourceAgents }],
+		},
+	};
+}
+
+function buildAgent(id: string, apps: WorkspaceApp[]): WorkspaceAgent {
+	return { ...MockWorkspaceAgent, id, name: id, apps };
+}
+
+function buildApp(
+	id: string,
+	overrides: Partial<WorkspaceApp> = {},
+): WorkspaceApp {
+	return {
+		...MockWorkspaceApp,
+		id,
+		slug: id,
+		display_name: id,
+		health: "healthy",
+		statuses: [],
+		...overrides,
+	};
+}
 
 describe("right-panel tab storage", () => {
 	beforeEach(() => {
@@ -30,6 +168,21 @@ describe("right-panel tab storage", () => {
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
 		expect(getPersistedRightPanelTabs("chat-2")).toEqual([]);
+	});
+
+	it("persists command-app terminal tabs", () => {
+		const tabs: UserRightPanelTab[] = [
+			terminalTab({
+				id: "terminal-claude",
+				label: "Claude Code",
+				initialCommand: "claude",
+				sourceAppId: MockWorkspaceApp.id,
+			}),
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
 	});
 
 	it("clears all persisted right-panel state for a chat", () => {
@@ -51,7 +204,7 @@ describe("right-panel tab storage", () => {
 	it("ignores invalid stored values", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
-			JSON.stringify([{ id: "bad-tab", kind: "terminal" }]),
+			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
