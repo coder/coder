@@ -399,7 +399,7 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
+	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID, groups []string) rbac.Subject {
 		return rbac.Subject{
 			Type:         rbac.SubjectTypeSubAgentAPI,
 			FriendlyName: "Sub Agent API",
@@ -419,7 +419,8 @@ var (
 					},
 				},
 			}),
-			Scope: rbac.ScopeAll,
+			Groups: groups,
+			Scope:  rbac.ScopeAll,
 		}.WithCachedASTValue()
 	}
 
@@ -815,8 +816,8 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 
 // AsSubAgentAPI returns a context with an actor that has permissions required for
 // handling the lifecycle of sub agents.
-func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
-	return As(ctx, subjectSubAgentAPI(userID, orgID))
+func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID, groups []string) context.Context {
+	return As(ctx, subjectSubAgentAPI(userID, orgID, groups))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

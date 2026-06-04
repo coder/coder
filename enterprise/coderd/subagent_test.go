@@ -17,10 +17,12 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -374,9 +376,41 @@ func TestDevcontainerCoderAppShareClampedByTemplateMaxPortShareLevel(t *testing.
 	require.Equal(t, database.AppSharingLevelAuthenticated, apps[1].SharingLevel)
 }
 
+func TestDevcontainerCoderAppShareClampedWithGroupRestrictedTemplateACL(t *testing.T) {
+	t.Parallel()
+
+	ctx, db, client := newDevcontainerSubAgentClientWithMaxPortShareLevel(t,
+		database.AppSharingLevelAuthenticated,
+		withGroupRestrictedTemplateACL,
+	)
+	subAgent, err := client.Create(ctx, agentcontainers.SubAgent{
+		Name:            "devcontainer",
+		Directory:       "/workspaces/coder",
+		Architecture:    "amd64",
+		OperatingSystem: "linux",
+		Apps: []agentcontainers.SubAgentApp{
+			{
+				Slug:  "public-app",
+				URL:   "http://localhost:8080",
+				Share: codersdk.WorkspaceAppSharingLevelPublic,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	apps, err := db.GetWorkspaceAppsByAgentID(ctx, subAgent.ID)
+	require.NoError(t, err)
+	require.Len(t, apps, 1)
+	require.Equal(t, "-public-app", appSlugSuffix(apps[0].Slug))
+	require.Equal(t, database.AppSharingLevelAuthenticated, apps[0].SharingLevel)
+}
+
+type devcontainerSubAgentClientOption func(testing.TB, database.Store, database.Organization, database.User, *database.Template)
+
 func newDevcontainerSubAgentClientWithMaxPortShareLevel(
 	t *testing.T,
 	maxPortShareLevel database.AppSharingLevel,
+	options ...devcontainerSubAgentClientOption,
 ) (context.Context, database.Store, agentcontainers.SubAgentClient) {
 	t.Helper()
 
@@ -392,6 +426,9 @@ func newDevcontainerSubAgentClientWithMaxPortShareLevel(
 		CreatedBy:           user.ID,
 		MaxPortSharingLevel: maxPortShareLevel,
 	})
+	for _, option := range options {
+		option(t, rawDB, org, user, &template)
+	}
 	templateVersion := dbgen.TemplateVersion(t, rawDB, database.TemplateVersion{
 		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
 		OrganizationID: org.ID,
@@ -423,12 +460,15 @@ func newDevcontainerSubAgentClientWithMaxPortShareLevel(
 	var acs agpldbauthz.AccessControlStore = entdbauthz.EnterpriseTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 	db := agpldbauthz.New(rawDB, auth, log, accessControlStore)
+	ownerSubject, _, err := httpmw.UserRBACSubject(ctx, rawDB, user.ID, rbac.ScopeAll)
+	require.NoError(t, err)
 	portSharer := &atomic.Pointer[agplportsharing.PortSharer]{}
 	var ps agplportsharing.PortSharer = entportsharing.NewEnterprisePortSharer()
 	portSharer.Store(&ps)
 	api := &agentapi.SubAgentAPI{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
+		OwnerGroups:    ownerSubject.Groups,
 		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 			return parentAgent, nil
 		},
@@ -440,6 +480,25 @@ func newDevcontainerSubAgentClientWithMaxPortShareLevel(
 
 	client := agentcontainers.NewSubAgentClientFromAPI(log, devcontainerSubAgentDRPCClient{api: api})
 	return ctx, rawDB, client
+}
+
+func withGroupRestrictedTemplateACL(t testing.TB, db database.Store, org database.Organization, user database.User, template *database.Template) {
+	t.Helper()
+
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{
+		GroupID: group.ID,
+		UserID:  user.ID,
+	})
+	template.GroupACL = database.TemplateACL{
+		group.ID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
+	}
+	template.UserACL = database.TemplateACL{}
+	require.NoError(t, db.UpdateTemplateACLByID(context.Background(), database.UpdateTemplateACLByIDParams{
+		ID:       template.ID,
+		GroupACL: template.GroupACL,
+		UserACL:  template.UserACL,
+	}))
 }
 
 type devcontainerSubAgentDRPCClient struct {

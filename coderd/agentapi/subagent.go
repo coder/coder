@@ -27,6 +27,7 @@ import (
 type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
+	OwnerGroups    []string
 	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
 
 	Log        slog.Logger
@@ -37,7 +38,7 @@ type SubAgentAPI struct {
 
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
 
 	createdAt := a.Clock.Now()
 
@@ -144,7 +145,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		// depend on their template remaining readable through the template ACL.
 		template, err = a.Database.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
-			return nil, xerrors.Errorf("get template by id: %w", err)
+			return nil, xerrors.Errorf("get template policy: %w. If template access was recently changed, restart the workspace to refresh agent permissions", err)
 		}
 	}
 
@@ -326,7 +327,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
 
 	subAgentID, err := uuid.FromBytes(req.Id)
 	if err != nil {
@@ -342,7 +343,7 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 
 func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
 
 	parentAgent, err := a.AgentFn(ctx)
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wspubsub"
@@ -143,9 +144,19 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			slog.F("role", role))
 	}
 
+	ownerSubject, _, err := httpmw.UserRBACSubject(ctx, api.Database, workspace.OwnerID, rbac.ScopeAll)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace owner authorization.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
 		OwnerID:           workspace.OwnerID,
+		OwnerGroups:       ownerSubject.Groups,
 		WorkspaceID:       workspace.ID,
 		OrganizationID:    workspace.OrganizationID,
 		TemplateVersionID: build.TemplateVersionID,
