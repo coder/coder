@@ -106,6 +106,34 @@ If your dev container takes a long time to start:
    container start. Commands in `postCreateCommand` run once per build, so
    they execute again after each rebuild.
 
+## Git submodules or private repos failing in lifecycle scripts
+
+If `git submodule update --init` or other SSH-dependent commands fail when
+placed in `postCreateCommand` or `postStartCommand`:
+
+- **Cause**: Dev container lifecycle scripts run before the Coder agent starts.
+  Coder-managed SSH keys and Git credentials are not yet available during
+  lifecycle script execution.
+- **Fix**: Move SSH-dependent commands to the `coder_agent` startup script in
+  your template. The startup script runs after the agent initializes and
+  credentials become available. Ask your template administrator to add the
+  commands to the agent's `startup_script` block.
+
+For Envbuilder-based templates, see
+[SSH and Git credentials in lifecycle scripts](../../admin/integrations/devcontainers/envbuilder/add-envbuilder.md#ssh-and-git-credentials-in-lifecycle-scripts)
+for details and a template example.
+
+## Custom ENTRYPOINT not executing (Envbuilder)
+
+If your custom Dockerfile `ENTRYPOINT` does not run in an Envbuilder-based
+workspace:
+
+- **Cause**: Envbuilder replaces the image entrypoint with its own binary
+  during the build process.
+- **Fix**: Use dev container lifecycle scripts such as `postCreateCommand` or
+  `postStartCommand` for initialization logic instead. For commands that need
+  Coder-managed credentials, use the agent startup script as described above.
+
 ## Getting more help
 
 If you continue to experience issues:

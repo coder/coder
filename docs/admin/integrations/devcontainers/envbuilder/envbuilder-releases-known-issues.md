@@ -20,6 +20,19 @@ information and to submit feature requests or bug reports.
 
 ## Known issues
 
+Key limitations of Envbuilder include:
+
+- **Custom `ENTRYPOINT`**: Envbuilder replaces the image entrypoint with its
+  own binary. Custom `ENTRYPOINT` instructions in Dockerfiles are not executed.
+- **`postAttachCommand`**: Not supported. Use `postStartCommand` or the Coder
+  agent startup script instead.
+- **`initializeCommand`**: Not supported.
+- **SSH/Git credentials in lifecycle scripts**: Lifecycle scripts run before the
+  Coder agent starts, so Coder-managed SSH keys and Git credentials are not
+  available. Use the agent startup script for operations that require
+  authentication. See
+  [SSH and Git credentials in lifecycle scripts](./add-envbuilder.md#ssh-and-git-credentials-in-lifecycle-scripts).
+
 Visit the
 [Envbuilder repository](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md)
 for a full list of supported features and known issues.

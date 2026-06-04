@@ -133,12 +133,64 @@ Your template can prompt the user for a repo URL with
 
 ## Dev container lifecycle scripts
 
-The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and
-`postStartCommand` lifecycle scripts are run each time the container is started.
-This could be used, for example, to fetch or update project dependencies before
-a user begins using the workspace.
+Envbuilder supports the following lifecycle scripts: `onCreateCommand`,
+`updateContentCommand`, `postCreateCommand`, and `postStartCommand`. These can
+be used to fetch or update project dependencies before a user begins using the
+workspace.
 
 Lifecycle scripts are managed by project developers.
+
+> [!NOTE]
+> `onCreateCommand` runs only on the first start.
+> `updateContentCommand` and `postCreateCommand` run each time the container
+> is started. `postStartCommand` runs each time the container starts, but
+> may be deferred to the init command depending on configuration.
+
+### Unsupported lifecycle commands
+
+Envbuilder does not support the following lifecycle commands:
+
+- `initializeCommand`
+- `postAttachCommand`
+- `waitFor`
+
+For a complete list of supported and unsupported dev container features, see the
+[Envbuilder dev container spec support](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md)
+documentation.
+
+### Custom Dockerfile ENTRYPOINT
+
+Envbuilder replaces the image `ENTRYPOINT` with its own binary during the build
+process. Custom `ENTRYPOINT` instructions in your Dockerfile will not execute.
+To run initialization commands, use lifecycle scripts such as
+`postCreateCommand` or `postStartCommand` instead.
+
+### SSH and Git credentials in lifecycle scripts
+
+Envbuilder runs lifecycle scripts during the container build phase, before the
+Coder agent starts. Because Coder-managed SSH keys and Git credentials are
+injected by the agent, they are not available during lifecycle script execution.
+
+This means operations that require SSH authentication, such as cloning private
+git submodules, will fail if placed in `postCreateCommand` or other lifecycle
+scripts.
+
+To run commands that depend on Coder-managed SSH or Git credentials, use the
+`coder_agent` startup script in your template instead:
+
+```hcl
+resource "coder_agent" "main" {
+  # ...
+  startup_script = <<-EOT
+    set -e
+    cd /workspaces/my-repo
+    git submodule update --init --recursive
+  EOT
+}
+```
+
+The startup script runs after the agent starts and credentials are available.
+It should be idempotent, as it runs each time the workspace starts.
 
 ## Next steps
 
