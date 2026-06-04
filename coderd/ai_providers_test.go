@@ -427,21 +427,21 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	t.Run("UpdateSettingsEmptyObjectRejected", func(t *testing.T) {
+	t.Run("UpdateSettingsEmptyObjectClearsSettings", func(t *testing.T) {
 		t.Parallel()
-		// "settings": {} cannot decode because the _type discriminator
-		// is missing. The handler must reject with 400; nothing about
-		// the provider should change.
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
+			Type:    codersdk.AIProviderTypeBedrock,
 			Name:    "patch-settings-empty",
 			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
 		})
 		require.NoError(t, err)
 
@@ -451,11 +451,11 @@ func TestAIProvidersCRUD(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		var body codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
-		require.Contains(t, body.Message, "valid JSON")
-		require.Contains(t, body.Detail, "_type discriminator")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		updated, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.Nil(t, updated.Settings.Bedrock)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
