@@ -1,9 +1,20 @@
 name: Update coder.com/docs
 
-# Triggers updates to the public docs at coder.com/docs whenever this
-# branch's docs/** content changes. One preflight job (`changes`) feeds
-# two parallel sibling jobs so that search records, the static cache,
-# and any new routes register at the same time:
+# Triggers updates to the public docs at coder.com/docs from three
+# sources:
+#
+#   * push to main or release/* (docs/** only): markdown edits land in
+#     search and ISR within seconds.
+#   * release.published: when a stable vX.Y.Z release ships on this
+#     repo, the workflow translates the tag to its release/X.Y branch
+#     and reindexes. Eliminates the manual workflow_dispatch step from
+#     the mainline rotation. Prereleases and non-semver tags are
+#     skipped. See DOCS-327.
+#   * workflow_dispatch: operator-driven, with explicit action and ref.
+#
+# One preflight job (`changes`) feeds two parallel sibling jobs so that
+# search records, the static cache, and any new routes register at the
+# same time:
 #
 #   1. algolia-and-isr: HMAC-signed POST to coder.com/api/algolia-docs-sync.
 #      The handler re-extracts records for the (corpus, ref) pair and
@@ -35,6 +46,13 @@ on:
       # auto-trigger a production reindex; use workflow_dispatch instead.
       # See DOCS-121 (incident) and DOCS-124 (fix).
       - "docs/**"
+  release:
+    # Fires when a draft release is published, when a release goes from
+    # prerelease to non-prerelease, or when a release is created already
+    # published. The Compute step below translates the published tag
+    # (vX.Y.Z) into its release/X.Y branch and skips prereleases. See
+    # DOCS-327 for the rotation context that motivated this trigger.
+    types: [published]
   workflow_dispatch:
     inputs:
       action:
@@ -247,10 +265,37 @@ jobs:
           INPUT_ACTION: ${{ inputs.action }}
           INPUT_REF: ${{ inputs.ref }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
           set -euo pipefail
-          ACTION="${INPUT_ACTION:-index}"
-          REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          ACTION=""
+          REF=""
+          # release.published path: translate a stable vX.Y.Z tag into
+          # its release/X.Y branch and let the rest of the step
+          # validate. Skip prereleases and any tag that does not match
+          # the plain semver shape; backports (vX.Y.<patch>) are
+          # in-scope because they may carry doc updates worth
+          # reindexing. See DOCS-327. The handler's allowlist gates the
+          # downstream POST, so an unsupported minor still no-ops
+          # rather than reindexing something we did not intend.
+          if [ "${EVENT_NAME:-}" = "release" ]; then
+            if [ "${RELEASE_PRERELEASE:-false}" = "true" ]; then
+              echo "::notice::Skipping prerelease ${RELEASE_TAG:-<unknown>}; no docs reindex."
+              exit 0
+            fi
+            if [[ "${RELEASE_TAG:-}" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+              ACTION="index"
+              REF="release/${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+              echo "::notice::Release ${RELEASE_TAG} resolved to ref ${REF}."
+            else
+              echo "::notice::Skipping ${RELEASE_TAG:-<unknown>}: not a plain vX.Y.Z release tag."
+              exit 0
+            fi
+          fi
+          ACTION="${ACTION:-${INPUT_ACTION:-index}}"
+          REF="${REF:-${INPUT_REF:-$GITHUB_REF_NAME}}"
           # Reject newlines/carriage returns in either input. GitHub
           # Actions parses GITHUB_OUTPUT line-by-line with last-writer-
           # wins, so a newline in $REF would let an operator dispatch
