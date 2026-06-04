@@ -36,8 +36,19 @@ var authHeaders = []string{
 	"X-Api-Key",
 }
 
+// proxyHeaders describe the path the inbound request took to reach
+// aibridge. On bridge routes aibridge acts as a client, not a proxy,
+// so these headers are not meaningful on the outbound request.
+var proxyHeaders = []string{
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Proto",
+	"X-Forwarded-Port",
+	"Forwarded",
+}
+
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
-// transport, and auth headers removed.
+// transport, auth, and proxy headers removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	prepared := clientHeaders.Clone()
 	for _, h := range hopByHopHeaders {
@@ -47,6 +58,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 		prepared.Del(h)
 	}
 	for _, h := range authHeaders {
+		prepared.Del(h)
+	}
+	for _, h := range proxyHeaders {
 		prepared.Del(h)
 	}
 	return prepared
