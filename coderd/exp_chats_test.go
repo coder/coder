@@ -1696,6 +1696,49 @@ func TestListChatModels(t *testing.T) {
 		require.Nil(t, findProvider(models, "anthropic"))
 	})
 
+	t.Run("LegacyBedrockModelConfigUsesCanonicalProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AiProviderTypeAnthropic,
+			Name: "legacy-bedrock-list-models-" + uuid.NewString(),
+			Settings: sql.NullString{
+				String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
+				Valid:  true,
+			},
+		})
+		storedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:             "anthropic",
+			AIProviderID:         uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
+			Model:                "anthropic.claude-3-5-sonnet",
+			DisplayName:          "Claude via Bedrock",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			ContextLimit:         4096,
+			CompressionThreshold: 80,
+		})
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var provider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == "bedrock" {
+				provider = &models.Providers[i]
+			}
+			require.NotEqual(t, "anthropic", models.Providers[i].Provider)
+		}
+		require.NotNil(t, provider)
+		require.True(t, provider.Available)
+		require.True(t, slices.ContainsFunc(provider.Models, func(model codersdk.ChatModel) bool {
+			return model.Provider == "bedrock" && model.Model == storedConfig.Model
+		}))
+	})
+
 	t.Run("UserOnlyProviderRequiresUserKey", func(t *testing.T) {
 		t.Parallel()
 
