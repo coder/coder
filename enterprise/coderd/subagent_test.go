@@ -38,7 +38,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 		expectedStoredApps []expectedApp
 	}{
 		{
-			name:              "AuthenticatedClampsPublic",
+			name:              "AuthenticatedClampsOrganizationAndPublic",
 			maxPortShareLevel: database.AppSharingLevelAuthenticated,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -56,11 +56,20 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
 					Url:   ptr.Ref("http://localhost:8082"),
 				},
+				{
+					Slug:  "organization-app",
+					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
+					Url:   ptr.Ref("http://localhost:8083"),
+				},
 			},
 			expectedStoredApps: []expectedApp{
 				{
 					slugSuffix:   "-authenticated-app",
 					sharingLevel: database.AppSharingLevelAuthenticated,
+				},
+				{
+					slugSuffix:   "-organization-app",
+					sharingLevel: database.AppSharingLevelOrganization,
 				},
 				{
 					slugSuffix:   "-owner-app",
@@ -73,7 +82,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			},
 		},
 		{
-			name:              "PublicAllowsPublicAuthenticatedAndOwner",
+			name:              "PublicAllowsPublicAuthenticatedOrganizationAndOwner",
 			maxPortShareLevel: database.AppSharingLevelPublic,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -91,11 +100,20 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
 					Url:   ptr.Ref("http://localhost:8082"),
 				},
+				{
+					Slug:  "organization-app",
+					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
+					Url:   ptr.Ref("http://localhost:8083"),
+				},
 			},
 			expectedStoredApps: []expectedApp{
 				{
 					slugSuffix:   "-authenticated-app",
 					sharingLevel: database.AppSharingLevelAuthenticated,
+				},
+				{
+					slugSuffix:   "-organization-app",
+					sharingLevel: database.AppSharingLevelOrganization,
 				},
 				{
 					slugSuffix:   "-owner-app",
@@ -108,7 +126,51 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			},
 		},
 		{
-			name:              "OwnerClampsAuthenticatedAndPublic",
+			name:              "OrganizationClampsAuthenticatedAndPublic",
+			maxPortShareLevel: database.AppSharingLevelOrganization,
+			apps: []*proto.CreateSubAgentRequest_App{
+				{
+					Slug:  "authenticated-app",
+					Share: proto.CreateSubAgentRequest_App_AUTHENTICATED.Enum(),
+					Url:   ptr.Ref("http://localhost:8080"),
+				},
+				{
+					Slug:  "public-app",
+					Share: proto.CreateSubAgentRequest_App_PUBLIC.Enum(),
+					Url:   ptr.Ref("http://localhost:8081"),
+				},
+				{
+					Slug:  "owner-app",
+					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
+					Url:   ptr.Ref("http://localhost:8082"),
+				},
+				{
+					Slug:  "organization-app",
+					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
+					Url:   ptr.Ref("http://localhost:8083"),
+				},
+			},
+			expectedStoredApps: []expectedApp{
+				{
+					slugSuffix:   "-authenticated-app",
+					sharingLevel: database.AppSharingLevelOrganization,
+				},
+				{
+					slugSuffix:   "-organization-app",
+					sharingLevel: database.AppSharingLevelOrganization,
+				},
+				{
+					slugSuffix:   "-owner-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
+					slugSuffix:   "-public-app",
+					sharingLevel: database.AppSharingLevelOrganization,
+				},
+			},
+		},
+		{
+			name:              "OwnerClampsOrganizationAuthenticatedAndPublic",
 			maxPortShareLevel: database.AppSharingLevelOwner,
 			apps: []*proto.CreateSubAgentRequest_App{
 				{
@@ -126,10 +188,19 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 					Share: proto.CreateSubAgentRequest_App_OWNER.Enum(),
 					Url:   ptr.Ref("http://localhost:8082"),
 				},
+				{
+					Slug:  "organization-app",
+					Share: proto.CreateSubAgentRequest_App_ORGANIZATION.Enum(),
+					Url:   ptr.Ref("http://localhost:8083"),
+				},
 			},
 			expectedStoredApps: []expectedApp{
 				{
 					slugSuffix:   "-authenticated-app",
+					sharingLevel: database.AppSharingLevelOwner,
+				},
+				{
+					slugSuffix:   "-organization-app",
 					sharingLevel: database.AppSharingLevelOwner,
 				},
 				{
@@ -162,7 +233,7 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			require.Len(t, *upsertedApps, len(tt.expectedStoredApps))
 
 			slices.SortFunc(*upsertedApps, func(a, b database.UpsertWorkspaceAppParams) int {
-				return cmp.Compare(a.Slug, b.Slug)
+				return cmp.Compare(appSlugSuffix(a.Slug), appSlugSuffix(b.Slug))
 			})
 			slices.SortFunc(tt.expectedStoredApps, func(a, b expectedApp) int {
 				return cmp.Compare(a.slugSuffix, b.slugSuffix)
@@ -174,6 +245,14 @@ func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T
 			}
 		})
 	}
+}
+
+func appSlugSuffix(slug string) string {
+	_, suffix, ok := strings.Cut(slug, "-")
+	if !ok {
+		return slug
+	}
+	return "-" + suffix
 }
 
 func newMockSubAgentAPIWithMaxPortShareLevel(
