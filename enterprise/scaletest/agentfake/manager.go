@@ -68,10 +68,8 @@ type ManagerOptions struct {
 	// before enumerating.
 	ExpectedAgents          int64
 	ExpectedAgentsTolerance int64
-	// ConnectionReportInterval is the idle gap between synthetic SSH
-	// sessions per fake agent. Zero disables connection reporting.
+	// Zero ConnectionReportInterval disables synthetic SSH connection reporting.
 	ConnectionReportInterval time.Duration
-	// ConnectionReportDuration is the length of each synthetic SSH session.
 	ConnectionReportDuration time.Duration
 	// Clock is used for the workspace-count polling interval.
 	// Defaults to the real clock; override in tests with quartz.NewMock.

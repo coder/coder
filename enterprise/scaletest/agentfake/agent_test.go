@@ -154,11 +154,9 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	}
 }
 
-// Assert that, when connection reporting is enabled, the fake agent emits a
-// repeating CONNECT/DISCONNECT SSH session via ReportConnection, with both
-// halves of a session sharing one connection id and successive sessions using
-// fresh ids. Driven against agent/agenttest.Client so the only quartz mock is
-// the agentfake clock backing the connectionReports ticker.
+// Assert that the fake agent emits repeating CONNECT/DISCONNECT SSH sessions,
+// pairing each session's halves under one connection id and using a fresh id
+// per session.
 func TestAgent_ReportsConnections(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -189,9 +187,8 @@ func TestAgent_ReportsConnections(t *testing.T) {
 	)
 	t.Cleanup(a.Close)
 
-	// Trap the connectionReports TickerFunc registration so the goroutine
-	// is parked on the mock clock before we Advance; otherwise Advance
-	// could race goroutine startup and the first tick would be missed.
+	// Trap registration so the goroutine is parked on the mock clock before
+	// we Advance, otherwise Advance could race startup and miss the first tick.
 	tickerTrap := mClock.Trap().TickerFunc("agentfake", "connectionReports")
 	defer tickerTrap.Close()
 
@@ -202,8 +199,7 @@ func TestAgent_ReportsConnections(t *testing.T) {
 
 	tickerTrap.MustWait(ctx).Release(ctx)
 
-	// The ticker wakes every min(interval, duration) = 5s. Advance in 5s
-	// steps until the goroutine has emitted at least `want` reports.
+	// Advance one tick period (5s) per step until at least `want` reports land.
 	advanceUntil := func(want int) {
 		t.Helper()
 		require.Eventually(t, func() bool {
@@ -240,8 +236,7 @@ func TestAgent_ReportsConnections(t *testing.T) {
 	}
 }
 
-// Assert that a zero connection-report interval disables reporting entirely:
-// the goroutine registers no ticker and no ReportConnection calls are made.
+// Assert that a zero connection-report interval disables reporting entirely.
 func TestAgent_ReportsConnections_Disabled(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -270,8 +265,8 @@ func TestAgent_ReportsConnections_Disabled(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- a.Run(runCtx) }()
 
-	// Wait for the connection to be established (lifecycle=READY) so the
-	// reporting goroutine has had its chance to start.
+	// Wait for lifecycle=READY so the reporting goroutine has had its chance
+	// to start before we assert it stayed silent.
 	require.Eventually(t, func() bool {
 		for _, state := range dialer.GetLifecycleStates() {
 			if state == codersdk.WorkspaceAgentLifecycleReady {
@@ -282,8 +277,7 @@ func TestAgent_ReportsConnections_Disabled(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast,
 		"agent never reported Lifecycle=ready")
 
-	// Disabled means the goroutine returns immediately without registering a
-	// timer. Give any (buggy) reporting a brief window to leak through.
+	// Give any (buggy) reporting a brief window to leak through.
 	time.Sleep(testutil.IntervalSlow)
 
 	require.Empty(t, dialer.GetConnectionReports(),

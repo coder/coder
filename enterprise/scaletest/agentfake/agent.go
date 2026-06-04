@@ -62,9 +62,7 @@ type Agent struct {
 	firstConnect   chan<- time.Duration
 	firstConnected atomic.Bool
 
-	// connReportInterval is the idle gap between synthetic SSH sessions.
-	// Zero disables connection reporting. connReportDuration is the length
-	// of each synthetic SSH session.
+	// Zero connReportInterval disables synthetic SSH connection reporting.
 	connReportInterval time.Duration
 	connReportDuration time.Duration
 
@@ -115,8 +113,7 @@ func WithFirstConnect(ch chan<- time.Duration) Option {
 }
 
 // WithConnectionReports enables periodic synthetic SSH connection reporting.
-// interval is the idle gap between sessions; a zero interval disables
-// reporting. duration is the length of each synthetic SSH session.
+// A zero interval disables reporting.
 func WithConnectionReports(interval, duration time.Duration) Option {
 	return func(a *Agent) {
 		a.connReportInterval = interval
@@ -241,9 +238,7 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 		go a.runMetadata(connCtx, rpc, workspaceID, descs)
 	}
 
-	// Emit synthetic SSH connection events for the lifetime of this dRPC
-	// connection. Bound to connCtx so the goroutine exits on reconnect,
-	// matching runMetadata.
+	// Bound to connCtx so the goroutine exits on reconnect, like runMetadata.
 	go a.runConnectionReports(connCtx, rpc)
 
 	select {
@@ -347,22 +342,16 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 	}, "agentfake", "runMetadata").Wait()
 }
 
-// runConnectionReports emits a periodic synthetic SSH session (CONNECT then
-// DISCONNECT) via ReportConnection. Each session uses one connection_id so
+// runConnectionReports emits periodic synthetic SSH sessions (CONNECT then
+// DISCONNECT) via ReportConnection. Each session reuses one connection_id so
 // coderd pairs the two halves onto a single connection_log row.
-//
-// The TickerFunc wakes every min(interval, duration) and the switch gates
-// which action (if any) fires on each tick; the goroutine is scoped to the
-// connection's ctx and exits cleanly on disconnect or shutdown.
 func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentClient29) {
 	if a.connReportInterval <= 0 {
 		return
 	}
 
-	// Wake often enough to honor both interval and duration. The branches
-	// inside the tick func gate which action (if any) fires on each tick.
-	// A zero duration (instant disconnect) is excluded from the min so the
-	// tick period stays the positive interval rather than collapsing to 0.
+	// Tick at the smaller of the two so neither boundary is overshot. A zero
+	// duration is excluded so the tick period can't collapse to 0.
 	tick := a.connReportInterval
 	if a.connReportDuration > 0 {
 		tick = min(tick, a.connReportDuration)
@@ -386,8 +375,8 @@ func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentCli
 			if a.sendConnection(ctx, rpc, id, proto.Connection_CONNECT, now) {
 				openID = id
 			} else {
-				// CONNECT failed; try again next interval. No dangling
-				// openID means we won't desync.
+				// Leave openID nil so a failed CONNECT retries next interval
+				// instead of desyncing the connect/disconnect pairing.
 				nextOpen = now.Add(a.connReportInterval)
 			}
 		}
