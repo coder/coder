@@ -16,18 +16,14 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 	return (
 		<Button size="icon-lg" variant="outline" className="relative" {...props}>
 			<BellIcon />
-			{/*
-			 * Notification badge transition (transitions.dev pattern).
-			 * The wrapper slides diagonally into position via animate-badge-slide-in.
-			 * The inner dot pops with overshoot scale + blur via group-data variants.
-			 * The badge stays mounted so the exit transition can play.
-			 */}
+			{/* Badge stays mounted so the exit transition can play. */}
 			<span
 				className={cn(
-					"group/badge pointer-events-none will-change-transform",
+					"group/badge pointer-events-none",
 					"[--offset:calc(var(--unread-badge-size)/2)]",
 					"absolute top-0 right-0 -mr-[--offset] -mt-[--offset]",
-					isOpen && "animate-badge-slide-in",
+					isOpen &&
+						"animate-in slide-in-from-left-2 slide-in-from-bottom-3 duration-[260ms] [animation-timing-function:cubic-bezier(0.22,1,0.36,1)]",
 				)}
 				data-open={isOpen}
 				aria-hidden={!isOpen || undefined}
@@ -35,17 +31,12 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 				<UnreadBadge
 					count={unreadCount}
 					className={cn(
-						// Open state: pop in with bouncy overshoot easing.
-						"origin-center transition-[transform,opacity,filter]",
-						"[transition-duration:var(--badge-pop-dur),var(--badge-fade-dur),var(--badge-pop-dur)]",
-						"[transition-timing-function:var(--badge-pop-ease)]",
-						"will-change-[transform,opacity,filter]",
-						// Close state: fast snappy exit with scale-to-zero + blur.
+						"origin-center transition-[transform,opacity] duration-500",
+						"[transition-timing-function:cubic-bezier(0.34,1.36,0.64,1)]",
 						"group-data-[open=false]/badge:scale-0",
 						"group-data-[open=false]/badge:opacity-0",
-						"group-data-[open=false]/badge:blur-[var(--badge-blur)]",
-						"group-data-[open=false]/badge:[transition-duration:var(--badge-pop-close-dur),var(--badge-fade-close-dur),var(--badge-pop-close-dur)]",
-						"group-data-[open=false]/badge:[transition-timing-function:var(--badge-close-ease)]",
+						"group-data-[open=false]/badge:duration-150",
+						"group-data-[open=false]/badge:[transition-timing-function:cubic-bezier(0.4,0,0.2,1)]",
 					)}
 				/>
 			</span>

@@ -154,15 +154,6 @@ module.exports = {
 						right: "-8%",
 					},
 				},
-				// Notification badge slide-in (transitions.dev). Slides
-				// diagonally from below-left into its resting position.
-				"badge-slide-in": {
-					from: {
-						transform:
-							"translate(var(--badge-offset-x), var(--badge-offset-y))",
-					},
-					to: { transform: "translate(0, 0)" },
-				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
@@ -173,8 +164,6 @@ module.exports = {
 					"bar-indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite",
 				"bar-indeterminate-2":
 					"bar-indeterminate-2 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite",
-				"badge-slide-in":
-					"badge-slide-in var(--badge-slide-dur) var(--badge-slide-ease)",
 			},
 		},
 	},

@@ -170,18 +170,6 @@
 		--avatar-lg: 2.5rem;
 		--avatar-default: 2rem;
 		--avatar-sm: 1.5rem;
-		/* Notification badge transition (transitions.dev) */
-		--badge-slide-dur: 260ms;
-		--badge-pop-dur: 500ms;
-		--badge-pop-close-dur: 180ms;
-		--badge-fade-dur: 400ms;
-		--badge-fade-close-dur: 180ms;
-		--badge-blur: 2px;
-		--badge-offset-x: -8.2px;
-		--badge-offset-y: 12.4px;
-		--badge-slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
-		--badge-pop-ease: cubic-bezier(0.34, 1.36, 0.64, 1);
-		--badge-close-ease: cubic-bezier(0.4, 0, 0.2, 1);
 	}
 	.dark {
 		--content-primary: 0 0% 100%;
