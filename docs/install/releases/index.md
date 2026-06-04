@@ -79,7 +79,6 @@ pages.
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                   | Release Date      | Status                   | Latest Release                                                   |
 |------------------------------------------------|-------------------|--------------------------|------------------------------------------------------------------|
-| [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025     | Extended Support Release | [v2.24.6](https://github.com/coder/coder/releases/tag/v2.24.6)   |
 | [2.29](https://coder.com/changelog/coder-2-29) | December 02, 2025 | Extended Support Release | [v2.29.16](https://github.com/coder/coder/releases/tag/v2.29.16) |
 | [2.30](https://coder.com/changelog/coder-2-30) | February 03, 2026 | Not Supported            | [v2.30.9](https://github.com/coder/coder/releases/tag/v2.30.9)   |
 | [2.31](https://coder.com/changelog/coder-2-31) | February 23, 2026 | Not Supported            | [v2.31.14](https://github.com/coder/coder/releases/tag/v2.31.14) |

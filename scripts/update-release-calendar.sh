@@ -18,7 +18,7 @@ CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
 # Known active ESR (Extended Support Release) minor versions.
 # Update this list when new ESR versions are designated or old ones reach end of life.
-ESR_VERSIONS=(24 29)
+ESR_VERSIONS=(29)
 
 # Check if a minor version is a known active ESR version.
 is_esr_version() {
