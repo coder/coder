@@ -42,35 +42,6 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	sources: ["created_by_me"],
 };
 
-const agentChatStatusSet = new Set<AgentChatStatusFilter>(
-	AGENT_CHAT_STATUS_ORDER,
-);
-const agentSourceSet = new Set<AgentSourceFilter>(AGENT_SOURCE_ORDER);
-
-const canonicalizeChatStatuses = (
-	values: Iterable<string>,
-): readonly AgentChatStatusFilter[] => {
-	const selected = new Set<AgentChatStatusFilter>();
-	for (const value of values) {
-		if (agentChatStatusSet.has(value as AgentChatStatusFilter)) {
-			selected.add(value as AgentChatStatusFilter);
-		}
-	}
-	return AGENT_CHAT_STATUS_ORDER.filter((status) => selected.has(status));
-};
-
-const canonicalizeSources = (
-	values: Iterable<string>,
-): readonly AgentSourceFilter[] => {
-	const selected = new Set<AgentSourceFilter>();
-	for (const value of values) {
-		if (agentSourceSet.has(value as AgentSourceFilter)) {
-			selected.add(value as AgentSourceFilter);
-		}
-	}
-	return AGENT_SOURCE_ORDER.filter((source) => selected.has(source));
-};
-
 const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
 	searchParams.delete("archived");
 	searchParams.delete("group_by");
@@ -93,24 +64,21 @@ const writeSidebarFilters = (
 		searchParams.set("group_by", "chat_status");
 	}
 
-	const prStatuses = canonicalizeChatListPRStatuses(filters.prStatuses);
-	if (prStatuses.length > 0) {
-		searchParams.set("pr_status", prStatuses.join(","));
+	if (filters.prStatuses.length > 0) {
+		searchParams.set("pr_status", filters.prStatuses.join(","));
 	}
 
-	const chatStatuses = canonicalizeChatStatuses(filters.chatStatuses);
-	if (chatStatuses.length === 1) {
-		searchParams.set("chat_status", chatStatuses[0]);
+	if (filters.chatStatuses.length === 1) {
+		searchParams.set("chat_status", filters.chatStatuses[0]);
 	}
 
-	const sources = canonicalizeSources(filters.sources);
 	if (
-		sources.length !== DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
-		sources.some(
+		filters.sources.length !== DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		filters.sources.some(
 			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
 		)
 	) {
-		searchParams.set("source", sources.join(","));
+		searchParams.set("source", filters.sources.join(","));
 	}
 };
 
@@ -121,11 +89,17 @@ export const getAgentSidebarFilters = (
 	const prStatuses = canonicalizeChatListPRStatuses(
 		(searchParams.get("pr_status") ?? "").split(",").filter(Boolean),
 	);
-	const chatStatuses = canonicalizeChatStatuses(
-		(searchParams.get("chat_status") ?? "").split(",").filter(Boolean),
+	const rawChatStatuses = (searchParams.get("chat_status") ?? "")
+		.split(",")
+		.filter(Boolean);
+	const chatStatuses = AGENT_CHAT_STATUS_ORDER.filter((status) =>
+		rawChatStatuses.includes(status),
 	);
-	const sources = canonicalizeSources(
-		(searchParams.get("source") ?? "").split(",").filter(Boolean),
+	const rawSources = (searchParams.get("source") ?? "")
+		.split(",")
+		.filter(Boolean);
+	const sources = AGENT_SOURCE_ORDER.filter((source) =>
+		rawSources.includes(source),
 	);
 
 	const filters: AgentSidebarFilters = {
