@@ -155,20 +155,28 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
+	ctx context.Context,
+	logger slog.Logger,
 	providers []database.AIProvider,
 	providerName string,
-) (bool, error) {
+) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		providerType, err := canonicalAIProviderType(provider)
+		matches, err := aiProviderMatchesCanonicalType(provider, normalizedProviderName)
 		if err != nil {
-			return false, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+			logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
 		}
-		if chatprovider.NormalizeProvider(string(providerType)) == normalizedProviderName {
-			return true, nil
+		if matches {
+			return true
 		}
 	}
-	return false, nil
+	for _, provider := range providers {
+		if aiProviderMatchesRawType(provider, normalizedProviderName) {
+			return true
+		}
+	}
+	return false
 }
 
 func userCanUseProviderKeys(
@@ -510,11 +518,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
 		}
-		providerType, err := canonicalAIProviderType(provider)
-		if err != nil {
-			return database.ChatModelConfig{}, "", xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
-		}
-		providerName := chatprovider.NormalizeProvider(string(providerType))
+		providerName := chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider))
 		if providerName == "" {
 			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
 		}
@@ -531,11 +535,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
-	providerEnabled, err := enabledProviderContainsName(enabledProviders, providerName)
-	if err != nil {
-		return database.ChatModelConfig{}, "", err
-	}
-	if !providerEnabled {
+	if !enabledProviderContainsName(ctx, p.logger, enabledProviders, providerName) {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
 	return modelConfig, providerName, nil

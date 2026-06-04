@@ -8642,10 +8642,10 @@ func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvi
 	if err != nil {
 		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("get AI provider keys: %w", err)
 	}
-	return p.aiProviderConfigFromKeys(provider, keys)
+	return p.aiProviderConfigFromKeys(ctx, provider, keys)
 }
 
-func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
+func (p *Server) aiProviderConfigFromKeys(ctx context.Context, provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
 	if !provider.Enabled {
 		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
 	}
@@ -8658,13 +8658,9 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
-	providerType, err := canonicalAIProviderType(provider)
-	if err != nil {
-		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
-	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   string(providerType),
+		Provider:                   bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -8691,7 +8687,7 @@ func (p *Server) aiProviderConfigs(ctx context.Context, providers []database.AIP
 	}
 	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
-		configuredProvider, err := p.aiProviderConfigFromKeys(provider, keysByProviderID[provider.ID])
+		configuredProvider, err := p.aiProviderConfigFromKeys(ctx, provider, keysByProviderID[provider.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -8767,20 +8763,39 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("get enabled AI providers: %w", err)
 	}
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	for _, provider := range providers {
-		canonicalProviderType, err := canonicalAIProviderType(provider)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, nil, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
-		}
-		if chatprovider.NormalizeProvider(string(canonicalProviderType)) != normalizedProviderType {
-			continue
-		}
+	keysForProvider := func(provider database.AIProvider, providerKeysType string) (chatprovider.ProviderAPIKeys, *database.AIProvider, error) {
 		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
 		if err != nil {
 			return chatprovider.ProviderAPIKeys{}, nil, err
 		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
+		if userCanUseProviderKeys(keys, providerKeysType) {
 			return keys, &provider, nil
+		}
+		return chatprovider.ProviderAPIKeys{}, nil, nil
+	}
+	for _, provider := range providers {
+		canonicalProviderType, err := canonicalAIProviderTypeString(provider)
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
+		}
+		providerKeysType := chatprovider.NormalizeProvider(canonicalProviderType)
+		if !aiProviderTypeCanSatisfyRequest(providerKeysType, normalizedProviderType) {
+			continue
+		}
+		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
+		if err != nil || matchedProvider != nil {
+			return keys, matchedProvider, err
+		}
+	}
+	for _, provider := range providers {
+		if !aiProviderMatchesRawType(provider, normalizedProviderType) {
+			continue
+		}
+		providerKeysType := chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider))
+		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
+		if err != nil || matchedProvider != nil {
+			return keys, matchedProvider, err
 		}
 	}
 	keys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)

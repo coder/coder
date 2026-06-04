@@ -4710,7 +4710,7 @@ type AIProviderConfig struct {
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
 
-	// Bedrock fields (only applicable when Type == "anthropic").
+	// Bedrock fields apply when Type is "anthropic" or "bedrock".
 	BedrockBaseURL string `json:"-"`
 	BedrockRegion  string `json:"bedrock_region,omitempty"`
 	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or

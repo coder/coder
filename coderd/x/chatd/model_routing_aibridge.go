@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -307,7 +308,7 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 		ctx,
 		ownerID,
 		provider,
-		chatprovider.NormalizeProvider(providerType),
+		bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider),
 	)
 }
 
@@ -338,11 +339,18 @@ func (p *Server) aiProviderForProviderType(
 		if !provider.Enabled {
 			continue
 		}
-		canonicalProviderType, err := canonicalAIProviderType(provider)
+		matches, err := aiProviderMatchesCanonicalType(provider, normalizedProviderType)
 		if err != nil {
-			return database.AIProvider{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
 		}
-		if chatprovider.NormalizeProvider(string(canonicalProviderType)) != normalizedProviderType {
+		if !matches {
+			continue
+		}
+		return provider, nil
+	}
+	for _, provider := range providers {
+		if !provider.Enabled || !aiProviderMatchesRawType(provider, normalizedProviderType) {
 			continue
 		}
 		return provider, nil

@@ -412,6 +412,12 @@ export interface AIProviderConfig {
 
 // From codersdk/aiproviders.go
 /**
+ * AIProviderDisplayNameBedrock is the default display name for AWS Bedrock providers.
+ */
+export const AIProviderDisplayNameBedrock = "AWS Bedrock";
+
+// From codersdk/aiproviders.go
+/**
  * AIProviderKey is a single API key registered on a provider. The
  * plaintext is never returned; Masked is a one-way rendering safe for
  * display (see aibridge utils MaskSecret). ID lets clients reference

@@ -2057,6 +2057,41 @@ export const ModelFormBedrock: Story = {
 	},
 };
 
+export const ModelListUsesLinkedProviderPresentation: Story = {
+	args: {
+		section: "models" as ChatModelAdminSection,
+		providerConfigsData: [
+			createProviderConfig({
+				id: "provider-bedrock-linked",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				source: "database",
+				has_api_key: false,
+				central_api_key_enabled: true,
+			}),
+		],
+		modelConfigsData: [
+			createModelConfig({
+				id: "model-bedrock-linked",
+				provider: "anthropic",
+				ai_provider_id: "provider-bedrock-linked",
+				model: "anthropic.claude-3-5-sonnet",
+				display_name: "Claude on Bedrock",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			await body.findByText("Claude on Bedrock"),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByAltText("AWS Bedrock logo"),
+		).toBeInTheDocument();
+		expect(body.queryByAltText("Anthropic logo")).not.toBeInTheDocument();
+	},
+};
+
 export const ModelPricingWarningInList: Story = {
 	args: {
 		section: "models" as ChatModelAdminSection,

@@ -44,7 +44,7 @@ var envPresetProviderNames = []string{
 var providerDisplayNameByName = map[string]string{
 	fantasyanthropic.Name:    "Anthropic",
 	fantasyazure.Name:        "Azure OpenAI",
-	fantasybedrock.Name:      "AWS Bedrock",
+	fantasybedrock.Name:      codersdk.AIProviderDisplayNameBedrock,
 	fantasygoogle.Name:       "Google",
 	fantasyopenai.Name:       "OpenAI",
 	fantasyopenaicompat.Name: "OpenAI Compatible",

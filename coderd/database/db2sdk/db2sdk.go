@@ -59,19 +59,16 @@ func CanonicalAIProviderType(row database.AIProvider) (database.AIProviderType, 
 // write-only fields on Settings are stripped, so the result is safe
 // to echo back in API responses.
 func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
-	}
 	s, err := AIProviderSettings(row.Settings)
 	if err != nil {
 		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
 	}
+	providerType := codersdk.CanonicalAIProviderType(codersdk.AIProviderType(row.Type), s)
 	out := codersdk.AIProvider{
 		ID:          row.ID,
-		Type:        codersdk.CanonicalAIProviderType(codersdk.AIProviderType(row.Type), s),
+		Type:        providerType,
 		Name:        row.Name,
-		DisplayName: display,
+		DisplayName: AIProviderDisplayName(row, providerType),
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
@@ -80,6 +77,20 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		UpdatedAt:   row.UpdatedAt,
 	}
 	return out, nil
+}
+
+// AIProviderDisplayName returns the presentation name for an AI provider row.
+func AIProviderDisplayName(row database.AIProvider, providerType codersdk.AIProviderType) string {
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	if providerType == codersdk.AIProviderTypeBedrock &&
+		(strings.EqualFold(display, string(codersdk.AIProviderTypeAnthropic)) ||
+			strings.EqualFold(display, string(codersdk.AIProviderTypeBedrock))) {
+		return codersdk.AIProviderDisplayNameBedrock
+	}
+	return display
 }
 
 // AIProviderSettings parses the on-disk JSON form back into a codersdk

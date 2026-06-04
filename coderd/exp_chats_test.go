@@ -2249,6 +2249,34 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.False(t, cfg.HasUserAPIKey)
 	})
 
+	t.Run("LegacyBedrockProviderSummaryUsesBedrockDisplay", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:        database.AiProviderTypeAnthropic,
+			Name:        "legacy-bedrock-summary-" + uuid.NewString(),
+			DisplayName: sql.NullString{String: "anthropic", Valid: true},
+			Enabled:     true,
+			Settings: sql.NullString{
+				String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
+				Valid:  true,
+			},
+		})
+
+		configs, err := memberClient.ListUserAIProviderKeyConfigs(ctx, "me")
+		require.NoError(t, err)
+		cfg := findUserAIProviderKeyConfig(t, configs, provider.ID)
+		require.NotNil(t, cfg)
+		require.Equal(t, codersdk.AIProviderTypeBedrock, cfg.Provider.Type)
+		require.Equal(t, codersdk.AIProviderDisplayNameBedrock, cfg.Provider.DisplayName)
+	})
+
 	t.Run("ListsDisabledProviderWithSavedUserKey", func(t *testing.T) {
 		t.Parallel()
 

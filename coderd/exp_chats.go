@@ -6532,19 +6532,16 @@ func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
 }
 
 func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProviderSummary, error) {
-	displayName := provider.Name
-	if provider.DisplayName.Valid && provider.DisplayName.String != "" {
-		displayName = provider.DisplayName.String
-	}
 	providerType, err := canonicalAIProviderTypeForRow(provider)
 	if err != nil {
 		return codersdk.AIProviderSummary{}, err
 	}
+	sdkProviderType := codersdk.AIProviderType(providerType)
 	return codersdk.AIProviderSummary{
 		ID:          provider.ID,
-		Type:        codersdk.AIProviderType(providerType),
+		Type:        sdkProviderType,
 		Name:        provider.Name,
-		DisplayName: displayName,
+		DisplayName: db2sdk.AIProviderDisplayName(provider, sdkProviderType),
 		Enabled:     provider.Enabled,
 		Deleted:     provider.Deleted,
 	}, nil

@@ -47,6 +47,9 @@ const (
 	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
+// AIProviderDisplayNameBedrock is the default display name for AWS Bedrock providers.
+const AIProviderDisplayNameBedrock = "AWS Bedrock"
+
 // AIProviderSettings is the discriminated container for type-specific
 // provider settings stored in ai_providers.settings. Providers that
 // need no type-specific configuration (current OpenAI and standard

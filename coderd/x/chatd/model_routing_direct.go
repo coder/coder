@@ -71,11 +71,15 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 	providerType string,
 ) (resolvedModelRoute, error) {
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
+	keys, provider, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return newDirectModelRoute(normalizedProviderType, keys), nil
+	providerHint := normalizedProviderType
+	if provider != nil {
+		providerHint = chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, *provider))
+	}
+	return newDirectModelRoute(providerHint, keys), nil
 }
 
 func (p *Server) directProviderHintAndProviderForConfig(
@@ -89,9 +93,5 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	if err != nil {
 		return "", nil, err
 	}
-	providerType, err := canonicalAIProviderType(provider)
-	if err != nil {
-		return "", nil, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
-	}
-	return string(providerType), &provider, nil
+	return bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider), &provider, nil
 }
