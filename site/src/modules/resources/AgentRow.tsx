@@ -245,6 +245,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 	const [selectedLogTab, setSelectedLogTab] = useState("all");
 	const hasAutoSelectedLogTabRef = useRef(false);
+	// Auto-select the first log tab whose script failed and has rendered output.
 	useEffect(() => {
 		if (hasAutoSelectedLogTabRef.current) {
 			return;
