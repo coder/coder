@@ -332,9 +332,12 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 							: `Set as default model: ${modelName}`;
 						const starUnavailable =
 							isUpdating || modelConfig.is_default || !modelConfig.enabled;
+						const providerKey = modelConfigProviderKey(
+							modelConfig,
+							providerStates,
+						);
 						const providerState = providerStates.find(
-							(ps) =>
-								ps.key === modelConfigProviderKey(modelConfig, providerStates),
+							(ps) => ps.key === providerKey,
 						);
 						const displayProvider =
 							providerState?.provider ?? modelConfig.provider;
