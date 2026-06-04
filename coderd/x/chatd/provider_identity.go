@@ -38,14 +38,22 @@ func bestEffortAIProviderTypeString(ctx context.Context, logger slog.Logger, pro
 	return string(bestEffortAIProviderType(ctx, logger, provider))
 }
 
+func aiProviderTypeCanSatisfyRequest(candidateProviderType string, requestedProviderType string) bool {
+	if candidateProviderType == requestedProviderType {
+		return true
+	}
+	return requestedProviderType == string(database.AiProviderTypeAnthropic) &&
+		candidateProviderType == string(database.AiProviderTypeBedrock)
+}
+
 func aiProviderMatchesEffectiveType(provider database.AIProvider, normalizedProviderType string) (bool, error) {
 	effectiveType, err := effectiveAIProviderTypeString(provider)
 	if err != nil {
 		return false, err
 	}
-	return chatprovider.NormalizeProvider(effectiveType) == normalizedProviderType, nil
+	return aiProviderTypeCanSatisfyRequest(chatprovider.NormalizeProvider(effectiveType), normalizedProviderType), nil
 }
 
 func aiProviderMatchesRawType(provider database.AIProvider, normalizedProviderType string) bool {
-	return chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderType
+	return aiProviderTypeCanSatisfyRequest(chatprovider.NormalizeProvider(string(provider.Type)), normalizedProviderType)
 }

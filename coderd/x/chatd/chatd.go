@@ -8774,15 +8774,16 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		return chatprovider.ProviderAPIKeys{}, nil, nil
 	}
 	for _, provider := range providers {
-		matches, err := aiProviderMatchesEffectiveType(provider, normalizedProviderType)
+		effectiveProviderType, err := effectiveAIProviderTypeString(provider)
 		if err != nil {
 			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 			continue
 		}
-		if !matches {
+		providerKeysType := chatprovider.NormalizeProvider(effectiveProviderType)
+		if !aiProviderTypeCanSatisfyRequest(providerKeysType, normalizedProviderType) {
 			continue
 		}
-		keys, matchedProvider, err := keysForProvider(provider, normalizedProviderType)
+		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
 		if err != nil || matchedProvider != nil {
 			return keys, matchedProvider, err
 		}
