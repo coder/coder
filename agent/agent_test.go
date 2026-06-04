@@ -983,22 +983,23 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
-	wantMaybeServiceBanner := "Service banner text goes here"
+	wantServiceBanner := "Service banner text goes here"
 
 	u, err := user.Current()
 	require.NoError(t, err, "get current user")
 
-	name := filepath.Join(u.HomeDir, "motd")
+	motdPath := filepath.Join(u.HomeDir, "motd")
+	hushloginPath := filepath.Join(u.HomeDir, ".hushlogin")
 
 	// Neither banner nor MOTD should show if not a login shell.
 	t.Run("NotLogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
+			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -1011,41 +1012,53 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 
 		require.Contains(t, string(output), wantEcho, "should show echo")
 		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
-		require.NotContains(t, string(output), wantMaybeServiceBanner, "should not show service banner")
+		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
 	})
 
 	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
-			MOTDFile: name,
+			MOTDFile: motdPath,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantMaybeServiceBanner,
+			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
-			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			err := afero.WriteFile(fs, motdPath, []byte(wantNotMOTD), 0o600)
 			require.NoError(t, err, "write motd file")
 
-			// Create hushlogin to silence motd.
-			err = afero.WriteFile(fs, name, []byte{}, 0o600)
+			// Place an empty .hushlogin in the user's home so the agent's
+			// isQuietLogin lookup succeeds and showMOTD is skipped.
+			err = afero.WriteFile(fs, hushloginPath, []byte{}, 0o600)
 			require.NoError(t, err, "write hushlogin file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
+		stdout := testutil.NewWaitBuffer()
 		ptty := ptytest.New(t)
-		var stdout bytes.Buffer
-		session.Stdout = &stdout
+		session.Stdout = stdout
 		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Shell()
+		stdin, err := session.StdinPipe()
 		require.NoError(t, err)
+		require.NoError(t, session.Shell())
 
-		ptty.WriteLine("exit 0")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		context.AfterFunc(ctx, func() { _ = session.Close() })
+
+		testutil.Go(t, func() {
+			for {
+				if _, err := stdin.Write([]byte("exit 0\n")); err != nil {
+					return
+				}
+				time.Sleep(testutil.IntervalFast)
+			}
+		})
+
 		err = session.Wait()
 		require.NoError(t, err)
 
+		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
 	})
 }
 
