@@ -2608,35 +2608,39 @@ func TestSSH_SelectWorkspace(t *testing.T) {
 	t.Run("SingleRunningConfirmYes", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "--force-tty", "ssh")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
-		pty.ExpectMatchContext(ctx, "Connect to workspace")
-		pty.WriteLine("yes")
-		pty.ExpectMatchContext(ctx, "Waiting")
+		stdout.ExpectMatch(ctx, "Connect to workspace")
+		stdin.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Waiting")
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		require.NoError(t, w.Wait())
 	})
 
 	t.Run("SingleRunningConfirmNo", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "--force-tty", "ssh")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
-		pty.ExpectMatchContext(ctx, "Connect to workspace")
-		pty.WriteLine("no")
+		stdout.ExpectMatch(ctx, "Connect to workspace")
+		stdin.WriteLine("no")
 
 		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
