@@ -1142,6 +1142,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
+			&i.AIBridgeInterception.BoundarySessionID,
+			&i.AIBridgeInterception.BoundarySequenceNumber,
 		); err != nil {
 			return nil, err
 		}
