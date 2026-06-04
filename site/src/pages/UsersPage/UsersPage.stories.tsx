@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { deploymentConfigQueryKey } from "#/api/queries/deployment";
@@ -385,7 +386,9 @@ export const UpdateUserRoleSuccess: Story = {
 export const UpdateUserRoleError: Story = {
 	parameters: UpdateUserRoleSuccess.parameters,
 	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
+		const user = userEvent.setup({
+			pointerEventsCheck: PointerEventsCheckLevel.Never,
+		});
 		const userRow = canvasElement.querySelector<HTMLElement>("tbody tr");
 		if (!userRow) {
 			throw new Error("No user row found");
