@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder ssh [flags] <workspace> [command]
+  coder ssh [flags] [workspace] [command]
 
   Start a shell into a workspace or run a command
 
@@ -12,7 +12,7 @@ USAGE:
     - Use `--` to separate and pass flags directly to the command executed via
   SSH.:
   
-       $ coder ssh <workspace> -- ls -la
+       $ coder ssh [workspace] -- ls -la
 
 OPTIONS:
       --disable-autostart bool, $CODER_SSH_DISABLE_AUTOSTART (default: false)

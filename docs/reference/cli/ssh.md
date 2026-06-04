@@ -6,7 +6,7 @@ Start a shell into a workspace or run a command
 ## Usage
 
 ```console
-coder ssh [flags] <workspace> [command]
+coder ssh [flags] [workspace] [command]
 ```
 
 ## Description
@@ -16,7 +16,7 @@ This command does not have full parity with the standard SSH command. For users 
 
   - Use `--` to separate and pass flags directly to the command executed via SSH.:
 
-     $ coder ssh <workspace> -- ls -la
+     $ coder ssh [workspace] -- ls -la
 ```
 
 ## Options
