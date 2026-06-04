@@ -521,7 +521,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/nats-io/nats-server/v2 v2.12.8
-	github.com/nats-io/nats.go v1.51.0
+	github.com/nats-io/nats.go v1.52.0
 	github.com/openai/openai-go/v3 v3.28.0
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shopspring/decimal v1.4.0
