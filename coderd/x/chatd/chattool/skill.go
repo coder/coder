@@ -180,11 +180,7 @@ func LoadSkillBody(
 		if entry.Name == metaFile {
 			continue
 		}
-		name := entry.Name
-		if entry.IsDir {
-			name += "/"
-		}
-		files = append(files, name)
+		files = append(files, lsFileDisplayName(entry))
 	}
 
 	return SkillContent{

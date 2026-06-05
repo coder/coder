@@ -78,7 +78,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/project",
+				Error:   notFileError("/home/coder/project"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -112,33 +112,24 @@ func TestReadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.IsError)
 		var result struct {
-			Content            string                `json:"content"`
-			IsDirectory        bool                  `json:"is_directory"`
-			AbsolutePath       []string              `json:"absolute_path"`
-			AbsolutePathString string                `json:"absolute_path_string"`
-			Entries            []workspacesdk.LSFile `json:"entries"`
-			EntriesRead        int                   `json:"entries_read"`
-			TotalEntries       int                   `json:"total_entries"`
-			Truncated          bool                  `json:"truncated"`
+			Content            string   `json:"content"`
+			IsDirectory        bool     `json:"is_directory"`
+			AbsolutePath       []string `json:"absolute_path"`
+			AbsolutePathString string   `json:"absolute_path_string"`
+			EntriesRead        int      `json:"entries_read"`
+			TotalEntries       int      `json:"total_entries"`
+			Truncated          bool     `json:"truncated"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		var raw map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &raw))
+		assert.NotContains(t, raw, "entries")
 		assert.True(t, result.IsDirectory)
 		assert.Equal(t, []string{"home", "coder", "project"}, result.AbsolutePath)
 		assert.Equal(t, "/home/coder/project", result.AbsolutePathString)
 		assert.Equal(t, 2, result.EntriesRead)
 		assert.Equal(t, 2, result.TotalEntries)
 		assert.False(t, result.Truncated)
-		assert.Equal(t, []workspacesdk.LSFile{
-			{
-				Name:               "src",
-				AbsolutePathString: "/home/coder/project/src",
-				IsDir:              true,
-			},
-			{
-				Name:               "README.md",
-				AbsolutePathString: "/home/coder/project/README.md",
-			},
-		}, result.Entries)
 		assert.Equal(t, "1\tsrc/\n2\tREADME.md\n", result.Content)
 	})
 
@@ -157,7 +148,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/project",
+				Error:   notFileError("/home/coder/project"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -185,18 +176,13 @@ func TestReadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.IsError)
 		var result struct {
-			Content      string                `json:"content"`
-			Entries      []workspacesdk.LSFile `json:"entries"`
-			EntriesRead  int                   `json:"entries_read"`
-			TotalEntries int                   `json:"total_entries"`
-			Truncated    bool                  `json:"truncated"`
+			Content      string `json:"content"`
+			EntriesRead  int    `json:"entries_read"`
+			TotalEntries int    `json:"total_entries"`
+			Truncated    bool   `json:"truncated"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.Equal(t, "2\tb.txt\n", result.Content)
-		assert.Equal(t, []workspacesdk.LSFile{{
-			Name:               "b.txt",
-			AbsolutePathString: "/home/coder/project/b.txt",
-		}}, result.Entries)
 		assert.Equal(t, 1, result.EntriesRead)
 		assert.Equal(t, 3, result.TotalEntries)
 		assert.True(t, result.Truncated)
@@ -207,7 +193,7 @@ func TestReadFile(t *testing.T) {
 
 		entries := make([]workspacesdk.LSFile, 2000)
 		for i := range entries {
-			name := strings.Repeat("a", 128)
+			name := strings.Repeat(string(rune('a'+i%26)), 1+i%256)
 			entries[i] = workspacesdk.LSFile{
 				Name:               name,
 				AbsolutePathString: "/home/coder/project/" + name,
@@ -226,7 +212,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/project",
+				Error:   notFileError("/home/coder/project"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -250,16 +236,14 @@ func TestReadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.IsError)
 		var result struct {
-			Content      string                `json:"content"`
-			Entries      []workspacesdk.LSFile `json:"entries"`
-			EntriesRead  int                   `json:"entries_read"`
-			TotalEntries int                   `json:"total_entries"`
-			Truncated    bool                  `json:"truncated"`
+			Content      string `json:"content"`
+			EntriesRead  int    `json:"entries_read"`
+			TotalEntries int    `json:"total_entries"`
+			Truncated    bool   `json:"truncated"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.True(t, result.Truncated)
 		assert.Equal(t, 2000, result.TotalEntries)
-		assert.Equal(t, result.EntriesRead, len(result.Entries))
 		assert.LessOrEqual(t, len(result.Content), int(workspacesdk.DefaultMaxResponseBytes))
 		assert.Less(t, result.EntriesRead, result.TotalEntries)
 	})
@@ -279,7 +263,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/empty",
+				Error:   notFileError("/home/coder/empty"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -302,15 +286,15 @@ func TestReadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.IsError)
 		var result struct {
-			Content      string                `json:"content"`
-			Entries      []workspacesdk.LSFile `json:"entries"`
-			EntriesRead  int                   `json:"entries_read"`
-			TotalEntries int                   `json:"total_entries"`
-			Truncated    bool                  `json:"truncated"`
+			Content      string `json:"content"`
+			IsDirectory  bool   `json:"is_directory"`
+			EntriesRead  int    `json:"entries_read"`
+			TotalEntries int    `json:"total_entries"`
+			Truncated    bool   `json:"truncated"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.Empty(t, result.Content)
-		assert.Empty(t, result.Entries)
+		assert.True(t, result.IsDirectory)
 		assert.Equal(t, 0, result.EntriesRead)
 		assert.Equal(t, 0, result.TotalEntries)
 		assert.False(t, result.Truncated)
@@ -331,7 +315,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/project",
+				Error:   notFileError("/home/coder/project"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -356,7 +340,34 @@ func TestReadFile(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "offset 5 is beyond the directory length of 1 entries", resp.Content)
+		assert.Equal(t, "offset 5 exceeds directory entry count 1", resp.Content)
+	})
+
+	t.Run("ReportsReadFileLinesTransportError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		mockConn.EXPECT().
+			ReadFileLines(
+				gomock.Any(),
+				"/home/coder/main.go",
+				int64(1),
+				int64(0),
+				workspacesdk.DefaultReadFileLinesLimits(),
+			).
+			Return(workspacesdk.ReadFileLinesResponse{}, xerrors.New("connection reset"))
+
+		tool := newReadFileTool(mockConn)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_file",
+			Input: `{"path":"/home/coder/main.go"}`,
+		})
+
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Equal(t, "connection reset", resp.Content)
 	})
 
 	t.Run("DoesNotListOtherReadErrors", func(t *testing.T) {
@@ -404,7 +415,7 @@ func TestReadFile(t *testing.T) {
 			).
 			Return(workspacesdk.ReadFileLinesResponse{
 				Success: false,
-				Error:   "not a file: /home/coder/private",
+				Error:   notFileError("/home/coder/private"),
 			}, nil)
 		mockConn.EXPECT().
 			LS(
@@ -423,7 +434,7 @@ func TestReadFile(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "not a file: /home/coder/private; failed to list directory: permission denied", resp.Content)
+		assert.Equal(t, notFileError("/home/coder/private")+"; failed to list directory: permission denied", resp.Content)
 	})
 }
 
@@ -433,6 +444,10 @@ func newReadFileTool(mockConn *agentconnmock.MockAgentConn) fantasy.AgentTool {
 			return mockConn, nil
 		},
 	})
+}
+
+func notFileError(path string) string {
+	return workspacesdk.ReadFileLinesNotFileErrorPrefix + " " + path
 }
 
 func TestReadFileRequiresPath(t *testing.T) {

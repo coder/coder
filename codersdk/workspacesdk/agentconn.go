@@ -1020,6 +1020,10 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	return nil
 }
 
+// ReadFileLinesNotFileErrorPrefix prefixes ReadFileLines errors for paths
+// that resolve to directories instead of regular files.
+const ReadFileLinesNotFileErrorPrefix = "not a file:"
+
 // ReadFileLinesResponse is the response from the line-based file reader.
 type ReadFileLinesResponse struct {
 	Success    bool   `json:"success"`

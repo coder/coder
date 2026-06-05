@@ -24,8 +24,9 @@ type ReadFileArgs struct {
 func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_file",
-		"Read a file from the workspace. Returns line-numbered content. "+
-			"When reading a directory, returns a non-recursive directory listing. "+
+		"Read a file or list a directory in the workspace. "+
+			"For files, returns line-numbered content. "+
+			"For directories, returns a non-recursive listing. "+
 			"The offset parameter is a 1-based line number or directory entry (default: 1). "+
 			"The limit parameter is the number of lines or directory entries to return (default: 2000). "+
 			"For large files and directories, use offset and limit to paginate.",
@@ -80,10 +81,15 @@ func executeReadFileTool(
 	}), nil
 }
 
+// readFileLinesErrorIsDirectory returns true when the ReadFileLines error
+// indicates that the path is a directory. The workspace agent's file-read
+// handler emits this prefix for directories.
 func readFileLinesErrorIsDirectory(err string) bool {
-	return strings.HasPrefix(strings.TrimSpace(err), "not a file:")
+	return strings.HasPrefix(strings.TrimSpace(err), workspacesdk.ReadFileLinesNotFileErrorPrefix)
 }
 
+// executeReadFileDirectoryListing falls back to the agent's directory-list
+// endpoint after ReadFileLines reports that the path is a directory.
 func executeReadFileDirectoryListing(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -111,7 +117,6 @@ func executeReadFileDirectoryListing(
 		"is_directory":         true,
 		"absolute_path":        resp.AbsolutePath,
 		"absolute_path_string": resp.AbsolutePathString,
-		"entries":              listing.entries,
 		"entries_read":         listing.entriesRead,
 		"total_entries":        len(resp.Contents),
 		"truncated":            listing.truncated,
@@ -120,11 +125,12 @@ func executeReadFileDirectoryListing(
 
 type directoryListing struct {
 	content     string
-	entries     []workspacesdk.LSFile
 	entriesRead int
 	truncated   bool
 }
 
+// directoryListingResult applies read_file pagination semantics to an LS
+// response and keeps the formatted listing within the tool output budget.
 func directoryListingResult(resp workspacesdk.LSResponse, offset, limit int64) (directoryListing, error) {
 	if offset < 1 {
 		offset = 1
@@ -138,7 +144,7 @@ func directoryListingResult(resp workspacesdk.LSResponse, offset, limit int64) (
 		return directoryListing{}, nil
 	}
 	if offset > int64(totalEntries) {
-		return directoryListing{}, xerrors.Errorf("offset %d is beyond the directory length of %d entries", offset, totalEntries)
+		return directoryListing{}, xerrors.Errorf("offset %d exceeds directory entry count %d", offset, totalEntries)
 	}
 
 	start := int(offset - 1)
@@ -156,24 +162,31 @@ func directoryListingResult(resp workspacesdk.LSResponse, offset, limit int64) (
 	)
 	return directoryListing{
 		content:     content,
-		entries:     resp.Contents[start : start+entriesRead],
 		entriesRead: entriesRead,
 		truncated:   byteTruncated || start+entriesRead < totalEntries,
 	}, nil
 }
 
+// formatDirectoryListing formats directory entries until the line or byte
+// budget is exhausted. It returns the formatted content, entries read, and
+// whether the byte budget truncated the listing.
 func formatDirectoryListing(entries []workspacesdk.LSFile, offset int64, maxBytes int) (string, int, bool) {
 	var b strings.Builder
 	for i, entry := range entries {
-		name := entry.Name
-		if entry.IsDir {
-			name += "/"
-		}
-		line := fmt.Sprintf("%d\t%s\n", offset+int64(i), name)
+		line := fmt.Sprintf("%d\t%s\n", offset+int64(i), lsFileDisplayName(entry))
 		if b.Len()+len(line) > maxBytes {
 			return b.String(), i, true
 		}
 		_, _ = b.WriteString(line)
 	}
 	return b.String(), len(entries), false
+}
+
+// lsFileDisplayName returns the stable display form shared by tools that show
+// LS entries to the model.
+func lsFileDisplayName(entry workspacesdk.LSFile) string {
+	if entry.IsDir {
+		return entry.Name + "/"
+	}
+	return entry.Name
 }

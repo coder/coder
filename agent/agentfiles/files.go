@@ -196,7 +196,7 @@ func (api *API) readFileLines(_ context.Context, path string, offset, limit int6
 	}
 
 	if stat.IsDir() {
-		return errResp(fmt.Sprintf("not a file: %s", path))
+		return errResp(fmt.Sprintf("%s %s", workspacesdk.ReadFileLinesNotFileErrorPrefix, path))
 	}
 
 	fileSize := stat.Size()
