@@ -16,6 +16,14 @@ type RoleSelectorProps = {
 	loading?: boolean;
 	error?: unknown;
 	availableRoles?: AssignableRoles[];
+	/**
+	 * Extra roles to display below `Member` as always-granted (implied)
+	 * rows. Used by the org members editor to surface the organization's
+	 * `default_org_member_roles` alongside the built-in `member` role.
+	 * Roles listed here are filtered out of the selectable list because
+	 * users cannot toggle implied roles.
+	 */
+	additionalImpliedRoles?: AssignableRoles[];
 	selectedRoles: Set<string>;
 	onChange: (roles: Set<string>) => void;
 };
@@ -25,6 +33,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	loading,
 	error,
 	availableRoles = [],
+	additionalImpliedRoles = [],
 	selectedRoles,
 	onChange,
 }) => {
@@ -32,7 +41,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 		return (
 			<RoleSelectorLayout>
 				<RoleSelectorSkeleton />
-				<MemberRole />
+				<ImpliedRolesList additionalImpliedRoles={additionalImpliedRoles} />
 			</RoleSelectorLayout>
 		);
 	}
@@ -49,8 +58,11 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 		);
 	}
 
+	const impliedRoleNames = new Set(additionalImpliedRoles.map((r) => r.name));
 	const { selectableRoles = [], advancedRoles = [] } = Object.groupBy(
-		availableRoles.filter((r) => r.name !== "member"),
+		availableRoles.filter(
+			(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
+		),
 		(it) =>
 			advancedRoleNames.includes(it.name) ? "advancedRoles" : "selectableRoles",
 	);
@@ -80,7 +92,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 				/>
 			)}
 
-			<MemberRole />
+			<ImpliedRolesList additionalImpliedRoles={additionalImpliedRoles} />
 		</RoleSelectorLayout>
 	);
 };
@@ -182,13 +194,42 @@ const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
 	);
 };
 
-const MemberRole: React.FC = () => {
+type ImpliedRolesListProps = {
+	additionalImpliedRoles: AssignableRoles[];
+};
+
+const ImpliedRolesList: React.FC<ImpliedRolesListProps> = ({
+	additionalImpliedRoles,
+}) => {
+	return (
+		<>
+			<ImpliedRoleRow title="Member" description={roleDescriptions.member} />
+			{additionalImpliedRoles.map((role) => (
+				<ImpliedRoleRow
+					key={role.name}
+					title={role.display_name || role.name}
+					description={roleDescriptions[role.name] ?? ""}
+				/>
+			))}
+		</>
+	);
+};
+
+type ImpliedRoleRowProps = {
+	title: string;
+	description: string;
+};
+
+const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
+	title,
+	description,
+}) => {
 	return (
 		<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
 			<UserIcon className="size-4 mt-1 shrink-0" />
 			<div className="flex flex-col">
-				<span className="text-sm font-medium">Member</span>
-				<span className="text-sm">{roleDescriptions.member}</span>
+				<span className="text-sm font-medium">{title}</span>
+				{description && <span className="text-sm">{description}</span>}
 			</div>
 		</div>
 	);
