@@ -39,16 +39,7 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
-	/**
-	 * Whether to render the Default Roles section. Gated on the
-	 * minimum-implicit-member experiment at the page level.
-	 */
 	defaultRolesEnabled?: boolean;
-	/**
-	 * Whether the deployment is entitled to multi-org features. The
-	 * underlying PATCH endpoint is multi-org gated, so the edit button
-	 * is disabled when this is false.
-	 */
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
