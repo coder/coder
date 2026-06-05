@@ -399,7 +399,7 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID, groups []string) rbac.Subject {
+	subjectSubAgentAPI = func(userID uuid.UUID, orgID uuid.UUID) rbac.Subject {
 		return rbac.Subject{
 			Type:         rbac.SubjectTypeSubAgentAPI,
 			FriendlyName: "Sub Agent API",
@@ -412,6 +412,11 @@ var (
 					User:        []rbac.Permission{},
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
+							Org: rbac.Permissions(map[string][]policy.Action{
+								// SubAgentAPI needs to check metadata of templates
+								// potentially shared via group_acl.
+								rbac.ResourceTemplate.Type: {policy.ActionRead},
+							}),
 							Member: rbac.Permissions(map[string][]policy.Action{
 								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 							}),
@@ -419,8 +424,7 @@ var (
 					},
 				},
 			}),
-			Groups: groups,
-			Scope:  rbac.ScopeAll,
+			Scope: rbac.ScopeAll,
 		}.WithCachedASTValue()
 	}
 
@@ -816,8 +820,8 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 
 // AsSubAgentAPI returns a context with an actor that has permissions required for
 // handling the lifecycle of sub agents.
-func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID, groups []string) context.Context {
-	return As(ctx, subjectSubAgentAPI(userID, orgID, groups))
+func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
+	return As(ctx, subjectSubAgentAPI(userID, orgID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

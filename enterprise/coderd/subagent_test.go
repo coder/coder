@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -460,15 +459,12 @@ func newDevcontainerSubAgentClientWithMaxPortShareLevel(
 	var acs agpldbauthz.AccessControlStore = entdbauthz.EnterpriseTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 	db := agpldbauthz.New(rawDB, auth, log, accessControlStore)
-	ownerSubject, _, err := httpmw.UserRBACSubject(ctx, rawDB, user.ID, rbac.ScopeAll)
-	require.NoError(t, err)
 	portSharer := &atomic.Pointer[agplportsharing.PortSharer]{}
 	var ps agplportsharing.PortSharer = entportsharing.NewEnterprisePortSharer()
 	portSharer.Store(&ps)
 	api := &agentapi.SubAgentAPI{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
-		OwnerGroups:    ownerSubject.Groups,
 		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 			return parentAgent, nil
 		},

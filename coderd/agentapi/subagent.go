@@ -27,7 +27,6 @@ import (
 type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
-	OwnerGroups    []string
 	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
 
 	Log        slog.Logger
@@ -38,7 +37,7 @@ type SubAgentAPI struct {
 
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
 	createdAt := a.Clock.Now()
 
@@ -325,7 +324,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 
 func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.DeleteSubAgentRequest) (*agentproto.DeleteSubAgentResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
 	subAgentID, err := uuid.FromBytes(req.Id)
 	if err != nil {
@@ -341,7 +340,7 @@ func (a *SubAgentAPI) DeleteSubAgent(ctx context.Context, req *agentproto.Delete
 
 func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAgentsRequest) (*agentproto.ListSubAgentsResponse, error) {
 	//nolint:gocritic // This gives us only the permissions required to do the job.
-	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID, a.OwnerGroups)
+	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
 	parentAgent, err := a.AgentFn(ctx)
 	if err != nil {

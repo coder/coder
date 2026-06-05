@@ -70,7 +70,6 @@ var _ agentproto.DRPCAgentServer = &API{}
 type Options struct {
 	AgentID           uuid.UUID
 	OwnerID           uuid.UUID
-	OwnerGroups       []string
 	WorkspaceID       uuid.UUID
 	OrganizationID    uuid.UUID
 	TemplateVersionID uuid.UUID
@@ -229,7 +228,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
-		OwnerGroups:    opts.OwnerGroups,
 		AgentFn:        api.agent,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
