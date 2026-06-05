@@ -30362,6 +30362,102 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 	return i, err
 }
 
+const getExternalAgentTokensByTemplateID = `-- name: GetExternalAgentTokensByTemplateID :many
+SELECT
+	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
+FROM
+	workspaces
+JOIN (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, transition, has_external_agent
+	FROM
+		workspace_builds
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspaces.template_id = $1
+	AND (
+		$2 :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = $2
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL
+`
+
+type GetExternalAgentTokensByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetExternalAgentTokensByTemplateIDRow struct {
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName string    `db:"workspace_name" json:"workspace_name"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	AgentName     string    `db:"agent_name" json:"agent_name"`
+	AgentToken    uuid.UUID `db:"agent_token" json:"agent_token"`
+}
+
+// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+// non-deleted external agents on the latest build of every running workspace
+// of the given template. "Running" means the latest build has
+// transition=start and job_status=succeeded (matches the workspace-status
+// definition used by coderd/database/queries/workspaces.sql).
+// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+// "all owners"; any other value restricts results to workspaces owned by
+// that user.
+func (q *sqlQuerier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByTemplateID, arg.TemplateID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExternalAgentTokensByTemplateIDRow
+	for rows.Next() {
+		var i GetExternalAgentTokensByTemplateIDRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.AgentID,
+			&i.AgentName,
+			&i.AgentToken,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one
 SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted,

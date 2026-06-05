@@ -38,7 +38,7 @@ func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
 	t.Cleanup(dialer.Close)
 
-	a := agentfake.NewAgent(nil, "", logger, agentfake.WithDialer(dialer))
+	a := agentfake.NewAgent(logger, nil, "", agentfake.WithDialer(dialer))
 	t.Cleanup(a.Close)
 
 	runCtx, cancel := context.WithCancel(ctx)
@@ -106,7 +106,7 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
 	t.Cleanup(dialer.Close)
 
-	a := agentfake.NewAgent(nil, "", logger,
+	a := agentfake.NewAgent(logger, nil, "",
 		agentfake.WithDialer(dialer),
 		agentfake.WithClock(mClock),
 	)
