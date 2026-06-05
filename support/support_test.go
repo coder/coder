@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -98,6 +99,12 @@ func TestRun(t *testing.T) {
 		assert.Nil(t, bun.Pprof.Server, "server pprof should not be collected without CollectPprof")
 		assert.Nil(t, bun.Pprof.Agent, "agent pprof should not be collected without CollectPprof")
 
+		// Organization info should be auto-detected from user membership.
+		assert.NotEqual(t, uuid.Nil, bun.Organization.Organization.ID, "organization ID should be present")
+		assert.NotEmpty(t, bun.Organization.Organization.Name, "organization name should be present")
+		require.NotNil(t, bun.Organization.ProvisionerDaemons, "provisioner daemons should not be nil")
+		require.NotNil(t, bun.Organization.ProvisionerJobs, "provisioner jobs should not be nil")
+
 		// New: deployment health settings should be present
 		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")
 		// New: aggregated workspaces should be present and include created workspace
@@ -144,6 +151,12 @@ func TestRun(t *testing.T) {
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
 		assert.Nil(t, bun.Pprof.Server, "server pprof should not be collected without CollectPprof")
 		assert.Nil(t, bun.Pprof.Agent, "agent pprof should not be collected without CollectPprof")
+
+		// Organization info should be auto-detected even without workspace.
+		assert.NotEqual(t, uuid.Nil, bun.Organization.Organization.ID, "organization ID should be present")
+		assert.NotEmpty(t, bun.Organization.Organization.Name, "organization name should be present")
+		require.NotNil(t, bun.Organization.ProvisionerDaemons, "provisioner daemons should not be nil")
+		require.NotNil(t, bun.Organization.ProvisionerJobs, "provisioner jobs should not be nil")
 
 		// New: health settings should be present even without workspace context
 		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")

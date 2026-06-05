@@ -56,6 +56,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent network diagnostics
   - Agent logs
   - License status
+  - Organization provisioner daemons and non-successful provisioner jobs
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
 	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
@@ -70,6 +71,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var workspacesTotalCap64 int64 = 10
 	var templateName string
 	var pprof bool
+	var orgFlag string
 	cmd := &serpent.Command{
 		Use:   "bundle [<workspace>] [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
@@ -246,6 +248,19 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
 			}
 
+			var orgID uuid.UUID
+			if orgFlag != "" {
+				if parsed, err := uuid.Parse(orgFlag); err == nil {
+					orgID = parsed
+				} else {
+					org, err := client.OrganizationByName(inv.Context(), orgFlag)
+					if err != nil {
+						return xerrors.Errorf("resolve organization %q: %w", orgFlag, err)
+					}
+					orgID = org.ID
+				}
+			}
+
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
@@ -255,6 +270,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				WorkspacesTotalCap: int(workspacesTotalCap64),
 				TemplateID:         templateID,
 				CollectPprof:       pprof,
+				OrganizationID:     orgID,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -307,6 +323,13 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Env:         "CODER_SUPPORT_BUNDLE_PPROF",
 			Description: "Collect pprof profiling data from the Coder server and agent. Requires Coder server version 2.28.0 or newer.",
 			Value:       serpent.BoolOf(&pprof),
+		},
+		{
+			Flag:          "org",
+			FlagShorthand: "o",
+			Env:           "CODER_SUPPORT_BUNDLE_ORG",
+			Description:   "Select which organization (uuid or name) to capture provisioner info for. Defaults to the current user's organization.",
+			Value:         serpent.StringOf(&orgFlag),
 		},
 	}
 
@@ -458,7 +481,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,
-		"workspace/workspace.json":        src.Workspace.Workspace,
+		"workspace/workspace.json":               src.Workspace.Workspace,
+		"organization/organization.json":         src.Organization.Organization,
+		"organization/provisioner_daemons.json":  src.Organization.ProvisionerDaemons,
+		"organization/provisioner_jobs.json":     src.Organization.ProvisionerJobs,
 	} {
 		f, err := dest.Create(k)
 		if err != nil {

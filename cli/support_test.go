@@ -443,6 +443,19 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 		case "license-status.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "license status should not be empty")
+		case "organization/organization.json":
+			var v codersdk.Organization
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v.ID, "organization ID should not be empty")
+			require.NotEmpty(t, v.Name, "organization name should not be empty")
+		case "organization/provisioner_daemons.json":
+			var v []codersdk.ProvisionerDaemon
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "provisioner daemons should not be nil")
+		case "organization/provisioner_jobs.json":
+			var v []codersdk.ProvisionerJob
+			decodeJSONFromZip(t, f, &v)
+			require.NotNil(t, v, "provisioner jobs should not be nil")
 		default:
 			require.Failf(t, "unexpected file in bundle", f.Name)
 		}

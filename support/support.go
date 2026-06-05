@@ -43,8 +43,9 @@ type Bundle struct {
 	Agent         Agent        `json:"agent"`
 	Logs          []string     `json:"logs"`
 	CLILogs       []byte       `json:"cli_logs"`
-	NamedTemplate TemplateDump `json:"named_template"`
-	Pprof         Pprof        `json:"pprof"`
+	NamedTemplate TemplateDump     `json:"named_template"`
+	Organization  OrganizationInfo `json:"organization"`
+	Pprof         Pprof            `json:"pprof"`
 }
 
 type Deployment struct {
@@ -103,6 +104,12 @@ type TemplateDump struct {
 	TemplateFileBase64 string                   `json:"template_file_base64"`
 }
 
+type OrganizationInfo struct {
+	Organization       codersdk.Organization        `json:"organization"`
+	ProvisionerDaemons []codersdk.ProvisionerDaemon `json:"provisioner_daemons"`
+	ProvisionerJobs    []codersdk.ProvisionerJob    `json:"provisioner_jobs"`
+}
+
 type Pprof struct {
 	Server *PprofCollection `json:"server,omitempty"`
 	Agent  *PprofCollection `json:"agent,omitempty"`
@@ -142,6 +149,9 @@ type Deps struct {
 	TemplateID uuid.UUID
 	// CollectPprof toggles server and agent pprof collection.
 	CollectPprof bool
+	// OrganizationID specifies the organization to capture provisioner info for.
+	// When zero, defaults to the user's default org.
+	OrganizationID uuid.UUID
 }
 
 func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, workspacesCap int) Deployment {
@@ -1029,6 +1039,73 @@ func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error)
 	return true, nil
 }
 
+func OrgInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgID uuid.UUID) OrganizationInfo {
+	var (
+		o  OrganizationInfo
+		eg errgroup.Group
+	)
+
+	eg.Go(func() error {
+		org, err := client.Organization(ctx, orgID)
+		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
+				log.Warn(ctx, "unable to fetch organization",
+					slog.F("organization_id", orgID),
+					slog.F("status", cerr.StatusCode()))
+				return nil
+			}
+			return xerrors.Errorf("fetch organization: %w", err)
+		}
+		o.Organization = org
+		return nil
+	})
+
+	eg.Go(func() error {
+		daemons, err := client.OrganizationProvisionerDaemons(ctx, orgID, nil)
+		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
+				log.Warn(ctx, "unable to fetch provisioner daemons",
+					slog.F("organization_id", orgID),
+					slog.F("status", cerr.StatusCode()))
+				return nil
+			}
+			return xerrors.Errorf("fetch provisioner daemons: %w", err)
+		}
+		o.ProvisionerDaemons = daemons
+		return nil
+	})
+
+	eg.Go(func() error {
+		jobs, err := client.OrganizationProvisionerJobs(ctx, orgID, &codersdk.OrganizationProvisionerJobsOptions{
+			Status: []codersdk.ProvisionerJobStatus{
+				codersdk.ProvisionerJobPending,
+				codersdk.ProvisionerJobRunning,
+				codersdk.ProvisionerJobCanceling,
+				codersdk.ProvisionerJobCanceled,
+				codersdk.ProvisionerJobFailed,
+				codersdk.ProvisionerJobUnknown,
+			},
+		})
+		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
+				log.Warn(ctx, "unable to fetch provisioner jobs",
+					slog.F("organization_id", orgID),
+					slog.F("status", cerr.StatusCode()))
+				return nil
+			}
+			return xerrors.Errorf("fetch provisioner jobs: %w", err)
+		}
+		o.ProvisionerJobs = jobs
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		log.Error(ctx, "fetch organization info", slog.Error(err))
+	}
+
+	return o
+}
+
 // Run generates a support bundle with the given dependencies.
 func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	var b Bundle
@@ -1129,6 +1206,24 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		}
 		td.TemplateFileBase64 = base64.StdEncoding.EncodeToString(raw)
 		b.NamedTemplate = td
+		return nil
+	})
+
+	eg.Go(func() error {
+		orgID := d.OrganizationID
+		if orgID == uuid.Nil {
+			orgs, err := d.Client.OrganizationsByUser(ctx, codersdk.Me)
+			if err != nil {
+				d.Log.Warn(ctx, "unable to fetch user organizations", slog.Error(err))
+				return nil
+			}
+			if len(orgs) > 0 {
+				orgID = orgs[0].ID
+			}
+		}
+		if orgID != uuid.Nil {
+			b.Organization = OrgInfo(ctx, d.Client, d.Log, orgID)
+		}
 		return nil
 	})
 
