@@ -55,21 +55,16 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	}{
 		{
 			// Given: an old boundary client that does not send session_id.
+			//        New clients with correlation disabled are indistinguishable
+			//        on the wire (both send empty session_id).
 			// Then:  logs are still forwarded and structured fields are correct.
-			name:      "OldClient",
-			sessionID: "",
-		},
-		{
-			// Given: a new boundary client with correlation disabled
-			//        (empty session_id, identical wire format to old client).
-			// Then:  logs are still forwarded and structured fields are correct.
-			name:      "NewClientCorrelationDisabled",
+			name:      "NoSessionID",
 			sessionID: "",
 		},
 		{
 			// Given: a new boundary client that sends a valid session_id.
 			// Then:  logs are still forwarded and structured fields are correct.
-			name:      "NewClientWithSessionID",
+			name:      "WithSessionID",
 			sessionID: uuid.New().String(),
 		},
 	}

@@ -186,12 +186,14 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		UpdatedAt:           now,
 	})
 	if err != nil {
-		// Two coderd replicas may receive the first batch for
-		// this session simultaneously, both observe it missing,
-		// and both attempt the INSERT. The second INSERT fails
-		// with a primary-key unique violation. Treat it as
-		// success because the session now exists.
+		// A second coderd replica may receive a batch for this session
+		// before the first replica has finished inserting it. Both
+		// attempt the INSERT; the second fails with a primary-key
+		// unique violation. Treat it as success because the session
+		// now exists.
 		if database.IsUniqueViolation(err, database.UniqueBoundarySessionsPkey) {
+			a.Log.Debug(ctx, "boundary session already created by another replica",
+				slog.F("session_id", sessionID.String()))
 			return nil
 		}
 		return xerrors.Errorf("insert boundary session: %w", err)

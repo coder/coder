@@ -96,7 +96,7 @@ func (f *boundaryFixture) preCreateSession(t *testing.T, sessionID uuid.UUID, pr
 		ConfinedProcessName: process,
 		StartedAt:           dbtime.Now(),
 		UpdatedAt:           dbtime.Now(),
-		// OwnerID is the zero uuid.NullUUID (NULL), which the FK allows.
+		OwnerID:             uuid.NullUUID{UUID: f.OwnerID, Valid: true},
 	})
 	require.NoError(t, err, "pre-create boundary session")
 }
@@ -357,11 +357,9 @@ func TestReportBoundaryLogs(t *testing.T) {
 	t.Run("MissingSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a request with no session_id (old boundary client).
-		api := &agentapi.BoundaryLogsAPI{
-			Log: testutil.Logger(t),
-			// Database intentionally nil; persistence is skipped.
-		}
+		// Given: a real database and a request with no session_id (old boundary client).
+		f := newBoundaryFixture(t)
+		api := f.api(t)
 
 		// When: boundary logs are reported without a session_id.
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
@@ -379,11 +377,18 @@ func TestReportBoundaryLogs(t *testing.T) {
 			},
 		})
 
-		// Then: the request succeeds (log-only mode), no error.
+		// Then: the request succeeds (log-only mode) and no rows are persisted.
 		require.NoError(t, err)
 		require.NotNil(t, resp)
+
+		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
+			SessionID: uuid.Nil,
+		})
+		require.NoError(t, err)
+		require.Empty(t, logs, "no boundary_logs rows should be persisted without a session_id")
 	})
 
+	// Regression: ensures nil HttpRequest inside a typed Resource does not panic.
 	t.Run("EmptyHTTPRequestSkipped", func(t *testing.T) {
 		t.Parallel()
 
@@ -422,11 +427,9 @@ func TestReportBoundaryLogs(t *testing.T) {
 	t.Run("InvalidSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
-		// Given: a request with a session_id that is not a valid UUID.
-		api := &agentapi.BoundaryLogsAPI{
-			Log: testutil.Logger(t),
-			// Database intentionally nil; persistence is skipped.
-		}
+		// Given: a real database and a request with a session_id that is not a valid UUID.
+		f := newBoundaryFixture(t)
+		api := f.api(t)
 
 		// When: boundary logs are reported with an invalid session_id.
 		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
@@ -445,9 +448,15 @@ func TestReportBoundaryLogs(t *testing.T) {
 			},
 		})
 
-		// Then: the request succeeds (log-only mode), no error.
+		// Then: the request succeeds (log-only mode) and no rows are persisted.
 		require.NoError(t, err)
 		require.NotNil(t, resp)
+
+		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
+			SessionID: uuid.Nil,
+		})
+		require.NoError(t, err)
+		require.Empty(t, logs, "no boundary_logs rows should be persisted with an invalid session_id")
 	})
 
 	t.Run("PersistsLogsAndTracksBoundaryUsage", func(t *testing.T) {
@@ -510,9 +519,11 @@ func TestReportBoundaryLogs(t *testing.T) {
 		t.Parallel()
 
 		// Given: two workspace agents in the same workspace, both reporting
-		// logs with the same session ID. The first agent creates the session;
-		// the second agent's ensureSession hits a unique constraint violation
-		// and treats it as success.
+		// logs with the same session ID. A UUID collision across agents is
+		// negligible in practice; sessions are namespaced by agent_id at
+		// query time. The first agent creates the session; the second
+		// agent's ensureSession hits a unique constraint violation and
+		// treats it as success.
 		f := newBoundaryFixture(t)
 		agent2ID := f.addAgent(t)
 
