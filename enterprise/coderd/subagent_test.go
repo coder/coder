@@ -32,7 +32,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestSubAgentAPICreateSubAgentAppShareRespectsMaxPortShareLevel(t *testing.T) {
+func TestSubAgentAPICreateSubAgentAppShareRespectsEnterpriseMaxPortShareLevel(t *testing.T) {
 	t.Parallel()
 
 	type expectedApp struct {
@@ -338,7 +338,7 @@ func newMockSubAgentAPIWithMaxPortShareLevel(
 	return ctx, api, &upsertedApps
 }
 
-func TestDevcontainerSubAgentAppShareClampedByTemplateMaxPortShareLevel(t *testing.T) {
+func TestDevcontainerSubAgentAppShareClampedByEnterpriseTemplateMaxPortShareLevel(t *testing.T) {
 	t.Parallel()
 
 	ctx, db, client := newDevcontainerSubAgentClientWithMaxPortShareLevel(t, database.AppSharingLevelAuthenticated)
@@ -375,7 +375,7 @@ func TestDevcontainerSubAgentAppShareClampedByTemplateMaxPortShareLevel(t *testi
 	require.Equal(t, database.AppSharingLevelAuthenticated, apps[1].SharingLevel)
 }
 
-func TestDevcontainerCoderAppShareClampedWithGroupRestrictedTemplateACL(t *testing.T) {
+func TestDevcontainerCoderAppShareClampedWithGroupRestrictedEnterpriseTemplateACL(t *testing.T) {
 	t.Parallel()
 
 	ctx, db, client := newDevcontainerSubAgentClientWithMaxPortShareLevel(t,
