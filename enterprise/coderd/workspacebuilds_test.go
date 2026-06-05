@@ -59,9 +59,11 @@ func TestWorkspaceBuildAfterTemplateAccessRevokedFails(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = memberClient.Template(ctx, template.ID)
-	require.Error(t, err)
-
+_, err = memberClient.Template(ctx, template.ID)
+require.Error(t, err)
+var tplErr *codersdk.Error
+require.ErrorAs(t, err, &tplErr)
+require.Equal(t, http.StatusNotFound, tplErr.StatusCode())
 	// Then: starting the existing workspace fails because the build path still
 	// requires template access.
 	_, err = memberClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
