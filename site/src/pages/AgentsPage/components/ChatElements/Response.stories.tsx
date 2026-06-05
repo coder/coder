@@ -235,33 +235,28 @@ export const LongLineFencedBlockWheelEdges: Story = {
 		if (!viewport) {
 			throw new Error("Expected a horizontally scrollable viewport.");
 		}
-		// Reports whether the handler claimed the gesture. The wheel listener
-		// is passive, so spy on preventDefault rather than defaultPrevented.
-		const wheelPrevented = (deltaY: number) => {
+		// The handler runs on a non-passive listener, so a claimed gesture
+		// also prevents page scroll. dispatchWheel returns whether it was
+		// claimed at the current scroll position.
+		const dispatchWheel = (deltaY: number) => {
 			const event = new WheelEvent("wheel", {
 				deltaY,
 				bubbles: true,
 				cancelable: true,
 			});
-			let prevented = false;
-			const original = event.preventDefault.bind(event);
-			event.preventDefault = () => {
-				prevented = true;
-				original();
-			};
 			viewport.dispatchEvent(event);
-			return prevented;
+			return event.defaultPrevented;
 		};
 		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
 		// Mid-scroll: the block claims the vertical gesture.
 		viewport.scrollLeft = Math.floor(maxLeft / 2);
-		expect(wheelPrevented(200)).toBe(true);
+		expect(dispatchWheel(200)).toBe(true);
 		// Right edge, scrolling further right: pass through to the page.
 		viewport.scrollLeft = maxLeft;
-		expect(wheelPrevented(200)).toBe(false);
+		expect(dispatchWheel(200)).toBe(false);
 		// Left edge, scrolling further left: pass through to the page.
 		viewport.scrollLeft = 0;
-		expect(wheelPrevented(-200)).toBe(false);
+		expect(dispatchWheel(-200)).toBe(false);
 	},
 };
 

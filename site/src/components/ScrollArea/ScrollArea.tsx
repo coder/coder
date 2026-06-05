@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
@@ -34,14 +34,15 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	const viewportRef = useRef<HTMLDivElement>(null);
 
 	// Redirect a vertical wheel gesture into horizontal scroll when the
-	// viewport overflows horizontally but not vertically. Without this a
-	// plain mouse wheel scrolls the page instead of the container (e.g. a
-	// wide "both" code block or a "horizontal" row of tabs).
-	const handleWheel = useCallback(
-		(e: React.WheelEvent<HTMLDivElement>) => {
-			if (orientation === "vertical") return;
-			const el = viewportRef.current;
-			if (!el) return;
+	// viewport overflows horizontally but not vertically, so a plain mouse
+	// wheel scrolls the block instead of the page (e.g. a wide "both" code
+	// block or a "horizontal" row of tabs). React attaches `wheel` listeners
+	// as passive, where preventDefault is a no-op, so attach a non-passive
+	// listener directly on the viewport.
+	useEffect(() => {
+		const el = viewportRef.current;
+		if (!el || orientation === "vertical") return;
+		const handleWheel = (e: WheelEvent) => {
 			// Only redirect a predominantly vertical gesture, and only when
 			// there is horizontal overflow and no vertical overflow to scroll.
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
@@ -54,9 +55,10 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			if (e.deltaY < 0 && el.scrollLeft <= 0) return;
 			e.preventDefault();
 			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
-		},
-		[orientation],
-	);
+		};
+		el.addEventListener("wheel", handleWheel, { passive: false });
+		return () => el.removeEventListener("wheel", handleWheel);
+	}, [orientation]);
 
 	return (
 		<ScrollAreaPrimitive.Root
@@ -66,7 +68,6 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			<ScrollAreaPrimitive.Viewport
 				ref={viewportRef}
 				tabIndex={viewportTabIndex}
-				onWheel={handleWheel}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
