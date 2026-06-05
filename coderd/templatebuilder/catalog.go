@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
-	"errors"
 	"io/fs"
 	"path"
 	"sync"
@@ -97,9 +96,6 @@ func parseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
 		manifestPath := path.Join(dir.Name(), "module.json")
 		data, err := fs.ReadFile(sub, manifestPath)
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
 			return nil, xerrors.Errorf("read %s: %w", manifestPath, err)
 		}
 

@@ -128,16 +128,15 @@ func TestParseModulesFromFS(t *testing.T) {
 		require.Empty(t, modules)
 	})
 
-	t.Run("SkipsDirWithoutManifest", func(t *testing.T) {
+	t.Run("RejectsDirWithoutManifest", func(t *testing.T) {
 		t.Parallel()
 
 		fsys := fstest.MapFS{
 			"modules/nomod/readme.txt": &fstest.MapFile{Data: []byte("hi")},
 		}
 
-		modules, err := parseModulesFromFS(fsys)
-		require.NoError(t, err)
-		require.Empty(t, modules)
+		_, err := parseModulesFromFS(fsys)
+		require.ErrorContains(t, err, "read nomod/module.json")
 	})
 
 	t.Run("RejectsEmptyID", func(t *testing.T) {
