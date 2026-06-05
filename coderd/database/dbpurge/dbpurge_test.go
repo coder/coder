@@ -1722,8 +1722,8 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-			// Setup test fixtures: workspace agent chain required
-			// for boundary_sessions FK.
+			// Create the prerequisite rows (user, org, template, workspace,
+			// build, agent) needed to satisfy boundary_sessions foreign keys.
 			user := dbgen.User(t, db, database.User{})
 			org := dbgen.Organization(t, db, database.Organization{})
 			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
@@ -1742,22 +1742,24 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			})
 
 			// Create old boundary log.
-			oldLog := dbgen.BoundaryLog(t, db, database.BoundaryLog{
+			oldLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
 				SessionID:      session.ID,
 				SequenceNumber: 0,
 				CapturedAt:     tc.oldLogTime,
 				CreatedAt:      tc.oldLogTime,
-			})
+			}})
+			oldLog := oldLogs[0]
 
 			// Create recent boundary log if specified.
 			var recentLog database.BoundaryLog
 			if tc.recentLogTime != nil {
-				recentLog = dbgen.BoundaryLog(t, db, database.BoundaryLog{
+				recentLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
 					SessionID:      session.ID,
 					SequenceNumber: 1,
 					CapturedAt:     *tc.recentLogTime,
 					CreatedAt:      *tc.recentLogTime,
-				})
+				}})
+				recentLog = recentLogs[0]
 			}
 
 			// Run the purge.
@@ -1771,8 +1773,6 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			// Verify results.
 			logs, err := db.ListBoundaryLogsBySessionID(ctx, database.ListBoundaryLogsBySessionIDParams{
 				SessionID: session.ID,
-				SeqAfter:  -1,
-				SeqBefore: -1,
 				LimitOpt:  100,
 			})
 			require.NoError(t, err)

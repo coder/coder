@@ -7246,9 +7246,8 @@ export interface RetentionConfig {
 	 * BoundaryLogs controls how long boundary audit log entries are
 	 * retained. Boundary logs record every HTTP request processed by
 	 * a Boundary confinement proxy. Set to 0 to disable automatic
-	 * deletion (keep indefinitely). The default of 90 days aligns
-	 * with common compliance retention windows (e.g. SOC 2, GDPR);
-	 * adjust to match your organization's requirements.
+	 * deletion (keep indefinitely). Adjust to match your
+	 * organization's regulatory requirements.
 	 */
 	readonly boundary_logs: number;
 }
