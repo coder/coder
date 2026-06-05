@@ -20,9 +20,9 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	fields,
 }) => {
 	return (
-		<div className="flex flex-col gap-6 pt-4 px-4 pb-6 rounded bg-surface-secondary">
-			<div className="flex flex-col gap-3">
-				<div className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border">
+		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
+			<header className="mb-6">
+				<figure className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border mb-3">
 					{iconUrl ? (
 						<img
 							src={iconUrl}
@@ -32,37 +32,33 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					) : (
 						<div className="size-7 rounded bg-surface-primary" />
 					)}
+				</figure>
+				<div>
+					<h3 className="text-sm font-semibold text-content-primary">{name}</h3>
+					<p className="text-xs font-normal text-content-secondary inline">
+						{description}
+					</p>
+					{detailsUrl && (
+						<Link
+							href={detailsUrl}
+							target="_blank"
+							rel="noreferrer"
+							size="sm"
+							className="text-xs font-normal ml-1"
+						>
+							View details
+						</Link>
+					)}
 				</div>
-				<div className="flex flex-col">
-					<div className="text-sm font-semibold text-content-primary">
-						{name}
-					</div>
-					<div className="flex items-center flex-wrap">
-						<span className="text-xs font-normal text-content-secondary">
-							{description}
-						</span>
-						{detailsUrl && (
-							<Link
-								href={detailsUrl}
-								target="_blank"
-								rel="noreferrer"
-								size="sm"
-								className="text-xs font-normal ml-1"
-							>
-								View details
-							</Link>
-						)}
-					</div>
-				</div>
-			</div>
+			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="flex flex-col gap-6">
+				<div className="space-y-6">
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
 				</div>
 			)}
-		</div>
+		</section>
 	);
 };

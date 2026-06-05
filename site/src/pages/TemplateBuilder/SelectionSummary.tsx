@@ -1,3 +1,4 @@
+import { cva, type VariantProps } from "class-variance-authority";
 import { XIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
@@ -34,7 +35,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	return (
 		<div>
 			<h2 className="font-semibold">Selection</h2>
-			<div className="flex flex-col">
+			<div>
 				<StepIndicator step={1} variant={variant(1)}>
 					Base Template
 				</StepIndicator>
@@ -62,35 +63,43 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	);
 };
 
-const StepIndicator: React.FC<{
+const stepCircleVariants = cva(
+	"rounded-full w-8 h-8 border border-solid flex items-center justify-center",
+	{
+		variants: {
+			variant: {
+				complete: "border-border-success",
+				current: "border-content-primary",
+				upcoming: "border-border text-content-secondary",
+			},
+		},
+	},
+);
+
+const stepLabelVariants = cva("font-normal mr-2", {
+	variants: {
+		variant: {
+			complete: "text-content-primary",
+			current: "text-content-primary",
+			upcoming: "text-content-secondary",
+		},
+	},
+});
+
+type StepIndicatorProps = VariantProps<typeof stepCircleVariants> & {
 	step: number;
-	variant: "complete" | "current" | "upcoming";
 	children: React.ReactNode;
-}> = ({ step, variant, children }) => {
+};
+
+const StepIndicator: React.FC<StepIndicatorProps> = ({
+	step,
+	variant,
+	children,
+}) => {
 	return (
-		<div className="flex items-center justify-start gap-2">
-			<div
-				className={cn(
-					"rounded-full w-8 h-8",
-					"border border-border border-solid",
-					"flex items-center justify-center",
-					variant === "complete" && "border-border-success",
-					variant === "current" && "border-content-primary",
-					variant === "upcoming" && "border-border text-content-secondary",
-				)}
-			>
-				{step}
-			</div>
-			<span
-				className={cn(
-					"font-normal mr-2",
-					variant === "complete" && "text-content-primary",
-					variant === "current" && "text-content-primary",
-					variant === "upcoming" && "text-content-secondary",
-				)}
-			>
-				{children}
-			</span>
+		<div className="flex items-center gap-2">
+			<div className={stepCircleVariants({ variant })}>{step}</div>
+			<span className={stepLabelVariants({ variant })}>{children}</span>
 		</div>
 	);
 };
@@ -112,7 +121,11 @@ const StepDivider: React.FC<{
 	);
 };
 
-const BaseTemplateSelection: React.FC<{ template: SelectedTemplate }> = ({
+type BaseTemplateSelectionProps = {
+	template: SelectedTemplate;
+};
+
+const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	template,
 }) => {
 	return (
@@ -129,10 +142,15 @@ const BaseTemplateSelection: React.FC<{ template: SelectedTemplate }> = ({
 	);
 };
 
-const ModuleSelection: React.FC<{
+type ModuleSelectionProps = {
 	modules: SelectedModule[];
 	onDeselectModule: (moduleId: string) => void;
-}> = ({ modules, onDeselectModule }) => {
+};
+
+const ModuleSelection: React.FC<ModuleSelectionProps> = ({
+	modules,
+	onDeselectModule,
+}) => {
 	return (
 		<StepDivider className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (

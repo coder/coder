@@ -1,4 +1,5 @@
 import { CheckIcon } from "lucide-react";
+import { useId } from "react";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
@@ -19,10 +20,12 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 	selected = false,
 	onSelect,
 }) => {
+	const nameId = useId();
 	return (
 		<div
 			role="checkbox"
 			aria-checked={selected}
+			aria-labelledby={nameId}
 			tabIndex={0}
 			className={cn(
 				"flex flex-col pt-4 px-4 pb-6 rounded",
@@ -61,15 +64,23 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 				</div>
 			</div>
 
-			<div className="flex flex-col justify-between">
-				<div className="text-md font-semibold text-content-primary">{name}</div>
+			<div>
+				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+					{name}
+				</h3>
 				<p className="text-sm font-normal text-content-secondary">
 					{description}
 				</p>
 
-				<Link href={detailsUrl} target="_blank" className="text-sm font-normal">
-					View Details
-				</Link>
+				<div>
+					<Link
+						href={detailsUrl}
+						target="_blank"
+						className="text-sm font-normal"
+					>
+						View Details
+					</Link>
+				</div>
 			</div>
 		</div>
 	);
