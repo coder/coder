@@ -15,11 +15,11 @@ import (
 )
 
 var (
-	//go:embed modules/
+	//go:embed modules
 	modulesFS embed.FS
 
 	loadModules = sync.OnceValues(func() ([]ModuleManifest, error) {
-		return ParseModulesFromFS(modulesFS)
+		return parseModulesFromFS(modulesFS)
 	})
 )
 
@@ -52,7 +52,7 @@ type ModuleVariable struct {
 }
 
 // validVariableTypes maps module.json type strings to their SDK equivalents.
-// Used both for validation in ParseModulesFromFS and for conversion in ToSDK.
+// Used both for validation in parseModulesFromFS and for conversion in ToSDK.
 var validVariableTypes = map[string]codersdk.TemplateBuilderVariableType{
 	"string": codersdk.TemplateBuilderVariableTypeString,
 	"number": codersdk.TemplateBuilderVariableTypeNumber,
@@ -73,11 +73,10 @@ func LoadModules() ([]ModuleManifest, error) {
 	return out, nil
 }
 
-// ParseModulesFromFS reads and validates all module.json files from the
+// parseModulesFromFS reads and validates all module.json files from the
 // given filesystem. Most callers should use LoadModules, which reads from
-// the embedded catalog. ParseModulesFromFS is exposed for tests that need
-// to supply custom fixtures.
-func ParseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
+// the embedded catalog.
+func parseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
 	sub, err := fs.Sub(fsys, modulesDir)
 	if err != nil {
 		return nil, xerrors.Errorf("open embedded module catalog: %w", err)
