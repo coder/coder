@@ -51,6 +51,66 @@ func TestProviderBaseURLHostname(t *testing.T) {
 	}
 }
 
+func TestPDFCaps(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		provider     string
+		contextLimit int64
+		wantOK       bool
+		wantPageCap  int
+	}{
+		{
+			name:         "AnthropicDefaultsToSmallContextPageCap",
+			provider:     fantasyanthropic.Name,
+			contextLimit: 200_000,
+			wantOK:       true,
+			wantPageCap:  100,
+		},
+		{
+			name:         "AnthropicUsesLargeContextPageCap",
+			provider:     fantasyanthropic.Name,
+			contextLimit: 200_001,
+			wantOK:       true,
+			wantPageCap:  600,
+		},
+		{
+			name:         "AnthropicUnknownContextIsConservative",
+			provider:     " ANTHROPIC ",
+			contextLimit: 0,
+			wantOK:       true,
+			wantPageCap:  100,
+		},
+		{
+			name:         "BedrockUsesSameCaps",
+			provider:     fantasybedrock.Name,
+			contextLimit: 200_001,
+			wantOK:       true,
+			wantPageCap:  600,
+		},
+		{
+			name:     "OpenAIHasNoCaps",
+			provider: fantasyopenai.Name,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			caps, ok := chatprovider.PDFCaps(tt.provider, tt.contextLimit)
+			require.Equal(t, tt.wantOK, ok)
+			if !tt.wantOK {
+				require.Zero(t, caps)
+				return
+			}
+			require.Equal(t, chatprovider.AnthropicPDFRequestCapBytes, caps.RequestPayloadBytes)
+			require.Equal(t, tt.wantPageCap, caps.PageCap)
+		})
+	}
+}
+
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
 

@@ -84,6 +84,22 @@ func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
 }
 
+const (
+	// AnthropicPDFRequestCapBytes is Anthropic's documented request
+	// payload limit for PDF input requests.
+	AnthropicPDFRequestCapBytes = 32 * 1024 * 1024
+
+	anthropicPDFDefaultPageCap       = 100
+	anthropicPDFLargeContextPageCap  = 600
+	anthropicPDFLargeContextMinToken = 200_000
+)
+
+// AnthropicPDFCaps describes the PDF preflight limits for Claude providers.
+type AnthropicPDFCaps struct {
+	RequestPayloadBytes int
+	PageCap             int
+}
+
 // InlineImageCapBytes returns the per-image byte cap for inline
 // image parts, or (0, false) when no documented cap applies.
 // Bedrock shares Anthropic's cap because fantasy's bedrock provider
@@ -94,6 +110,27 @@ func InlineImageCapBytes(provider string) (int, bool) {
 		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
+	}
+}
+
+// PDFCaps returns Anthropic PDF preflight caps, or (zero, false) when no
+// documented cap applies. Bedrock shares these caps because fantasy's bedrock
+// provider wraps the anthropic client.
+func PDFCaps(provider string, contextLimit int64) (AnthropicPDFCaps, bool) {
+	switch NormalizeProvider(provider) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		pageCap := anthropicPDFDefaultPageCap
+		// A missing context limit is treated as a 200k-token model so preflight
+		// does not allow a request Anthropic may reject for page count.
+		if contextLimit > anthropicPDFLargeContextMinToken {
+			pageCap = anthropicPDFLargeContextPageCap
+		}
+		return AnthropicPDFCaps{
+			RequestPayloadBytes: AnthropicPDFRequestCapBytes,
+			PageCap:             pageCap,
+		}, true
+	default:
+		return AnthropicPDFCaps{}, false
 	}
 }
 

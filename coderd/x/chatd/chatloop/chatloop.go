@@ -24,7 +24,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatpdf"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -774,6 +776,25 @@ func prepareMessagesForRequest(
 				Provider:  provider,
 				Retryable: false,
 			},
+		)
+		return canonical, nil, err
+	}
+	if err = chatpdf.ValidatePrompt(provider, opts.ContextLimitFallback, prompt); err != nil {
+		classified := chaterror.ClassifiedError{
+			Message:   "PDF attachments are not valid for this model. Update the PDFs and retry.",
+			Detail:    err.Error(),
+			Kind:      codersdk.ChatErrorKindConfig,
+			Provider:  chatprovider.NormalizeProvider(provider),
+			Retryable: false,
+		}
+		var validationErr *chatpdf.ValidationError
+		if errors.As(err, &validationErr) {
+			classified.Message = validationErr.UserMessage()
+			classified.Detail = validationErr.Error()
+		}
+		err = chaterror.WithClassification(
+			xerrors.Errorf("validate Anthropic PDF attachments: %w", err),
+			classified,
 		)
 		return canonical, nil, err
 	}
