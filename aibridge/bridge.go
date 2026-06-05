@@ -282,8 +282,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			Client:                string(client),
 			ClientSessionID:       sessionID,
 			CorrelatingToolCallID: interceptor.CorrelatingToolCallID(),
-			CredentialKind:        string(cred.Kind),
-			CredentialHint:        cred.Hint,
+			CredentialKind:        string(cred.Kind()),
+			CredentialHint:        cred.Hint(),
 		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
 			logger.Warn(ctx, "failed to record interception", slog.Error(err))
@@ -297,16 +297,16 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			slog.F("provider", p.Name()),
 			slog.F("user_agent", r.UserAgent()),
 			slog.F("streaming", interceptor.Streaming()),
-			slog.F("credential_kind", string(cred.Kind)),
+			slog.F("credential_kind", string(cred.Kind())),
 		)
 
 		// Log BYOK credentials. Centralized credentials are set by
 		// the key failover loop.
 		credLogFields := []slog.Field{}
-		if cred.Kind == intercept.CredentialKindBYOK {
+		if cred.Kind() == intercept.CredentialKindBYOK {
 			credLogFields = append(credLogFields,
-				slog.F("credential_hint", cred.Hint),
-				slog.F("credential_length", cred.Length),
+				slog.F("credential_hint", cred.Hint()),
+				slog.F("credential_length", cred.Length()),
 			)
 		}
 		log.Debug(ctx, "interception started", credLogFields...)
@@ -323,8 +323,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		})
 		// For centralized, the hint now reflects the last attempted
 		// key from the failover loop.
-		credHint := interceptor.Credential().Hint
-		credLen := interceptor.Credential().Length
+		credHint, credLen := cred.Hint(), cred.Length()
 		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)

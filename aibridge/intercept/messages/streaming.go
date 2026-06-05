@@ -39,24 +39,20 @@ type StreamingInterception struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.Anthropic,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	bedrockCfg *config.AWSBedrock,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		reqPayload:     reqPayload,
-		cfg:            cfg,
-		bedrockCfg:     bedrockCfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		reqPayload:    reqPayload,
+		cfg:           cfg,
+		cred:          cred,
+		bedrockCfg:    bedrockCfg,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -156,7 +152,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	defer func() {
+		if centralized, ok := intercept.AsCentralized(i.cred); ok {
+			centralized.Pool.RecordAttempts(totalKeyAttempts)
+		}
+	}()
 
 	isFirst := true
 newStream:
@@ -170,14 +170,17 @@ newStream:
 		// Per-iteration walker. An iteration is either an agentic
 		// continuation (sending a tool result back in a new
 		// stream) or a failover retry (previous key marked, try
-		// the next one).
+		// the next one). A pool-less credential (BYOK, or pool-less
+		// centralized such as Bedrock) has no walker and runs as a
+		// single attempt.
 		var walker *keypool.Walker
-		if i.cfg.KeyPool != nil {
-			walker = i.cfg.KeyPool.Walker()
+		centralized, isCentralized := intercept.AsCentralized(i.cred)
+		if isCentralized {
+			walker = centralized.Pool.Walker()
 		}
 
 		var streamOpts []option.RequestOption
-		var currentKey *keypool.Key
+		var currentPoolKey *keypool.Key
 		if walker != nil {
 			key, keyPoolErr := walker.Next()
 			if keyPoolErr != nil {
@@ -199,11 +202,10 @@ newStream:
 				}
 				break
 			}
-			currentKey = key
-			// Record the key in use so the hint reflects the last attempted key.
-			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			currentPoolKey = key
+			centralized.SetKey(key.Value())
 			logger.Debug(ctx, "using centralized api key",
-				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+				slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
 
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
@@ -568,7 +570,7 @@ newStream:
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
 				continue newStream
 			}
 			// Non-key error: relay it. Use mapStreamError so that

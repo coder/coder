@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -38,23 +37,19 @@ type StreamingResponsesInterceptor struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingResponsesInterceptor {
 	return &StreamingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
-			id:             id,
-			providerName:   providerName,
-			reqPayload:     reqPayload,
-			cfg:            cfg,
-			clientHeaders:  clientHeaders,
-			authHeaderName: authHeaderName,
-			tracer:         tracer,
-			credential:     cred,
+			id:            id,
+			reqPayload:    reqPayload,
+			cfg:           cfg,
+			cred:          cred,
+			clientHeaders: clientHeaders,
+			tracer:        tracer,
 		},
 	}
 }
@@ -104,12 +99,16 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
-	srv := i.newResponsesService()
+	srv := i.newResponsesService(ctx)
 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	defer func() {
+		if centralized, ok := intercept.AsCentralized(i.cred); ok {
+			centralized.Pool.RecordAttempts(totalKeyAttempts)
+		}
+	}()
 
 	for shouldLoop {
 		shouldLoop = false
@@ -119,8 +118,9 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		// stream) or a failover retry (previous key marked, try
 		// the next one).
 		var walker *keypool.Walker
-		if i.cfg.KeyPool != nil {
-			walker = i.cfg.KeyPool.Walker()
+		centralized, isCentralized := intercept.AsCentralized(i.cred)
+		if isCentralized {
+			walker = centralized.Pool.Walker()
 		}
 
 		// Failover sub-loop: try keys until a stream starts
@@ -137,7 +137,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
 			}
 
-			var currentKey *keypool.Key
+			var currentPoolKey *keypool.Key
 			if walker != nil {
 				key, keyPoolErr := walker.Next()
 				if keyPoolErr != nil {
@@ -149,11 +149,10 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
-				currentKey = key
-				// Record the key in use so the hint reflects the last attempted key.
-				i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+				currentPoolKey = key
+				centralized.SetKey(key.Value())
 				i.logger.Debug(ctx, "using centralized api key",
-					slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+					slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
 
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
@@ -168,7 +167,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				// Pre-stream failure of this attempt. For
 				// centralized requests, mark the key and
 				// retry with the next one.
-				if currentKey != nil && i.markKeyOnError(ctx, currentKey, upstreamErr) {
+				if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, upstreamErr) {
 					stream.Close()
 					continue
 				}

@@ -26,8 +26,8 @@ type Interceptor interface {
 	Streaming() bool
 	// TraceAttributes returns tracing attributes for this [Interceptor]
 	TraceAttributes(*http.Request) []attribute.KeyValue
-	// Credential returns the credential metadata for this interception.
-	Credential() CredentialInfo
+	// Credential returns the credential in use for this interception.
+	Credential() Credential
 	// CorrelatingToolCallID returns the ID of a tool call result submitted
 	// in the request, if present. This is used to correlate the current
 	// interception back to the previous interception that issued those tool

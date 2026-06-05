@@ -34,24 +34,20 @@ type BlockingInterception struct {
 func NewBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.Anthropic,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	bedrockCfg *config.AWSBedrock,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		reqPayload:     reqPayload,
-		cfg:            cfg,
-		bedrockCfg:     bedrockCfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		reqPayload:    reqPayload,
+		cfg:           cfg,
+		cred:          cred,
+		bedrockCfg:    bedrockCfg,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -108,7 +104,11 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	defer func() {
+		if centralized, ok := intercept.AsCentralized(i.cred); ok {
+			centralized.Pool.RecordAttempts(totalKeyAttempts)
+		}
+	}()
 
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
@@ -349,16 +349,19 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-// newMessage routes between BYOK (single attempt) and centralized
-// failover, returning the upstream message, the number of key attempts
-// made for this call, and any error.
+// newMessage routes by credential type, returning the upstream message, the
+// number of key attempts made for this call, and any error. Centralized
+// credentials fail over across the key pool, while BYOK makes a single attempt.
 func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
-	// BYOK: single attempt, no failover.
-	if i.cfg.KeyPool == nil {
+	switch i.cred.Kind() {
+	case intercept.CredentialKindCentralized:
+		return i.newMessageWithKeyFailover(ctx, svc)
+	case intercept.CredentialKindBYOK:
 		msg, err := i.newMessageWithKey(ctx, svc)
 		return msg, 0, err
+	default:
+		return nil, 0, xerrors.New("no credential configured")
 	}
-	return i.newMessageWithKeyFailover(ctx, svc)
 }
 
 // newMessageWithKey performs a single upstream call.
@@ -376,16 +379,22 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // failover and are returned to the caller. It returns the upstream message,
 // the number of key attempts made for this call, and any error.
 func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
-	walker := i.cfg.KeyPool.Walker()
+	centralized, ok := intercept.AsCentralized(i.cred)
+	if !ok {
+		// Centralized but pool-less: Bedrock, which signs via AWS. A single
+		// attempt with no failover.
+		msg, err := i.newMessageWithKey(ctx, svc)
+		return msg, 0, err
+	}
+	walker := centralized.Pool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		// Record the key in use so the hint reflects the last attempted key.
-		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		centralized.SetKey(key.Value())
 		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+			slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
 
 		msg, err := i.newMessageWithKey(ctx, svc,
 			option.WithAPIKey(key.Value()),

@@ -88,13 +88,13 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: "event: error",
 		streamDoneEvent:         "event: message_stop",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.Anthropic{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
-			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "X-Api-Key"}
+			if pool == nil && byokKey != "" {
+				cred = intercept.BYOK{Secret: byokKey, Header: "X-Api-Key"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderAnthropic,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			payload, err := messages.NewRequestPayload(reqBody)
@@ -102,9 +102,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return messages.NewStreamingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+				return messages.NewStreamingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 			}
-			return messages.NewBlockingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+			return messages.NewBlockingInterceptor(id, payload, cfg, cred, nil, http.Header{}, tracer)
 		},
 	},
 	{
@@ -121,13 +121,13 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: `data: {"error"`,
 		streamDoneEvent:         "data: [DONE]",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.OpenAI{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
-			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "Authorization"}
+			if pool == nil && byokKey != "" {
+				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderOpenAI,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			var req chatcompletions.ChatCompletionNewParamsWrapper
@@ -135,9 +135,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return chatcompletions.NewStreamingInterceptor(id, &req, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+				return chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
 			}
-			return chatcompletions.NewBlockingInterceptor(id, &req, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+			return chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, http.Header{}, tracer)
 		},
 	},
 	{
@@ -159,13 +159,13 @@ var interceptorCases = []interceptorCase{
 		},
 		streamDoneEvent: "event: response.completed",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			cfg := config.OpenAI{BaseURL: upstreamURL + "/"}
-			cred := intercept.NewCredentialInfo(intercept.CredentialKindCentralized, "")
-			if pool != nil {
-				cfg.KeyPool = pool
-			} else if byokKey != "" {
-				cfg.Key = byokKey
-				cred = intercept.NewCredentialInfo(intercept.CredentialKindBYOK, byokKey)
+			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "Authorization"}
+			if pool == nil && byokKey != "" {
+				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
+			}
+			cfg := intercept.Config{
+				ProviderName: config.ProviderOpenAI,
+				BaseURL:      upstreamURL + "/",
 			}
 
 			payload, err := responses.NewRequestPayload(reqBody)
@@ -173,9 +173,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return responses.NewStreamingInterceptor(id, payload, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+				return responses.NewStreamingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
 			}
-			return responses.NewBlockingInterceptor(id, payload, config.ProviderOpenAI, cfg, http.Header{}, "Authorization", tracer, cred)
+			return responses.NewBlockingInterceptor(id, payload, cfg, cred, http.Header{}, tracer)
 		},
 	},
 }
@@ -371,7 +371,7 @@ func TestInterception_KeyFailover(t *testing.T) {
 
 					if len(tc.expectedSeenKeys) > 0 {
 						assert.Equal(t, utils.MaskSecret(tc.expectedSeenKeys[len(tc.expectedSeenKeys)-1]),
-							interceptor.Credential().Hint, "credential hint")
+							interceptor.Credential().Hint(), "credential hint")
 					}
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")
@@ -546,7 +546,7 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 
 					if len(tc.expectedSeenKeys) > 0 {
 						assert.Equal(t, utils.MaskSecret(tc.expectedSeenKeys[len(tc.expectedSeenKeys)-1]),
-							interceptor.Credential().Hint, "credential hint")
+							interceptor.Credential().Hint(), "credential hint")
 					}
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")

@@ -141,7 +141,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cfg: config.OpenAI{KeyPool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &intercept.Centralized{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)
