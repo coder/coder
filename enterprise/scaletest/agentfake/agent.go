@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
@@ -179,7 +180,7 @@ func (a *Agent) Run(ctx context.Context) error {
 // continuing to issue RPCs against an already-closed rpc handle until the
 // outer ctx (the whole Agent's lifetime) eventually cancels.
 func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
-	rpc, _, err := client.ConnectRPC29WithRole(ctx, "agent")
+	rpc, tailnetClient, err := client.ConnectRPC29WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
@@ -242,11 +243,47 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	// Bound to connCtx so the goroutine exits on reconnect, like runMetadata.
 	go a.runConnectionReports(connCtx, rpc)
 
+	// Subscribe to DERP map updates like a real agent does. We have no
+	// tailnet.Conn to apply the map to, so we decode and discard each update;
+	// the point is to reproduce the load this places on coderd replicas (which
+	// stream the map to every connected agent) and the agent-side decode cost.
+	go a.runDERPMapSubscriber(connCtx, tailnetClient)
+
 	select {
 	case <-ctx.Done():
 		return nil
 	case <-conn.Closed():
 		return xerrors.New("dRPC connection closed by remote")
+	}
+}
+
+// runDERPMapSubscriber opens StreamDERPMaps and drains it for the lifetime of
+// the connection, decoding each update to reproduce the agent-side cost. Unlike
+// a real agent it has no tailnet.Conn, so the decoded map is discarded. The
+// loop exits when ctx is canceled or the stream/connection closes.
+func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetproto.DRPCTailnetClient28) {
+	stream, err := tailnetClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
+	if err != nil {
+		if ctx.Err() == nil {
+			a.logger.Warn(ctx, "open derp map stream", slog.Error(err))
+		}
+		return
+	}
+	defer func() {
+		_ = stream.Close()
+	}()
+	for {
+		dmp, err := stream.Recv()
+		if err != nil {
+			if ctx.Err() == nil {
+				a.logger.Debug(ctx, "derp map stream ended", slog.Error(err))
+			}
+			return
+		}
+		// Decode to reproduce agent-side cost; discard since there's no
+		// network to apply it to.
+		_ = tailnet.DERPMapFromProto(dmp)
+		a.metrics.incDERPMapsReceived()
 	}
 }
 

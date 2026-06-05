@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -168,7 +171,6 @@ func TestAgent_ReportsConnections(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-
 	agentID := uuid.New()
 	manifest := agentsdk.Manifest{
 		AgentID:     agentID,
@@ -226,6 +228,70 @@ func TestAgent_ReportsConnections(t *testing.T) {
 	reports = dialer.GetConnectionReports()
 	require.Equal(t, agentproto.Connection_CONNECT, reports[2].GetConnection().GetAction())
 	require.NotEqual(t, firstID, reports[2].GetConnection().GetId())
+
+	cancel()
+	select {
+	case err := <-runErr:
+		require.NoError(t, err, "Agent.Run returned unexpected error")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for Agent.Run to return: %v", ctx.Err())
+	}
+}
+
+// Assert that the fake agent subscribes to DERP map updates and records each
+// received map in its metrics. The agenttest.Client serves StreamDERPMaps and
+// only emits a map when one is pushed, so we push a minimal map and assert the
+// counter increments. This mirrors what agent/agent.go's runDERPMapSubscriber
+// does against a real coderd, but without a tailnet.Conn to apply the map to.
+func TestAgent_SubscribesToDERPMaps(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	agentID := uuid.New()
+	manifest := agentsdk.Manifest{
+		AgentID:     agentID,
+		WorkspaceID: uuid.New(),
+	}
+	statsCh := make(chan *agentproto.Stats, 1)
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() { _ = coord.Close() })
+	dialer := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
+	t.Cleanup(dialer.Close)
+
+	metrics := agentfake.NewMetrics(prometheus.NewRegistry())
+	a := agentfake.NewAgent(logger, nil, "",
+		agentfake.WithDialer(dialer),
+		agentfake.WithMetrics(metrics),
+	)
+	t.Cleanup(a.Close)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	runErr := make(chan error, 1)
+	go func() { runErr <- a.Run(runCtx) }()
+
+	// Push a minimal DERP map; the agent's subscriber decodes it (discarding
+	// the result, since there's no network) and increments the counter.
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID:   1,
+				RegionCode: "test",
+				Nodes: []*tailcfg.DERPNode{{
+					Name:     "test",
+					RegionID: 1,
+					HostName: "localhost",
+				}},
+			},
+		},
+	}
+	require.NoError(t, dialer.PushDERPMapUpdate(derpMap))
+
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(metrics.DERPMapsReceived) >= 1
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"fake agent never recorded a received DERP map")
 
 	cancel()
 	select {
