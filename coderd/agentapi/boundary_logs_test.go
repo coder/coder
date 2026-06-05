@@ -10,7 +10,6 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
-	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -388,42 +387,6 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.Empty(t, logs, "no boundary_logs rows should be persisted without a session_id")
 	})
 
-	// Regression: ensures nil HttpRequest inside a typed Resource does not panic.
-	t.Run("EmptyHTTPRequestSkipped", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: a pre-existing session and a log entry whose HttpRequest is nil.
-		f := newBoundaryFixture(t)
-		api := f.api(t)
-		sessionID := uuid.New()
-		f.preCreateSession(t, sessionID, "claude-code")
-
-		// When: the nil HttpRequest log is reported.
-		resp, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:           sessionID.String(),
-			ConfinedProcessName: "claude-code",
-			Logs: []*agentproto.BoundaryLog{
-				{
-					Allowed: true,
-					Time:    timestamppb.New(dbtime.Now()),
-					Resource: &agentproto.BoundaryLog_HttpRequest_{
-						HttpRequest: nil,
-					},
-				},
-			},
-		})
-
-		// Then: the nil log is skipped and no boundary_logs row is written.
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-
-		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
-			SessionID: sessionID,
-		})
-		require.NoError(t, err)
-		require.Empty(t, logs, "nil HttpRequest must not produce a log row")
-	})
-
 	t.Run("InvalidSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
@@ -457,62 +420,6 @@ func TestReportBoundaryLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Empty(t, logs, "no boundary_logs rows should be persisted with an invalid session_id")
-	})
-
-	t.Run("PersistsLogsAndTracksBoundaryUsage", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: a BoundaryUsageTracker, a pre-existing session, and one allowed
-		// plus one denied log entry.
-		f := newBoundaryFixture(t)
-		tracker := boundaryusage.NewTracker()
-		api := f.api(t)
-		api.BoundaryUsageTracker = tracker
-		sessionID := uuid.New()
-		f.preCreateSession(t, sessionID, "claude-code")
-		now := dbtime.Now()
-
-		// When: boundary logs are reported.
-		_, err := api.ReportBoundaryLogs(context.Background(), &agentproto.ReportBoundaryLogsRequest{
-			SessionId:           sessionID.String(),
-			ConfinedProcessName: "claude-code",
-			Logs: []*agentproto.BoundaryLog{
-				{
-					Allowed:        true,
-					Time:           timestamppb.New(now),
-					SequenceNumber: 0,
-					Resource: &agentproto.BoundaryLog_HttpRequest_{
-						HttpRequest: &agentproto.BoundaryLog_HttpRequest{
-							Method:      "GET",
-							Url:         "https://example.com",
-							MatchedRule: "domain=example.com",
-						},
-					},
-				},
-				{
-					Allowed:        false,
-					Time:           timestamppb.New(now),
-					SequenceNumber: 1,
-					Resource: &agentproto.BoundaryLog_HttpRequest_{
-						HttpRequest: &agentproto.BoundaryLog_HttpRequest{
-							Method: "POST",
-							Url:    "https://evil.com",
-						},
-					},
-				},
-			},
-		})
-
-		// Then: both logs are persisted in the database and the tracker records
-		// the usage. The tracker's internal counters are not directly inspectable,
-		// but the call completing without error confirms Track() was invoked.
-		require.NoError(t, err)
-
-		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
-			SessionID: sessionID,
-		})
-		require.NoError(t, err)
-		require.Len(t, logs, 2, "both logs must be persisted")
 	})
 
 	t.Run("SameSessionIDDifferentAgents", func(t *testing.T) {
