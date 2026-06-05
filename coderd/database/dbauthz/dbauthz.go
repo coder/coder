@@ -4377,14 +4377,31 @@ func (q *querier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg da
 	// The org-popularity signal is a cross-user COUNT(DISTINCT owner_id) that we
 	// treat as template popularity metadata, not as permission to read other
 	// users' workspaces. Callers only ever pass template IDs already authorized
-	// via GetTemplatesWithFilter, so a template read check is the minimal,
-	// intentional authorization here instead of a system escalation.
-	templateObj := rbac.ResourceTemplate.AnyOrganization()
-	if arg.OrganizationID != uuid.Nil {
-		templateObj = rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, templateObj); err != nil {
-		return nil, err
+	// via GetTemplatesWithFilter, and we verify those exact IDs here with the
+	// same prepared-filter semantics so ACL-only template readers keep their
+	// ranking signals without requiring broad org-wide template read.
+	if len(arg.TemplateIDs) > 0 {
+		prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceTemplate.Type)
+		if err != nil {
+			return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+		}
+		authorizedTemplates, err := q.db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+			Deleted:        false,
+			OrganizationID: arg.OrganizationID,
+			IDs:            arg.TemplateIDs,
+		}, prep)
+		if err != nil {
+			return nil, err
+		}
+		authorizedIDs := make(map[uuid.UUID]struct{}, len(authorizedTemplates))
+		for _, template := range authorizedTemplates {
+			authorizedIDs[template.ID] = struct{}{}
+		}
+		for _, templateID := range arg.TemplateIDs {
+			if _, ok := authorizedIDs[templateID]; !ok {
+				return nil, NotAuthorizedError{Err: xerrors.Errorf("not authorized to read template %s", templateID)}
+			}
+		}
 	}
 	return q.db.GetTemplateRankingSignalsByOwnerID(ctx, arg)
 }

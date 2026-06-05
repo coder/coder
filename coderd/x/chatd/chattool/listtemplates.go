@@ -88,7 +88,9 @@ const (
 	queryScoreDescriptionMatch = 1
 )
 
-// ListTemplatesOptions configures the list_templates tool.
+// ListTemplatesOptions configures the list_templates tool. OwnerID is required.
+// Logger may be zero-valued; Clock defaults to a real clock when nil.
+// AllowedTemplateIDs optionally restricts which templates can be returned.
 type ListTemplatesOptions struct {
 	OwnerID            uuid.UUID
 	Logger             slog.Logger
@@ -434,13 +436,14 @@ func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
 	if t.Signals.OrgDevs > 0 {
 		item["active_developers"] = t.Signals.OrgDevs
 	}
-	// your_workspace_count exposes only active workspaces so deleted history is
-	// not surfaced to the model, though it still contributes to the score.
 	if t.Signals.ActiveCount > 0 {
 		item["your_workspace_count"] = t.Signals.ActiveCount
-		if !t.Signals.LastUsedAt.IsZero() {
-			item["last_used_by_you"] = t.Signals.LastUsedAt.Format(time.RFC3339Nano)
-		}
+	}
+	if t.Signals.DeletedRecentCount > 0 {
+		item["your_recently_deleted_workspace_count"] = t.Signals.DeletedRecentCount
+	}
+	if t.Signals.hasPersonalUsage() && !t.Signals.LastUsedAt.IsZero() {
+		item["last_used_by_you"] = t.Signals.LastUsedAt.Format(time.RFC3339Nano)
 	}
 	if t.Template.ID == recommendedID {
 		item["recommended"] = true

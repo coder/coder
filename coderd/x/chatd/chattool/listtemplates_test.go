@@ -648,6 +648,54 @@ func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
 	require.Equal(t, recentUsage.ID.String(), result["recommended_template_id"])
 }
 
+func TestListTemplates_DeletedRecentPersonalUsageShowsEvidence(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	clock.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	deletedUsage := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "deleted-usage",
+	})
+	unused := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "unused",
+	})
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     deletedUsage.ID,
+		LastUsedAt:     now.Add(-2 * 24 * time.Hour),
+		Deleted:        true,
+	})
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+		Clock:   clock,
+	})
+	result := runListTemplates(ctx, t, tool, `{}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, deletedUsage.ID.String(), templates[0]["id"])
+	require.Equal(t, unused.ID.String(), templates[1]["id"])
+	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
+	require.Equal(t, float64(1), templates[0]["your_recently_deleted_workspace_count"])
+	require.NotEmpty(t, templates[0]["last_used_by_you"])
+	_, hasActiveCount := templates[0]["your_workspace_count"]
+	require.False(t, hasActiveCount)
+}
+
 func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -893,15 +941,17 @@ func TestGetTemplateRankingSignalsByOwnerID(t *testing.T) {
 	used := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "used"})
 	unused := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID, Name: "unused"})
 
+	activeLastUsedAt := now.Add(-2 * 24 * time.Hour)
+	deletedLastUsedAt := now.Add(-3 * 24 * time.Hour)
 	// Active, in-window workspace for the requesting user.
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
-		LastUsedAt: now.Add(-2 * 24 * time.Hour),
+		LastUsedAt: activeLastUsedAt,
 	})
 	// Recently-deleted, in-window workspace for the requesting user.
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
-		LastUsedAt: now.Add(-3 * 24 * time.Hour), Deleted: true,
+		LastUsedAt: deletedLastUsedAt, Deleted: true,
 	})
 	// Non-deleted but outside the lookback window: it must not count toward the
 	// in-window active count, though it still keeps the user in the org count.
@@ -941,6 +991,7 @@ func TestGetTemplateRankingSignalsByOwnerID(t *testing.T) {
 	require.Equal(t, int64(1), usedRow.DeletedRecentCount, "the in-window deleted workspace counts")
 	require.Equal(t, int64(2), usedRow.OrgDevs, "user and otherUser count; prebuilds user is excluded")
 	require.True(t, usedRow.LastUsedAt.Valid)
+	require.WithinDuration(t, activeLastUsedAt, usedRow.LastUsedAt.Time, time.Microsecond)
 
 	unusedRow := byTemplate[unused.ID]
 	require.Equal(t, int64(0), unusedRow.ActiveCount)
