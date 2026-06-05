@@ -26,6 +26,7 @@ import {
 	looksLikeChatDiffURL,
 	normalizeChatDiffURLValue,
 	normalizeChatSearchInput,
+	resolveChatSearchFilterAlias,
 } from "./searchQuery";
 
 // Filter definitions. Filters with a defaultValue are inserted as complete
@@ -333,7 +334,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			for (const token of tokens) {
 				const colonIndex = token.indexOf(":");
 				if (colonIndex > 0 && colonIndex < token.length - 1) {
-					const key = token.slice(0, colonIndex);
+					const key = resolveChatSearchFilterAlias(token.slice(0, colonIndex));
 					const val = token.slice(colonIndex + 1);
 					if (KNOWN_FILTER_KEYS.has(key)) {
 						// Drop duplicate filter keys silently instead of
@@ -424,7 +425,10 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				   the dropdown, but clicks within the dropdown (which is
 				   inside the same container) don't trigger blur. */}
 			<div
-				className="relative"
+				// `min-w-0` keeps this column flex item from expanding past the
+				// dialog's max-width when its content (filter pills, dropdown)
+				// would otherwise demand a larger intrinsic width.
+				className="relative min-w-0"
 				onBlur={(e) => {
 					if (!e.currentTarget.contains(e.relatedTarget)) {
 						setIsDropdownOpen(false);

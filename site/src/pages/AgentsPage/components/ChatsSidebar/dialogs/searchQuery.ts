@@ -16,6 +16,30 @@ const passthroughChatSearchFilterKeys = new Set([
 	"pr_status",
 ]);
 
+// Common close-typo or shorthand spellings users reach for, mapped to the
+// canonical backend keys. Resolving aliases early means a user typing
+// `archive:true` or `unread:true` lands on the right filter instead of
+// falling through to an always-empty title search.
+const chatSearchFilterKeyAliases: Record<string, string> = {
+	archive: "archived",
+	unread: "has_unread",
+	diff: "diff_url",
+	diffurl: "diff_url",
+	"diff-url": "diff_url",
+	prstatus: "pr_status",
+	"pr-status": "pr_status",
+};
+
+/**
+ * Maps a user-typed filter key to its canonical backend equivalent. Unknown
+ * keys are returned lowercased so callers can still distinguish recognized
+ * filters from free-form text.
+ */
+export const resolveChatSearchFilterAlias = (key: string): string => {
+	const lower = key.toLowerCase();
+	return chatSearchFilterKeyAliases[lower] ?? lower;
+};
+
 // Matches a host that looks like a URL (e.g. `github.com`, `example.co.uk`).
 // Used to detect bare URL-like input so it can be routed to the `diff_url:`
 // filter instead of falling back to a useless title search on the URL string.
@@ -142,7 +166,9 @@ const getKeyValuePair = (
 	}
 
 	return {
-		key: token.slice(0, delimiterIndex).replaceAll('"', "").toLowerCase(),
+		key: resolveChatSearchFilterAlias(
+			token.slice(0, delimiterIndex).replaceAll('"', ""),
+		),
 		value: token.slice(delimiterIndex + 1).replace(/^"|"$/g, ""),
 	};
 };

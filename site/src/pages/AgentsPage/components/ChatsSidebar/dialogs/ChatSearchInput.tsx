@@ -45,32 +45,45 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full items-center gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3",
+				// `flex-wrap` lets the pills + input flow onto additional rows
+				// when there are too many filters to fit on one line, instead
+				// of expanding the row past the dialog's max-width. With a
+				// wrapping flex container, `items-center` aligns items within
+				// each wrap line so a single-row layout stays vertically
+				// centered while a multi-row layout still pins the icons to
+				// the first row of pills.
+				"flex min-h-10 w-full min-w-0 flex-wrap items-center gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3 py-1.5",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
 			<SearchIcon className="size-4 shrink-0 text-content-secondary" />
-			{completedFilters.map((f) => (
-				<span
-					key={f.key}
-					className="inline-flex shrink-0 items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
-				>
-					<span>
-						{f.key}:{f.value}
-					</span>
-					<button
-						type="button"
-						onClick={(e) => {
-							e.stopPropagation();
-							onRemoveFilter(f.key);
-						}}
-						className="inline-flex cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary"
-						aria-label={`Remove ${f.key} filter`}
+			{completedFilters.map((f) => {
+				const tokenText = `${f.key}:${f.value}`;
+				return (
+					<span
+						key={f.key}
+						// `max-w-full` plus `truncate` on the inner text keeps a
+						// single very long pill (e.g. a diff URL) from blowing
+						// past the dialog edge even with wrapping enabled.
+						className="inline-flex max-w-full shrink items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
 					>
-						<XIcon className="size-3" />
-					</button>
-				</span>
-			))}
+						<span className="min-w-0 truncate" title={tokenText}>
+							{tokenText}
+						</span>
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onRemoveFilter(f.key);
+							}}
+							className="inline-flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary"
+							aria-label={`Remove ${f.key} filter`}
+						>
+							<XIcon className="size-3" />
+						</button>
+					</span>
+				);
+			})}
 			{incompleteFilter && (
 				<span className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
 					{incompleteFilter.key}:
@@ -82,7 +95,7 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 				onChange={onChange}
 				onKeyDown={onKeyDown}
 				placeholder={filters.length > 0 ? "" : "Search chats..."}
-				className="min-w-[60px] flex-1 border-none bg-transparent py-2 text-sm text-content-primary outline-none placeholder:text-content-disabled"
+				className="min-w-[60px] flex-1 border-none bg-transparent py-0.5 text-sm text-content-primary outline-none placeholder:text-content-disabled"
 				aria-label="Search chats"
 				role="combobox"
 				aria-controls={hasResults ? listboxId : undefined}

@@ -3,6 +3,7 @@ import {
 	looksLikeChatDiffURL,
 	normalizeChatDiffURLValue,
 	normalizeChatSearchInput,
+	resolveChatSearchFilterAlias,
 } from "./searchQuery";
 
 describe("normalizeChatSearchInput", () => {
@@ -124,6 +125,36 @@ describe("normalizeChatSearchInput", () => {
 				"archived:true https://github.com/coder/coder/pull/1",
 			),
 		).toBe('archived:true diff_url:"https://github.com/coder/coder/pull/1"');
+	});
+
+	it("resolves common filter-key aliases to their canonical form", () => {
+		// User typos / shorthand land on the right filter instead of falling
+		// through to an always-empty title search.
+		expect(normalizeChatSearchInput("archive:true")).toBe("archived:true");
+		expect(normalizeChatSearchInput("unread:true")).toBe("has_unread:true");
+		expect(
+			normalizeChatSearchInput('diff:"https://github.com/coder/coder/pull/1"'),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/1"');
+		expect(normalizeChatSearchInput("prstatus:open")).toBe("pr_status:open");
+		expect(normalizeChatSearchInput("pr-status:open")).toBe("pr_status:open");
+	});
+});
+
+describe("resolveChatSearchFilterAlias", () => {
+	it.each([
+		["archive", "archived"],
+		["unread", "has_unread"],
+		["diff", "diff_url"],
+		["diffurl", "diff_url"],
+		["diff-url", "diff_url"],
+		["prstatus", "pr_status"],
+		["pr-status", "pr_status"],
+		["ARCHIVE", "archived"],
+		["archived", "archived"],
+		["title", "title"],
+		["unknown", "unknown"],
+	])("%s -> %s", (input, expected) => {
+		expect(resolveChatSearchFilterAlias(input)).toBe(expected);
 	});
 });
 
