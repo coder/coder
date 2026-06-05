@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="od-title od-desc">
+  <title id="od-title">On-demand orchestrator flow for Claude Code self-hosted runners</title>
+  <desc id="od-desc">When no free runner exists, Anthropic sends a spawn hint to the orchestrator process running on your infrastructure. The orchestrator invokes its spawn-runner hook, which looks up the Coder user by email and creates a workspace owned by that developer. The runner registers with a single-use work order, locks to the developer account, and streams results back to Anthropic.</desc>
+
+  <defs>
+    <style>
+      svg { font-family: -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
+      .bg               { fill: #ffffff; }
+      .zone-anthropic   { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; }
+      .zone-orch        { fill: #f0f9ff; stroke: #0284c7; stroke-width: 1.5; }
+      .zone-coder       { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.5; }
+      .card-anthropic   { fill: #ffffff; stroke: #fbbf24; stroke-width: 1.25; }
+      .card-orch        { fill: #ffffff; stroke: #38bdf8; stroke-width: 1.25; }
+      .workspace        { fill: #fdfcff; stroke: #7c3aed; stroke-width: 1.4; }
+      .lock-badge       { fill: #fef3c7; stroke: #b45309; stroke-width: 1; }
+      .secret-badge     { fill: #dbeafe; stroke: #0284c7; stroke-width: 1; }
+      .zone-label       { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .zone-anthropic-l { fill: #b45309; }
+      .zone-orch-l      { fill: #0369a1; }
+      .zone-coder-l     { fill: #6d28d9; }
+      .badge-label      { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .badge-anthropic-l{ fill: #b45309; }
+      .badge-orch-l     { fill: #0369a1; }
+      .title            { font-size: 13px; font-weight: 600; fill: #111827; }
+      .small            { font-size: 12px; fill: #4b5563; }
+      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .arrow-anthropic  { fill: none; stroke: #b45309; stroke-width: 1.6; }
+      .arrow-orch       { fill: none; stroke: #0284c7; stroke-width: 1.4; }
+      .arrow-label      { font-size: 11.5px; fill: #111827; font-weight: 600; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
+      .footnote         { font-size: 11px; fill: #4b5563; font-style: italic; }
+    </style>
+    <marker id="od-ah-anth" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
+    </marker>
+    <marker id="od-ah-orch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0284c7"/>
+    </marker>
+    <marker id="od-ah-coder" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="960" height="400"/>
+
+  <!-- ============ Anthropic zone ============ -->
+  <rect class="zone-anthropic" x="16" y="24" width="168" height="340" rx="12"/>
+  <text class="zone-label zone-anthropic-l" x="28" y="46">Anthropic</text>
+
+  <!-- Card: session queued -->
+  <rect class="card-anthropic" x="28" y="58" width="144" height="64" rx="8"/>
+  <text class="title" x="40" y="78">Session queued</text>
+  <text class="mono" x="40" y="94">claude.ai/code</text>
+  <text class="small" x="40" y="110">from @alice</text>
+
+  <!-- Card: pool scheduler -->
+  <rect class="card-anthropic" x="28" y="140" width="144" height="64" rx="8"/>
+  <text class="title" x="40" y="160">Pool scheduler</text>
+  <text class="small" x="40" y="176">no free runner</text>
+  <text class="small" x="40" y="192">sends spawn hint</text>
+
+  <!-- Arrow: session -> scheduler (vertical) -->
+  <path class="arrow-anthropic" d="M 100 122 L 100 140" marker-end="url(#od-ah-anth)"/>
+
+  <!-- ============ Orchestrator zone ============ -->
+  <rect class="zone-orch" x="224" y="24" width="270" height="340" rx="12"/>
+  <text class="zone-label zone-orch-l" x="236" y="46">Orchestrator Host</text>
+
+  <!-- Card: orchestrator process -->
+  <rect class="card-orch" x="236" y="58" width="246" height="64" rx="8"/>
+  <text class="title" x="248" y="78">Orchestrator</text>
+  <text class="small" x="248" y="94">polls Anthropic</text>
+  <text class="small" x="248" y="110">receives spawn hint</text>
+
+  <!-- Card: spawn-runner hook -->
+  <rect class="card-orch" x="236" y="152" width="246" height="100" rx="8"/>
+  <text class="title" x="248" y="172">spawn-runner hook</text>
+  <text class="small" x="248" y="190">looks up user by email</text>
+  <text class="small" x="248" y="206">creates workspace</text>
+  <text class="small" x="248" y="222">on behalf of developer</text>
+  <text class="small" x="248" y="238">passes work order + lock</text>
+
+  <!-- Arrow: process -> hook (vertical) -->
+  <path class="arrow-orch" d="M 359 122 L 359 152" marker-end="url(#od-ah-orch)"/>
+  <text class="arrow-label" x="367" y="140">invokes hook</text>
+
+  <!-- "pool secret stays here" badge -->
+  <rect class="secret-badge" x="236" y="272" width="174" height="22" rx="6"/>
+  <text class="badge-label badge-orch-l" x="248" y="287">pool secret stays here</text>
+
+  <!-- ============ Coder zone ============ -->
+  <rect class="zone-coder" x="534" y="24" width="410" height="340" rx="12"/>
+  <text class="zone-label zone-coder-l" x="546" y="46">Coder</text>
+
+  <!-- Workspace card -->
+  <rect class="workspace" x="546" y="58" width="386" height="168" rx="8"/>
+  <text class="title" x="558" y="80">Workspace</text>
+  <text class="small" x="558" y="100">owned by @alice</text>
+  <text class="small" x="558" y="120">runner registers with work order</text>
+  <text class="small" x="558" y="140">session served</text>
+
+  <!-- Locked badge inside workspace -->
+  <rect class="lock-badge" x="558" y="156" width="126" height="22" rx="4"/>
+  <text class="badge-label badge-anthropic-l" x="570" y="171">Locked: @alice</text>
+
+  <!-- "owned by @alice" badge (separate visual) -->
+  <rect class="lock-badge" x="558" y="192" width="126" height="22" rx="4"/>
+  <text class="badge-label badge-anthropic-l" x="570" y="207">owned by @alice</text>
+
+  <!-- ============ Arrows between zones ============ -->
+
+  <!-- Anthropic scheduler -> orchestrator process: spawn hint -->
+  <path class="arrow-anthropic" d="M 172 90 L 236 90" marker-end="url(#od-ah-anth)"/>
+  <text class="arrow-label" x="178" y="82">spawn hint</text>
+
+  <!-- Hook -> Coder workspace: single-use work order -->
+  <path class="arrow-orch" d="M 482 200 L 546 140" marker-end="url(#od-ah-coder)"/>
+  <text class="arrow-label" x="466" y="260">single-use work order</text>
+
+  <!-- Workspace -> Anthropic: streams results -->
+  <path class="arrow-anthropic" d="M 546 216 C 400 330, 200 340, 100 204" marker-end="url(#od-ah-anth)"/>
+  <text class="arrow-label" x="270" y="320">streams results</text>
+
+  <!-- Footnote -->
+  <text class="footnote" x="16" y="388">On-demand flow: no warm pool. The orchestrator spawns workspaces as needed, each owned by the requesting developer.</text>
+</svg>

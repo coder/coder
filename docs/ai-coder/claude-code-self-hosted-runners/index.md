@@ -173,24 +173,24 @@ signal in git history.
 See [System identity](./system-identity.md) for the copyable Terraform
 recipe and the known limitations.
 
-### User identity (Planned)
+### User identity (Prototyped)
 
-A routing component pre-binds each runner workspace to the developer
-who started the session. The workspace owner is the human, Coder
-external auth wires their git push token automatically, and audit log
-entries attribute to them.
+The on-demand orchestrator's `spawn-runner` hook maps the Anthropic
+account email to a Coder user and creates the workspace **on behalf of
+that user**. The workspace owner is the human, Coder external auth
+wires their git push token automatically, and audit log entries
+attribute to them.
 
-User identity depends on Anthropic runner protocol pieces that are
-still being finalized. The on-demand runner orchestrator (shipped in
-byoc.14) now provides the user's account email to the `spawn-runner`
-hook, which is the data needed to map an Anthropic user to a Coder
-user. The remaining blocker is `--lock-to-account`, which is still
-marked pending. The [System identity](./system-identity.md)
-recipe you ship today is the foundation; turning on user identity will
-mean swapping the bot credential plumbing for Coder external auth.
+This has been prototyped and proven end-to-end using the
+[`coder/coder-anthropic-integration-poc`](https://github.com/coder/coder-anthropic-integration-poc/tree/on-demand-user-identity)
+reference implementation. The hook resolves the Anthropic email to a
+Coder user via the REST API and creates the workspace under their
+account. The runner is pre-locked to that user via
+`--lock-to-account` (confirmed working in byoc.14), so only that
+user's sessions are assigned. No first-session race.
 
-See [User identity](./user-identity.md) for the design and what stays
-the same.
+See [User identity](./user-identity.md) for the full design, the
+reference hook, and the security considerations.
 
 ## Deployment models
 
@@ -236,8 +236,8 @@ See [On-demand runners](./on-demand.md) for the full recipe.
   early-access runner.
 - [On-demand runners](./on-demand.md): the orchestrator + spawn hook
   recipe for elastic scaling with single-use work orders.
-- [User identity](./user-identity.md): per-developer attribution. On
-  the Coder + Anthropic roadmap; not yet available.
+- [User identity](./user-identity.md): per-developer attribution.
+  Prototyped end-to-end with the on-demand orchestrator.
 - [Implementation notes](./plan.md): the staged plan, the sub-stages
   within system identity (per-creator credentials via wrapper script,
   AI Gateway routing, custom checkout, tool allowlists), and the open

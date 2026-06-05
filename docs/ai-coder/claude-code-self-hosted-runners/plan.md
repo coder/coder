@@ -192,9 +192,9 @@ arrives so there is no first-session-wins race.
 These are documented in the dedicated [open questions](#open-questions-for-anthropic)
 section below. The two that block User identity specifically:
 
-- Graduation of `--lock-to-account` from its current "(pending)" status.
-  The orchestrator's `spawn-runner` hook now provides all the user info
-  needed, but the runner flag to pre-lock is still pending.
+- Graduation of `--lock-to-account`: **done**. Confirmed working in
+  byoc.14. The orchestrator's `spawn-runner` hook provides user info
+  and the runner flag pre-locks to that account at registration.
 
 ### User identity acceptance criteria
 
@@ -451,8 +451,10 @@ middleware service.
 
 Remaining open items:
 
-- `--lock-to-account` is still marked "pending" in the byoc.14 guide.
-  User identity's no-first-session-wins property depends on it.
+- `--lock-to-account` is **confirmed working** in byoc.14. Anthropic
+  confirmed the "pending" label in the guide is stale. The hook now
+  passes `CLAUDE_RUNNER_ACCOUNT_ID` to the runner via the template's
+  `SELF_HOSTED_RUNNER_LOCK_TO_ACCOUNT` env var.
 - The work-order JWT carries `ccr:spawn_account_id` and
   `ccr:spawn_account_email` claims. We need to confirm whether
   the IdP `sub` is also available (email alone is not reliably

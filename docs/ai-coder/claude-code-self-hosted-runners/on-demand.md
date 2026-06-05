@@ -26,6 +26,8 @@ session, then exits.
 
 ## Architecture
 
+<img src="../../images/guides/claude-code-self-hosted-runners/on-demand-flow.svg" alt="The orchestrator polls Anthropic for spawn hints. For each hint, the spawn-runner hook looks up the Coder user by email and creates a workspace on their behalf with a single-use work order. The pool secret stays on the orchestrator host." />
+
 Three components work together:
 
 1. **Orchestrator host.** A machine (VM, container, or bare-metal)

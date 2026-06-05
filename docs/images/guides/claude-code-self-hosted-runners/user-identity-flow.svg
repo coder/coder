@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="user-diagram-title user-diagram-desc">
-  <title id="user-diagram-title">User identity flow: a routing component pre-binds each runner workspace to the matching Coder user</title>
-  <desc id="user-diagram-desc">When an Anthropic session is queued for @alice, a routing component maps her identity to her Coder user and claims a warm prebuild on her behalf. Coder runs the claim build with @alice as the workspace owner, so external auth wires GIT_ASKPASS to her GitHub token, audit log entries attribute to her, and the runner is born locked to her Anthropic account. User identity is on the Coder and Anthropic roadmap and is not yet available.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="user-diagram-title user-diagram-desc">
+  <title id="user-diagram-title">User identity flow: the orchestrator maps an Anthropic email to a Coder user and creates the workspace on their behalf</title>
+  <desc id="user-diagram-desc">When a session is queued from @alice on claude.ai/code, a spawn hint carries her account email. The orchestrator polls Anthropic, receives the spawn hint, and runs its spawn-runner hook. The hook reads CLAUDE_RUNNER_ACCOUNT_EMAIL, looks up the Coder user by email, and finds alice. Coder creates the workspace on behalf of alice. The workspace is owned by @alice, locked to @alice, and Coder external auth wires GIT_ASKPASS so git push runs as alice. The runner is born locked with no first-session race.</desc>
 
   <defs>
     <style>
@@ -8,17 +8,16 @@
       .bg               { fill: #ffffff; }
       .zone-anthropic   { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; }
       .zone-coder       { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.5; }
-      .zone-routing     { fill: #ecfeff; stroke: #0e7490; stroke-width: 1.5; stroke-dasharray: 6 4; }
+      .zone-orch        { fill: #f9fafb; stroke: #6b7280; stroke-width: 1.5; }
       .card-anthropic   { fill: #ffffff; stroke: #fbbf24; stroke-width: 1.25; }
-      .card-routing     { fill: #ffffff; stroke: #67e8f9; stroke-width: 1.25; stroke-dasharray: 4 3; }
-      .workspace-warm   { fill: #fdfcff; stroke: #7c3aed; stroke-width: 1.4; }
-      .workspace-claimed{ fill: #faf5ff; stroke: #7c3aed; stroke-width: 1.75; }
+      .card-orch        { fill: #ffffff; stroke: #9ca3af; stroke-width: 1.25; }
+      .workspace-card   { fill: #faf5ff; stroke: #7c3aed; stroke-width: 1.75; }
       .owner-badge      { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1; }
       .lock-badge       { fill: #fef3c7; stroke: #b45309; stroke-width: 1; }
       .zone-label       { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
       .zone-anthropic-l { fill: #b45309; }
       .zone-coder-l     { fill: #6d28d9; }
-      .zone-routing-l   { fill: #0e7490; }
+      .zone-orch-l      { fill: #374151; }
       .badge-label      { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
       .badge-coder-l    { fill: #6d28d9; }
       .badge-anthropic-l{ fill: #b45309; }
@@ -28,10 +27,8 @@
       .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
       .arrow-anthropic  { fill: none; stroke: #b45309; stroke-width: 1.6; }
       .arrow-coder      { fill: none; stroke: #7c3aed; stroke-width: 1.4; }
-      .arrow-routing    { fill: none; stroke: #0e7490; stroke-width: 1.4; stroke-dasharray: 5 4; }
+      .arrow-orch       { fill: none; stroke: #374151; stroke-width: 1.4; }
       .arrow-label      { font-size: 11.5px; fill: #111827; font-weight: 600; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
-      .planned-stamp    { fill: #fef2f2; stroke: #ef4444; stroke-width: 1; }
-      .planned-stamp-l  { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; fill: #b91c1c; }
     </style>
     <marker id="usr-ah-anthropic" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#b45309"/>
@@ -39,88 +36,96 @@
     <marker id="usr-ah-coder" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/>
     </marker>
-    <marker id="usr-ah-routing" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#0e7490"/>
+    <marker id="usr-ah-orch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
     </marker>
   </defs>
 
-  <rect class="bg" width="960" height="360"/>
+  <rect class="bg" width="960" height="400"/>
 
   <!-- Anthropic zone -->
-  <rect class="zone-anthropic" x="24" y="40" width="208" height="280" rx="12"/>
+  <rect class="zone-anthropic" x="24" y="40" width="196" height="200" rx="12"/>
   <text class="zone-label zone-anthropic-l" x="40" y="64">Anthropic</text>
 
-  <rect class="card-anthropic" x="40" y="88" width="176" height="80" rx="8"/>
-  <text class="title" x="56" y="110">Session queued</text>
-  <text class="small" x="56" y="128">from @alice</text>
-  <text class="mono" x="56" y="148">claude.ai/code</text>
+  <rect class="card-anthropic" x="40" y="82" width="164" height="68" rx="8"/>
+  <text class="title" x="56" y="102">Session queued</text>
+  <text class="small" x="56" y="118">from @alice</text>
+  <text class="mono" x="56" y="136">claude.ai/code</text>
 
-  <rect class="card-anthropic" x="40" y="200" width="176" height="92" rx="8"/>
-  <text class="title" x="56" y="222">runner-needed</text>
-  <text class="small" x="56" y="240">event with</text>
-  <text class="small" x="56" y="254">@alice's identity</text>
-  <text class="mono" x="56" y="278">webhook</text>
+  <rect class="card-anthropic" x="40" y="162" width="164" height="64" rx="8"/>
+  <text class="title" x="56" y="182">Spawn hint</text>
+  <text class="small" x="56" y="198">with account email</text>
+  <text class="mono" x="56" y="214">alice@corp.dev</text>
 
-  <!-- Routing zone (dashed = planned) -->
-  <rect class="zone-routing" x="280" y="40" width="208" height="280" rx="12"/>
-  <text class="zone-label zone-routing-l" x="296" y="64">Routing</text>
-  <rect class="planned-stamp" x="408" y="48" width="68" height="20" rx="4"/>
-  <text class="planned-stamp-l" x="416" y="62">Planned</text>
+  <!-- Orchestrator zone -->
+  <rect class="zone-orch" x="260" y="40" width="224" height="320" rx="12"/>
+  <text class="zone-label zone-orch-l" x="276" y="64">Orchestrator</text>
 
-  <rect class="card-routing" x="296" y="88" width="176" height="200" rx="8"/>
-  <text class="title" x="312" y="110">Map identity</text>
-  <text class="small" x="312" y="128">Anthropic @alice</text>
-  <text class="small" x="312" y="142">to Coder user alice</text>
-  <text class="small" x="312" y="170">Claim a prebuild on</text>
-  <text class="small" x="312" y="184">behalf of alice</text>
-  <text class="small" x="312" y="212">Pass alice's email</text>
-  <text class="small" x="312" y="226">via --lock-to-account</text>
-  <text class="small" x="312" y="254">Routes via Coder's</text>
-  <text class="small" x="312" y="268">workspace-create API</text>
+  <rect class="card-orch" x="276" y="82" width="192" height="56" rx="8"/>
+  <text class="title" x="292" y="102">Polls Anthropic</text>
+  <text class="small" x="292" y="118">receives spawn hint</text>
+
+  <rect class="card-orch" x="276" y="152" width="192" height="52" rx="8"/>
+  <text class="title" x="292" y="174">spawn-runner hook</text>
+  <text class="small" x="292" y="192">invoked by orchestrator</text>
+
+  <rect class="card-orch" x="276" y="218" width="192" height="128" rx="8"/>
+  <text class="title" x="292" y="238">Hook logic</text>
+  <text class="small" x="292" y="258">reads env var:</text>
+  <text class="mono" x="292" y="276">CLAUDE_RUNNER_</text>
+  <text class="mono" x="292" y="290">ACCOUNT_EMAIL</text>
+  <text class="small" x="292" y="312">looks up Coder user</text>
+  <text class="small" x="292" y="328">by email; match: alice</text>
 
   <!-- Coder zone -->
-  <rect class="zone-coder" x="536" y="40" width="400" height="280" rx="12"/>
-  <text class="zone-label zone-coder-l" x="552" y="64">Coder</text>
+  <rect class="zone-coder" x="524" y="40" width="412" height="320" rx="12"/>
+  <text class="zone-label zone-coder-l" x="540" y="64">Coder</text>
 
-  <!-- Warm pool (smaller, to the left) -->
-  <rect class="workspace-warm" x="556" y="92" width="148" height="100" rx="8"/>
-  <text class="title-sm" x="568" y="112">warm prebuild</text>
-  <text class="small" x="568" y="130">owner: svc-account</text>
-  <text class="mono" x="568" y="148">runner: unlocked</text>
-  <text class="mono" x="568" y="164">git creds: bot</text>
-  <text class="small" x="568" y="182">(from the pool)</text>
+  <rect class="card-orch" x="540" y="82" width="192" height="56" rx="8"/>
+  <text class="title" x="556" y="102">Workspace created</text>
+  <text class="small" x="556" y="118">on behalf of alice</text>
 
-  <!-- Claimed workspace (highlighted) -->
-  <rect class="workspace-claimed" x="724" y="92" width="196" height="200" rx="8"/>
-  <text class="title-sm" x="736" y="112">claimed workspace</text>
-  <rect class="owner-badge" x="736" y="120" width="172" height="22" rx="4"/>
-  <text class="badge-label badge-coder-l" x="744" y="135">Owner: @alice</text>
-  <rect class="lock-badge" x="736" y="150" width="172" height="22" rx="4"/>
-  <text class="badge-label badge-anthropic-l" x="744" y="165">Locked: @alice</text>
-  <text class="small" x="736" y="190">Coder external auth</text>
-  <text class="small" x="736" y="204">wires GIT_ASKPASS</text>
-  <text class="mono" x="736" y="222">git push as alice</text>
-  <text class="small" x="736" y="244">runner born locked</text>
-  <text class="small" x="736" y="258">(no first-session</text>
-  <text class="small" x="736" y="272">race)</text>
+  <!-- Workspace card -->
+  <rect class="workspace-card" x="540" y="152" width="380" height="194" rx="8"/>
+  <text class="title-sm" x="556" y="174">workspace</text>
+
+  <rect class="owner-badge" x="556" y="184" width="148" height="22" rx="4"/>
+  <text class="badge-label badge-coder-l" x="564" y="199">Owner: @alice</text>
+
+  <rect class="lock-badge" x="556" y="214" width="148" height="22" rx="4"/>
+  <text class="badge-label badge-anthropic-l" x="564" y="229">Locked: @alice</text>
+
+  <text class="small" x="556" y="260">Coder external auth</text>
+  <text class="small" x="556" y="276">wires GIT_ASKPASS</text>
+
+  <text class="mono" x="556" y="300">git push as alice</text>
+
+  <text class="small" x="556" y="326">runner born locked</text>
+  <text class="small" x="556" y="340">(no first-session race)</text>
+
+  <!-- Work order detail on right side of workspace card -->
+  <text class="title-sm" x="748" y="174">work order</text>
+  <text class="mono" x="748" y="196">--lock-to-account</text>
+  <text class="mono" x="748" y="210">@alice</text>
 
   <!-- Arrows -->
-  <!-- Anthropic webhook -> routing -->
-  <path class="arrow-routing" d="M 216 240 C 246 240, 264 240, 296 240" marker-end="url(#usr-ah-routing)"/>
-  <text class="arrow-label" x="218" y="232">webhook</text>
+  <!-- Anthropic spawn hint -> Orchestrator polls -->
+  <path class="arrow-anthropic" d="M 204 116 C 228 116, 248 110, 276 110" marker-end="url(#usr-ah-anthropic)"/>
+  <text class="arrow-label" x="216" y="104">spawn hint</text>
 
-  <!-- Routing -> coder workspace -->
-  <path class="arrow-coder" d="M 472 188 C 504 188, 524 188, 556 142" marker-end="url(#usr-ah-coder)"/>
-  <text class="arrow-label" x="478" y="158">claim</text>
+  <!-- Orchestrator polls -> spawn-runner hook -->
+  <path class="arrow-orch" d="M 372 138 L 372 152" marker-end="url(#usr-ah-orch)"/>
 
-  <!-- Warm -> claimed (owner flip): arrow arcs above both cards so the label has room -->
-  <path class="arrow-coder" d="M 630 92 C 630 64, 814 64, 822 90" marker-end="url(#usr-ah-coder)"/>
-  <text class="arrow-label" x="656" y="62">owner flips to @alice</text>
+  <!-- spawn-runner hook -> hook logic -->
+  <path class="arrow-orch" d="M 372 204 L 372 218" marker-end="url(#usr-ah-orch)"/>
 
-  <!-- Anthropic session -> claimed workspace (arcs above the routing zone, lands at top of claimed) -->
-  <path class="arrow-anthropic" d="M 216 96 C 320 28, 580 28, 760 88" marker-end="url(#usr-ah-anthropic)"/>
-  <text class="arrow-label" x="426" y="26">queued session lands here</text>
+  <!-- Hook logic -> Coder workspace created -->
+  <path class="arrow-coder" d="M 468 268 C 492 240, 510 116, 540 110" marker-end="url(#usr-ah-coder)"/>
+  <text class="arrow-label" x="480" y="196">create</text>
+
+  <!-- Coder workspace created -> workspace -->
+  <path class="arrow-coder" d="M 636 138 L 636 152" marker-end="url(#usr-ah-coder)"/>
 
   <!-- Footnote -->
-  <text class="small" x="24" y="346">User identity is planned, not yet available. It builds on the system identity pool: middleware claims a prebuild on behalf of the user, then Coder external auth handles git push as them.</text>
+  <text class="small" x="24" y="386">User identity is prototyped and proven. The orchestrator's spawn-runner hook maps the Anthropic email to a Coder user and creates the workspace on their behalf.</text>
 </svg>
