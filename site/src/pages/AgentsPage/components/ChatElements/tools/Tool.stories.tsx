@@ -2081,10 +2081,18 @@ export const ReadFileLongLine: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Read config.ts/i }),
 		);
-		// Expanding must render the long file content in the viewer.
 		await waitFor(() =>
 			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
 		);
+		// Guards the fileViewerCSS overflow:visible rule for the tool file viewer.
+		await waitFor(() => {
+			const host = canvasElement.querySelector("diffs-container");
+			const code = host?.shadowRoot?.querySelector("[data-code]");
+			expect(code).toBeInstanceOf(HTMLElement);
+			if (code instanceof HTMLElement) {
+				expect(getComputedStyle(code).overflow).toBe("visible");
+			}
+		});
 	},
 };
 
@@ -2099,7 +2107,6 @@ export const GenericToolLongOutput: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /some_custom_tool/i }),
 		);
-		// Expanding must render the long tool output in the viewer.
 		await waitFor(() =>
 			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
 		);

@@ -144,8 +144,7 @@ const expectCodeBlock = async (
 	expect(codeStyles.paddingTop).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
-	// Precondition for the outer ScrollArea owning horizontal scroll:
-	// [data-code] must not scroll (and hide overflow) inside its box.
+	// Precondition: visible overflow lets the outer ScrollArea own horizontal scroll.
 	expect(codeStyles.overflow).toBe("visible");
 
 	const lineStyles = getComputedStyle(line);
