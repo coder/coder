@@ -106,11 +106,26 @@ If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 is installed.
 
-[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman
-container runtime. Its onboarding installs the required Windows Subsystem for
-Linux (WSL2) layer if it isn't already enabled.
+[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
+Its onboarding installs and configures the required
+Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
 1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
+
+1. Follow the onboarding to configure Podman.
+
+1. If you configured Podman to use WSL2, then you will need to do either
+   upgrade WSL2 to version 2.5.1 or later
+   (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default)
+   or create a `.wslconfig` file in the `%USERPROFILE%` directory
+   with the following contents
+
+   ```text
+   [wsl2]
+   kernelCommandLine=cgroup_no_v1=all
+   ```
+
+   This is not required for Podman with Hyper-V.
 
 1. Open Podman Desktop and complete the onboarding to create and start a
    Podman machine.
