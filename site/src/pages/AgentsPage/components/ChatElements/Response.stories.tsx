@@ -144,6 +144,9 @@ const expectCodeBlock = async (
 	expect(codeStyles.paddingTop).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
+	// Precondition for the outer ScrollArea owning horizontal scroll:
+	// [data-code] must not scroll (and hide overflow) inside its box.
+	expect(codeStyles.overflow).toBe("visible");
 
 	const lineStyles = getComputedStyle(line);
 	expect(lineStyles.paddingLeft).toBe("12px");
@@ -191,9 +194,8 @@ const longLineCodeBlockMarkdown = [
 	"",
 ].join("\n");
 
-// A fenced block whose single line is far wider than the container.
-// The block must scroll horizontally within its own bounds instead of
-// widening the surrounding message.
+// Must scroll horizontally within its bounds, not widen the
+// surrounding message.
 export const LongLineFencedBlock: Story = {
 	args: {
 		children: longLineCodeBlockMarkdown,

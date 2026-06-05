@@ -87,9 +87,8 @@ type FileViewerThemeType = keyof typeof fileViewerTheme;
 const markdownFileViewerCSS = [
 	":host { background-color: transparent !important; }",
 	"pre, [data-code], [data-line], [data-diffs-header] { background-color: transparent !important; }",
-	// The block-level horizontal scroll is owned by the wrapping
-	// ScrollArea, so let [data-code] size to its content instead of
-	// scrolling (and hiding) inside its own box.
+	// Let [data-code] grow to content width so the wrapping ScrollArea
+	// owns horizontal scroll instead of the library's hidden internal bar.
 	"[data-code] { padding-block: 8px !important; overflow: visible !important; }",
 	"[data-disable-line-numbers][data-file] { --diffs-grid-number-column-width: 0px !important; }",
 	"[data-disable-line-numbers] [data-column-number] { min-width: 0 !important; padding: 0 !important; }",

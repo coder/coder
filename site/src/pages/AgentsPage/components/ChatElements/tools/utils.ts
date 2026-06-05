@@ -309,8 +309,14 @@ export const formatResultOutput = (result: unknown): string | null => {
 	return formatValue(result);
 };
 
-export const fileViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
+export const fileViewerCSS = [
+	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }",
+	// Let [data-code] grow to content width so the wrapping ScrollArea
+	// owns horizontal scroll instead of the library's internal track,
+	// which would otherwise render a redundant bar on classic scrollbar
+	// systems.
+	"[data-code] { overflow: visible !important; }",
+].join(" ");
 
 // Selection override CSS maps the library's gold/yellow selection
 // palette to the Coder blue accent (`--content-link`) so line
