@@ -42,13 +42,13 @@ type ModuleManifest struct {
 
 // ModuleVariable represents a variable declaration within a module manifest.
 type ModuleVariable struct {
-	Name           string  `json:"name"`
-	Type           string  `json:"type"`
-	Description    string  `json:"description"`
-	Default        *string `json:"default,omitempty"`
-	Required       bool    `json:"required"`
-	Sensitive      bool    `json:"sensitive"`
-	BuilderManaged bool    `json:"builder_managed"`
+	Name        string  `json:"name"`
+	Type        string  `json:"type"`
+	Description string  `json:"description"`
+	Default     *string `json:"default,omitempty"`
+	Required    bool    `json:"required"`
+	Sensitive   bool    `json:"sensitive"`
+	Computed    bool    `json:"computed"`
 }
 
 // validVariableTypes maps module.json type strings to their SDK equivalents.
@@ -147,13 +147,13 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 	variables := make([]codersdk.TemplateBuilderModuleVariable, 0, len(m.Variables))
 	for _, v := range m.Variables {
 		variables = append(variables, codersdk.TemplateBuilderModuleVariable{
-			Name:           v.Name,
-			Type:           validVariableTypes[v.Type],
-			Description:    v.Description,
-			Default:        v.Default,
-			Required:       v.Required,
-			Sensitive:      v.Sensitive,
-			BuilderManaged: v.BuilderManaged,
+			Name:        v.Name,
+			Type:        validVariableTypes[v.Type],
+			Description: v.Description,
+			Default:     v.Default,
+			Required:    v.Required,
+			Sensitive:   v.Sensitive,
+			Computed:    v.Computed,
 		})
 	}
 

@@ -15,7 +15,7 @@
       "description": "The ID of the Coder agent. Injected automatically by the builder.",
       "required": true,
       "sensitive": false,
-      "builder_managed": true
+      "computed": true
     },
     {
       "name": "port",
@@ -24,7 +24,7 @@
       "default": "13337",
       "required": false,
       "sensitive": false,
-      "builder_managed": false
+      "computed": false
     }
   ]
 }

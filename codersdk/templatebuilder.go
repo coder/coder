@@ -11,13 +11,13 @@ const (
 )
 
 type TemplateBuilderModuleVariable struct {
-	Name           string                      `json:"name"`
-	Type           TemplateBuilderVariableType `json:"type"`
-	Description    string                      `json:"description"`
-	Default        *string                     `json:"default,omitempty"`
-	Required       bool                        `json:"required"`
-	Sensitive      bool                        `json:"sensitive"`
-	BuilderManaged bool                        `json:"builder_managed"`
+	Name        string                      `json:"name"`
+	Type        TemplateBuilderVariableType `json:"type"`
+	Description string                      `json:"description"`
+	Default     *string                     `json:"default,omitempty"`
+	Required    bool                        `json:"required"`
+	Sensitive   bool                        `json:"sensitive"`
+	Computed    bool                        `json:"computed"`
 }
 
 // TemplateBuilderModule is the API response type returned by

@@ -32,7 +32,7 @@ func TestParseModulesFromFS(t *testing.T) {
 							"description": "The Coder agent ID.",
 							"required": true,
 							"sensitive": false,
-							"builder_managed": true
+							"computed": true
 						},
 						{
 							"name": "port",
@@ -41,7 +41,7 @@ func TestParseModulesFromFS(t *testing.T) {
 							"default": "8080",
 							"required": false,
 							"sensitive": false,
-							"builder_managed": false
+							"computed": false
 						},
 						{
 							"name": "enable_debug",
@@ -49,7 +49,7 @@ func TestParseModulesFromFS(t *testing.T) {
 							"description": "Enable debug mode.",
 							"required": false,
 							"sensitive": false,
-							"builder_managed": false
+							"computed": false
 						},
 						{
 							"name": "api_key",
@@ -57,7 +57,7 @@ func TestParseModulesFromFS(t *testing.T) {
 							"description": "Secret API key.",
 							"required": true,
 							"sensitive": true,
-							"builder_managed": false
+							"computed": false
 						}
 					]
 				}`),
@@ -85,8 +85,8 @@ func TestParseModulesFromFS(t *testing.T) {
 		require.Equal(t, "number", m.Variables[1].Type)
 		require.Equal(t, "bool", m.Variables[2].Type)
 
-		// Verify builder_managed and sensitive fields.
-		require.True(t, m.Variables[0].BuilderManaged)
+		// Verify computed and sensitive fields.
+		require.True(t, m.Variables[0].Computed)
 		require.True(t, m.Variables[3].Sensitive)
 
 		// Verify default pointer.

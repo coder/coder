@@ -47,29 +47,29 @@ func TestToSDK(t *testing.T) {
 		PinnedVersion: "2.5.0",
 		Variables: []templatebuilder.ModuleVariable{
 			{
-				Name:           "agent_id",
-				Type:           "string",
-				Description:    "The Coder agent ID.",
-				Required:       true,
-				Sensitive:      false,
-				BuilderManaged: true,
+				Name:        "agent_id",
+				Type:        "string",
+				Description: "The Coder agent ID.",
+				Required:    true,
+				Sensitive:   false,
+				Computed:    true,
 			},
 			{
-				Name:           "port",
-				Type:           "number",
-				Description:    "Port to listen on.",
-				Default:        &defaultVal,
-				Required:       false,
-				Sensitive:      false,
-				BuilderManaged: false,
+				Name:        "port",
+				Type:        "number",
+				Description: "Port to listen on.",
+				Default:     &defaultVal,
+				Required:    false,
+				Sensitive:   false,
+				Computed:    false,
 			},
 			{
-				Name:           "secret_key",
-				Type:           "string",
-				Description:    "A sensitive value.",
-				Required:       true,
-				Sensitive:      true,
-				BuilderManaged: false,
+				Name:        "secret_key",
+				Type:        "string",
+				Description: "A sensitive value.",
+				Required:    true,
+				Sensitive:   true,
+				Computed:    false,
 			},
 		},
 	}
@@ -101,7 +101,7 @@ func TestToSDK(t *testing.T) {
 		require.Nil(t, agent.Default)
 		require.True(t, agent.Required)
 		require.False(t, agent.Sensitive)
-		require.True(t, agent.BuilderManaged)
+		require.True(t, agent.Computed)
 
 		port := sdk.Variables[1]
 		require.Equal(t, "port", port.Name)
@@ -111,7 +111,7 @@ func TestToSDK(t *testing.T) {
 		require.Equal(t, "8080", *port.Default)
 		require.False(t, port.Required)
 		require.False(t, port.Sensitive)
-		require.False(t, port.BuilderManaged)
+		require.False(t, port.Computed)
 
 		secret := sdk.Variables[2]
 		require.Equal(t, "secret_key", secret.Name)
@@ -120,7 +120,7 @@ func TestToSDK(t *testing.T) {
 		require.Nil(t, secret.Default)
 		require.True(t, secret.Required)
 		require.True(t, secret.Sensitive)
-		require.False(t, secret.BuilderManaged)
+		require.False(t, secret.Computed)
 	})
 
 	t.Run("NilSlicesNormalizedToEmpty", func(t *testing.T) {
