@@ -7341,6 +7341,12 @@ export const RoleOrganizationUserAdmin = "organization-user-admin";
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
+export const RoleOrganizationWorkspaceAccess = "organization-workspace-access";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally these roles would be generated from the rbac/roles.go package.
+ */
 export const RoleOrganizationWorkspaceCreationBan =
 	"organization-workspace-creation-ban";
 
