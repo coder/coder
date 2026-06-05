@@ -47,6 +47,11 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
 			if (el.scrollWidth <= el.clientWidth) return;
 			if (el.scrollHeight > el.clientHeight) return;
+			// Let the page keep scrolling once the block reaches a horizontal
+			// edge, so the wheel isn't trapped at the boundaries.
+			const maxLeft = el.scrollWidth - el.clientWidth;
+			if (e.deltaY > 0 && el.scrollLeft >= maxLeft) return;
+			if (e.deltaY < 0 && el.scrollLeft <= 0) return;
 			e.preventDefault();
 			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
 		},

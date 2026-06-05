@@ -218,6 +218,53 @@ export const LongLineFencedBlock: Story = {
 	},
 };
 
+// At its horizontal edges the wheel passes through to the page instead of
+// being trapped, so it does not preventDefault once there is no more room
+// to scroll in that direction.
+export const LongLineFencedBlockWheelEdges: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		// Reports whether the handler claimed the gesture. The wheel listener
+		// is passive, so spy on preventDefault rather than defaultPrevented.
+		const wheelPrevented = (deltaY: number) => {
+			const event = new WheelEvent("wheel", {
+				deltaY,
+				bubbles: true,
+				cancelable: true,
+			});
+			let prevented = false;
+			const original = event.preventDefault.bind(event);
+			event.preventDefault = () => {
+				prevented = true;
+				original();
+			};
+			viewport.dispatchEvent(event);
+			return prevented;
+		};
+		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
+		// Mid-scroll: the block claims the vertical gesture.
+		viewport.scrollLeft = Math.floor(maxLeft / 2);
+		expect(wheelPrevented(200)).toBe(true);
+		// Right edge, scrolling further right: pass through to the page.
+		viewport.scrollLeft = maxLeft;
+		expect(wheelPrevented(200)).toBe(false);
+		// Left edge, scrolling further left: pass through to the page.
+		viewport.scrollLeft = 0;
+		expect(wheelPrevented(-200)).toBe(false);
+	},
+};
+
 export const MarkdownAndLinksLight: Story = {
 	globals: {
 		theme: "light",
