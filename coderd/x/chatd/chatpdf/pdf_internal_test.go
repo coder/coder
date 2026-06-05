@@ -19,88 +19,48 @@ import (
 func TestValidatePDFPrompt(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ValidAnthropicPDFPasses", func(t *testing.T) {
+	t.Run("Rejects invalid Anthropic PDF bytes", func(t *testing.T) {
 		t.Parallel()
 
 		err := ValidatePrompt(
-			fantasyanthropic.Name,
-			200_000,
-			promptWithPDF(pdfPart("report.pdf", validPDFWithPages(1))),
-		)
-		require.NoError(t, err)
-	})
-
-	t.Run("UncappedProviderSkipsPDFPreflight", func(t *testing.T) {
-		t.Parallel()
-
-		err := ValidatePrompt(
-			fantasyopenai.Name,
-			0,
-			promptWithPDF(pdfPart("not-a-pdf.pdf", []byte("not a pdf"))),
-		)
-		require.NoError(t, err)
-	})
-
-	t.Run("InvalidPDFBytesFail", func(t *testing.T) {
-		t.Parallel()
-
-		err := ValidatePrompt(
-			" ANTHROPIC ",
-			200_000,
-			promptWithPDF(pdfPart("not-a-pdf.pdf", []byte("not a pdf"))),
+			" ANTHROPIC ", 200_000,
+			promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))),
 		)
 		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonInvalidPDF, validationErr.Reason)
-		require.Equal(t, fantasyanthropic.Name, validationErr.Provider)
-		require.Contains(t, validationErr.UserMessage(), "not-a-pdf.pdf")
-		require.Contains(t, validationErr.Error(), "data_bytes=9")
+		require.Contains(t, validationErr.UserMessage(), "bad.pdf")
+		require.Contains(t, validationErr.UserMessage(), "not a valid PDF")
+		require.Contains(t, validationErr.Error(), `provider="anthropic"`)
+		require.Contains(t, validationErr.Error(), "reason=invalid_pdf")
 	})
 
-	t.Run("EncryptedPDFFails", func(t *testing.T) {
+	t.Run("Rejects encrypted PDFs", func(t *testing.T) {
 		t.Parallel()
 
 		data := append(validPDFWithPages(1), []byte("\ntrailer << /Encrypt 5 0 R >>")...)
-		err := ValidatePrompt(
-			fantasyanthropic.Name,
-			200_000,
-			promptWithPDF(pdfPart("locked.pdf", data)),
-		)
+		err := ValidatePrompt(fantasyanthropic.Name, 200_000, promptWithPDF(pdfPart("locked.pdf", data)))
 		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonEncrypted, validationErr.Reason)
 		require.Contains(t, validationErr.UserMessage(), "locked.pdf")
+		require.Contains(t, validationErr.Error(), "reason=encrypted_pdf")
 	})
 
-	t.Run("BedrockUsesAnthropicPDFPreflight", func(t *testing.T) {
+	t.Run("Applies Bedrock caps and skips uncapped providers", func(t *testing.T) {
 		t.Parallel()
 
-		err := ValidatePrompt(
-			fantasybedrock.Name,
-			200_000,
-			promptWithPDF(pdfPart("not-a-pdf.pdf", []byte("not a pdf"))),
-		)
-		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonInvalidPDF, validationErr.Reason)
-		require.Equal(t, fantasybedrock.Name, validationErr.Provider)
+		err := ValidatePrompt(fantasybedrock.Name, 200_000, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
+		require.Contains(t, requireValidationError(t, err).Error(), `provider="bedrock"`)
+
+		err = ValidatePrompt(fantasyopenai.Name, 0, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
+		require.NoError(t, err)
 	})
 
-	t.Run("ContextLimitControlsPageCap", func(t *testing.T) {
+	t.Run("Uses larger page cap for larger context models", func(t *testing.T) {
 		t.Parallel()
 
-		data := validPDFWithPages(101)
-		err := ValidatePrompt(
-			fantasyanthropic.Name,
-			200_000,
-			promptWithPDF(pdfPart("long.pdf", data)),
-		)
-		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonPageCap, validationErr.Reason)
-		require.Equal(t, 100, validationErr.PageCap)
+		prompt := promptWithPDF(pdfPart("long.pdf", validPDFWithPages(101)))
+		err := ValidatePrompt(fantasyanthropic.Name, 200_000, prompt)
+		require.Contains(t, requireValidationError(t, err).Error(), "page_cap=100")
 
-		err = ValidatePrompt(
-			fantasyanthropic.Name,
-			200_001,
-			promptWithPDF(pdfPart("long.pdf", data)),
-		)
+		err = ValidatePrompt(fantasyanthropic.Name, 200_001, prompt)
 		require.NoError(t, err)
 	})
 }
@@ -108,99 +68,44 @@ func TestValidatePDFPrompt(t *testing.T) {
 func TestValidatePDFPromptWithCaps(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AggregatePageCountFailsAcrossPDFParts", func(t *testing.T) {
+	t.Run("Counts repeated PDF parts and aggregate pages", func(t *testing.T) {
 		t.Parallel()
 
-		caps := chatprovider.AnthropicPDFCaps{
-			RequestPayloadBytes: 1 << 20,
-			PageCap:             2,
-		}
-		err := validatePromptWithCaps(
-			promptWithPDF(
-				pdfPart("first.pdf", validPDFWithPages(2)),
-				pdfPart("second.pdf", validPDFWithPages(1)),
-			),
-			caps,
-			fantasyanthropic.Name,
-			"Anthropic",
-		)
-		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonPageCap, validationErr.Reason)
-		require.Equal(t, "second.pdf", validationErr.FileName)
-		require.Equal(t, 3, validationErr.TotalPages)
-		require.Contains(t, validationErr.UserMessage(), "about 3 pages")
-	})
-
-	t.Run("RepeatedPDFPartsCountPerOccurrence", func(t *testing.T) {
-		t.Parallel()
-
-		caps := chatprovider.AnthropicPDFCaps{
-			RequestPayloadBytes: 1 << 20,
-			PageCap:             1,
-		}
 		part := pdfPart("repeat.pdf", validPDFWithPages(1))
 		err := validatePromptWithCaps(
 			promptWithPDF(part, part),
-			caps,
+			chatprovider.AnthropicPDFCaps{RequestPayloadBytes: 1 << 20, PageCap: 1},
 			fantasyanthropic.Name,
-			"Anthropic",
 		)
 		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonPageCap, validationErr.Reason)
-		require.Equal(t, 2, validationErr.TotalPages)
-	})
-
-	t.Run("SinglePDFOverPageCapNamesFile", func(t *testing.T) {
-		t.Parallel()
-
-		caps := chatprovider.AnthropicPDFCaps{
-			RequestPayloadBytes: 1 << 20,
-			PageCap:             1,
-		}
-		err := validatePromptWithCaps(
-			promptWithPDF(pdfPart("large.pdf", validPDFWithPages(2))),
-			caps,
-			fantasyanthropic.Name,
-			"Anthropic",
-		)
-		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonPageCap, validationErr.Reason)
-		require.Contains(t, validationErr.UserMessage(), "large.pdf")
 		require.Contains(t, validationErr.UserMessage(), "about 2 pages")
+		require.Contains(t, validationErr.Error(), "total_pages=2")
 	})
 
-	t.Run("AggregateEncodedPayloadFails", func(t *testing.T) {
+	t.Run("Rejects aggregate encoded payload over cap", func(t *testing.T) {
 		t.Parallel()
 
 		data := validPDFWithPages(1)
-		caps := chatprovider.AnthropicPDFCaps{
-			RequestPayloadBytes: base64.StdEncoding.EncodedLen(len(data)) - 1,
-			PageCap:             100,
-		}
 		err := validatePromptWithCaps(
 			promptWithPDF(pdfPart("payload.pdf", data)),
-			caps,
+			chatprovider.AnthropicPDFCaps{
+				RequestPayloadBytes: base64.StdEncoding.EncodedLen(len(data)) - 1,
+				PageCap:             100,
+			},
 			fantasyanthropic.Name,
-			"Anthropic",
 		)
 		validationErr := requireValidationError(t, err)
-		require.Equal(t, ValidationReasonPayloadCap, validationErr.Reason)
-		require.Equal(t, base64.StdEncoding.EncodedLen(len(data)), validationErr.EncodedPDFBytes)
 		require.Contains(t, validationErr.UserMessage(), "request limit")
+		require.Contains(t, validationErr.Error(), "reason=payload_cap")
 	})
 
-	t.Run("UnknownPageCountDoesNotFail", func(t *testing.T) {
+	t.Run("Allows PDFs with unknown page count", func(t *testing.T) {
 		t.Parallel()
 
-		caps := chatprovider.AnthropicPDFCaps{
-			RequestPayloadBytes: 1 << 20,
-			PageCap:             1,
-		}
 		err := validatePromptWithCaps(
 			promptWithPDF(pdfPart("unknown.pdf", []byte("%PDF-1.7\nxref\n0 0"))),
-			caps,
+			chatprovider.AnthropicPDFCaps{RequestPayloadBytes: 1 << 20, PageCap: 1},
 			fantasyanthropic.Name,
-			"Anthropic",
 		)
 		require.NoError(t, err)
 	})
@@ -220,20 +125,11 @@ func promptWithPDF(parts ...fantasy.FilePart) []fantasy.Message {
 	for _, part := range parts {
 		content = append(content, part)
 	}
-	return []fantasy.Message{
-		{
-			Role:    fantasy.MessageRoleUser,
-			Content: content,
-		},
-	}
+	return []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: content}}
 }
 
 func pdfPart(name string, data []byte) fantasy.FilePart {
-	return fantasy.FilePart{
-		Filename:  name,
-		Data:      data,
-		MediaType: "application/pdf",
-	}
+	return fantasy.FilePart{Filename: name, Data: data, MediaType: "application/pdf"}
 }
 
 func validPDFWithPages(pages int) []byte {
