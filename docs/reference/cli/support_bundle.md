@@ -69,3 +69,12 @@ Template name to include in the support bundle. Use org_name/template_name if te
 | Environment | <code>$CODER_SUPPORT_BUNDLE_PPROF</code> |
 
 Collect pprof profiling data from the Coder server and agent. Requires Coder server version 2.28.0 or newer.
+
+### -o, --org
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_SUPPORT_BUNDLE_ORG</code> |
+
+Select which organization (uuid or name) to capture provisioner info for. Defaults to the current user's organization.

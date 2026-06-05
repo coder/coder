@@ -37,12 +37,12 @@ import (
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
 type Bundle struct {
-	Deployment    Deployment   `json:"deployment"`
-	Network       Network      `json:"network"`
-	Workspace     Workspace    `json:"workspace"`
-	Agent         Agent        `json:"agent"`
-	Logs          []string     `json:"logs"`
-	CLILogs       []byte       `json:"cli_logs"`
+	Deployment    Deployment       `json:"deployment"`
+	Network       Network          `json:"network"`
+	Workspace     Workspace        `json:"workspace"`
+	Agent         Agent            `json:"agent"`
+	Logs          []string         `json:"logs"`
+	CLILogs       []byte           `json:"cli_logs"`
 	NamedTemplate TemplateDump     `json:"named_template"`
 	Organization  OrganizationInfo `json:"organization"`
 	Pprof         Pprof            `json:"pprof"`
