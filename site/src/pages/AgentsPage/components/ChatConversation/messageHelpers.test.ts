@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
-import { parseMessageContent } from "./messageParsing";
+import {
+	parseMessageContent,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -150,6 +153,21 @@ const executeMessage = (messageID: number): ParsedMessageEntry => {
 		},
 	});
 };
+
+const message = ({
+	messageID,
+	role,
+	content,
+}: {
+	messageID: number;
+	role: TypesGen.ChatMessageRole;
+	content: TypesGen.ChatMessagePart[];
+}): TypesGen.ChatMessage => ({
+	...baseMessage,
+	id: messageID,
+	role,
+	content,
+});
 
 describe("deriveMessageDisplayState", () => {
 	it("marks text-only user messages as copyable", () => {
@@ -319,18 +337,74 @@ describe("deriveMessageDisplayState", () => {
 	});
 });
 
-describe("groupSequentialReadFileMessages", () => {
+describe("buildDisplayMessages", () => {
+	it("keeps durable tool calls visible after parser-level result merging", () => {
+		const result = buildDisplayMessages(
+			parseMessagesWithMergedTools([
+				message({
+					messageID: 1,
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							tool_call_id: "list-templates-1",
+							tool_name: "list_templates",
+							args: {},
+						},
+					],
+				}),
+				message({
+					messageID: 2,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "list-templates-1",
+							tool_name: "list_templates",
+							result: {
+								count: "1",
+								templates: '[{"name":"docker","display_name":"Docker"}]',
+							},
+						},
+					],
+				}),
+			]),
+		);
+
+		expect(result).toHaveLength(1);
+		expect(result[0].message.id).toBe(1);
+		expect(result[0].parsed.tools).toEqual([
+			{
+				id: "list-templates-1",
+				name: "list_templates",
+				args: {},
+				result: {
+					count: "1",
+					templates: '[{"name":"docker","display_name":"Docker"}]',
+				},
+				isError: false,
+				status: "completed",
+				mcpServerConfigId: undefined,
+				modelIntent: undefined,
+				parsedCommands: undefined,
+			},
+		]);
+		expect(result[0].parsed.blocks).toEqual([
+			{ type: "tool", id: "list-templates-1" },
+		]);
+	});
+
 	it("returns a single read_file-only message unchanged", () => {
 		const readFile = readFileMessage(1, "read-1");
 
-		const result = groupSequentialReadFileMessages([readFile]);
+		const result = buildDisplayMessages([readFile]);
 
 		expect(result).toHaveLength(1);
 		expect(result[0]).toBe(readFile);
 	});
 
 	it("collapses read_file-only assistant messages across hidden tool results", () => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			hiddenToolResultMessage(2, "read-1"),
 			readFileMessage(3, "read-2"),
@@ -363,7 +437,7 @@ describe("groupSequentialReadFileMessages", () => {
 	] satisfies Array<
 		[string, ParsedMessageEntry]
 	>)("does not collapse read_file messages across visible %s content", (_, message) => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			message,
 			readFileMessage(3, "read-2"),
@@ -388,7 +462,7 @@ describe("groupSequentialReadFileMessages", () => {
 	] satisfies Array<
 		[string, Partial<ParsedMessageContent>]
 	>)("does not collapse read_file messages with visible %s", (_, overrides) => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			readFileMessage(2, "read-2", overrides),
 			readFileMessage(3, "read-3"),
@@ -398,7 +472,7 @@ describe("groupSequentialReadFileMessages", () => {
 	});
 
 	it("does not collapse read_file messages across another visible tool", () => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			executeMessage(2),
 			readFileMessage(3, "read-2"),
