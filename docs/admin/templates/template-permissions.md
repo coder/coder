@@ -19,3 +19,8 @@ of `Template Admin`.
 By default the `Everyone` group is assigned to each template meaning any Coder
 user can use the template to create a workspace. This access can be revoked
 via the actions menu button to the right hand side of each group entry.
+
+> [!WARNING]
+> If you grant a user access to use a template through a group and then remove
+> them from that group, they cannot start or stop workspaces they created from
+> that template.
