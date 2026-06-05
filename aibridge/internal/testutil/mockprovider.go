@@ -18,7 +18,7 @@ type MockProvider struct {
 	Disabled        bool
 	Bridged         []string
 	Passthrough     []string
-	InterceptorFunc func(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error)
+	InterceptorFunc func(w http.ResponseWriter, r *http.Request, payload intercept.Payload, tracer trace.Tracer) (intercept.Interceptor, error)
 }
 
 func (m *MockProvider) Type() string                { return m.NameStr }
@@ -35,9 +35,9 @@ func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig 
 }
 func (*MockProvider) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*MockProvider) APIDumpDir() string                           { return "" }
-func (m *MockProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
+func (m *MockProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, payload intercept.Payload, tracer trace.Tracer) (intercept.Interceptor, error) {
 	if m.InterceptorFunc != nil {
-		return m.InterceptorFunc(w, r, tracer)
+		return m.InterceptorFunc(w, r, payload, tracer)
 	}
 	return nil, nil //nolint:nilnil // mock: no interceptor configured is not an error
 }

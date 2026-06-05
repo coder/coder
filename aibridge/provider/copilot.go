@@ -3,7 +3,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -123,7 +122,7 @@ func (p *Copilot) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
-func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
+func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, payload intercept.Payload, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
 
@@ -155,7 +154,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	switch path {
 	case routeCopilotChatCompletions:
 		var req chatcompletions.ChatCompletionNewParamsWrapper
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(payload.Body(), &req); err != nil {
 			return nil, xerrors.Errorf("unmarshal chat completions request body: %w", err)
 		}
 
@@ -166,11 +165,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 	case routeCopilotResponses:
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil, xerrors.Errorf("read body: %w", err)
-		}
-		reqPayload, err := responses.NewRequestPayload(payload)
+		reqPayload, err := responses.NewRequestPayload(payload.Body())
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}

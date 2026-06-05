@@ -1,7 +1,6 @@
 package aibridge_test
 
 import (
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
@@ -235,30 +235,8 @@ func TestGuessSessionID(t *testing.T) {
 				req.Header.Set(key, value)
 			}
 
-			got := aibridge.GuessSessionID(tc.client, req)
+			got := aibridge.GuessSessionID(tc.client, req, intercept.NewPayload([]byte(body)))
 			require.Equal(t, tc.sessionID, got)
-
-			// Verify the body was restored and can be read again.
-			restored, err := io.ReadAll(req.Body)
-			require.NoError(t, err)
-			require.Equal(t, body, string(restored))
 		})
 	}
-}
-
-func TestUnreadableBody(t *testing.T) {
-	t.Parallel()
-
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", &errReader{})
-	require.NoError(t, err)
-
-	got := aibridge.GuessSessionID(aibridge.ClientClaudeCode, req)
-	require.Nil(t, got)
-}
-
-// errReader is an io.Reader that always returns an error.
-type errReader struct{}
-
-func (*errReader) Read([]byte) (int, error) {
-	return 0, io.ErrUnexpectedEOF
 }

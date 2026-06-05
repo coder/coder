@@ -1,14 +1,13 @@
 package aibridge
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/tidwall/gjson"
 
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
@@ -17,7 +16,7 @@ var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: s
 // GuessSessionID attempts to retrieve a session ID which may have been sent by
 // the client. We only attempt to retrieve sessions using methods recognized for
 // the given client.
-func GuessSessionID(client Client, r *http.Request) *string {
+func GuessSessionID(client Client, r *http.Request, payload intercept.Payload) *string {
 	switch client {
 	case ClientClaudeCode:
 		// Prefer the dedicated header (added in Claude Code v2.1.86+).
@@ -28,15 +27,7 @@ func GuessSessionID(client Client, r *http.Request) *string {
 		// Fall back to extracting from the metadata.user_id field in the JSON body.
 		// Newer format:  JSON-encoded object with a "session_id" field.
 		// Legacy format: "user_{sha256}_account_{id}_session_{uuid}"
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil
-		}
-		_ = r.Body.Close()
-
-		// Restore the request body.
-		r.Body = io.NopCloser(bytes.NewReader(payload))
-		userID := gjson.GetBytes(payload, "metadata.user_id")
+		userID := gjson.GetBytes(payload.Body(), "metadata.user_id")
 		if userID.Type != gjson.String {
 			return nil
 		}

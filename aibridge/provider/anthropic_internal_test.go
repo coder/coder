@@ -128,7 +128,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -142,7 +142,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -156,7 +156,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.Error(t, err)
 		require.Nil(t, interceptor)
@@ -194,7 +194,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req.Header.Set("X-Api-Key", "personal user key")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
 
@@ -220,7 +220,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/anthropic/unknown/route", bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.ErrorIs(t, err, ErrUnknownRoute)
 		require.Nil(t, interceptor)
@@ -299,7 +299,7 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
-			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+			interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 

@@ -77,7 +77,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, bytes.NewBufferString(body))
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.Error(t, err)
 		require.Nil(t, interceptor)
@@ -92,7 +92,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "InvalidFormat")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.Error(t, err)
 		require.Nil(t, interceptor)
@@ -107,7 +107,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -122,7 +122,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -137,7 +137,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.Error(t, err)
 		require.Nil(t, interceptor)
@@ -170,7 +170,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Copilot-Integration-Id", "test-integration")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
 
@@ -198,7 +198,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -213,7 +213,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
@@ -228,7 +228,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.Error(t, err)
 		require.Nil(t, interceptor)
@@ -261,7 +261,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Copilot-Integration-Id", "test-integration")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 		require.NoError(t, err)
 		require.NotNil(t, interceptor)
 
@@ -289,7 +289,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		w := httptest.NewRecorder()
 
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 
 		require.ErrorIs(t, err, ErrUnknownRoute)
 		require.Nil(t, interceptor)

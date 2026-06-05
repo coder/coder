@@ -60,7 +60,9 @@ type Provider interface {
 
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
-	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+	// The request body is supplied as an already-read [intercept.Payload] (read once upstream, possibly
+	// rewritten by route/transform policies); implementations must not read r.Body.
+	CreateInterceptor(http.ResponseWriter, *http.Request, intercept.Payload, trace.Tracer) (intercept.Interceptor, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.

@@ -41,7 +41,7 @@ func (*DisabledStub) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig 
 }
 func (*DisabledStub) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*DisabledStub) APIDumpDir() string                           { return "" }
-func (*DisabledStub) CreateInterceptor(_ http.ResponseWriter, _ *http.Request, _ trace.Tracer) (intercept.Interceptor, error) {
+func (*DisabledStub) CreateInterceptor(_ http.ResponseWriter, _ *http.Request, _ intercept.Payload, _ trace.Tracer) (intercept.Interceptor, error) {
 	//nolint:nilnil // disabled providers never reach the interceptor.
 	return nil, nil
 }

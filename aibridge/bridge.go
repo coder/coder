@@ -2,7 +2,9 @@ package aibridge
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -23,10 +25,26 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/policy"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 )
+
+//go:embed policy/examples/classification.rego
+var defaultClassificationPolicy string
+
+//go:embed policy/examples/routing.rego
+var defaultRoutingPolicy string
+
+//go:embed policy/examples/decision.rego
+var defaultDecisionPolicy string
+
+//go:embed policy/examples/transform.rego
+var defaultTransformPolicy string
+
+//go:embed policy/examples/pre_auth_classification.rego
+var defaultPreAuthClassificationPolicy string
 
 const (
 	// The duration after which an async recording will be aborted.
@@ -94,9 +112,61 @@ func validateProviders(providers []provider.Provider) error {
 //
 // Circuit breaker configuration is obtained from each provider's CircuitBreakerConfig() method.
 // Providers returning nil will not have circuit breaker protection.
-func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) (*RequestBridge, error) {
+func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, opts ...RequestBridgeOption) (*RequestBridge, error) {
 	if err := validateProviders(providers); err != nil {
 		return nil, err
+	}
+
+	var options requestBridgeOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	hooks := options.hooks
+
+	// When no pre-auth pipeline is configured, activate the source-IP
+	// classification policy as a default.
+	// TODO: replace with registered policies sourced from the DB.
+	if hooks.preAuth == nil {
+		classify, err := policy.NewClassify("source-ip-classifier", defaultPreAuthClassificationPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("compile default pre-auth classification policy: %w", err)
+		}
+		hooks.preAuth, err = policy.NewPipeline(policy.PipelineConfig{
+			Classify: []*policy.Classify{classify},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("build default pre-auth pipeline: %w", err)
+		}
+	}
+
+	// When no pre-req pipeline is configured, activate the four example policies
+	// as a default. TODO: replace with registered policies sourced from the DB.
+	if hooks.preReq == nil {
+		classify, err := policy.NewClassify("request-shape-classifier", defaultClassificationPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("compile default classification policy: %w", err)
+		}
+		route, err := policy.NewRoute("premium-tier-downgrade", defaultRoutingPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("compile default routing policy: %w", err)
+		}
+		decide, err := policy.NewDecide("block-banana", defaultDecisionPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("compile default decision policy: %w", err)
+		}
+		transform, err := policy.NewTransform("anthropic-banana-system-prompt", defaultTransformPolicy)
+		if err != nil {
+			return nil, xerrors.Errorf("compile default transform policy: %w", err)
+		}
+		hooks.preReq, err = policy.NewPipeline(policy.PipelineConfig{
+			Classify:  []*policy.Classify{classify},
+			Route:     route,
+			Decide:    []*policy.Decide{decide},
+			Transform: []*policy.Transform{transform},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("build default pre-req pipeline: %w", err)
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -132,7 +202,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
-			handler := newInterceptionProcessor(prov, cbs, rec, mcpProxy, logger, m, tracer)
+			handler := newInterceptionProcessor(prov, cbs, rec, mcpProxy, logger, m, tracer, hooks)
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
 				logger.Error(ctx, "failed to join path",
@@ -201,17 +271,41 @@ func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
 // using [Provider] p, recording all usage events using [Recorder] rec.
 // If cbs is non-nil, circuit breaker protection is applied per endpoint/model tuple.
-func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, hooks policyHooks) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "Intercept")
 		defer span.End()
+		r = r.WithContext(ctx)
 
-		// We execute this before CreateInterceptor since the interceptors
-		// read the request body and don't reset them.
+		// Read the body once upfront. GuessSessionID, policy hooks, and
+		// CreateInterceptor all consume it from the shared payload.
 		client := GuessClient(r)
-		sessionID := GuessSessionID(client, r)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			span.SetStatus(codes.Error, fmt.Sprintf("failed to read request body: %v", err))
+			logger.Warn(ctx, "failed to read request body", slog.Error(err), slog.F("path", r.URL.Path))
+			http.Error(w, "failed to read request body", http.StatusBadRequest)
+			return
+		}
+		_ = r.Body.Close()
+		payload := intercept.NewPayload(body)
+		sessionID := GuessSessionID(client, r, payload)
 
-		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
+		actor := aibcontext.ActorFromContext(ctx)
+		if actor == nil {
+			logger.Warn(ctx, "no actor found in context")
+			http.Error(w, "no actor found", http.StatusBadRequest)
+			return
+		}
+
+		// Run the policy hooks before creating the interceptor: they may block
+		// the request, rewrite the payload, or attach classifications.
+		payload, classifications, modifications, blocked := hooks.apply(w, r, payload, actor, p.Name(), m, logger)
+		if blocked {
+			return
+		}
+
+		interceptor, err := p.CreateInterceptor(w, r, payload, tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
@@ -224,13 +318,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			defer func() {
 				m.InterceptionDuration.WithLabelValues(p.Name(), interceptor.Model()).Observe(time.Since(start).Seconds())
 			}()
-		}
-
-		actor := aibcontext.ActorFromContext(ctx)
-		if actor == nil {
-			logger.Warn(ctx, "no actor found in context")
-			http.Error(w, "no actor found", http.StatusBadRequest)
-			return
 		}
 
 		traceAttrs := interceptor.TraceAttributes(r)
@@ -254,7 +341,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
 			ID:                    interceptor.ID().String(),
 			InitiatorID:           actor.ID,
-			Metadata:              actor.Metadata,
+			Metadata:              metadataWithPolicyResults(actor.Metadata, classifications, modifications),
 			Model:                 interceptor.Model(),
 			Provider:              p.Type(),
 			ProviderName:          p.Name(),

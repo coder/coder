@@ -33,6 +33,10 @@ type Metrics struct {
 	CircuitBreakerState   *prometheus.GaugeVec   // Current state (0=closed, 0.5=half-open, 1=open)
 	CircuitBreakerTrips   *prometheus.CounterVec // Total times circuit opened
 	CircuitBreakerRejects *prometheus.CounterVec // Requests rejected due to open circuit
+
+	// Policy metrics.
+	PolicyVerdictCount *prometheus.CounterVec   // Verdicts produced per hook
+	PolicyEvalDuration *prometheus.HistogramVec // Pipeline evaluation latency per hook
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -128,5 +132,21 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "rejects_total",
 			Help:      "Total number of requests rejected due to open circuit breaker.",
 		}, []string{"provider", "endpoint", "model"}),
+
+		// Policy metrics.
+
+		// Pessimistic cardinality: 3 providers, 5 models, 2 hooks, 4 verdicts = up to 120.
+		PolicyVerdictCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "policy",
+			Name:      "verdicts_total",
+			Help:      "The count of policy pipeline verdicts, per hook.",
+		}, append(baseLabels, "hook", "verdict")),
+		// Pessimistic cardinality: 3 providers, 2 hooks, 7 buckets + 3 extra series = up to 60.
+		PolicyEvalDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Subsystem: "policy",
+			Name:      "eval_duration_seconds",
+			Help:      "The duration of policy pipeline evaluation, per hook, in seconds.",
+			Buckets:   []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
+		}, []string{"provider", "hook"}),
 	}
 }

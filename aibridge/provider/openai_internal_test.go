@@ -311,7 +311,7 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 
-			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+			interceptor, err := provider.CreateInterceptor(w, req, reqPayload(t, req), testTracer)
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 
@@ -486,7 +486,7 @@ func BenchmarkOpenAI_CreateInterceptor_ChatCompletions(b *testing.B) {
 						eg.Go(func() error {
 							req := httptest.NewRequest(http.MethodPost, routeChatCompletions, bytes.NewReader(payload))
 							w := httptest.NewRecorder()
-							_, err := provider.CreateInterceptor(w, req, tracer)
+							_, err := provider.CreateInterceptor(w, req, reqPayload(b, req), tracer)
 							if err != nil {
 								return err
 							}
@@ -525,7 +525,7 @@ func BenchmarkOpenAI_CreateInterceptor_Responses(b *testing.B) {
 						eg.Go(func() error {
 							req := httptest.NewRequest(http.MethodPost, routeResponses, bytes.NewReader(payload))
 							w := httptest.NewRecorder()
-							interceptor, err := provider.CreateInterceptor(w, req, tracer)
+							interceptor, err := provider.CreateInterceptor(w, req, reqPayload(b, req), tracer)
 							if err != nil {
 								return err
 							}

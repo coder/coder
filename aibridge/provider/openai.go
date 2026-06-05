@@ -3,7 +3,6 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -115,7 +114,7 @@ func (*OpenAI) PassthroughRoutes() []string {
 	}
 }
 
-func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
+func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, payload intercept.Payload, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
 	id := uuid.New()
 
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
@@ -153,7 +152,7 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	switch path {
 	case routeChatCompletions:
 		var req chatcompletions.ChatCompletionNewParamsWrapper
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.Unmarshal(payload.Body(), &req); err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
 
@@ -164,11 +163,7 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		}
 
 	case routeResponses:
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil, xerrors.Errorf("read body: %w", err)
-		}
-		reqPayload, err := responses.NewRequestPayload(payload)
+		reqPayload, err := responses.NewRequestPayload(payload.Body())
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}

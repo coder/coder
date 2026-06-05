@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -114,7 +113,7 @@ func (*Anthropic) PassthroughRoutes() []string {
 	}
 }
 
-func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
+func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, payload intercept.Payload, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
 	id := uuid.New()
 	_, span := tracer.Start(r.Context(), "Intercept.CreateInterceptor")
 	defer tracing.EndSpanErr(span, &outErr)
@@ -125,12 +124,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		return nil, ErrUnknownRoute
 	}
 
-	payload, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, xerrors.Errorf("read body: %w", err)
-	}
-
-	reqPayload, err := messages.NewRequestPayload(payload)
+	reqPayload, err := messages.NewRequestPayload(payload.Body())
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
