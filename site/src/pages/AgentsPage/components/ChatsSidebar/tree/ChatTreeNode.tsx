@@ -29,7 +29,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
@@ -47,7 +46,6 @@ interface ChatTreeNodeProps {
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
-	const { user } = useAuthenticated();
 	const {
 		chatTree,
 		chatById,
@@ -127,17 +125,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
-	const ownerName = chat.owner_name || chat.owner_username || "another user";
-	const sharedSubtitle =
-		isSharedChat && chat.owner_id !== user.id
-			? `Shared by ${ownerName}`
-			: undefined;
 	const subtitle =
-		errorReason ||
-		streamingSubtitle ||
-		sharedSubtitle ||
-		displayedTurnSummary ||
-		modelName;
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
 		icon: StatusIcon,
 		className: statusClassName,

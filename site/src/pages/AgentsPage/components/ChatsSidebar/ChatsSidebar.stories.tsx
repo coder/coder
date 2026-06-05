@@ -194,7 +194,7 @@ export const SharedChat: Story = {
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
 				shared: true,
-				last_turn_summary: "This summary is hidden for shared chats",
+				last_turn_summary: "Original chat summary",
 			}),
 		],
 	},
@@ -202,11 +202,9 @@ export const SharedChat: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
-		await expect(
-			canvas.getByText("Shared by Sharing User"),
-		).toBeInTheDocument();
+		await expect(canvas.getByText("Original chat summary")).toBeInTheDocument();
 		expect(
-			canvas.queryByText("This summary is hidden for shared chats"),
+			canvas.queryByText("Shared by Sharing User"),
 		).not.toBeInTheDocument();
 	},
 };
