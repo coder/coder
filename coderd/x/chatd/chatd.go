@@ -8797,12 +8797,7 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		if !aiProviderMatchesRawType(provider, normalizedProviderType) {
 			continue
 		}
-		canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
-		if err != nil {
-			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-			canonicalType = codersdk.AIProviderType(provider.Type)
-		}
-		providerKeysType := chatprovider.NormalizeProvider(string(canonicalType))
+		providerKeysType := chatprovider.NormalizeProvider(string(provider.Type))
 		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
 		if err != nil || matchedProvider != nil {
 			return keys, matchedProvider, err
