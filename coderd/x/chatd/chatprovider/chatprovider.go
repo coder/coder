@@ -771,6 +771,30 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	}
 }
 
+// AnthropicThinkingDisplayFromChat normalizes chat-config thinking display
+// values for Anthropic and returns the canonical provider display value.
+func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingDisplay {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	display := chatutil.NormalizedEnumValue(
+		normalized,
+		string(fantasyanthropic.ThinkingDisplaySummarized),
+		string(fantasyanthropic.ThinkingDisplayOmitted),
+	)
+	if display == nil {
+		return nil
+	}
+	valueCopy := fantasyanthropic.ThinkingDisplay(*display)
+	return &valueCopy
+}
+
 // MergeMissingModelCostConfig fills unset pricing metadata from defaults.
 func MergeMissingModelCostConfig(
 	dst **codersdk.ModelCostConfig,
@@ -918,6 +942,9 @@ func MergeMissingProviderOptions(
 			}
 			if dstAnthropic.Effort == nil {
 				dstAnthropic.Effort = defaultAnthropic.Effort
+			}
+			if dstAnthropic.ThinkingDisplay == nil {
+				dstAnthropic.ThinkingDisplay = defaultAnthropic.ThinkingDisplay
 			}
 			if dstAnthropic.DisableParallelToolUse == nil {
 				dstAnthropic.DisableParallelToolUse = defaultAnthropic.DisableParallelToolUse
@@ -1408,6 +1435,7 @@ func anthropicProviderOptionsFromChatConfig(
 	result := &fantasyanthropic.ProviderOptions{
 		SendReasoning:          options.SendReasoning,
 		Effort:                 anthropicEffortFromChat(options.Effort),
+		ThinkingDisplay:        AnthropicThinkingDisplayFromChat(options.ThinkingDisplay),
 		DisableParallelToolUse: options.DisableParallelToolUse,
 	}
 	if options.Thinking != nil && options.Thinking.BudgetTokens != nil {

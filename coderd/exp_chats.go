@@ -7469,7 +7469,19 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		}
 	}
 
-	return nil
+	return validateChatModelProviderOptions(modelConfig.ProviderOptions)
+}
+
+func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) error {
+	if options == nil || options.Anthropic == nil || options.Anthropic.ThinkingDisplay == nil {
+		return nil
+	}
+
+	if strings.TrimSpace(*options.Anthropic.ThinkingDisplay) == "" ||
+		chatprovider.AnthropicThinkingDisplayFromChat(options.Anthropic.ThinkingDisplay) != nil {
+		return nil
+	}
+	return xerrors.Errorf("provider_options.anthropic.thinking_display must be one of summarized, omitted")
 }
 
 func validateNonNegativeDecimalField(name string, value *decimal.Decimal) error {
