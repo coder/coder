@@ -399,6 +399,11 @@ var (
 					User:        []rbac.Permission{},
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
+							Org: rbac.Permissions(map[string][]policy.Action{
+								// SubAgentAPI needs to check metadata of templates
+								// potentially shared via group_acl.
+								rbac.ResourceTemplate.Type: {policy.ActionRead},
+							}),
 							Member: rbac.Permissions(map[string][]policy.Action{
 								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 							}),
