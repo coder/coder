@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
-import { FileReferenceChip } from "./FileReferenceNode";
+import {
+	EditableFileReferenceChip,
+	FileReferenceChip,
+} from "./FileReferenceNode";
 
 const meta: Meta<typeof FileReferenceChip> = {
 	title: "components/ChatMessageInput/FileReferenceChip",
@@ -9,8 +12,6 @@ const meta: Meta<typeof FileReferenceChip> = {
 		fileName: "site/src/components/Button.tsx",
 		startLine: 42,
 		endLine: 42,
-		onRemove: fn(),
-		onClick: fn(),
 	},
 	decorators: [
 		(Story) => (
@@ -35,13 +36,34 @@ export const LineRange: Story = {
 
 export const Selected: Story = {
 	args: {
-		isSelected: true,
+		selected: true,
 	},
 };
 
-export const WithoutRemove: Story = {
+export const InlineWithText: Story = {
+	render: (args) => (
+		<p className="m-0 font-sans text-sm leading-6 text-content-primary">
+			Can you refactor <FileReferenceChip {...args} /> to use the new API?
+		</p>
+	),
+};
+
+export const LeftAlignedInline: Story = {
+	render: (args) => (
+		<p className="m-0 font-sans text-sm leading-6 text-content-primary">
+			<FileReferenceChip {...args} /> starts this message.
+		</p>
+	),
+};
+
+export const Editable: StoryObj<typeof EditableFileReferenceChip> = {
+	render: (args) => <EditableFileReferenceChip {...args} />,
 	args: {
-		onRemove: undefined,
+		fileName: "site/src/components/Button.tsx",
+		startLine: 42,
+		endLine: 42,
+		onOpen: fn(),
+		onRemove: fn(),
 	},
 };
 

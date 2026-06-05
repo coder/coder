@@ -11,7 +11,43 @@ import type {
 	UserInlineRenderBlock,
 } from "./messageHelpers";
 
-const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
+const hasContentBeforeInlineBlock = (
+	blocks: readonly UserInlineRenderBlock[],
+	index: number,
+) => {
+	for (let i = index - 1; i >= 0; i--) {
+		const block = blocks[i];
+		if (block.type === "file-reference") {
+			return true;
+		}
+		if (block.text.length > 0) {
+			return !/\s$/.test(block.text);
+		}
+	}
+	return false;
+};
+
+const hasContentAfterInlineBlock = (
+	blocks: readonly UserInlineRenderBlock[],
+	index: number,
+) => {
+	for (let i = index + 1; i < blocks.length; i++) {
+		const block = blocks[i];
+		if (block.type === "file-reference") {
+			return true;
+		}
+		if (block.text.length > 0) {
+			return !/^\s/.test(block.text);
+		}
+	}
+	return false;
+};
+
+const renderUserInlineBlock = (
+	blocks: readonly UserInlineRenderBlock[],
+	block: UserInlineRenderBlock,
+	index: number,
+) => {
 	if (block.type === "response") {
 		return <Fragment key={index}>{block.text}</Fragment>;
 	}
@@ -22,7 +58,10 @@ const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
 			fileName={block.file_name}
 			startLine={block.start_line}
 			endLine={block.end_line}
-			className="mx-1"
+			className={cn(
+				hasContentBeforeInlineBlock(blocks, index) && "ml-1",
+				hasContentAfterInlineBlock(blocks, index) && "mr-1",
+			)}
 		/>
 	);
 };
@@ -61,8 +100,9 @@ export const UserMessageContent: FC<{
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
 									{displayState.userInlineContent.length > 0
-										? displayState.userInlineContent.map((block, index) =>
-												renderUserInlineBlock(block, index),
+										? displayState.userInlineContent.map(
+												(block, index, blocks) =>
+													renderUserInlineBlock(blocks, block, index),
 											)
 										: markdown || ""}
 								</span>

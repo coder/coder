@@ -8,8 +8,16 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
+import { cva, type VariantProps } from "class-variance-authority";
 import { XIcon } from "lucide-react";
-import { type FC, memo, type ReactNode } from "react";
+import {
+	type CSSProperties,
+	type FC,
+	memo,
+	type ReactNode,
+	useEffect,
+	useState,
+} from "react";
 import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { cn } from "#/utils/cn";
 
@@ -23,69 +31,182 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
+const fileReferenceChipVariants = cva(
+	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border-default bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-sm transition-colors",
+	{
+		variants: {
+			interactive: {
+				true: "cursor-pointer hover:border-border-secondary hover:bg-surface-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+				false: "cursor-default",
+			},
+			selected: {
+				true: "border-content-link bg-content-link/10 text-content-primary ring-1 ring-content-link/40",
+				false: "",
+			},
+		},
+		defaultVariants: {
+			interactive: false,
+			selected: false,
+		},
+	},
+);
+
+const fileReferenceTriggerVariants = cva(
+	"inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 font-sans text-[13px] font-normal leading-none text-inherit",
+	{
+		variants: {
+			interactive: {
+				true: "cursor-pointer focus-visible:outline-none",
+				false: "cursor-default",
+			},
+		},
+		defaultVariants: {
+			interactive: false,
+		},
+	},
+);
+
+const fileReferenceIconStyle: CSSProperties = {
+	fontSize: 16,
+	height: "1rem",
+	minWidth: "1rem",
+};
+
+type FileReferenceChipContentProps = {
+	fileName: string;
+	lineLabel: string;
+};
+
+const FileReferenceChipContent: FC<FileReferenceChipContentProps> = ({
+	fileName,
+	lineLabel,
+}) => {
+	return (
+		<>
+			<FileIcon
+				fileName={fileName}
+				className="shrink-0"
+				style={fileReferenceIconStyle}
+			/>
+			<span
+				data-slot="file-reference-chip-label"
+				className="inline-flex min-w-0 items-center gap-0.5"
+			>
+				<span dir="rtl" className="min-w-0 truncate">
+					{fileName}
+				</span>
+				<span className="shrink-0">·</span>
+				<span className="shrink-0 tabular-nums">{lineLabel}</span>
+			</span>
+		</>
+	);
+};
+
+type FileReferenceChipBaseProps = {
+	fileName: string;
+	startLine: number;
+	endLine: number;
+	className?: string;
+};
+
+type FileReferenceChipProps = FileReferenceChipBaseProps &
+	VariantProps<typeof fileReferenceChipVariants>;
+
+const getFileReferenceDisplay = ({
+	fileName,
+	startLine,
+	endLine,
+}: Pick<FileReferenceChipBaseProps, "fileName" | "startLine" | "endLine">) => {
+	const shortFile = fileName.split("/").pop() || fileName;
+	const lineLabel =
+		startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
+	const title = `${fileName}:L${lineLabel}`;
+
+	return { shortFile, lineLabel, title };
+};
+
 export function FileReferenceChip({
 	fileName,
 	startLine,
 	endLine,
-	isSelected,
-	onRemove,
-	onClick,
-	className: extraClassName,
-}: {
-	fileName: string;
-	startLine: number;
-	endLine: number;
-	isSelected?: boolean;
-	onRemove?: () => void;
-	onClick?: () => void;
-	className?: string;
-}) {
-	const shortFile = fileName.split("/").pop() || fileName;
-	const lineLabel =
-		startLine === endLine ? `L${startLine}` : `L${startLine}–${endLine}`;
+	selected,
+	className,
+}: FileReferenceChipProps) {
+	const { shortFile, lineLabel, title } = getFileReferenceDisplay({
+		fileName,
+		startLine,
+		endLine,
+	});
 
 	return (
 		<span
+			data-slot="file-reference-chip"
+			className={cn(fileReferenceChipVariants({ selected }), className)}
+			contentEditable={false}
+			title={title}
+		>
+			<span
+				data-slot="file-reference-chip-trigger"
+				className={fileReferenceTriggerVariants()}
+			>
+				<FileReferenceChipContent fileName={shortFile} lineLabel={lineLabel} />
+			</span>
+		</span>
+	);
+}
+
+export function EditableFileReferenceChip({
+	fileName,
+	startLine,
+	endLine,
+	selected,
+	onRemove,
+	onOpen,
+	className,
+}: FileReferenceChipBaseProps & {
+	selected?: boolean;
+	onRemove: () => void;
+	onOpen: () => void;
+}) {
+	const { shortFile, lineLabel, title } = getFileReferenceDisplay({
+		fileName,
+		startLine,
+		endLine,
+	});
+
+	return (
+		<span
+			data-slot="file-reference-chip"
 			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
-				isSelected &&
-					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
-				extraClassName,
+				fileReferenceChipVariants({ interactive: true, selected }),
+				"border-border-secondary",
+				className,
 			)}
 			contentEditable={false}
-			title={`${fileName}:${lineLabel}`}
-			onClick={onClick}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					onClick?.();
-				}
-			}}
-			role="button"
-			tabIndex={0}
+			title={title}
 		>
-			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="inline-flex min-w-0 text-content-secondary">
-				<span dir="rtl" className="min-w-0 truncate">
-					{shortFile}
-				</span>
-				<span className="shrink-0 text-content-link">:{lineLabel}</span>
-			</span>
-			{onRemove && (
-				<button
-					type="button"
-					className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						onRemove();
-					}}
-					aria-label="Remove reference"
-					tabIndex={-1}
-				>
-					<XIcon className="size-2" />
-				</button>
-			)}
+			<button
+				data-slot="file-reference-chip-trigger"
+				type="button"
+				className={fileReferenceTriggerVariants({ interactive: true })}
+				onClick={onOpen}
+			>
+				<FileReferenceChipContent fileName={shortFile} lineLabel={lineLabel} />
+			</button>
+			<button
+				data-slot="file-reference-chip-remove"
+				type="button"
+				className="ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:bg-surface-quaternary hover:text-content-primary"
+				onClick={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					onRemove();
+				}}
+				aria-label="Remove reference"
+				tabIndex={-1}
+			>
+				<XIcon className="size-2.5" />
+			</button>
 		</span>
 	);
 }
@@ -177,6 +298,56 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 	}
 }
 
+const hasContentBeforeReference = (editor: LexicalEditor, nodeKey: NodeKey) => {
+	let hasContentBefore = false;
+	editor.getEditorState().read(() => {
+		const node = $getNodeByKey(nodeKey);
+		let sibling = node?.getPreviousSibling();
+
+		while (sibling) {
+			if (sibling instanceof FileReferenceNode) {
+				hasContentBefore = true;
+				return;
+			}
+
+			const text = sibling.getTextContent();
+			if (text.length > 0) {
+				hasContentBefore = !/\s$/.test(text);
+				return;
+			}
+
+			sibling = sibling.getPreviousSibling();
+		}
+	});
+
+	return hasContentBefore;
+};
+
+const hasContentAfterReference = (editor: LexicalEditor, nodeKey: NodeKey) => {
+	let hasContentAfter = false;
+	editor.getEditorState().read(() => {
+		const node = $getNodeByKey(nodeKey);
+		let sibling = node?.getNextSibling();
+
+		while (sibling) {
+			if (sibling instanceof FileReferenceNode) {
+				hasContentAfter = true;
+				return;
+			}
+
+			const text = sibling.getTextContent();
+			if (text.length > 0) {
+				hasContentAfter = !/^\s/.test(text);
+				return;
+			}
+
+			sibling = sibling.getNextSibling();
+		}
+	});
+
+	return hasContentAfter;
+};
+
 const FileReferenceChipWrapper: FC<{
 	editor: LexicalEditor;
 	nodeKey: NodeKey;
@@ -185,6 +356,19 @@ const FileReferenceChipWrapper: FC<{
 	endLine: number;
 }> = memo(({ editor, nodeKey, fileName, startLine, endLine }) => {
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
+	const [hasContentBefore, setHasContentBefore] = useState(() =>
+		hasContentBeforeReference(editor, nodeKey),
+	);
+	const [hasContentAfter, setHasContentAfter] = useState(() =>
+		hasContentAfterReference(editor, nodeKey),
+	);
+
+	useEffect(() => {
+		return editor.registerUpdateListener(() => {
+			setHasContentBefore(hasContentBeforeReference(editor, nodeKey));
+			setHasContentAfter(hasContentAfterReference(editor, nodeKey));
+		});
+	}, [editor, nodeKey]);
 
 	const handleRemove = () => {
 		editor.update(() => {
@@ -204,13 +388,14 @@ const FileReferenceChipWrapper: FC<{
 	};
 
 	return (
-		<FileReferenceChip
+		<EditableFileReferenceChip
 			fileName={fileName}
 			startLine={startLine}
 			endLine={endLine}
-			isSelected={isSelected}
+			selected={isSelected}
 			onRemove={handleRemove}
-			onClick={handleClick}
+			onOpen={handleClick}
+			className={cn(hasContentBefore && "ml-1", hasContentAfter && "mr-1")}
 		/>
 	);
 });
