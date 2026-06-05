@@ -238,11 +238,9 @@ func TestAgent_ReportsConnections(t *testing.T) {
 	}
 }
 
-// Assert that the fake agent subscribes to DERP map updates and records each
-// received map in its metrics. The agenttest.Client serves StreamDERPMaps and
-// only emits a map when one is pushed, so we push a minimal map and assert the
-// counter increments. This mirrors what agent/agent.go's runDERPMapSubscriber
-// does against a real coderd, but without a tailnet.Conn to apply the map to.
+// Assert that the fake agent subscribes to DERP map updates and counts each one
+// it receives. agenttest.Client only emits a map once pushed, so we push one and
+// assert the counter increments.
 func TestAgent_SubscribesToDERPMaps(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -271,8 +269,6 @@ func TestAgent_SubscribesToDERPMaps(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- a.Run(runCtx) }()
 
-	// Push a minimal DERP map; the agent's subscriber decodes it (discarding
-	// the result, since there's no network) and increments the counter.
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{
 			1: {

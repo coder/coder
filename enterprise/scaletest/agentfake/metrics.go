@@ -6,8 +6,7 @@ import "github.com/prometheus/client_golang/prometheus"
 // A nil *Metrics is a valid no-op.
 type Metrics struct {
 	// ConnectedAgents is the number of fake agents with an established dRPC connection.
-	ConnectedAgents prometheus.Gauge
-	// DERPMapsReceived counts DERP map messages received across all fake agents.
+	ConnectedAgents  prometheus.Gauge
 	DERPMapsReceived prometheus.Counter
 }
 

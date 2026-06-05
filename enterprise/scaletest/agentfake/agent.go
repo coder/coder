@@ -243,10 +243,6 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	// Bound to connCtx so the goroutine exits on reconnect, like runMetadata.
 	go a.runConnectionReports(connCtx, rpc)
 
-	// Subscribe to DERP map updates like a real agent does. We have no
-	// tailnet.Conn to apply the map to, so we decode and discard each update;
-	// the point is to reproduce the load this places on coderd replicas (which
-	// stream the map to every connected agent) and the agent-side decode cost.
 	go a.runDERPMapSubscriber(connCtx, tailnetClient)
 
 	select {
@@ -257,10 +253,9 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	}
 }
 
-// runDERPMapSubscriber opens StreamDERPMaps and drains it for the lifetime of
-// the connection, decoding each update to reproduce the agent-side cost. Unlike
-// a real agent it has no tailnet.Conn, so the decoded map is discarded. The
-// loop exits when ctx is canceled or the stream/connection closes.
+// runDERPMapSubscriber drains the DERP map stream so coderd and the agent
+// exercise the cost of generating, sending, and receiving updates. The decoded
+// map is discarded because fake agents have no tailnet.Conn to apply it to.
 func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetproto.DRPCTailnetClient28) {
 	stream, err := tailnetClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
@@ -280,8 +275,6 @@ func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetp
 			}
 			return
 		}
-		// Decode to reproduce agent-side cost; discard since there's no
-		// network to apply it to.
 		_ = tailnet.DERPMapFromProto(dmp)
 		a.metrics.incDERPMapsReceived()
 	}
