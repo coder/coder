@@ -7219,9 +7219,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9149,6 +9149,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -9161,16 +9164,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `created_at`   | string  | true     |              |             |
-| `description`  | string  | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `icon`         | string  | false    |              |             |
-| `id`           | string  | true     |              |             |
-| `is_default`   | boolean | true     |              |             |
-| `name`         | string  | false    |              |             |
-| `updated_at`   | string  | true     |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                                                                                     |
+|----------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string          | true     |              |                                                                                                                                                 |
+| `default_org_member_roles` | array of string | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `description`              | string          | false    |              |                                                                                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                                                                                 |
+| `id`                       | string          | true     |              |                                                                                                                                                 |
+| `is_default`               | boolean         | true     |              |                                                                                                                                                 |
+| `name`                     | string          | false    |              |                                                                                                                                                 |
+| `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
 ## codersdk.OrganizationMember
 
@@ -13196,6 +13200,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -13205,12 +13212,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `description`  | string | false    |              |             |
-| `display_name` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                     |
+|----------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------|
+| `default_org_member_roles` | array of string | false    |              | Default org member roles when non-nil, replaces the org's default member roles. |
+| `description`              | string          | false    |              |                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                 |
+| `name`                     | string          | false    |              |                                                                                 |
 
 ## codersdk.UpdateRoles
 
