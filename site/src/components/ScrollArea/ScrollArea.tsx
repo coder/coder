@@ -33,16 +33,20 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 }) => {
 	const viewportRef = useRef<HTMLDivElement>(null);
 
-	// Translate vertical wheel events into horizontal scroll when the
-	// scroll area only scrolls horizontally. Without this, the mouse
-	// wheel does nothing on a horizontal-only container.
+	// Redirect a vertical wheel gesture into horizontal scroll when the
+	// viewport overflows horizontally but not vertically. Without this a
+	// plain mouse wheel scrolls the page instead of the container (e.g. a
+	// wide "both" code block or a "horizontal" row of tabs).
 	const handleWheel = useCallback(
 		(e: React.WheelEvent<HTMLDivElement>) => {
-			if (orientation !== "horizontal") return;
+			if (orientation === "vertical") return;
 			const el = viewportRef.current;
 			if (!el) return;
-			// Only redirect when the user is scrolling vertically.
+			// Only redirect a predominantly vertical gesture, and only when
+			// there is horizontal overflow and no vertical overflow to scroll.
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+			if (el.scrollWidth <= el.clientWidth) return;
+			if (el.scrollHeight > el.clientHeight) return;
 			e.preventDefault();
 			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
 		},

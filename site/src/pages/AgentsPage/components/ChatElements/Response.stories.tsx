@@ -201,6 +201,20 @@ export const LongLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await expectCodeBlock(canvasElement, /apiUrl/);
+		// A plain vertical mouse wheel must scroll the wide block
+		// horizontally instead of the page (the orientation="both" handler).
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
+		);
+		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
 	},
 };
 
