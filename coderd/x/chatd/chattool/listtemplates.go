@@ -158,7 +158,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			ctx, err := asOwner(ctx, db, options.OwnerID)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return fantasy.NewTextErrorResponse(xerrors.Errorf("authorize list_templates owner: %w", err).Error()), nil
 			}
 
 			filterParams := database.GetTemplatesWithFilterParams{
