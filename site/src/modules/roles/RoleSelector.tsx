@@ -209,6 +209,7 @@ const ImpliedRolesList: React.FC<ImpliedRolesListProps> = ({
 					key={role.name}
 					title={role.display_name || role.name}
 					description={roleDescriptions[role.name] ?? ""}
+					caption="Sourced from organization default roles"
 				/>
 			))}
 		</>
@@ -218,11 +219,13 @@ const ImpliedRolesList: React.FC<ImpliedRolesListProps> = ({
 type ImpliedRoleRowProps = {
 	title: string;
 	description: string;
+	caption?: string;
 };
 
 const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 	title,
 	description,
+	caption,
 }) => {
 	return (
 		<div className="border-t border-border py-2 flex items-start gap-2 text-content-disabled">
@@ -230,6 +233,7 @@ const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 			<div className="flex flex-col">
 				<span className="text-sm font-medium">{title}</span>
 				{description && <span className="text-sm">{description}</span>}
+				{caption && <span className="text-xs italic">{caption}</span>}
 			</div>
 		</div>
 	);
