@@ -56,7 +56,10 @@ import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	AGENT_SOURCE_ORDER,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -150,7 +153,9 @@ const AgentsPage: FC = () => {
 			? sidebarFilters.chatStatuses[0]
 			: undefined;
 	const sourceFilter =
-		sidebarFilters.sources.length === 2 ? "all" : sidebarFilters.sources[0];
+		sidebarFilters.sources.length === AGENT_SOURCE_ORDER.length
+			? "all"
+			: sidebarFilters.sources[0];
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,

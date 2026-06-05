@@ -354,7 +354,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	searchParams, sourceFilter, errs := searchquery.Chats(queryStr)
+	searchParams, errs := searchquery.Chats(queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid chat search query.",
@@ -388,10 +388,6 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			RawMessage: labelsJSON,
 			Valid:      true,
 		}
-	}
-
-	if sourceFilter == searchquery.ChatSourceFilterDefault {
-		searchParams.OwnedOnly = true
 	}
 
 	params := database.GetChatsParams{

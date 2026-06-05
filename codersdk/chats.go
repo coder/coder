@@ -2038,18 +2038,25 @@ type UpdateChatACL struct {
 	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
 }
 
-type ChatListScope string
+// ChatListSource controls which chats ListChats returns by ownership.
+type ChatListSource string
 
 const (
-	ChatListScopeCreatedByMe  ChatListScope = "created_by_me"
-	ChatListScopeSharedWithMe ChatListScope = "shared_with_me"
-	ChatListScopeAll          ChatListScope = "all"
+	// ChatListSourceCreatedByMe returns chats owned by the caller.
+	ChatListSourceCreatedByMe ChatListSource = "created_by_me"
+	// ChatListSourceSharedWithMe returns chats shared with the caller.
+	ChatListSourceSharedWithMe ChatListSource = "shared_with_me"
+	// ChatListSourceAll returns both owned and shared chats.
+	ChatListSourceAll ChatListSource = "all"
 )
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Query  string
-	Scope  ChatListScope
+	// Query supports raw chat search terms. If Query includes a source: term,
+	// Source must be empty.
+	Query string
+	// Source adds a source: term to Query.
+	Source ChatListSource
 	Labels map[string]string
 	Pagination
 }
@@ -2060,11 +2067,11 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
 		query := opts.Query
-		if opts.Scope != "" {
+		if opts.Source != "" {
 			if query != "" {
 				query += " "
 			}
-			query += "source:" + string(opts.Scope)
+			query += "source:" + string(opts.Source)
 		}
 		if query != "" {
 			reqOpts = append(reqOpts, func(r *http.Request) {

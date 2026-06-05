@@ -559,25 +559,19 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - pr: positive integer (exact PR number match)
 //   - repo: string (case-insensitive substring match against git remote origin or URL)
 //   - pr_title: string (case-insensitive PR title substring match)
-//   - source: created_by_me, shared_with_me, or all
-type ChatSourceFilter string
-
-const (
-	ChatSourceFilterDefault      ChatSourceFilter = ""
-	ChatSourceFilterCreatedByMe  ChatSourceFilter = "created_by_me"
-	ChatSourceFilterSharedWithMe ChatSourceFilter = "shared_with_me"
-	ChatSourceFilterAll          ChatSourceFilter = "all"
-)
-
-func Chats(query string) (database.GetChatsParams, ChatSourceFilter, []codersdk.ValidationError) {
+//   - source: one of created_by_me, shared_with_me, or all (controls
+//     ownership scope; created_by_me returns only chats the caller owns,
+//     shared_with_me returns only chats shared with the caller, all returns
+//     both)
+func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
-		// Default to hiding archived chats.
-		Archived: sql.NullBool{Bool: false, Valid: true},
+		// Default to hiding archived chats and chats not owned by the caller.
+		Archived:  sql.NullBool{Bool: false, Valid: true},
+		OwnedOnly: true,
 	}
-	var sourceFilter ChatSourceFilter
 
 	if query == "" {
-		return filter, sourceFilter, nil
+		return filter, nil
 	}
 
 	// Lowercase the keys so they match regardless of how the caller
@@ -588,7 +582,7 @@ func Chats(query string) (database.GetChatsParams, ChatSourceFilter, []codersdk.
 		return xerrors.Errorf("unsupported search term: %q", term)
 	})
 	if len(errors) > 0 {
-		return filter, sourceFilter, errors
+		return filter, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -618,13 +612,16 @@ func Chats(query string) (database.GetChatsParams, ChatSourceFilter, []codersdk.
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
 	if source := parser.String(values, "", "source"); source != "" {
-		sourceFilter = ChatSourceFilter(source)
-		switch sourceFilter {
-		case ChatSourceFilterCreatedByMe:
+		switch source {
+		case "created_by_me":
 			filter.OwnedOnly = true
-		case ChatSourceFilterSharedWithMe:
+			filter.SharedOnly = false
+		case "shared_with_me":
+			filter.OwnedOnly = false
 			filter.SharedOnly = true
-		case ChatSourceFilterAll:
+		case "all":
+			filter.OwnedOnly = false
+			filter.SharedOnly = false
 		default:
 			parser.Errors = append(parser.Errors, codersdk.ValidationError{
 				Field:  "source",
@@ -647,7 +644,7 @@ func Chats(query string) (database.GetChatsParams, ChatSourceFilter, []codersdk.
 	}
 
 	parser.ErrorExcessParams(values)
-	return filter, sourceFilter, parser.Errors
+	return filter, parser.Errors
 }
 
 // validateDiffURL checks that the value is a syntactically valid HTTP(S)

@@ -408,31 +408,36 @@ func TestListChatsSharedScope(t *testing.T) {
 		name     string
 		opts     *codersdk.ListChatsOptions
 		expected map[uuid.UUID]struct{}
+		shared   map[uuid.UUID]bool
 	}{
 		{
 			name:     "default owned only",
 			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false},
 		},
 		{
 			name: "created by me only",
 			opts: &codersdk.ListChatsOptions{
-				Scope: codersdk.ChatListScopeCreatedByMe,
+				Source: codersdk.ChatListSourceCreatedByMe,
 			},
 			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false},
 		},
 		{
 			name: "shared with me only",
 			opts: &codersdk.ListChatsOptions{
-				Scope: codersdk.ChatListScopeSharedWithMe,
+				Source: codersdk.ChatListSourceSharedWithMe,
 			},
 			expected: map[uuid.UUID]struct{}{sharedChat.ID: {}},
+			shared:   map[uuid.UUID]bool{sharedChat.ID: true},
 		},
 		{
 			name: "all",
 			opts: &codersdk.ListChatsOptions{
-				Scope: codersdk.ChatListScopeAll,
+				Source: codersdk.ChatListSourceAll,
 			},
 			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}, sharedChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false, sharedChat.ID: true},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -440,6 +445,11 @@ func TestListChatsSharedScope(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, chatIDSet(chats))
 			require.NotContains(t, chatIDSet(chats), unsharedChat.ID)
+			for _, chat := range chats {
+				expectedShared, ok := tc.shared[chat.ID]
+				require.True(t, ok, "missing shared assertion for chat %s", chat.ID)
+				require.Equal(t, expectedShared, chat.Shared)
+			}
 		})
 	}
 }

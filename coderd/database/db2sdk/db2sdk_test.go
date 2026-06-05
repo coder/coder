@@ -1006,6 +1006,58 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	}
 }
 
+func TestChat_Shared(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		userACL  database.ChatACL
+		groupACL database.ChatACL
+		expected bool
+	}{
+		{
+			name: "not shared",
+		},
+		{
+			name:     "user ACL",
+			userACL:  database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
+			expected: true,
+		},
+		{
+			name:     "group ACL",
+			groupACL: database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
+			expected: true,
+		},
+		{
+			name:     "user and group ACLs",
+			userACL:  database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
+			groupACL: database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			chat := database.Chat{
+				ID:                uuid.New(),
+				OwnerID:           uuid.New(),
+				LastModelConfigID: uuid.New(),
+				Title:             tc.name,
+				Status:            database.ChatStatusWaiting,
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
+				UserACL:           tc.userACL,
+				GroupACL:          tc.groupACL,
+			}
+
+			got := db2sdk.Chat(chat, nil, nil)
+			require.Equal(t, tc.expected, got.Shared)
+		})
+	}
+}
+
 func TestChat_FileMetadataConversion(t *testing.T) {
 	t.Parallel()
 

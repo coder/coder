@@ -2151,9 +2151,9 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
-export type ChatListScope = "all" | "created_by_me" | "shared_with_me";
+export type ChatListSource = "all" | "created_by_me" | "shared_with_me";
 
-export const ChatListScopes: ChatListScope[] = [
+export const ChatListSources: ChatListSource[] = [
 	"all",
 	"created_by_me",
 	"shared_with_me",
@@ -5121,8 +5121,15 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
+	/**
+	 * Query supports raw chat search terms. If Query includes a source: term,
+	 * Source must be empty.
+	 */
 	readonly Query: string;
-	readonly Scope: ChatListScope;
+	/**
+	 * Source adds a source: term to Query.
+	 */
+	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 }
 

@@ -97,3 +97,40 @@ export const KeepsOneChatStatusSelected: Story = {
 		});
 	},
 };
+
+export const KeepsOneSourceSelected: Story = {
+	args: {
+		filters: {
+			archiveStatus: "active",
+			groupBy: "date",
+			prStatuses: [],
+			chatStatuses: ["unread", "read"],
+			sources: ["shared_with_me"],
+		} satisfies AgentSidebarFilters,
+		onFiltersChange: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const dialog = await openFilterDialog(canvasElement);
+
+		await userEvent.click(
+			dialog.getByRole("checkbox", { name: "Shared with me" }),
+		);
+
+		expect(
+			dialog.getByRole("checkbox", { name: "Created by me" }),
+		).not.toBeChecked();
+		expect(
+			dialog.getByRole("checkbox", { name: "Shared with me" }),
+		).toBeChecked();
+
+		await userEvent.click(dialog.getByRole("button", { name: "Apply" }));
+
+		await expect(args.onFiltersChange).toHaveBeenCalledWith({
+			archiveStatus: "active",
+			groupBy: "date",
+			prStatuses: [],
+			chatStatuses: ["unread", "read"],
+			sources: ["shared_with_me"],
+		});
+	},
+};

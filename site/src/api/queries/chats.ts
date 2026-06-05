@@ -34,7 +34,7 @@ type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
-	source?: TypesGen.ChatListScope;
+	source?: TypesGen.ChatListSource;
 }>;
 
 export const infiniteChatsKey = (filters?: InfiniteChatsFilters) =>
