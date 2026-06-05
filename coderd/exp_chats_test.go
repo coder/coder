@@ -10631,7 +10631,7 @@ func TestChatSystemPrompt(t *testing.T) {
 	const workspaceAwareness = `No workspace is attached to this chat yet.
 Do not create or start a workspace by default. Many requests can be completed using the conversation, provider tools such as web_search when available, or configured external MCP tools.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
+If a workspace is needed, use list_templates before create_workspace. If list_templates returns user_selection_required or a no_confident_match or ambiguous_top_matches selection_hint, ask the user to choose before create_workspace. Call read_template only when you need template parameter or preset details.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()
