@@ -26,30 +26,52 @@ func TestRenderBaseTemplate(t *testing.T) {
 		require.Contains(t, err.Error(), "read template")
 	})
 
-	t.Run("WithImageOptions", func(t *testing.T) {
+	imageOpts := []templatebuilder.ImageOption{
+		{Name: "Ubuntu", Value: "codercom/enterprise-base:ubuntu"},
+		{Name: "Custom", Value: "custom/image:latest"},
+	}
+
+	t.Run("DockerWithImageOptions", func(t *testing.T) {
 		t.Parallel()
 		fsys, err := templatebuilder.BaseTemplateFS("docker")
 		require.NoError(t, err)
 
-		ctx := templatebuilder.BaseRenderContext{
+		renderCtx := templatebuilder.BaseRenderContext{
 			ContainerImage: "custom/image:latest",
-			ImageOptions: []templatebuilder.ImageOption{
-				{Name: "Ubuntu", Value: "codercom/enterprise-base:ubuntu"},
-				{Name: "Custom", Value: "custom/image:latest"},
-			},
+			ImageOptions:   imageOpts,
 		}
-		out, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", ctx)
+		out, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
 		require.NoError(t, err)
-		require.Contains(t, string(out), `image = "custom/image:latest"`)
-		require.Contains(t, string(out), `name  = "Ubuntu"`)
-		require.Contains(t, string(out), `name  = "Custom"`)
-		require.Contains(t, string(out), `coder_parameter`)
+		rendered := string(out)
+		require.Contains(t, rendered, `data.coder_parameter.container_image.value`)
+		require.Contains(t, rendered, `name  = "Ubuntu"`)
+		require.Contains(t, rendered, `name  = "Custom"`)
+		require.Contains(t, rendered, `coder_parameter`)
+	})
+
+	t.Run("KubernetesWithImageOptions", func(t *testing.T) {
+		t.Parallel()
+		fsys, err := templatebuilder.BaseTemplateFS("kubernetes")
+		require.NoError(t, err)
+
+		renderCtx := templatebuilder.BaseRenderContext{
+			ContainerImage: "custom/image:latest",
+			ImageOptions:   imageOpts,
+		}
+		out, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
+		require.NoError(t, err)
+		rendered := string(out)
+		require.Contains(t, rendered, `data.coder_parameter.container_image.value`)
+		require.Contains(t, rendered, `name  = "Ubuntu"`)
+		require.Contains(t, rendered, `coder_parameter`)
 	})
 }
 
 func TestBaseTemplateSnapshot(t *testing.T) {
 	t.Parallel()
 
+	// This test table must cover every known base template.
+	// BaseTemplateIDs() is the source of truth; this list must match.
 	tests := []struct {
 		exampleID string
 	}{
@@ -65,8 +87,8 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 			fsys, err := templatebuilder.BaseTemplateFS(tc.exampleID)
 			require.NoError(t, err)
 
-			ctx := templatebuilder.DefaultBaseRenderContext(tc.exampleID)
-			rendered, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", ctx)
+			renderCtx := templatebuilder.DefaultBaseRenderContext(tc.exampleID)
+			rendered, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
 			require.NoError(t, err)
 			require.NotEmpty(t, rendered)
 

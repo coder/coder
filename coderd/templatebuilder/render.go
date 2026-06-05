@@ -10,33 +10,33 @@ import (
 
 // ImageOption represents a container image choice for base template parameters.
 type ImageOption struct {
-	Name  string // display name for the dropdown
-	Value string // container image identifier
+	Name  string
+	Value string
 }
 
 // BaseRenderContext is the data passed to base template .tf.tmpl files.
 type BaseRenderContext struct {
-	ContainerImage string            // selected image, becomes coder_parameter default
-	ImageOptions   []ImageOption     // curated list, becomes coder_parameter options
-	Variables      map[string]string // base_variable_values from compose request
+	ContainerImage string
+	ImageOptions   []ImageOption
+	Variables      map[string]string
 }
 
 // RenderBaseTemplate parses and executes a .tf.tmpl file from the given
 // filesystem, applying the provided render context. The templatePath
 // should be relative to fsys (e.g. "main.tf.tmpl").
-func RenderBaseTemplate(fsys fs.FS, templatePath string, ctx BaseRenderContext) ([]byte, error) {
-	data, err := fs.ReadFile(fsys, templatePath)
+func RenderBaseTemplate(fsys fs.FS, templatePath string, renderCtx BaseRenderContext) ([]byte, error) {
+	raw, err := fs.ReadFile(fsys, templatePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read template %s: %w", templatePath, err)
 	}
 
-	tmpl, err := template.New(templatePath).Parse(string(data))
+	tmpl, err := template.New(templatePath).Parse(string(raw))
 	if err != nil {
 		return nil, xerrors.Errorf("parse template %s: %w", templatePath, err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, ctx); err != nil {
+	if err := tmpl.Execute(&buf, renderCtx); err != nil {
 		return nil, xerrors.Errorf("execute template %s: %w", templatePath, err)
 	}
 

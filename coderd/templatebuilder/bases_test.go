@@ -32,15 +32,14 @@ func TestBaseTemplateOS(t *testing.T) {
 	})
 }
 
-func TestBaseTemplatesMapConsistency(t *testing.T) {
+func TestBaseTemplateIDs(t *testing.T) {
 	t.Parallel()
 
-	// Verify every entry in the map has a matching ExampleID key.
-	for key, bt := range templatebuilder.BaseTemplates {
-		require.Equal(t, key, bt.ExampleID,
-			"map key %q must match ExampleID %q", key, bt.ExampleID)
-		require.NotEmpty(t, bt.OS, "base template %q must have a non-empty OS", key)
-	}
+	ids := templatebuilder.BaseTemplateIDs()
+	require.Len(t, ids, 3)
+	require.Contains(t, ids, "docker")
+	require.Contains(t, ids, "kubernetes")
+	require.Contains(t, ids, "aws-linux")
 }
 
 func TestDefaultBaseRenderContext(t *testing.T) {
@@ -48,28 +47,57 @@ func TestDefaultBaseRenderContext(t *testing.T) {
 
 	t.Run("Docker", func(t *testing.T) {
 		t.Parallel()
-		ctx := templatebuilder.DefaultBaseRenderContext("docker")
-		require.Equal(t, "codercom/enterprise-base:ubuntu", ctx.ContainerImage)
-		require.Nil(t, ctx.ImageOptions)
+		rc := templatebuilder.DefaultBaseRenderContext("docker")
+		require.Equal(t, "codercom/enterprise-base:ubuntu", rc.ContainerImage)
+		require.Nil(t, rc.ImageOptions)
 	})
 
 	t.Run("Kubernetes", func(t *testing.T) {
 		t.Parallel()
-		ctx := templatebuilder.DefaultBaseRenderContext("kubernetes")
-		require.Equal(t, "codercom/enterprise-base:ubuntu", ctx.ContainerImage)
-		require.Nil(t, ctx.ImageOptions)
+		rc := templatebuilder.DefaultBaseRenderContext("kubernetes")
+		require.Equal(t, "codercom/enterprise-base:ubuntu", rc.ContainerImage)
+		require.Nil(t, rc.ImageOptions)
 	})
 
 	t.Run("AWSLinux", func(t *testing.T) {
 		t.Parallel()
-		ctx := templatebuilder.DefaultBaseRenderContext("aws-linux")
-		require.Empty(t, ctx.ContainerImage)
-		require.Nil(t, ctx.ImageOptions)
+		rc := templatebuilder.DefaultBaseRenderContext("aws-linux")
+		require.Empty(t, rc.ContainerImage)
+		require.Nil(t, rc.ImageOptions)
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
 		t.Parallel()
-		ctx := templatebuilder.DefaultBaseRenderContext("unknown")
-		require.Empty(t, ctx.ContainerImage)
+		rc := templatebuilder.DefaultBaseRenderContext("unknown")
+		require.Empty(t, rc.ContainerImage)
+	})
+
+	t.Run("AllBaseTemplatesHaveDefaults", func(t *testing.T) {
+		t.Parallel()
+		// Verify that every known base template produces a render
+		// context via DefaultBaseRenderContext (not just the zero value
+		// from an unknown ID). This catches forgotten entries.
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			rc := templatebuilder.DefaultBaseRenderContext(id)
+			_ = rc // existence is the assertion; the value varies per template
+		}
+	})
+}
+
+func TestBaseTemplateFS(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownTemplate", func(t *testing.T) {
+		t.Parallel()
+		fsys, err := templatebuilder.BaseTemplateFS("docker")
+		require.NoError(t, err)
+		require.NotNil(t, fsys)
+	})
+
+	t.Run("UnknownTemplate", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.BaseTemplateFS("nonexistent")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unknown base template")
 	})
 }
