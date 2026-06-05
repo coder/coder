@@ -3702,6 +3702,12 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		Tooltip:      app.Tooltip,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// The upsert's ON CONFLICT guard refused to rebind an existing app
+			// to an agent in a different workspace (SEC-91). Reject the build
+			// instead of silently proxying the victim's app to another tenant.
+			return xerrors.Errorf("workspace app %q is owned by another workspace; refusing to rebind to agent %q", id, agentID)
+		}
 		return xerrors.Errorf("upsert app: %w", err)
 	}
 
