@@ -1,9 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
-import {
-	EditableFileReferenceChip,
-	FileReferenceChip,
-} from "./FileReferenceNode";
+import { expect, within } from "storybook/test";
+import { FileReferenceChip } from "./FileReferenceChip";
 
 const meta: Meta<typeof FileReferenceChip> = {
 	title: "components/ChatMessageInput/FileReferenceChip",
@@ -54,17 +51,6 @@ export const LeftAlignedInline: Story = {
 			<FileReferenceChip {...args} /> starts this message.
 		</p>
 	),
-};
-
-export const Editable: StoryObj<typeof EditableFileReferenceChip> = {
-	render: (args) => <EditableFileReferenceChip {...args} />,
-	args: {
-		fileName: "site/src/components/Button.tsx",
-		startLine: 42,
-		endLine: 42,
-		onOpen: fn(),
-		onRemove: fn(),
-	},
 };
 
 /** Chip with a long filename that exceeds the max-width and truncates

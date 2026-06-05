@@ -1,7 +1,12 @@
 import { type FC, Fragment } from "react";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
+import {
+	hasInlineContentAfter,
+	hasInlineContentBefore,
+	type InlinePart,
+} from "../ChatMessageInput/fileReferenceDisplay";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -11,40 +16,19 @@ import type {
 	UserInlineRenderBlock,
 } from "./messageHelpers";
 
-const hasContentBeforeInlineBlock = (
+const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
-	index: number,
-) => {
-	for (let i = index - 1; i >= 0; i--) {
-		const block = blocks[i];
+): InlinePart[] => {
+	return blocks.map((block) => {
 		if (block.type === "file-reference") {
-			return true;
+			return { type: "file-reference" };
 		}
-		if (block.text.length > 0) {
-			return !/\s$/.test(block.text);
-		}
-	}
-	return false;
-};
-
-const hasContentAfterInlineBlock = (
-	blocks: readonly UserInlineRenderBlock[],
-	index: number,
-) => {
-	for (let i = index + 1; i < blocks.length; i++) {
-		const block = blocks[i];
-		if (block.type === "file-reference") {
-			return true;
-		}
-		if (block.text.length > 0) {
-			return !/^\s/.test(block.text);
-		}
-	}
-	return false;
+		return { type: "text", text: block.text };
+	});
 };
 
 const renderUserInlineBlock = (
-	blocks: readonly UserInlineRenderBlock[],
+	inlineParts: readonly InlinePart[],
 	block: UserInlineRenderBlock,
 	index: number,
 ) => {
@@ -59,10 +43,17 @@ const renderUserInlineBlock = (
 			startLine={block.start_line}
 			endLine={block.end_line}
 			className={cn(
-				hasContentBeforeInlineBlock(blocks, index) && "ml-1",
-				hasContentAfterInlineBlock(blocks, index) && "mr-1",
+				hasInlineContentBefore(inlineParts, index) && "ml-1",
+				hasInlineContentAfter(inlineParts, index) && "mr-1",
 			)}
 		/>
+	);
+};
+
+const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+	const inlineParts = getInlineParts(blocks);
+	return blocks.map((block, index) =>
+		renderUserInlineBlock(inlineParts, block, index),
 	);
 };
 
@@ -100,10 +91,7 @@ export const UserMessageContent: FC<{
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
 									{displayState.userInlineContent.length > 0
-										? displayState.userInlineContent.map(
-												(block, index, blocks) =>
-													renderUserInlineBlock(blocks, block, index),
-											)
+										? renderUserInlineContent(displayState.userInlineContent)
 										: markdown || ""}
 								</span>
 							)}
