@@ -293,12 +293,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										>
 											{chat.title}
 										</span>
-										{isSharedChat && (
-											<UsersIcon
-												className="size-3.5 shrink-0 text-content-secondary"
-												aria-label="Shared chat"
-											/>
-										)}
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
 										)}
@@ -337,7 +331,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+						<div className="relative my-1 flex w-7 shrink-0 self-stretch items-start justify-end">
 							{isArchivingThisChat ? (
 								<Spinner
 									className="h-3.5 w-3.5 text-content-secondary"
@@ -345,10 +339,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								/>
 							) : (
 								<>
-									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+									<span className="flex h-full flex-col items-end justify-between text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
-												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
+												className="mt-1 size-2 shrink-0 rounded-full bg-content-link pr-1"
 												data-testid={`unread-indicator-${chat.id}`}
 												aria-hidden="true"
 											/>
@@ -356,6 +350,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											<span data-chromatic="ignore">
 												{shortRelativeTime(chat.updated_at)}
 											</span>
+										)}
+										{isSharedChat && (
+											<UsersIcon
+												className="size-3.5 shrink-0 text-content-secondary"
+												aria-label="Shared chat"
+											/>
 										)}
 									</span>
 									<DropdownMenu>
