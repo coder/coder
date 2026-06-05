@@ -45,56 +45,58 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full items-center gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3",
+				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
-			<SearchIcon className="size-4 shrink-0 text-content-secondary" />
-			{completedFilters.map((f) => (
-				<span
-					key={f.key}
-					className="inline-flex shrink-0 items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
-				>
-					<span>
-						{f.key}:{f.value}
-					</span>
-					<button
-						type="button"
-						onClick={(e) => {
-							e.stopPropagation();
-							onRemoveFilter(f.key);
-						}}
-						className="inline-flex cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary"
-						aria-label={`Remove ${f.key} filter`}
+			<SearchIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+			<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+				{completedFilters.map((f) => (
+					<span
+						key={f.key}
+						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
 					>
-						<XIcon className="size-3" />
-					</button>
-				</span>
-			))}
-			{incompleteFilter && (
-				<span className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
-					{incompleteFilter.key}:
-				</span>
-			)}
-			<input
-				ref={inputRef}
-				value={value}
-				onChange={onChange}
-				onKeyDown={onKeyDown}
-				placeholder={filters.length > 0 ? "" : "Search chats..."}
-				className="min-w-[60px] flex-1 border-none bg-transparent py-2 text-sm text-content-primary outline-none placeholder:text-content-disabled"
-				aria-label="Search chats"
-				role="combobox"
-				aria-controls={hasResults ? listboxId : undefined}
-				aria-expanded={hasResults}
-				aria-haspopup="listbox"
-				aria-activedescendant={activeResultId}
-			/>
+						<span className="block min-w-0 truncate">
+							{f.key}:{f.value}
+						</span>
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onRemoveFilter(f.key);
+							}}
+							className="inline-flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary"
+							aria-label={`Remove ${f.key} filter`}
+						>
+							<XIcon className="size-3" />
+						</button>
+					</span>
+				))}
+				{incompleteFilter && (
+					<span className="inline-flex shrink-0 items-center rounded-md border border-dashed border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
+						{incompleteFilter.key}:
+					</span>
+				)}
+				<input
+					ref={inputRef}
+					value={value}
+					onChange={onChange}
+					onKeyDown={onKeyDown}
+					placeholder={filters.length > 0 ? "" : "Search chats..."}
+					className="min-w-[60px] flex-1 basis-[60px] border-none bg-transparent py-0.5 text-sm text-content-primary outline-none placeholder:text-content-disabled"
+					aria-label="Search chats"
+					role="combobox"
+					aria-controls={hasResults ? listboxId : undefined}
+					aria-expanded={hasResults}
+					aria-haspopup="listbox"
+					aria-activedescendant={activeResultId}
+				/>
+			</div>
 			<button
 				type="button"
 				onClick={onToggleDropdown}
 				className={cn(
-					"inline-flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary",
+					"mt-0.5 inline-flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary",
 					isDropdownOpen && "text-content-primary",
 				)}
 				aria-label="Toggle filters"

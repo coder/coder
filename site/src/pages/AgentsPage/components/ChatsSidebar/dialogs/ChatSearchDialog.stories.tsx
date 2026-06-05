@@ -84,6 +84,8 @@ const cappedMockChats: Chat[] = Array.from(
 		diff_status: undefined,
 	}),
 );
+const longDiffURL =
+	"https://github.com/coder/coder/pull/26016/files/1234567890abcdef1234567890abcdef1234567890abcdef";
 
 const meta: Meta<typeof ChatSearchDialog> = {
 	title: "pages/AgentsPage/ChatSearchDialog",
@@ -455,6 +457,45 @@ export const ParameterizedFilterPill: Story = {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
 				q: "pr_status:open",
+			});
+		});
+	},
+};
+
+export const DiffURLFilterPill: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Diff URL"));
+
+		await expect(await body.findByText("diff_url:")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, `${longDiffURL} `);
+
+		const diffURLPill = await body.findByText(`diff_url:${longDiffURL}`);
+		await expect(diffURLPill).toBeInTheDocument();
+		await expect(searchInput).toBeVisible();
+
+		const dialog = body.getByRole("dialog");
+		const searchContainer = searchInput.parentElement;
+		const searchWrapper = searchContainer?.parentElement;
+		if (!searchContainer || !searchWrapper) {
+			throw new Error(
+				"Expected search input to render inside nested containers",
+			);
+		}
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: `diff_url:"${longDiffURL}"`,
 			});
 		});
 	},

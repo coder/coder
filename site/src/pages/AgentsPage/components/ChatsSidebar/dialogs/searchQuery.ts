@@ -62,7 +62,7 @@ const getKeyValueDelimiterIndex = (token: string): number | undefined => {
 
 const getKeyValuePair = (
 	token: string,
-): { key: string; value: string } | undefined => {
+): { key: string; rawKey: string; value: string } | undefined => {
 	const delimiterIndex = getKeyValueDelimiterIndex(token);
 	if (
 		delimiterIndex === undefined ||
@@ -72,10 +72,25 @@ const getKeyValuePair = (
 		return undefined;
 	}
 
+	const rawKey = token.slice(0, delimiterIndex).replaceAll('"', "");
 	return {
-		key: token.slice(0, delimiterIndex).replaceAll('"', "").toLowerCase(),
+		key: rawKey.toLowerCase(),
+		rawKey,
 		value: token.slice(delimiterIndex + 1).replace(/^"|"$/g, ""),
 	};
+};
+
+const normalizePassthroughChatSearchFilter = ({
+	rawKey,
+	value,
+}: {
+	readonly rawKey: string;
+	readonly value: string;
+}): string => {
+	const sanitizedValue = sanitizeChatSearchValue(value);
+	return sanitizedValue.includes(":")
+		? `${rawKey}:"${sanitizedValue}"`
+		: `${rawKey}:${sanitizedValue}`;
 };
 
 /**
@@ -83,7 +98,7 @@ const getKeyValuePair = (
  *
  * Bare text and `title:` filters are merged into a single `title:"..."`
  * filter (the backend rejects a parameter that appears more than once).
- * Recognized `key:value` filters pass through unchanged.
+ * Recognized `key:value` filters are normalized for backend syntax.
  */
 export const normalizeChatSearchInput = (
 	rawInput: string,
@@ -95,6 +110,7 @@ export const normalizeChatSearchInput = (
 
 	const tokens = splitSearchInput(trimmedInput);
 	const keyValuePairs: string[] = [];
+	const normalizedTokens: string[] = [];
 	const titleTerms: string[] = [];
 	let hasBareTitleText = false;
 
@@ -107,6 +123,7 @@ export const normalizeChatSearchInput = (
 		}
 
 		if (keyValuePair.key === "title") {
+			normalizedTokens.push(token);
 			titleTerms.push(keyValuePair.value);
 			continue;
 		}
@@ -117,7 +134,9 @@ export const normalizeChatSearchInput = (
 			continue;
 		}
 
-		keyValuePairs.push(token);
+		const normalizedFilter = normalizePassthroughChatSearchFilter(keyValuePair);
+		keyValuePairs.push(normalizedFilter);
+		normalizedTokens.push(normalizedFilter);
 	}
 
 	// Multiple title values must be merged into a single title filter because
@@ -127,7 +146,7 @@ export const normalizeChatSearchInput = (
 	}
 
 	if (!hasBareTitleText) {
-		return trimmedInput;
+		return normalizedTokens.join(" ");
 	}
 
 	return [
