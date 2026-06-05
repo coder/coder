@@ -320,18 +320,18 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 self-stretch items-start justify-end">
-							{isArchivingThisChat ? (
-								<Spinner
-									className="h-3.5 w-3.5 text-content-secondary"
-									loading
-								/>
-							) : (
-								<>
-									<span className="flex h-full flex-col items-end justify-between text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+								{isArchivingThisChat ? (
+									<Spinner
+										className="h-3.5 w-3.5 text-content-secondary"
+										loading
+									/>
+								) : (
+									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
-												className="mt-1 size-2 shrink-0 rounded-full bg-content-link pr-1"
+												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
 												data-testid={`unread-indicator-${chat.id}`}
 												aria-hidden="true"
 											/>
@@ -340,36 +340,36 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												{shortRelativeTime(chat.updated_at)}
 											</span>
 										)}
-										{isSharedChat && (
-											<UsersIcon
-												className="size-3.5 shrink-0 text-content-secondary"
-												aria-label="Shared chat"
-											/>
-										)}
 									</span>
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-												aria-label={`Open actions for ${chat.title}`}
-											>
-												<EllipsisVerticalIcon className="size-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="[&_[role=menuitem]]:text-[13px]"
-										>
-											{renderMenuItems({
-												Item: DropdownMenuItem,
-												Separator: DropdownMenuSeparator,
-											})}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</>
+								)}
+							</div>
+							{isSharedChat && (
+								<UsersIcon
+									className="mt-auto size-3.5 text-content-secondary"
+									aria-label="Shared chat"
+								/>
 							)}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisVerticalIcon className="size-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
+									{renderMenuItems({
+										Item: DropdownMenuItem,
+										Separator: DropdownMenuSeparator,
+									})}
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</div>
 				</ContextMenuTrigger>
