@@ -29,13 +29,12 @@ export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
 export type ChatListStatusFilter = "read" | "unread";
-type ChatListSourceFilter = "created_by_me" | "shared_with_me" | "all";
 
 type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
-	source?: ChatListSourceFilter;
+	source?: TypesGen.ChatListScope;
 }>;
 
 export const infiniteChatsKey = (filters?: InfiniteChatsFilters) =>

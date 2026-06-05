@@ -175,6 +175,7 @@ describe("ChatsSidebar filters", () => {
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
 			chatStatuses: ["unread"],
+			sources: ["shared_with_me"],
 		};
 
 		render(
@@ -201,6 +202,53 @@ describe("ChatsSidebar filters", () => {
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: ["unread", "read"],
+			sources: ["created_by_me"],
+		});
+	});
+
+	it("applies source filters", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		const { rerender } = render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["created_by_me", "shared_with_me"],
+		});
+
+		rerender(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						sources: ["created_by_me", "shared_with_me"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["shared_with_me"],
 		});
 	});
 

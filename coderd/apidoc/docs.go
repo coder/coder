@@ -16523,6 +16523,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "shared": {
+                    "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
                     "type": "boolean"
                 },
                 "status": {

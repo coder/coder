@@ -1348,6 +1348,39 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			Name:  "SourceCreatedByMe",
+			Query: "source:created_by_me",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceSharedWithMe",
+			Query: "source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceAll",
+			Query: "source:all",
+			Expected: database.GetChatsParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:                  "SourceInvalid",
+			Query:                 "source:mine",
+			ExpectedErrorContains: "source",
+		},
+		{
+			Name:                  "SourceRepeated",
+			Query:                 "source:created_by_me source:shared_with_me",
+			ExpectedErrorContains: "source",
+		},
+		{
 			Name:                  "ExtraParam",
 			Query:                 "archived:true invalid:param",
 			ExpectedErrorContains: "is not a valid query param",

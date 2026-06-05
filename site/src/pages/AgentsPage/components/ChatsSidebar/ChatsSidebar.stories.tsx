@@ -209,6 +209,31 @@ export const SharedChat: Story = {
 	},
 };
 
+export const SharedUnreadChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-unread-chat",
+				title: "Shared unread chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+				last_turn_summary: "Original unread chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(
+			canvas.getByTestId("unread-indicator-shared-unread-chat"),
+		).toBeInTheDocument();
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
