@@ -3659,6 +3659,35 @@ func TestEnabledProviderContainsName(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:      "empty providers",
+			providers: []database.AIProvider{},
+			query:     "anthropic",
+			want:      false,
+		},
+		{
+			// First provider fails canonicalization; second matches canonically.
+			// Verifies the first-pass loop continues on error rather than aborting.
+			name: "first provider fails canonicalization, second matches canonically",
+			providers: []database.AIProvider{
+				{
+					Type:     database.AiProviderTypeAnthropic,
+					Settings: sql.NullString{String: "{", Valid: true},
+				},
+				{Type: database.AiProviderTypeAnthropic},
+			},
+			query: "anthropic",
+			want:  true,
+		},
+		{
+			// enabledProviderContainsName has no Enabled guard; callers pre-filter.
+			name: "disabled provider still matches",
+			providers: []database.AIProvider{
+				{Type: database.AiProviderTypeAnthropic, Enabled: false},
+			},
+			query: "anthropic",
+			want:  true,
+		},
+		{
 			name: "no match",
 			providers: []database.AIProvider{
 				{Type: database.AiProviderTypeOpenai},

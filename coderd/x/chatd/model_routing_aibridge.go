@@ -215,15 +215,6 @@ func fantasyConfigForAIBridge(providerType codersdk.AIProviderType) aibridgeFant
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType codersdk.AIProviderType) aiGatewayRequestFormat {
-	switch providerType {
-	case codersdk.AIProviderTypeAnthropic, codersdk.AIProviderTypeBedrock:
-		return aiGatewayRequestFormatAnthropic
-	default:
-		return aiGatewayRequestFormatOpenAI
-	}
-}
-
 func (p *Server) aiGatewayProviderAuthForUser(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -264,12 +255,12 @@ func (p *Server) resolveAIGatewayRoute(
 	provider database.AIProvider,
 	modelProviderHint string,
 ) (resolvedModelRoute, error) {
-	auth, err := p.aiGatewayProviderAuthForUser(
-		ctx,
-		ownerID,
-		provider,
-		aiGatewayRequestFormatForProviderType(codersdk.AIProviderType(modelProviderHint)),
-	)
+	format := aiGatewayRequestFormatOpenAI
+	switch codersdk.AIProviderType(modelProviderHint) {
+	case codersdk.AIProviderTypeAnthropic, codersdk.AIProviderTypeBedrock:
+		format = aiGatewayRequestFormatAnthropic
+	}
+	auth, err := p.aiGatewayProviderAuthForUser(ctx, ownerID, provider, format)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
 	}

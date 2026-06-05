@@ -338,6 +338,7 @@ func TestResolveAIGatewayModelRouteForProviderTypeMatchesCanonicalBedrockForAnth
 	require.NoError(t, err)
 
 	require.Equal(t, modelRouteKindAIGateway, route.kind)
+	require.Equal(t, providerID, route.aiGateway.Provider.ID)
 	providerHint, err := route.providerHint()
 	require.NoError(t, err)
 	require.Equal(t, "bedrock", providerHint)
@@ -371,11 +372,19 @@ func TestAIProviderConfigFromKeysFallsBackToRawTypeOnMalformedSettings(t *testin
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
+	// Build valid Bedrock settings then corrupt the JSON. If parsing succeeded,
+	// CanonicalAIProviderType would return "bedrock". The fallback must return
+	// the raw provider.Type ("anthropic"), confirming the fallback path fired.
+	bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+
 	provider := database.AIProvider{
 		ID:       uuid.New(),
 		Type:     database.AiProviderTypeAnthropic,
 		Enabled:  true,
-		Settings: sql.NullString{String: "{", Valid: true},
+		Settings: sql.NullString{String: string(bedrockSettings[:len(bedrockSettings)-1]), Valid: true},
 	}
 
 	server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
