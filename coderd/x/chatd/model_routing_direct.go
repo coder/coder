@@ -103,8 +103,7 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	}
 	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
-		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-		canonicalType = codersdk.AIProviderType(provider.Type)
+		return "", nil, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
 	}
 	return string(canonicalType), &provider, nil
 }

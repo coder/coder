@@ -307,6 +307,83 @@ func TestResolveDirectModelRouteForProviderTypeFallsBackToRawProviderType(t *tes
 	require.Equal(t, "test-key", route.directProviderKeys().APIKey("openai"))
 }
 
+func TestResolveAIGatewayModelRouteForProviderTypeMatchesCanonicalBedrockForAnthropicRequest(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	rawSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+	provider := database.AIProvider{
+		ID:       providerID,
+		Type:     database.AiProviderTypeAnthropic,
+		Enabled:  true,
+		Settings: sql.NullString{String: string(rawSettings), Valid: true},
+	}
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{provider}, nil)
+
+	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	route, err := server.resolveAIGatewayModelRouteForProviderType(
+		ctx,
+		ownerID,
+		chattool.ComputerUseProviderAnthropic,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, modelRouteKindAIGateway, route.kind)
+	providerHint, err := route.providerHint()
+	require.NoError(t, err)
+	require.Equal(t, "bedrock", providerHint)
+}
+
+func TestDirectProviderHintAndProviderForConfigErrorsOnMalformedSettings(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	providerID := uuid.New()
+
+	provider := database.AIProvider{
+		ID:       providerID,
+		Type:     database.AiProviderTypeAnthropic,
+		Enabled:  true,
+		Settings: sql.NullString{String: "{", Valid: true},
+	}
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil)
+
+	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	_, _, err := server.directProviderHintAndProviderForConfig(ctx, database.ChatModelConfig{
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+	})
+	require.Error(t, err)
+}
+
+func TestAIProviderConfigFromKeysFallsBackToRawTypeOnMalformedSettings(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	provider := database.AIProvider{
+		ID:       uuid.New(),
+		Type:     database.AiProviderTypeAnthropic,
+		Enabled:  true,
+		Settings: sql.NullString{String: "{", Valid: true},
+	}
+
+	server := &Server{logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	cfg, err := server.aiProviderConfigFromKeys(ctx, provider, nil)
+	require.NoError(t, err)
+	require.Equal(t, string(database.AiProviderTypeAnthropic), cfg.Provider)
+}
+
 func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
 	t.Parallel()
 
