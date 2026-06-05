@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -2551,10 +2552,11 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = api.Database.InTx(func(tx database.Store) error {
-		locked, err := tx.GetChatByIDForUpdate(sysCtx, chat.ID)
+	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
+	err = machine.Update(sysCtx, func(tx *chatstate.Tx, store database.Store) error {
+		locked, err := store.GetChatByID(sysCtx, chat.ID)
 		if err != nil {
-			return xerrors.Errorf("lock chat: %w", err)
+			return xerrors.Errorf("load chat: %w", err)
 		}
 		if !isActiveAgentChat(locked) {
 			return errChatNotActive
@@ -2565,41 +2567,68 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if locked.OwnerID != workspace.OwnerID {
 			return errChatDoesNotBelongToWorkspaceOwner
 		}
-		apiKeyID, err := resolveAgentChatContextAPIKeyID(sysCtx, tx, locked)
+		apiKeyID, err := resolveAgentChatContextAPIKeyID(sysCtx, store, locked)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
-			chat.ID,
-			apiKeyID,
-			content,
-			database.ChatMessageVisibilityBoth,
-			locked.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			uuid.Nil,
-		)); err != nil {
-			return xerrors.Errorf("insert context message: %w", err)
+		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message: chatstate.Message{
+				Role:           database.ChatMessageRoleUser,
+				Content:        content,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: locked.LastModelConfigID, Valid: locked.LastModelConfigID != uuid.Nil},
+				CreatedBy:      uuid.NullUUID{UUID: locked.OwnerID, Valid: locked.OwnerID != uuid.Nil},
+				ContentVersion: chatprompt.CurrentContentVersion,
+				APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
+			},
+			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		})
+		if err != nil {
+			return err
 		}
-		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, tx, chat.ID); err != nil {
+		if len(sendResult.InsertedMessages) == 0 {
+			return nil
+		}
+		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, store, chat.ID); err != nil {
 			return xerrors.Errorf("rebuild injected context cache: %w", err)
 		}
 		return nil
-	}, nil)
+	})
 	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
+		switch {
+		case errors.Is(err, errChatNotActive), errors.Is(err, errChatDoesNotBelongToAgent), errors.Is(err, errChatDoesNotBelongToWorkspaceOwner):
 			writeAgentChatError(ctx, rw, err)
-			return
-		}
-		if errors.Is(err, errChatAPIKeyAttributionUnavailable) {
+		case errors.Is(err, errChatAPIKeyAttributionUnavailable):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Cannot modify context: chat has no API key attribution.",
 			})
-			return
+		case errors.Is(err, chatstate.ErrMessageQueueFull):
+			var queueFull *chatstate.MessageQueueFullError
+			detail := ""
+			if errors.As(err, &queueFull) {
+				detail = fmt.Sprintf("Maximum %d messages can be queued.", queueFull.Max)
+			}
+			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
+				Message: "Message queue is full.",
+				Detail:  detail,
+			})
+		case errors.Is(err, chatstate.ErrInvalidState):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is in an invalid state.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is not in a state that accepts new context.",
+				Detail:  err.Error(),
+			})
+		case errors.Is(err, chatstate.ErrChatNotFound):
+			writeAgentChatError(ctx, rw, errChatNotFound)
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to persist context message.",
+				Detail:  err.Error(),
+			})
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to persist context message.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
