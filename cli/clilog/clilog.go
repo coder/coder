@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -108,10 +109,10 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		switch loc {
 		case "", "/dev/null":
 		case "/dev/stdout":
-			sinks = append(sinks, sinkFn(DiscardOnPipeError(inv.Stdout)))
+			sinks = append(sinks, sinkFn(MaybeDiscardOnPipeError(inv.Stdout)))
 
 		case "/dev/stderr":
-			sinks = append(sinks, sinkFn(DiscardOnPipeError(inv.Stderr)))
+			sinks = append(sinks, sinkFn(MaybeDiscardOnPipeError(inv.Stderr)))
 
 		default:
 			logWriter := &LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
@@ -241,12 +242,13 @@ func (c *LumberjackWriteCloseFixer) Write(p []byte) (int, error) {
 	return c.Writer.Write(p)
 }
 
-// DiscardOnPipeError wraps w so writes that fail because the reader is gone
-// (io.ErrClosedPipe, syscall.EPIPE) are dropped; all other errors are
-// returned. Background goroutines can log to a CLI sink after shutdown closes
-// the reader, and reporting those writes is noise that slog can leak into
-// go test output. See https://github.com/coder/slog/issues/225.
-func DiscardOnPipeError(w io.Writer) io.Writer {
+// MaybeDiscardOnPipeError wraps w so writes to alternate CLI sinks that fail
+// because the reader is gone are dropped. It leaves os.Stdout and os.Stderr
+// unchanged so production pipe errors keep their existing behavior.
+func MaybeDiscardOnPipeError(w io.Writer) io.Writer {
+	if w == os.Stdout || w == os.Stderr {
+		return w
+	}
 	return &discardOnPipeError{w: w}
 }
 

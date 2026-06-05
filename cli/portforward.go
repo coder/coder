@@ -112,7 +112,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 
 			logger := inv.Logger
 			if r.verbose {
-				opts.Logger = logger.AppendSinks(sloghuman.Sink(clilog.DiscardOnPipeError(inv.Stdout))).Leveled(slog.LevelDebug)
+				opts.Logger = logger.AppendSinks(sloghuman.Sink(clilog.MaybeDiscardOnPipeError(inv.Stdout))).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
