@@ -114,20 +114,51 @@ func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Du
 }
 
 func sshWorkspaceChoices(workspaces []codersdk.Workspace) []string {
-	var choices []string
-
-	switch len(workspaces) {
-	case 0:
-		return []string{}
-	case 1:
-		choices := append(choices, workspaces[0].Name)
-		return choices
-	default:
-		for _, ws := range workspaces {
-			choices = append(choices, ws.Name)
-		}
-		return choices
+	choices := make([]string, 0, len(workspaces))
+	for _, ws := range workspaces {
+		choices = append(choices, ws.Name)
 	}
+	return choices
+}
+
+func collectWorkspaceAgents(workspace codersdk.Workspace) []codersdk.WorkspaceAgent {
+	var agents []codersdk.WorkspaceAgent
+	for _, resource := range workspace.LatestBuild.Resources {
+		agents = append(agents, resource.Agents...)
+	}
+	return agents
+}
+
+func resolveSSHWorkspaceTarget(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace) (string, error) {
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	if err != nil {
+		return "", err
+	}
+	return resolveSSHWorkspaceTargetFromAgents(inv, workspace, collectWorkspaceAgents(workspace))
+}
+
+func resolveSSHWorkspaceTargetFromAgents(inv *serpent.Invocation, workspace codersdk.Workspace, agents []codersdk.WorkspaceAgent) (string, error) {
+	if len(agents) == 0 {
+		return "", xerrors.Errorf("workspace %q has no agents", workspace.Name)
+	}
+	if len(agents) == 1 {
+		return workspace.Name, nil
+	}
+
+	agentNames := make([]string, 0, len(agents))
+	for _, agent := range agents {
+		agentNames = append(agentNames, agent.Name)
+	}
+	slices.Sort(agentNames)
+
+	selected, err := cliui.Select(inv, cliui.SelectOptions{
+		Message: fmt.Sprintf("Select an agent in workspace %q:", workspace.Name),
+		Options: agentNames,
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", workspace.Name, selected), nil
 }
 
 func resolveSSHWorkspaceArg(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client) (string, error) {
@@ -143,21 +174,24 @@ func resolveSSHWorkspaceArg(ctx context.Context, inv *serpent.Invocation, client
 		return "", err
 	}
 
-	choices := sshWorkspaceChoices(res.Workspaces)
-	switch len(choices) {
+	switch len(res.Workspaces) {
 	case 0:
 		return "", xerrors.New("no running workspaces found; start one with \"coder start <workspace>\" or run \"coder list\"")
 	case 1:
-		_, err := cliui.Prompt(inv, cliui.PromptOptions{
-			Text:      fmt.Sprintf("Connect to workspace %q?", choices[0]),
-			IsConfirm: true,
-			Default:   cliui.ConfirmYes,
-		})
-		if err != nil {
-			return "", err
+		workspace := res.Workspaces[0]
+		if len(collectWorkspaceAgents(workspace)) <= 1 {
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Connect to workspace %q?", workspace.Name),
+				IsConfirm: true,
+				Default:   cliui.ConfirmYes,
+			})
+			if err != nil {
+				return "", err
+			}
 		}
-		return choices[0], nil
+		return resolveSSHWorkspaceTarget(ctx, inv, client, workspace)
 	default:
+		choices := sshWorkspaceChoices(res.Workspaces)
 		selected, err := cliui.Select(inv, cliui.SelectOptions{
 			Message: "Select a workspace:",
 			Options: choices,
@@ -165,9 +199,9 @@ func resolveSSHWorkspaceArg(ctx context.Context, inv *serpent.Invocation, client
 		if err != nil {
 			return "", err
 		}
-		for _, choice := range choices {
-			if choice == selected {
-				return choice, nil
+		for _, workspace := range res.Workspaces {
+			if workspace.Name == selected {
+				return resolveSSHWorkspaceTarget(ctx, inv, client, workspace)
 			}
 		}
 		return "", xerrors.Errorf("unknown workspace selected: %q", selected)

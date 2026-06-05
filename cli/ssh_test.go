@@ -77,6 +77,28 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	return userClient, r.Workspace, r.AgentToken
 }
 
+type sshInteractiveSession struct {
+	stdout *expecter.Expecter
+	stdin  *testutil.Writer
+	waiter *clitest.ErrorWaiter
+	ctx    context.Context
+}
+
+func startInteractiveSSH(t *testing.T, client *codersdk.Client, wait time.Duration) sshInteractiveSession {
+	t.Helper()
+
+	logger := testutil.Logger(t)
+	inv, root := clitest.New(t, "--force-tty", "ssh")
+	clitest.SetupConfig(t, client, root)
+	ctx := testutil.Context(t, wait)
+	return sshInteractiveSession{
+		stdout: expecter.NewAttachedToInvocation(t, inv),
+		stdin:  testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv),
+		waiter: clitest.StartWithWaiter(t, inv.WithContext(ctx)),
+		ctx:    ctx,
+	}
+}
+
 func TestSSH(t *testing.T) {
 	t.Parallel()
 	t.Run("ImmediateExit", func(t *testing.T) {
@@ -2605,48 +2627,38 @@ func TestSSH_Completion(t *testing.T) {
 func TestSSH_SelectWorkspace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SingleRunningConfirmYes", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		confirm  string
+		wait     time.Duration
+		wantExit bool
+	}{
+		{name: "SingleRunningConfirmYes", confirm: "yes", wait: testutil.WaitLong, wantExit: true},
+		{name: "SingleRunningConfirmNo", confirm: "no", wait: testutil.WaitMedium, wantExit: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		logger := testutil.Logger(t)
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "--force-tty", "ssh")
-		clitest.SetupConfig(t, client, root)
-		stdout := expecter.NewAttachedToInvocation(t, inv)
-		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+			client, workspace, agentToken := setupWorkspaceForAgent(t)
+			session := startInteractiveSSH(t, client, tc.wait)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+			session.stdout.ExpectMatch(session.ctx, "Connect to workspace")
+			session.stdin.WriteLine(tc.confirm)
+			if tc.wantExit {
+				session.stdout.ExpectMatch(session.ctx, "Waiting")
+			}
 
-		stdout.ExpectMatch(ctx, "Connect to workspace")
-		stdin.WriteLine("yes")
-		stdout.ExpectMatch(ctx, "Waiting")
+			_ = agenttest.New(t, client.URL, agentToken)
+			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		stdin.WriteLine("exit")
-		require.NoError(t, w.Wait())
-	})
-
-	t.Run("SingleRunningConfirmNo", func(t *testing.T) {
-		t.Parallel()
-		logger := testutil.Logger(t)
-		client, workspace, agentToken := setupWorkspaceForAgent(t)
-		inv, root := clitest.New(t, "--force-tty", "ssh")
-		clitest.SetupConfig(t, client, root)
-		stdout := expecter.NewAttachedToInvocation(t, inv)
-		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
-		stdout.ExpectMatch(ctx, "Connect to workspace")
-		stdin.WriteLine("no")
-
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		require.Error(t, w.Wait()) // cliui.ErrCanceled
-	})
+			if tc.wantExit {
+				session.stdin.WriteLine("exit")
+				require.NoError(t, session.waiter.Wait())
+				return
+			}
+			require.Error(t, session.waiter.Wait()) // cliui.ErrCanceled
+		})
+	}
 
 	t.Run("StdioRequiresWorkspace", func(t *testing.T) {
 		t.Parallel()
@@ -2664,5 +2676,115 @@ func TestSSH_SelectWorkspace(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
 		require.ErrorContains(t, err, "workspace is required when not running interactively")
+	})
+
+	t.Run("NoRunningWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		env := cli.SetupSSHWorkspaceSelectTestEnv(t)
+		r := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "stoppedworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent().Do()
+		cli.SSHStopWorkspace(t, env.Store, r.Workspace, r.Build.BuildNumber)
+
+		inv, root := clitest.New(t, "--force-tty", "ssh")
+		clitest.SetupConfig(t, env.UserClient, root)
+		err := inv.Run()
+		require.ErrorContains(t, err, "no running workspaces found; start one with \"coder start <workspace>\" or run \"coder list\"")
+	})
+
+	t.Run("SingleRunningNoAgents", func(t *testing.T) {
+		t.Parallel()
+
+		env := cli.SetupSSHWorkspaceSelectTestEnv(t)
+		_ = dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "noagentworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).Do()
+
+		session := startInteractiveSSH(t, env.UserClient, testutil.WaitMedium)
+		session.stdout.ExpectMatch(session.ctx, "Connect to workspace")
+		session.stdin.WriteLine("yes")
+		require.ErrorContains(t, session.waiter.Wait(), "has no agents")
+	})
+
+	t.Run("SingleRunningMultiAgent", func(t *testing.T) {
+		t.Parallel()
+
+		env := cli.SetupSSHWorkspaceSelectTestEnv(t)
+		r := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "multiworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent(cli.SSHDualAgentMutator()).Do()
+
+		session := startInteractiveSSH(t, env.UserClient, testutil.WaitLong)
+
+		// Multi-agent workspaces skip the workspace confirm prompt.
+		session.stdout.ExpectNoMatchBefore(session.ctx, "Connect to workspace", "Waiting")
+
+		// cliui.Select auto-selects the first agent under test.v.
+		_ = agenttest.New(t, env.Client.URL, cli.SSHWorkspaceAgentToken(t, r.Agents, "agent1"))
+		coderdtest.AwaitWorkspaceAgents(t, env.Client, r.Workspace.ID, "agent1")
+
+		session.stdin.WriteLine("exit")
+		require.NoError(t, session.waiter.Wait())
+	})
+
+	t.Run("SingleRunningMultiAgentCancel", func(t *testing.T) {
+		t.Parallel()
+
+		env := cli.SetupSSHWorkspaceSelectTestEnv(t)
+		_ = dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "multiworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent(cli.SSHDualAgentMutator()).Do()
+
+		inv, root := clitest.New(t, "--force-tty", "ssh")
+		clitest.SetupConfig(t, env.UserClient, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx, cancel := context.WithCancel(ctx)
+		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+
+		// cliui.Select auto-selects the first agent under test.v, so cancel
+		// during the subsequent agent connection wait.
+		stdout.ExpectNoMatchBefore(ctx, "Connect to workspace", "Waiting")
+		cancel()
+		require.ErrorIs(t, waiter.Wait(), cliui.ErrCanceled)
+	})
+
+	t.Run("MultipleRunningWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		env := cli.SetupSSHWorkspaceSelectTestEnv(t)
+		alpha := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "alpha",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent().Do()
+
+		_ = dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "beta",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+			TemplateID:     alpha.Template.ID,
+		}).WithAgent().Do()
+
+		session := startInteractiveSSH(t, env.UserClient, testutil.WaitLong)
+
+		// cliui.Select auto-selects the first workspace under test.v.
+		session.stdout.ExpectMatch(session.ctx, "Waiting")
+
+		_ = agenttest.New(t, env.Client.URL, alpha.AgentToken)
+		coderdtest.AwaitWorkspaceAgents(t, env.Client, alpha.Workspace.ID)
+
+		session.stdin.WriteLine("exit")
+		require.NoError(t, session.waiter.Wait())
 	})
 }

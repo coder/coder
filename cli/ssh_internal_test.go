@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -21,9 +23,14 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 const (
@@ -615,6 +622,234 @@ func TestRetryWithInterval(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Equal(t, 1, attempts)
+	})
+}
+
+func TestSSH_collectWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	workspace := codersdk.Workspace{
+		LatestBuild: codersdk.WorkspaceBuild{
+			Resources: []codersdk.WorkspaceResource{
+				{Agents: []codersdk.WorkspaceAgent{{Name: "agent1"}}},
+				{Agents: []codersdk.WorkspaceAgent{{Name: "agent2"}}},
+			},
+		},
+	}
+
+	agents := collectWorkspaceAgents(workspace)
+	require.Len(t, agents, 2)
+	require.Equal(t, "agent1", agents[0].Name)
+	require.Equal(t, "agent2", agents[1].Name)
+}
+
+func TestSSH_resolveSSHWorkspaceTarget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SingleAgent", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := codersdk.Workspace{
+			Name: "myworkspace",
+			LatestBuild: codersdk.WorkspaceBuild{
+				Resources: []codersdk.WorkspaceResource{
+					{Agents: []codersdk.WorkspaceAgent{{Name: "dev"}}},
+				},
+			},
+		}
+
+		target, err := resolveSSHWorkspaceTargetFromAgents(&serpent.Invocation{}, workspace, collectWorkspaceAgents(workspace))
+		require.NoError(t, err)
+		require.Equal(t, "myworkspace", target)
+	})
+
+	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := codersdk.Workspace{Name: "myworkspace"}
+		_, err := resolveSSHWorkspaceTargetFromAgents(&serpent.Invocation{}, workspace, nil)
+		require.ErrorContains(t, err, "has no agents")
+	})
+
+	t.Run("MultipleAgents", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := codersdk.Workspace{Name: "myworkspace"}
+		agents := []codersdk.WorkspaceAgent{{Name: "agent2"}, {Name: "agent1"}}
+
+		// cliui.Select auto-selects the first option under test.v.
+		target, err := resolveSSHWorkspaceTargetFromAgents(&serpent.Invocation{}, workspace, agents)
+		require.NoError(t, err)
+		require.Equal(t, "myworkspace.agent1", target)
+	})
+}
+
+type sshWorkspaceSelectEnv struct {
+	Client     *codersdk.Client
+	Store      database.Store
+	UserClient *codersdk.Client
+	OrgID      uuid.UUID
+	OwnerID    uuid.UUID
+}
+
+func setupSSHWorkspaceSelectEnv(t *testing.T) sshWorkspaceSelectEnv {
+	t.Helper()
+
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+	return sshWorkspaceSelectEnv{
+		Client:     client,
+		Store:      store,
+		UserClient: userClient,
+		OrgID:      first.OrganizationID,
+		OwnerID:    user.ID,
+	}
+}
+
+func sshDualAgentMutator() func([]*proto.Agent) []*proto.Agent {
+	return func([]*proto.Agent) []*proto.Agent {
+		return []*proto.Agent{
+			{Name: "agent1", Auth: &proto.Agent_Token{}},
+			{Name: "agent2", Auth: &proto.Agent_Token{}},
+		}
+	}
+}
+
+func sshStopWorkspace(t *testing.T, store database.Store, workspace database.WorkspaceTable, buildNumber int32) {
+	t.Helper()
+
+	dbfake.WorkspaceBuild(t, store, workspace).
+		Seed(database.WorkspaceBuild{
+			Transition:  database.WorkspaceTransitionStop,
+			BuildNumber: buildNumber + 1,
+		}).
+		Do()
+}
+
+func sshWorkspaceAgentToken(t *testing.T, agents []database.WorkspaceAgent, name string) string {
+	t.Helper()
+
+	for _, agent := range agents {
+		if agent.Name == name {
+			return agent.AuthToken.String()
+		}
+	}
+	require.FailNowf(t, "agent not found", "no agent named %q", name)
+	return ""
+}
+
+func sshTTYInvocation(t *testing.T) *serpent.Invocation {
+	t.Helper()
+	return sshTTYInvocationWithInput(t, "")
+}
+
+func sshTTYInvocationWithInput(t *testing.T, input string) *serpent.Invocation {
+	t.Helper()
+
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	_ = flags.Bool(varForceTty, true, "")
+	require.NoError(t, flags.Parse([]string{"--" + varForceTty}))
+	stdin := io.Reader(os.Stdin)
+	if input != "" {
+		stdin = strings.NewReader(input)
+	}
+	return (&serpent.Invocation{
+		Stdin:  stdin,
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+	}).WithTestParsedFlags(t, flags)
+}
+
+func TestSSH_resolveSSHWorkspaceArg(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoRunningWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		env := setupSSHWorkspaceSelectEnv(t)
+		r := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "stoppedworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent().Do()
+		sshStopWorkspace(t, env.Store, r.Workspace, r.Build.BuildNumber)
+
+		inv := sshTTYInvocation(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := resolveSSHWorkspaceArg(ctx, inv, env.UserClient)
+		require.ErrorContains(t, err, "no running workspaces found; start one with \"coder start <workspace>\" or run \"coder list\"")
+	})
+
+	t.Run("MultipleRunningWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		env := setupSSHWorkspaceSelectEnv(t)
+		alpha := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "alpha",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent().Do()
+
+		_ = dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "beta",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+			TemplateID:     alpha.Template.ID,
+		}).WithAgent().Do()
+
+		inv := sshTTYInvocation(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// cliui.Select auto-selects the first workspace under test.v.
+		target, err := resolveSSHWorkspaceArg(ctx, inv, env.UserClient)
+		require.NoError(t, err)
+		require.Equal(t, "alpha", target)
+
+		_, agent, _, err := GetWorkspaceAndAgent(ctx, inv, env.UserClient, false, target)
+		require.NoError(t, err)
+		require.Equal(t, "dev", agent.Name)
+	})
+
+	t.Run("SingleRunningNoAgents", func(t *testing.T) {
+		t.Parallel()
+
+		env := setupSSHWorkspaceSelectEnv(t)
+		_ = dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "noagentworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).Do()
+
+		inv := sshTTYInvocationWithInput(t, "yes\n")
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := resolveSSHWorkspaceArg(ctx, inv, env.UserClient)
+		require.ErrorContains(t, err, "has no agents")
+	})
+
+	t.Run("MultiAgent", func(t *testing.T) {
+		t.Parallel()
+
+		env := setupSSHWorkspaceSelectEnv(t)
+		r := dbfake.WorkspaceBuild(t, env.Store, database.WorkspaceTable{
+			Name:           "multiworkspace",
+			OrganizationID: env.OrgID,
+			OwnerID:        env.OwnerID,
+		}).WithAgent(sshDualAgentMutator()).Do()
+
+		inv := sshTTYInvocation(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// cliui.Select auto-selects the first agent under test.v.
+		target, err := resolveSSHWorkspaceArg(ctx, inv, env.UserClient)
+		require.NoError(t, err)
+		require.Equal(t, r.Workspace.Name+".agent1", target)
+
+		_, agent, _, err := GetWorkspaceAndAgent(ctx, inv, env.UserClient, false, target)
+		require.NoError(t, err)
+		require.Equal(t, "agent1", agent.Name)
 	})
 }
 
