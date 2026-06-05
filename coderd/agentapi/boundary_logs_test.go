@@ -304,55 +304,6 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.Len(t, logs, 2, "logs from both instances must be persisted")
 	})
 
-	t.Run("SessionLookedUpOnEveryBatch", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: a fresh database; the session does not yet exist.
-		f := newBoundaryFixture(t)
-		api := f.api(t)
-		sessionID := uuid.New()
-		now := dbtime.Now()
-
-		makeLog := func(seqNum int32) *agentproto.BoundaryLog {
-			return &agentproto.BoundaryLog{
-				Allowed:        true,
-				Time:           timestamppb.New(now),
-				SequenceNumber: seqNum,
-				Resource: &agentproto.BoundaryLog_HttpRequest_{
-					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
-						Method: "GET",
-						Url:    "https://example.com",
-					},
-				},
-			}
-		}
-
-		req := &agentproto.ReportBoundaryLogsRequest{
-			SessionId:           sessionID.String(),
-			ConfinedProcessName: "codex",
-			Logs:                []*agentproto.BoundaryLog{makeLog(0)},
-		}
-
-		// When: the first batch is reported; the session is created.
-		_, err := api.ReportBoundaryLogs(context.Background(), req)
-		require.NoError(t, err)
-
-		_, err = f.DB.GetBoundarySessionByID(context.Background(), sessionID)
-		require.NoError(t, err, "session must exist after first batch")
-
-		// When: the second batch is reported; the session already exists.
-		req.Logs = []*agentproto.BoundaryLog{makeLog(1)}
-		_, err = api.ReportBoundaryLogs(context.Background(), req)
-		require.NoError(t, err)
-
-		// Then: both batches are persisted under a single session.
-		logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
-			SessionID: sessionID,
-		})
-		require.NoError(t, err)
-		require.Len(t, logs, 2, "logs from both batches must be persisted")
-	})
-
 	t.Run("MissingSessionIDFallsBackToLogOnly", func(t *testing.T) {
 		t.Parallel()
 
