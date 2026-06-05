@@ -134,20 +134,18 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 }
 
 func (s *Server) writeOpenAITextStream(ctx context.Context, writer openAIStreamWriter, content string) bool {
-	totalDuration := s.randomStreamDuration()
-	if totalDuration == 0 {
-		return writer.writeDelta(ctx, openAITextDelta("assistant", content), nil)
-	}
-
 	first := true
-	return s.streamPacedContent(ctx, totalDuration, content, func(chunk string) bool {
+	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), content) {
 		delta := openAITextDelta("", chunk)
 		if first {
 			delta.Role = "assistant"
 			first = false
 		}
-		return writer.writeDelta(ctx, delta, nil)
-	})
+		if !writer.writeDelta(ctx, delta, nil) {
+			return false
+		}
+	}
+	return ctx.Err() == nil
 }
 
 func openAITextDelta(role string, content string) openAIStreamDelta {

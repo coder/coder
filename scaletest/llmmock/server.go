@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -243,25 +245,31 @@ func (s *Server) randomStreamDuration() time.Duration {
 	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta)))
 }
 
-// streamPacedContent emits content as paced chunks. Fixed-size payloads use
-// byte windows of streamFixedWindowSize and iterate offsets directly; default
-// text is split on spaces.
-func (s *Server) streamPacedContent(ctx context.Context, totalDuration time.Duration, content string, emit func(chunk string) bool) bool {
-	if content == "" {
-		return emit("")
+// streamContentChunks yields content as one chunk when totalDuration is
+// non-positive. Otherwise, it spaces generated chunks across totalDuration.
+// Fixed-size payloads use byte windows because generated fixed payloads are
+// ASCII.
+func (s *Server) streamContentChunks(ctx context.Context, totalDuration time.Duration, content string) iter.Seq[string] {
+	if totalDuration <= 0 || content == "" {
+		return func(yield func(string) bool) {
+			yield(content)
+		}
 	}
 	if s.responsePayloadSize > 0 {
 		n := (len(content) + streamFixedWindowSize - 1) / streamFixedWindowSize
-		return streamPacedChunks(ctx, totalDuration, n, func(i int) string {
-			start := i * streamFixedWindowSize
-			end := min(start+streamFixedWindowSize, len(content))
-			return content[start:end]
-		}, emit)
+		return streamPacedChunks(ctx, totalDuration, n, func(yield func(string) bool) {
+			for i := range n {
+				start := i * streamFixedWindowSize
+				end := min(start+streamFixedWindowSize, len(content))
+				if !yield(content[start:end]) {
+					return
+				}
+			}
+		})
 	}
+
 	chunks := streamWordChunks(content)
-	return streamPacedChunks(ctx, totalDuration, len(chunks), func(i int) string {
-		return chunks[i]
-	}, emit)
+	return streamPacedChunks(ctx, totalDuration, len(chunks), slices.Values(chunks))
 }
 
 func streamWordChunks(content string) []string {
@@ -272,32 +280,39 @@ func streamWordChunks(content string) []string {
 	return chunks
 }
 
-func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, chunk func(i int) string, emit func(chunk string) bool) bool {
-	if n == 0 {
-		return emit("")
-	}
-	if n == 1 {
-		return emit(chunk(0))
-	}
-
-	delay := totalDuration / time.Duration(n-1)
-	for i := range n {
-		if !emit(chunk(i)) {
-			return false
-		}
-		if i == n-1 || delay <= 0 {
-			continue
+func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, chunks iter.Seq[string]) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if n == 0 {
+			yield("")
+			return
 		}
 
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return false
-		case <-timer.C:
+		delay := time.Duration(0)
+		if n > 1 {
+			delay = totalDuration / time.Duration(n-1)
+		}
+		i := 0
+		for chunk := range chunks {
+			if !yield(chunk) {
+				return
+			}
+			i++
+			if i == n {
+				return
+			}
+			if delay <= 0 {
+				continue
+			}
+
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 		}
 	}
-	return true
 }
 
 func (s *Server) startAPIServer(ctx context.Context) error {
@@ -578,7 +593,8 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
-	writeDelta := func(text string) bool {
+	text := resp.Output[0].Content[0].Text
+	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), text) {
 		deltaChunk := map[string]any{
 			"id":            resp.ID,
 			"object":        "response.output_text.delta",
@@ -586,22 +602,15 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 			"model":         resp.Model,
 			"output_index":  0,
 			"content_index": 0,
-			"delta":         text,
+			"delta":         chunk,
 		}
 		deltaBytes, _ := json.Marshal(deltaChunk)
-		return writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes))
+		if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
+			return
+		}
 	}
-
-	text := resp.Output[0].Content[0].Text
-	totalDuration := s.randomStreamDuration()
-	if totalDuration == 0 {
-		if !writeDelta(text) {
-			return
-		}
-	} else {
-		if !s.streamPacedContent(ctx, totalDuration, text, writeDelta) {
-			return
-		}
+	if ctx.Err() != nil {
+		return
 	}
 
 	finalChunk := map[string]any{
@@ -654,9 +663,6 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
-	totalDuration := s.randomStreamDuration()
-	paced := totalDuration > 0
-
 	startEventType := "message_start"
 	startEvent := map[string]any{
 		"type": startEventType,
@@ -687,26 +693,22 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 	}
 
 	deltaEventType := "content_block_delta"
-	writeDelta := func(text string) bool {
+	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), resp.Content[0].Text) {
 		deltaEvent := map[string]any{
 			"type":  deltaEventType,
 			"index": 0,
 			"delta": map[string]any{
 				"type": "text_delta",
-				"text": text,
+				"text": chunk,
 			},
 		}
 		deltaBytes, _ := json.Marshal(deltaEvent)
-		return writeChunk(deltaEventType, deltaBytes)
+		if !writeChunk(deltaEventType, deltaBytes) {
+			return
+		}
 	}
-	if !paced {
-		if !writeDelta(resp.Content[0].Text) {
-			return
-		}
-	} else {
-		if !s.streamPacedContent(ctx, totalDuration, resp.Content[0].Text, writeDelta) {
-			return
-		}
+	if ctx.Err() != nil {
+		return
 	}
 
 	contentStopEventType := "content_block_stop"
