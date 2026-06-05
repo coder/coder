@@ -4,6 +4,7 @@ import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
@@ -37,7 +38,7 @@ export const WriteFileTool: React.FC<{
 		WRITE_FILE_AUTO_DISPLAY_STATE,
 	);
 
-	const filename = path.split("/").pop() || path;
+	const filename = getPathBasename(path);
 	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
 
 	return (

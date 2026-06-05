@@ -48,12 +48,12 @@ const fileReferenceIconStyle: CSSProperties = {
 
 type FileReferenceChipContentProps = {
 	fileName: string;
-	lineLabel: string;
+	lineRange: string;
 };
 
 const FileReferenceChipContent: FC<FileReferenceChipContentProps> = ({
 	fileName,
-	lineLabel,
+	lineRange,
 }) => {
 	return (
 		<>
@@ -70,7 +70,7 @@ const FileReferenceChipContent: FC<FileReferenceChipContentProps> = ({
 					{fileName}
 				</span>
 				<span className="shrink-0">·</span>
-				<span className="shrink-0 tabular-nums">{lineLabel}</span>
+				<span className="shrink-0 tabular-nums">{lineRange}</span>
 			</span>
 		</>
 	);
@@ -83,9 +83,15 @@ type FileReferenceChipBaseProps = {
 	className?: string;
 };
 
-type FileReferenceChipProps = FileReferenceChipBaseProps &
-	VariantProps<typeof fileReferenceChipVariants>;
+type FileReferenceChipSelectedProps = Pick<
+	VariantProps<typeof fileReferenceChipVariants>,
+	"selected"
+>;
 
+type FileReferenceChipProps = FileReferenceChipBaseProps &
+	FileReferenceChipSelectedProps;
+
+// Rendered messages should not expose inactive controls to assistive tech.
 export function FileReferenceChip({
 	fileName,
 	startLine,
@@ -93,7 +99,7 @@ export function FileReferenceChip({
 	selected,
 	className,
 }: FileReferenceChipProps) {
-	const { shortFile, lineLabel, title } = getFileReferenceDisplay({
+	const { shortFile, lineRange, title } = getFileReferenceDisplay({
 		fileName,
 		startLine,
 		endLine,
@@ -103,19 +109,19 @@ export function FileReferenceChip({
 		<span
 			data-slot="file-reference-chip"
 			className={cn(fileReferenceChipVariants({ selected }), className)}
-			contentEditable={false}
 			title={title}
 		>
 			<span
 				data-slot="file-reference-chip-trigger"
 				className={fileReferenceTriggerVariants()}
 			>
-				<FileReferenceChipContent fileName={shortFile} lineLabel={lineLabel} />
+				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</span>
 		</span>
 	);
 }
 
+// Lexical editor chips need explicit actions for opening and removal.
 export function EditableFileReferenceChip({
 	fileName,
 	startLine,
@@ -124,12 +130,12 @@ export function EditableFileReferenceChip({
 	onRemove,
 	onOpen,
 	className,
-}: FileReferenceChipBaseProps & {
-	selected?: boolean;
-	onRemove: () => void;
-	onOpen: () => void;
-}) {
-	const { shortFile, lineLabel, title } = getFileReferenceDisplay({
+}: FileReferenceChipBaseProps &
+	FileReferenceChipSelectedProps & {
+		onRemove: () => void;
+		onOpen: () => void;
+	}) {
+	const { shortFile, lineRange, title } = getFileReferenceDisplay({
 		fileName,
 		startLine,
 		endLine,
@@ -151,8 +157,9 @@ export function EditableFileReferenceChip({
 				type="button"
 				className={fileReferenceTriggerVariants({ interactive: true })}
 				onClick={onOpen}
+				aria-label={`Open ${title}`}
 			>
-				<FileReferenceChipContent fileName={shortFile} lineLabel={lineLabel} />
+				<FileReferenceChipContent fileName={shortFile} lineRange={lineRange} />
 			</button>
 			<button
 				data-slot="file-reference-chip-remove"

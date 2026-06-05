@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
-import { FileReferenceChip } from "./FileReferenceChip";
+import { expect, fn, userEvent, within } from "storybook/test";
+import {
+	EditableFileReferenceChip,
+	FileReferenceChip,
+} from "./FileReferenceChip";
 
 const meta: Meta<typeof FileReferenceChip> = {
 	title: "components/ChatMessageInput/FileReferenceChip",
@@ -51,6 +54,44 @@ export const LeftAlignedInline: Story = {
 			<FileReferenceChip {...args} /> starts this message.
 		</p>
 	),
+};
+
+export const AbuttingInlineText: Story = {
+	render: (args) => (
+		<p className="m-0 font-sans text-sm leading-6 text-content-primary">
+			<span>Before</span>
+			<FileReferenceChip {...args} className="ml-1 mr-1" />
+			<span>after</span>
+		</p>
+	),
+};
+
+export const Editable: StoryObj<typeof EditableFileReferenceChip> = {
+	render: (args) => <EditableFileReferenceChip {...args} />,
+	args: {
+		fileName: "site/src/components/Button.tsx",
+		startLine: 42,
+		endLine: 42,
+		onOpen: fn(),
+		onRemove: fn(),
+		selected: true,
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", {
+			name: "Open site/src/components/Button.tsx:L42",
+		});
+		const removeButton = canvas.getByRole("button", {
+			name: "Remove reference",
+		});
+
+		await userEvent.click(trigger);
+		expect(args.onOpen).toHaveBeenCalledTimes(1);
+
+		await userEvent.click(removeButton);
+		expect(args.onRemove).toHaveBeenCalledTimes(1);
+		expect(args.onOpen).toHaveBeenCalledTimes(1);
+	},
 };
 
 /** Chip with a long filename that exceeds the max-width and truncates

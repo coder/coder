@@ -8,7 +8,7 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { type FC, memo, type ReactNode, useEffect, useState } from "react";
+import { type FC, type ReactNode, useSyncExternalStore } from "react";
 import { cn } from "#/utils/cn";
 import { EditableFileReferenceChip } from "./FileReferenceChip";
 import { getFileReferenceSiblingSpacing } from "./fileReferenceDisplay";
@@ -57,9 +57,8 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		this.__content = content;
 	}
 
-	createDOM(config: EditorConfig): HTMLElement {
+	createDOM(_config: EditorConfig): HTMLElement {
 		const span = document.createElement("span");
-		span.className = config.theme.inlineDecorator ?? "";
 		span.style.display = "inline";
 		span.style.userSelect = "none";
 		return span;
@@ -110,23 +109,40 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 	}
 }
 
+const SPACING_BEFORE = 1;
+const SPACING_AFTER = 2;
+
+const getFileReferenceSpacingSnapshot = (
+	editor: LexicalEditor,
+	nodeKey: NodeKey,
+) => {
+	const spacing = getFileReferenceSiblingSpacing(editor, nodeKey);
+	return (
+		(spacing.before ? SPACING_BEFORE : 0) | (spacing.after ? SPACING_AFTER : 0)
+	);
+};
+
+const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
+	const spacingSnapshot = useSyncExternalStore(
+		(notify) => editor.registerUpdateListener(notify),
+		() => getFileReferenceSpacingSnapshot(editor, nodeKey),
+	);
+
+	return {
+		after: (spacingSnapshot & SPACING_AFTER) !== 0,
+		before: (spacingSnapshot & SPACING_BEFORE) !== 0,
+	};
+};
+
 const FileReferenceChipWrapper: FC<{
 	editor: LexicalEditor;
 	nodeKey: NodeKey;
 	fileName: string;
 	startLine: number;
 	endLine: number;
-}> = memo(({ editor, nodeKey, fileName, startLine, endLine }) => {
+}> = ({ editor, nodeKey, fileName, startLine, endLine }) => {
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
-	const [spacing, setSpacing] = useState(() =>
-		getFileReferenceSiblingSpacing(editor, nodeKey),
-	);
-
-	useEffect(() => {
-		return editor.registerUpdateListener(() => {
-			setSpacing(getFileReferenceSiblingSpacing(editor, nodeKey));
-		});
-	}, [editor, nodeKey]);
+	const spacing = useFileReferenceSpacing(editor, nodeKey);
 
 	const handleRemove = () => {
 		editor.update(() => {
@@ -156,8 +172,7 @@ const FileReferenceChipWrapper: FC<{
 			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
 	);
-});
-FileReferenceChipWrapper.displayName = "FileReferenceChipWrapper";
+};
 
 export function $createFileReferenceNode(
 	fileName: string,

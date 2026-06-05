@@ -1,5 +1,6 @@
 import type { LexicalEditor, LexicalNode, NodeKey } from "lexical";
 import { $getNodeByKey } from "lexical";
+import { getPathBasename } from "../../utils/path";
 
 export type InlinePart =
 	| { readonly type: "file-reference" }
@@ -18,12 +19,12 @@ export const getFileReferenceDisplay = ({
 	startLine: number;
 	endLine: number;
 }) => {
-	const shortFile = fileName.split("/").pop() || fileName;
-	const lineLabel =
+	const shortFile = getPathBasename(fileName);
+	const lineRange =
 		startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
-	const title = `${fileName}:L${lineLabel}`;
+	const title = `${fileName}:L${lineRange}`;
 
-	return { shortFile, lineLabel, title };
+	return { shortFile, lineRange, title };
 };
 
 export const hasInlineContentBefore = (
