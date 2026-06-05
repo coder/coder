@@ -16,13 +16,6 @@ type RoleSelectorProps = {
 	loading?: boolean;
 	error?: unknown;
 	availableRoles?: AssignableRoles[];
-	/**
-	 * Extra roles to display below `Member` as always-granted (implied)
-	 * rows. Used by the org members editor to surface the organization's
-	 * `default_org_member_roles` alongside the built-in `member` role.
-	 * Roles listed here are filtered out of the selectable list because
-	 * users cannot toggle implied roles.
-	 */
 	additionalImpliedRoles?: AssignableRoles[];
 	selectedRoles: Set<string>;
 	onChange: (roles: Set<string>) => void;
