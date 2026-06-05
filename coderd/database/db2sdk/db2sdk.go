@@ -44,12 +44,12 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 }
 
 // CanonicalAIProviderType returns the runtime provider type for a database row.
-func CanonicalAIProviderType(row database.AIProvider) (database.AIProviderType, error) {
+func CanonicalAIProviderType(row database.AIProvider) (codersdk.AIProviderType, error) {
 	settings, err := AIProviderSettings(row.Settings)
 	if err != nil {
 		return "", xerrors.Errorf("decode settings: %w", err)
 	}
-	return database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(row.Type), settings)), nil
+	return codersdk.CanonicalAIProviderType(codersdk.AIProviderType(row.Type), settings), nil
 }
 
 // AIProvider converts a database row plus its API keys into the

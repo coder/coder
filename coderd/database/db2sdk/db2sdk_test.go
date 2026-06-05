@@ -95,7 +95,7 @@ func TestAIProviderCanonicalTypeAndDisplayName(t *testing.T) {
 
 			gotType, err := db2sdk.CanonicalAIProviderType(tt.row)
 			require.NoError(t, err)
-			require.Equal(t, database.AIProviderType(tt.wantType), gotType)
+			require.Equal(t, tt.wantType, gotType)
 			require.Equal(t, tt.wantDisplay, db2sdk.AIProviderDisplayName(tt.row, tt.wantType))
 
 			got, err := db2sdk.AIProvider(tt.row, nil)

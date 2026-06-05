@@ -522,7 +522,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 		if err != nil {
 			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-			canonicalType = provider.Type
+			canonicalType = codersdk.AIProviderType(provider.Type)
 		}
 		providerName := chatprovider.NormalizeProvider(string(canonicalType))
 		if providerName == "" {

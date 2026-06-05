@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type directModelRoute struct {
@@ -82,7 +83,7 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 		canonicalType, err := db2sdk.CanonicalAIProviderType(*provider)
 		if err != nil {
 			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-			canonicalType = provider.Type
+			canonicalType = codersdk.AIProviderType(provider.Type)
 		}
 		providerHint = chatprovider.NormalizeProvider(string(canonicalType))
 	}
@@ -103,7 +104,7 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-		canonicalType = provider.Type
+		canonicalType = codersdk.AIProviderType(provider.Type)
 	}
 	return string(canonicalType), &provider, nil
 }

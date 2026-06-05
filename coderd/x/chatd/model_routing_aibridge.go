@@ -190,14 +190,14 @@ type aibridgeFantasyConfig struct {
 	Keys         chatprovider.ProviderAPIKeys
 }
 
-func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFantasyConfig {
+func fantasyConfigForAIBridge(providerType codersdk.AIProviderType) aibridgeFantasyConfig {
 	var fantasyProvider string
 	baseURL := aibridgeLocalBaseURL + "/v1"
 	switch providerType {
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
+	case codersdk.AIProviderTypeAnthropic, codersdk.AIProviderTypeBedrock:
 		fantasyProvider = fantasyanthropic.Name
 		baseURL = aibridgeLocalBaseURL
-	case database.AiProviderTypeOpenai:
+	case codersdk.AIProviderTypeOpenAI:
 		fantasyProvider = fantasyopenai.Name
 	default:
 		fantasyProvider = fantasyopenaicompat.Name
@@ -215,9 +215,9 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
+func aiGatewayRequestFormatForProviderType(providerType codersdk.AIProviderType) aiGatewayRequestFormat {
 	switch providerType {
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
+	case codersdk.AIProviderTypeAnthropic, codersdk.AIProviderTypeBedrock:
 		return aiGatewayRequestFormatAnthropic
 	default:
 		return aiGatewayRequestFormatOpenAI
@@ -264,15 +264,11 @@ func (p *Server) resolveAIGatewayRoute(
 	provider database.AIProvider,
 	modelProviderHint string,
 ) (resolvedModelRoute, error) {
-	providerType, err := db2sdk.CanonicalAIProviderType(provider)
-	if err != nil {
-		return resolvedModelRoute{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
-	}
 	auth, err := p.aiGatewayProviderAuthForUser(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(providerType),
+		aiGatewayRequestFormatForProviderType(codersdk.AIProviderType(modelProviderHint)),
 	)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -308,7 +304,7 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
-		canonicalType = provider.Type
+		canonicalType = codersdk.AIProviderType(provider.Type)
 	}
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(canonicalType))
 }

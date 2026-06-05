@@ -6536,12 +6536,11 @@ func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProvider
 	if err != nil {
 		return codersdk.AIProviderSummary{}, err
 	}
-	sdkProviderType := codersdk.AIProviderType(providerType)
 	return codersdk.AIProviderSummary{
 		ID:          provider.ID,
-		Type:        sdkProviderType,
+		Type:        providerType,
 		Name:        provider.Name,
-		DisplayName: db2sdk.AIProviderDisplayName(provider, sdkProviderType),
+		DisplayName: db2sdk.AIProviderDisplayName(provider, providerType),
 		Enabled:     provider.Enabled,
 		Deleted:     provider.Deleted,
 	}, nil
