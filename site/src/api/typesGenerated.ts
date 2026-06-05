@@ -2295,6 +2295,7 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
 	readonly effort?: string;
+	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
 	readonly allowed_domains?: readonly string[];

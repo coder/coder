@@ -29,6 +29,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestProviderBaseURLHostname(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
+		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
+		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
+		{name: "Empty", baseURL: "", want: ""},
+		{name: "Invalid", baseURL: "://", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.ProviderBaseURLHostname(tt.baseURL))
+		})
+	}
+}
+
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
 
@@ -347,6 +369,77 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasyanthropic.ThinkingDisplay
+	}{
+		{
+			name:  "Summarized",
+			input: ptr.Ref(" SUMMARIZED "),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+		},
+		{
+			name:  "Omitted",
+			input: ptr.Ref("omitted"),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: ptr.Ref("summary"),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.AnthropicThinkingDisplayFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(nil, &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+		},
+	})
+
+	require.NotNil(t, providerOptions)
+	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, anthropicOptions.ThinkingDisplay)
+	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
+}
+
+func TestMergeMissingProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	options := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+	}
+	defaults := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref("summarized"),
+		},
+	}
+
+	chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+	require.NotNil(t, options.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *options.Anthropic.ThinkingDisplay)
 }
 
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
@@ -1546,6 +1639,34 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			providerHint: fantasyopenaicompat.Name,
 			wantProvider: fantasyopenaicompat.Name,
 			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "OpenRouterHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenrouter.Name,
+			wantProvider: fantasyopenrouter.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAICompatHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenaicompat.Name,
+			wantProvider: fantasyopenaicompat.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintStripsCanonicalPrefix",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintPreservesUnknownSlashNamespace",
+			modelName:    "meta-llama/llama-3-70b",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyopenai.Name,
+			wantModel:    "meta-llama/llama-3-70b",
 		},
 		{
 			name:         "AnthropicHintStripsCanonicalPrefix",

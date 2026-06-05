@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.26.2
+go 1.26.4
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -94,8 +94,9 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     emit a Base64 PDF document block for application/pdf FileParts on the
 //     Anthropic provider so user-uploaded PDFs actually reach Claude/Bedrock
 //     instead of being silently dropped.
-// See: https://github.com/coder/fantasy/commits/7d46e640327a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260602023814-7d46e640327a
+// 11) coder/fantasy#39, support Anthropic thinking_display natively.
+// See: https://github.com/coder/fantasy/commits/a2a3f2171ec8
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260604204802-a2a3f2171ec8
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

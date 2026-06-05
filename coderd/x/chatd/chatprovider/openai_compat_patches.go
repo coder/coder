@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -150,8 +149,8 @@ func rewriteOpenAICompatSingleToolChoice(payload map[string]any) bool {
 // endpoints and Coder AI Bridge Gemini routes. Other gateways, such as Vercel,
 // keep their own provider-specific compatibility behavior.
 func shouldAddGoogleOpenAICompatThoughtSignatures(baseURL string, modelID string) bool {
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
+	parsed, ok := parseProviderBaseURL(baseURL)
+	if !ok {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())

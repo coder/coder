@@ -1841,6 +1841,14 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExternalAgentTokensByTemplateID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExternalAgentTokensByTemplateID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLink(ctx, arg)
@@ -5390,6 +5398,14 @@ func (m queryMetricsStore) UpdateUserLink(ctx context.Context, arg database.Upda
 	r0, r1 := m.s.UpdateUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLink").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserLinkedID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserLinkedID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLinkedID").Inc()
 	return r0, r1
 }
 

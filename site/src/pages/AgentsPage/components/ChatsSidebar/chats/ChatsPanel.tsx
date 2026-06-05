@@ -519,6 +519,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															<DndContext
 																sensors={sensors}
 																collisionDetection={closestCenter}
+																modifiers={[
+																	// Restrict the drag to the y-axis only
+																	({ transform }) => ({
+																		...transform,
+																		x: 0,
+																	}),
+																]}
 																onDragEnd={handleDragEnd}
 															>
 																<SortableContext

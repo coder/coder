@@ -27224,6 +27224,41 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	return i, err
 }
 
+const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
+UPDATE
+	user_links
+SET
+	linked_id = $1
+WHERE
+	user_id = $2 AND login_type = $3 AND linked_id = '' RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+`
+
+type UpdateUserLinkedIDParams struct {
+	LinkedID  string    `db:"linked_id" json:"linked_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+}
+
+// Backfills linked_id for legacy user_links that were created before
+// linked_id tracking was added. Only updates when linked_id is empty
+// to avoid overwriting a valid binding.
+func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.Claims,
+	)
+	return i, err
+}
+
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
     id,
@@ -30325,6 +30360,102 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.TaskID,
 	)
 	return i, err
+}
+
+const getExternalAgentTokensByTemplateID = `-- name: GetExternalAgentTokensByTemplateID :many
+SELECT
+	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
+FROM
+	workspaces
+JOIN (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, transition, has_external_agent
+	FROM
+		workspace_builds
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspaces.template_id = $1
+	AND (
+		$2 :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = $2
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL
+`
+
+type GetExternalAgentTokensByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetExternalAgentTokensByTemplateIDRow struct {
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName string    `db:"workspace_name" json:"workspace_name"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	AgentName     string    `db:"agent_name" json:"agent_name"`
+	AgentToken    uuid.UUID `db:"agent_token" json:"agent_token"`
+}
+
+// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+// non-deleted external agents on the latest build of every running workspace
+// of the given template. "Running" means the latest build has
+// transition=start and job_status=succeeded (matches the workspace-status
+// definition used by coderd/database/queries/workspaces.sql).
+// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+// "all owners"; any other value restricts results to workspaces owned by
+// that user.
+func (q *sqlQuerier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByTemplateID, arg.TemplateID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExternalAgentTokensByTemplateIDRow
+	for rows.Next() {
+		var i GetExternalAgentTokensByTemplateIDRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.AgentID,
+			&i.AgentName,
+			&i.AgentToken,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one

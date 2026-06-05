@@ -113,6 +113,16 @@
 					"input_type": "select"
 				},
 				{
+					"json_name": "thinking_display",
+					"go_name": "ThinkingDisplay",
+					"type": "string",
+					"description": "Controls how Anthropic returns thinking content",
+					"label": "Thinking Display",
+					"required": false,
+					"enum": ["summarized", "omitted"],
+					"input_type": "select"
+				},
+				{
 					"json_name": "disable_parallel_tool_use",
 					"go_name": "DisableParallelToolUse",
 					"type": "boolean",

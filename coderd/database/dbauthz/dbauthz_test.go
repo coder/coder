@@ -3137,6 +3137,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateGitSSHKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(key, policy.ActionUpdatePersonal).Returns(key)
 	}))
+	s.Run("GetExternalAgentTokensByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetExternalAgentTokensByTemplateIDParams{TemplateID: uuid.New(), OwnerID: uuid.Nil}
+		row := testutil.Fake(s.T(), faker, database.GetExternalAgentTokensByTemplateIDRow{})
+		dbm.EXPECT().GetExternalAgentTokensByTemplateID(gomock.Any(), arg).Return([]database.GetExternalAgentTokensByTemplateIDRow{row}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(row))
+	}))
 	s.Run("GetExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		arg := database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}
@@ -3169,6 +3175,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserLinkByUserIDLoginType(gomock.Any(), database.GetUserLinkByUserIDLoginTypeParams{UserID: link.UserID, LoginType: link.LoginType}).Return(link, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("UpdateUserLinkedID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.UserLink{})
+		arg := database.UpdateUserLinkedIDParams{LinkedID: link.LinkedID, UserID: link.UserID, LoginType: link.LoginType}
+		dbm.EXPECT().UpdateUserLinkedID(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
