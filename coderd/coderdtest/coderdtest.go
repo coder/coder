@@ -1843,6 +1843,18 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 	t.Logf("Successfully updated provisioner LastSeenAt")
 }
 
+// NextAutostartTick returns workspace.NextStartAt for use as the autobuild
+// tick. The executor's eligibility query checks next_start_at <= tick.
+// Computing from build.CreatedAt is racy: next_start_at derives from build
+// completion time, so it can advance past sched.Next(build.CreatedAt) and
+// the workspace misses the eligibility window.
+func NextAutostartTick(t testing.TB, workspace codersdk.Workspace) time.Time {
+	t.Helper()
+	require.NotNil(t, workspace.NextStartAt,
+		"workspace next_start_at is nil; ensure autostart is enabled and the latest build has completed before calling NextAutostartTick")
+	return *workspace.NextStartAt
+}
+
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {
 	t.Helper()
 	ctx := ctxWithProvisionerPermissions(testutil.Context(t, testutil.WaitShort))
