@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	//go:embed modules
+	//go:embed modules/
 	modulesFS embed.FS
 
 	loadModules = sync.OnceValues(func() ([]ModuleManifest, error) {
