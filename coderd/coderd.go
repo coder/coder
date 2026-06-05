@@ -1621,6 +1621,7 @@ func New(options *Options) *API {
 					apiKeyMiddleware,
 				)
 				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
 			})
 		}
 
