@@ -625,6 +625,15 @@ export const BareURLAutoRoutesToDiffURL: Story = {
 			"https://github.com/coder/coder/pull/25391{Enter}",
 		);
 
+		// The pill must render so a regression in `handleInputKeyDown`'s
+		// URL detection cannot hide behind the normalizer producing the
+		// same `q` value from freeText.
+		await expect(
+			await body.findByText(
+				"diff_url:https://github.com/coder/coder/pull/25391",
+			),
+		).toBeInTheDocument();
+
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,

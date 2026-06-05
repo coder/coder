@@ -1,4 +1,6 @@
+import { describe, expect, it } from "vitest";
 import {
+	CHAT_SEARCH_FILTER_KEYS,
 	formatChatSearchFilterToken,
 	looksLikeChatDiffURL,
 	normalizeChatDiffURLValue,
@@ -80,6 +82,23 @@ describe("normalizeChatSearchInput", () => {
 		).toBe('diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"');
 	});
 
+	it("routes a scheme-less URL with a port into a diff_url filter", () => {
+		// The token's first `:` belongs to the host:port, so the splitter sees
+		// a key of `gitlab.com`. The normalizer must still recognize the whole
+		// token as a URL.
+		expect(
+			normalizeChatSearchInput("gitlab.com:8080/foo/bar/-/merge_requests/9"),
+		).toBe('diff_url:"https://gitlab.com:8080/foo/bar/-/merge_requests/9"');
+	});
+
+	it("routes a quote-wrapped URL into a diff_url filter", () => {
+		// Pasting a URL from JSON, a CI log, or Slack often wraps it in
+		// quotes; the result must still land on diff_url:.
+		expect(
+			normalizeChatSearchInput('"https://github.com/coder/coder/pull/1"'),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/1"');
+	});
+
 	it("routes a scheme-less URL into a diff_url filter with https://", () => {
 		expect(normalizeChatSearchInput("github.com/coder/coder/pull/25391")).toBe(
 			'diff_url:"https://github.com/coder/coder/pull/25391"',
@@ -137,6 +156,14 @@ describe("normalizeChatSearchInput", () => {
 		).toBe('diff_url:"https://github.com/coder/coder/pull/1"');
 		expect(normalizeChatSearchInput("prstatus:open")).toBe("pr_status:open");
 		expect(normalizeChatSearchInput("pr-status:open")).toBe("pr_status:open");
+	});
+});
+
+describe("CHAT_SEARCH_FILTER_KEYS", () => {
+	it("exposes the recognized filter keys", () => {
+		expect(new Set(CHAT_SEARCH_FILTER_KEYS)).toEqual(
+			new Set(["archived", "diff_url", "has_unread", "pr_status"]),
+		);
 	});
 });
 

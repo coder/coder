@@ -6,15 +6,28 @@ const sanitizeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', "");
 };
 
-// Filter keys that may pass through to the backend unchanged. `title` is not
-// listed here because bare text and `title:` filters are merged into a single
-// title filter; see the title-handling branch in normalizeChatSearchInput.
-const passthroughChatSearchFilterKeys = new Set([
+// Strips surrounding double quotes so URL detection and value normalization
+// stay resilient to inputs pasted from JSON, CI logs, or Slack code blocks.
+const stripSurroundingQuotes = (value: string): string =>
+	value.replace(/^"+|"+$/g, "");
+
+/**
+ * Filter keys the chat search backend accepts as `key:value` pairs (besides
+ * `title`, which has its own merging logic). The dialog's filter pill list
+ * is derived from this so the two stay in sync.
+ */
+export const CHAT_SEARCH_FILTER_KEYS = [
 	"archived",
 	"diff_url",
 	"has_unread",
 	"pr_status",
-]);
+] as const;
+
+export type ChatSearchFilterKey = (typeof CHAT_SEARCH_FILTER_KEYS)[number];
+
+const passthroughChatSearchFilterKeys = new Set<string>(
+	CHAT_SEARCH_FILTER_KEYS,
+);
 
 // Common close-typo or shorthand spellings users reach for, mapped to the
 // canonical backend keys. Resolving aliases early means a user typing
@@ -53,7 +66,7 @@ const ANY_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
  * "fix lint" are never mistaken for URLs.
  */
 export const looksLikeChatDiffURL = (value: string): boolean => {
-	const trimmed = value.trim();
+	const trimmed = stripSurroundingQuotes(value.trim());
 	if (trimmed === "") {
 		return false;
 	}
@@ -71,7 +84,7 @@ export const looksLikeChatDiffURL = (value: string): boolean => {
  * its usual validation error.
  */
 export const normalizeChatDiffURLValue = (value: string): string => {
-	const trimmed = value.trim();
+	const trimmed = stripSurroundingQuotes(value.trim());
 	if (trimmed === "") {
 		return trimmed;
 	}
@@ -103,7 +116,7 @@ export const formatChatSearchFilterToken = (
 	if (key === "diff_url") {
 		value = normalizeChatDiffURLValue(value);
 	}
-	if (/[\s:"]/.test(value)) {
+	if (/[\s:]/.test(value)) {
 		return `${key}:"${value}"`;
 	}
 	return `${key}:${value}`;
@@ -191,6 +204,9 @@ const TITLE_PLACEHOLDER = "\u0000__TITLE__\u0000";
  *   - Bare tokens that look like HTTP(S) URLs are routed to `diff_url:` so a
  *     pasted diff link finds the matching chat instead of running an
  *     always-empty title search on the URL string.
+ *   - Filter keys are resolved through {@link resolveChatSearchFilterAlias}
+ *     so common aliases and near-miss typos land on the canonical backend
+ *     key.
  *   - Recognized `key:value` filters are re-serialized through
  *     {@link formatChatSearchFilterToken} so values containing `:` are quoted
  *     and `diff_url` values without a scheme get `https://` prepended.
@@ -256,15 +272,13 @@ export const normalizeChatSearchInput = (
 		}
 
 		if (!passthroughChatSearchFilterKeys.has(keyValuePair.key)) {
-			// Unknown key. Most often this is a bare URL like
+			// Unknown key. The most common shape is a bare URL like
 			// `https://github.com/...` whose first `:` makes the splitter
-			// think it has a key of `https`. Route those to `diff_url:`
-			// instead of letting them fall through to a title search that
-			// will never match.
-			if (
-				(keyValuePair.key === "http" || keyValuePair.key === "https") &&
-				looksLikeChatDiffURL(token)
-			) {
+			// think it has a key (`https`, `gitlab.com`, etc.). Route any
+			// token that still looks like a URL to `diff_url:` instead of
+			// letting it fall through to a title search that will never
+			// match.
+			if (looksLikeChatDiffURL(token)) {
 				collectDiffURL(token);
 				continue;
 			}

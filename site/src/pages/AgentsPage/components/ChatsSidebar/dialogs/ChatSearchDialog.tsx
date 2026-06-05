@@ -22,6 +22,8 @@ import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput, type SearchFilter } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
 import {
+	CHAT_SEARCH_FILTER_KEYS,
+	type ChatSearchFilterKey,
 	formatChatSearchFilterToken,
 	looksLikeChatDiffURL,
 	normalizeChatDiffURLValue,
@@ -33,7 +35,7 @@ import {
 // pills (e.g. has_unread:true). Filters without one are inserted as
 // incomplete pills so the user can type the value.
 type FilterDefinition = {
-	readonly key: string;
+	readonly key: ChatSearchFilterKey;
 	readonly label: string;
 	readonly icon: FC<{ className?: string }>;
 	readonly defaultValue: string | null;
@@ -62,10 +64,10 @@ const FILTER_DEFINITIONS: readonly FilterDefinition[] = [
 ];
 
 // Set of recognized filter keys for detecting typed filter patterns
-// (e.g. "has_unread:true" typed directly into the input). Derived from
-// FILTER_DEFINITIONS; the backend equivalent lives in searchQuery.ts as
-// passthroughChatSearchFilterKeys.
-const KNOWN_FILTER_KEYS = new Set(FILTER_DEFINITIONS.map((def) => def.key));
+// (e.g. "has_unread:true" typed directly into the input). Derived from the
+// shared {@link CHAT_SEARCH_FILTER_KEYS} so the dialog and the normalizer
+// stay in sync when a new filter is added.
+const KNOWN_FILTER_KEYS = new Set<string>(CHAT_SEARCH_FILTER_KEYS);
 
 type ChatSearchDialogProps = {
 	readonly open: boolean;
@@ -139,10 +141,6 @@ type ChatSearchDialogContentProps = Omit<
 
 // Build a raw query string from structured filters + freeform text, then
 // normalize it through the existing parser that the backend expects.
-// formatChatSearchFilterToken handles quoting (including for values that
-// contain `:` like diff URLs) and prepends `https://` for scheme-less
-// diff_url values, both of which the raw backend parser would otherwise
-// reject with "can only contain 1 ':'" or "http or https scheme" errors.
 const buildQuery = (
 	filters: readonly SearchFilter[],
 	freeText: string,
@@ -335,7 +333,10 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				const colonIndex = token.indexOf(":");
 				if (colonIndex > 0 && colonIndex < token.length - 1) {
 					const key = resolveChatSearchFilterAlias(token.slice(0, colonIndex));
-					const val = token.slice(colonIndex + 1);
+					// Match `getKeyValuePair` in searchQuery.ts so a manually
+					// quoted value (e.g. pasted from JSON) does not surface in
+					// the pill with literal quotes.
+					const val = token.slice(colonIndex + 1).replace(/^"|"$/g, "");
 					if (KNOWN_FILTER_KEYS.has(key)) {
 						// Drop duplicate filter keys silently instead of
 						// letting them fall through to freeform text.
