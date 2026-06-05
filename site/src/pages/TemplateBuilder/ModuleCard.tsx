@@ -54,7 +54,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 					aria-hidden="true"
 					className={cn(
 						"flex items-center justify-center size-4 rounded-xs mt-0.5 shrink-0",
-						"border border-solid border-border border-border-secondary",
+						"border border-solid border-border-secondary",
 						selected ? "bg-content-primary" : "bg-surface-secondary",
 					)}
 				>
