@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -169,7 +170,7 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	providerType, err := canonicalAIProviderType(route.Provider)
+	providerType, err := db2sdk.CanonicalAIProviderType(route.Provider)
 	if err != nil {
 		return nil, xerrors.Errorf("canonicalize provider type for %q: %w", route.Provider.Name, err)
 	}
@@ -263,7 +264,7 @@ func (p *Server) resolveAIGatewayRoute(
 	provider database.AIProvider,
 	modelProviderHint string,
 ) (resolvedModelRoute, error) {
-	providerType, err := canonicalAIProviderType(provider)
+	providerType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
 	}
@@ -288,7 +289,7 @@ func (p *Server) resolveAIGatewayModelRouteForConfig(
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	providerType, err := canonicalAIProviderType(provider)
+	providerType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("canonicalize provider type for %q: %w", provider.Name, err)
 	}
@@ -304,12 +305,12 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(
-		ctx,
-		ownerID,
-		provider,
-		bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider),
-	)
+	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
+	if err != nil {
+		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		canonicalType = provider.Type
+	}
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(canonicalType))
 }
 
 func (p *Server) gatewayProviderForConfig(

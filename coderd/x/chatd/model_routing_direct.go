@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
@@ -77,7 +79,12 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 	}
 	providerHint := normalizedProviderType
 	if provider != nil {
-		providerHint = chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, *provider))
+		canonicalType, err := db2sdk.CanonicalAIProviderType(*provider)
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			canonicalType = provider.Type
+		}
+		providerHint = chatprovider.NormalizeProvider(string(canonicalType))
 	}
 	return newDirectModelRoute(providerHint, keys), nil
 }
@@ -93,5 +100,10 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	if err != nil {
 		return "", nil, err
 	}
-	return bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider), &provider, nil
+	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
+	if err != nil {
+		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		canonicalType = provider.Type
+	}
+	return string(canonicalType), &provider, nil
 }

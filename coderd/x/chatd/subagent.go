@@ -19,6 +19,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -518,7 +519,12 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows
 		}
-		providerName := chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider))
+		canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			canonicalType = provider.Type
+		}
+		providerName := chatprovider.NormalizeProvider(string(canonicalType))
 		if providerName == "" {
 			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
 		}

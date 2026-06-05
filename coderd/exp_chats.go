@@ -6532,7 +6532,7 @@ func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
 }
 
 func convertAIProviderSummary(provider database.AIProvider) (codersdk.AIProviderSummary, error) {
-	providerType, err := canonicalAIProviderTypeForRow(provider)
+	providerType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		return codersdk.AIProviderSummary{}, err
 	}
@@ -6741,7 +6741,7 @@ func (api *API) configuredProvidersFromAIProviders(ctx context.Context, provider
 }
 
 func (api *API) configuredProviderFromAIProviderKeys(ctx context.Context, provider database.AIProvider, keys []database.AIProviderKey) (chatprovider.ConfiguredProvider, error) {
-	providerType, err := canonicalAIProviderTypeForRow(provider)
+	providerType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
 		api.Logger.Error(ctx, "failed to decode AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 		return chatprovider.ConfiguredProvider{}, err
@@ -6837,7 +6837,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, provider := range providers {
-		providerType, err := canonicalAIProviderTypeForRow(provider)
+		providerType, err := db2sdk.CanonicalAIProviderType(provider)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to decode AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6911,7 +6911,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 		return
 	}
-	providerType, err := canonicalAIProviderTypeForRow(aiProvider)
+	providerType, err := db2sdk.CanonicalAIProviderType(aiProvider)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to decode AI provider settings.",
@@ -7001,7 +7001,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderNotConfigured
 		}
-		lockedProviderType, err := canonicalAIProviderTypeForRow(lockedAIProvider)
+		lockedProviderType, err := db2sdk.CanonicalAIProviderType(lockedAIProvider)
 		if err != nil {
 			return xerrors.Errorf("canonicalize provider type for %q: %w", lockedAIProvider.Name, err)
 		}
@@ -7124,7 +7124,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			providerType, err := canonicalAIProviderTypeForRow(aiProvider)
+			providerType, err := db2sdk.CanonicalAIProviderType(aiProvider)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to decode AI provider settings.",
@@ -7165,7 +7165,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 			return
 		}
-		providerType, err := canonicalAIProviderTypeForRow(aiProvider)
+		providerType, err := db2sdk.CanonicalAIProviderType(aiProvider)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to decode AI provider settings.",
@@ -7262,7 +7262,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			if !aiProvider.Enabled {
 				return errChatProviderNotConfigured
 			}
-			providerType, err := canonicalAIProviderTypeForRow(aiProvider)
+			providerType, err := db2sdk.CanonicalAIProviderType(aiProvider)
 			if err != nil {
 				return xerrors.Errorf("canonicalize provider type for %q: %w", aiProvider.Name, err)
 			}

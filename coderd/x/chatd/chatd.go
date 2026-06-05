@@ -8658,9 +8658,14 @@ func (p *Server) aiProviderConfigFromKeys(ctx context.Context, provider database
 			break
 		}
 	}
+	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
+	if err != nil {
+		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		canonicalType = provider.Type
+	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
-		Provider:                   bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider),
+		Provider:                   string(canonicalType),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
 		CentralAPIKeyEnabled:       true,
@@ -8774,12 +8779,12 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		return chatprovider.ProviderAPIKeys{}, nil, nil
 	}
 	for _, provider := range providers {
-		canonicalProviderType, err := canonicalAIProviderTypeString(provider)
+		canonicalProviderType, err := db2sdk.CanonicalAIProviderType(provider)
 		if err != nil {
 			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
 			continue
 		}
-		providerKeysType := chatprovider.NormalizeProvider(canonicalProviderType)
+		providerKeysType := chatprovider.NormalizeProvider(string(canonicalProviderType))
 		if !aiProviderTypeCanSatisfyRequest(providerKeysType, normalizedProviderType) {
 			continue
 		}
@@ -8792,7 +8797,12 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 		if !aiProviderMatchesRawType(provider, normalizedProviderType) {
 			continue
 		}
-		providerKeysType := chatprovider.NormalizeProvider(bestEffortCanonicalAIProviderTypeString(ctx, p.logger, provider))
+		canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
+		if err != nil {
+			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			canonicalType = provider.Type
+		}
+		providerKeysType := chatprovider.NormalizeProvider(string(canonicalType))
 		keys, matchedProvider, err := keysForProvider(provider, providerKeysType)
 		if err != nil || matchedProvider != nil {
 			return keys, matchedProvider, err

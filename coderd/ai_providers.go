@@ -311,7 +311,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
-		targetType := canonicalDatabaseAIProviderType(old.Type, existing)
+		targetType := database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(old.Type), existing))
 		targetBaseURL := ptr.NilToDefault(req.BaseURL, old.BaseUrl)
 		// Bedrock settings are only meaningful for Bedrock providers;
 		// rejecting the mismatch keeps a misconfiguration from sitting
