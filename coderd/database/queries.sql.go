@@ -1104,7 +1104,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 FROM
 	aibridge_interceptions
 WHERE
@@ -1131,8 +1131,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
-		&i.BoundarySessionID,
-		&i.BoundarySequenceNumber,
+		&i.AgentFirewallSessionID,
+		&i.AgentFirewallSequenceNumber,
 	)
 	return i, err
 }
@@ -1167,7 +1167,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 FROM
 	aibridge_interceptions
 `
@@ -1198,8 +1198,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ProviderName,
 			&i.CredentialKind,
 			&i.CredentialHint,
-			&i.BoundarySessionID,
-			&i.BoundarySequenceNumber,
+			&i.AgentFirewallSessionID,
+			&i.AgentFirewallSequenceNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -1348,30 +1348,30 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 ) VALUES (
 	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 `
 
 type InsertAIBridgeInterceptionParams struct {
-	ID                         uuid.UUID       `db:"id" json:"id"`
-	APIKeyID                   sql.NullString  `db:"api_key_id" json:"api_key_id"`
-	InitiatorID                uuid.UUID       `db:"initiator_id" json:"initiator_id"`
-	Provider                   string          `db:"provider" json:"provider"`
-	ProviderName               string          `db:"provider_name" json:"provider_name"`
-	Model                      string          `db:"model" json:"model"`
-	Metadata                   json.RawMessage `db:"metadata" json:"metadata"`
-	StartedAt                  time.Time       `db:"started_at" json:"started_at"`
-	Client                     sql.NullString  `db:"client" json:"client"`
-	ClientSessionID            sql.NullString  `db:"client_session_id" json:"client_session_id"`
-	ThreadParentInterceptionID uuid.NullUUID   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
-	ThreadRootInterceptionID   uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
-	CredentialKind             CredentialKind  `db:"credential_kind" json:"credential_kind"`
-	CredentialHint             string          `db:"credential_hint" json:"credential_hint"`
-	BoundarySessionID          uuid.NullUUID   `db:"boundary_session_id" json:"boundary_session_id"`
-	BoundarySequenceNumber     sql.NullInt64   `db:"boundary_sequence_number" json:"boundary_sequence_number"`
+	ID                          uuid.UUID       `db:"id" json:"id"`
+	APIKeyID                    sql.NullString  `db:"api_key_id" json:"api_key_id"`
+	InitiatorID                 uuid.UUID       `db:"initiator_id" json:"initiator_id"`
+	Provider                    string          `db:"provider" json:"provider"`
+	ProviderName                string          `db:"provider_name" json:"provider_name"`
+	Model                       string          `db:"model" json:"model"`
+	Metadata                    json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt                   time.Time       `db:"started_at" json:"started_at"`
+	Client                      sql.NullString  `db:"client" json:"client"`
+	ClientSessionID             sql.NullString  `db:"client_session_id" json:"client_session_id"`
+	ThreadParentInterceptionID  uuid.NullUUID   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
+	ThreadRootInterceptionID    uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
+	CredentialKind              CredentialKind  `db:"credential_kind" json:"credential_kind"`
+	CredentialHint              string          `db:"credential_hint" json:"credential_hint"`
+	AgentFirewallSessionID      uuid.NullUUID   `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
+	AgentFirewallSequenceNumber sql.NullInt32   `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -1390,8 +1390,8 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.ThreadRootInterceptionID,
 		arg.CredentialKind,
 		arg.CredentialHint,
-		arg.BoundarySessionID,
-		arg.BoundarySequenceNumber,
+		arg.AgentFirewallSessionID,
+		arg.AgentFirewallSequenceNumber,
 	)
 	var i AIBridgeInterception
 	err := row.Scan(
@@ -1411,8 +1411,8 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
-		&i.BoundarySessionID,
-		&i.BoundarySequenceNumber,
+		&i.AgentFirewallSessionID,
+		&i.AgentFirewallSequenceNumber,
 	)
 	return i, err
 }
@@ -1820,7 +1820,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.boundary_session_id, aibridge_interceptions.boundary_sequence_number
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number
 FROM
 	aibridge_interceptions
 JOIN
@@ -1884,8 +1884,8 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
-			&i.AIBridgeInterception.BoundarySessionID,
-			&i.AIBridgeInterception.BoundarySequenceNumber,
+			&i.AIBridgeInterception.AgentFirewallSessionID,
+			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -2307,7 +2307,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $3::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, boundary_session_id, boundary_sequence_number
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2336,8 +2336,8 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
-		&i.BoundarySessionID,
-		&i.BoundarySequenceNumber,
+		&i.AgentFirewallSessionID,
+		&i.AgentFirewallSequenceNumber,
 	)
 	return i, err
 }

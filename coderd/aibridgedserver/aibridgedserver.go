@@ -181,22 +181,22 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID:                         intcID,
-		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
-		Client:                     sql.NullString{String: in.Client, Valid: in.Client != ""},
-		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
-		InitiatorID:                initID,
-		Provider:                   in.Provider,
-		ProviderName:               providerName,
-		Model:                      in.Model,
-		Metadata:                   out,
-		StartedAt:                  in.StartedAt.AsTime(),
-		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
-		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
-		CredentialKind:             credentialKindOrDefault(in.CredentialKind),
-		CredentialHint:             in.CredentialHint,
-		BoundarySessionID:          uuid.NullUUID{},
-		BoundarySequenceNumber:     sql.NullInt64{},
+		ID:                          intcID,
+		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
+		Client:                      sql.NullString{String: in.Client, Valid: in.Client != ""},
+		ClientSessionID:             sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
+		InitiatorID:                 initID,
+		Provider:                    in.Provider,
+		ProviderName:                providerName,
+		Model:                       in.Model,
+		Metadata:                    out,
+		StartedAt:                   in.StartedAt.AsTime(),
+		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
+		CredentialHint:              in.CredentialHint,
+		AgentFirewallSessionID:      parseOptionalUUID(in.AgentFirewallSessionId),
+		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -689,4 +689,25 @@ func metadataToMap(in map[string]*anypb.Any) map[string]any {
 		}
 	}
 	return meta
+}
+
+// parseOptionalUUID converts an optional proto string to uuid.NullUUID.
+// Returns a zero NullUUID if s is nil or not a valid UUID.
+func parseOptionalUUID(s *string) uuid.NullUUID {
+	if s == nil {
+		return uuid.NullUUID{}
+	}
+	id, err := uuid.Parse(*s)
+	if err != nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}
+}
+
+// parseOptionalInt32 converts an optional proto int32 to sql.NullInt32.
+func parseOptionalInt32(n *int32) sql.NullInt32 {
+	if n == nil {
+		return sql.NullInt32{}
+	}
+	return sql.NullInt32{Int32: *n, Valid: true}
 }

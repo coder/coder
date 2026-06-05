@@ -4402,10 +4402,10 @@ type AIBridgeInterception struct {
 	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
 	// Masked credential identifier for audit (e.g. sk-a***efgh).
 	CredentialHint string `db:"credential_hint" json:"credential_hint"`
-	// The Boundary session ID, linking this Bridge interception to a Boundary confinement session.
-	BoundarySessionID uuid.NullUUID `db:"boundary_session_id" json:"boundary_session_id"`
-	// The Boundary sequence number from the request header. Used to determine exact ordering of network requests relative to Boundary audit events. NULL when the request did not pass through Boundary.
-	BoundarySequenceNumber sql.NullInt64 `db:"boundary_sequence_number" json:"boundary_sequence_number"`
+	// The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.
+	AgentFirewallSessionID uuid.NullUUID `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
+	// The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.
+	AgentFirewallSequenceNumber sql.NullInt32 `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
