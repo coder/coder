@@ -157,6 +157,7 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 		})
 	}
 
+	// CLEANUP: json/v2
 	compatibleOS := m.CompatibleOS
 	if compatibleOS == nil {
 		compatibleOS = []string{}
