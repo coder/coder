@@ -141,7 +141,7 @@ func SeedAIProvidersFromEnv(
 			case found:
 				existingSettings, err := db2sdk.AIProviderSettings(existing.Settings)
 				if err != nil {
-					return xerrors.Errorf("decode existing settings for %q: %w", dp.Name, err)
+					return xerrors.Errorf("decode existing settings for %q: %w", existing.Name, err)
 				}
 				// Load existing bearer keys so the canonical hash
 				// includes credentials for comparison.
