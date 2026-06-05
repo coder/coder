@@ -1739,6 +1739,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 
 			session := dbgen.BoundarySession(t, db, database.BoundarySession{
 				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
 			})
 
 			// Create old boundary log.
