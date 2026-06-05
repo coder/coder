@@ -3600,3 +3600,81 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Equal(t, "zero timeout ok", report)
 	})
 }
+
+func TestEnabledProviderContainsName(t *testing.T) {
+	t.Parallel()
+
+	bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		providers []database.AIProvider
+		query     string
+		want      bool
+	}{
+		{
+			name: "canonical match",
+			providers: []database.AIProvider{
+				{Type: database.AiProviderTypeAnthropic},
+			},
+			query: "anthropic",
+			want:  true,
+		},
+		{
+			name: "legacy bedrock canonical match for anthropic request",
+			providers: []database.AIProvider{
+				{
+					Type:     database.AiProviderTypeAnthropic,
+					Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
+				},
+			},
+			query: "anthropic",
+			want:  true,
+		},
+		{
+			// First pass errors (malformed JSON), second pass matches via raw type.
+			name: "malformed settings falls back to raw type",
+			providers: []database.AIProvider{
+				{
+					Type:     database.AiProviderTypeOpenai,
+					Settings: sql.NullString{String: "{", Valid: true},
+				},
+			},
+			query: "openai",
+			want:  true,
+		},
+		{
+			// First pass errors, second pass matches bedrock satisfying anthropic request.
+			name: "malformed bedrock satisfies anthropic via raw type",
+			providers: []database.AIProvider{
+				{
+					Type:     database.AiProviderTypeBedrock,
+					Settings: sql.NullString{String: "{", Valid: true},
+				},
+			},
+			query: "anthropic",
+			want:  true,
+		},
+		{
+			name: "no match",
+			providers: []database.AIProvider{
+				{Type: database.AiProviderTypeOpenai},
+			},
+			query: "anthropic",
+			want:  false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			got := enabledProviderContainsName(ctx, logger, tt.providers, tt.query)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
