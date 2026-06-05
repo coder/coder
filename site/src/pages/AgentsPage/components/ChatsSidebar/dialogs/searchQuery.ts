@@ -84,6 +84,9 @@ const getKeyValuePair = (
 	};
 };
 
+// Passthrough filters are emitted as `key:value`. The backend parser splits
+// tokens on unquoted whitespace and colons, so a value containing a space or a
+// colon (e.g. a diff URL) must be wrapped in quotes to round-trip correctly.
 const normalizePassthroughChatSearchFilter = ({
 	key,
 	rawKey,
@@ -97,7 +100,7 @@ const normalizePassthroughChatSearchFilter = ({
 		key === "diff_url"
 			? addDefaultURLScheme(sanitizeChatSearchValue(value))
 			: sanitizeChatSearchValue(value);
-	return sanitizedValue.includes(":")
+	return sanitizedValue.includes(":") || sanitizedValue.includes(" ")
 		? `${rawKey}:"${sanitizedValue}"`
 		: `${rawKey}:${sanitizedValue}`;
 };
@@ -132,6 +135,9 @@ export const normalizeChatSearchInput = (
 		}
 
 		if (keyValuePair.key === "title") {
+			// Keep the raw token here; when multiple title terms are present they
+			// are merged and re-quoted in the hasBareTitleText branch below, so
+			// normalizing it now would be redundant.
 			normalizedTokens.push(token);
 			titleTerms.push(keyValuePair.value);
 			continue;

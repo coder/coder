@@ -56,7 +56,10 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 						key={f.key}
 						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-solid border-border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
 					>
-						<span className="block min-w-0 truncate">
+						<span
+							className="block min-w-0 truncate"
+							title={`${f.key}:${f.value}`}
+						>
 							{f.key}:{f.value}
 						</span>
 						<button

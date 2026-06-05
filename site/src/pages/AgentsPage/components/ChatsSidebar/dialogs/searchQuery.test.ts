@@ -33,6 +33,16 @@ describe("normalizeChatSearchInput", () => {
 		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
 	});
 
+	it("re-quotes passthrough values containing spaces so the result round-trips", () => {
+		const normalized = normalizeChatSearchInput('pr_status:"open merged"');
+		expect(normalized).toBe('pr_status:"open merged"');
+		// Normalization must be idempotent: feeding the output back in should not
+		// split the space-containing value into a separate title term.
+		expect(normalizeChatSearchInput(normalized ?? "")).toBe(
+			'pr_status:"open merged"',
+		);
+	});
+
 	it("converts bare search text into a title filter", () => {
 		expect(normalizeChatSearchInput("Fix")).toBe('title:"Fix"');
 		expect(normalizeChatSearchInput("fix auth middleware")).toBe(
