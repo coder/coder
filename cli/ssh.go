@@ -59,7 +59,7 @@ const (
 
 	// Coder Connect DNS should answer locally, so a slow probe should fall
 	// back to the normal SSH tunnel.
-	coderConnectProbeTimeout = 500 * time.Millisecond
+	coderConnectProbeTimeout = 100 * time.Millisecond
 )
 
 var (
