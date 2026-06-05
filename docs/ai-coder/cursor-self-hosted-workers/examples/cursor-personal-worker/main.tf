@@ -103,8 +103,13 @@ resource "coder_agent" "main" {
     interval     = 5
     timeout      = 3
     script       = <<-EOS
-      if curl -fs -o /dev/null --max-time 2 http://127.0.0.1:8080/readyz 2>/dev/null; then echo idle
-      else echo busy-or-starting; fi
+      val=$(curl -fs --max-time 2 http://127.0.0.1:8080/metrics 2>/dev/null \
+            | awk '/^cursor_self_hosted_worker_session_active /{print $2}')
+      case "$val" in
+        0) echo idle ;;
+        1) echo in-use ;;
+        *) echo unknown ;;
+      esac
     EOS
   }
 }

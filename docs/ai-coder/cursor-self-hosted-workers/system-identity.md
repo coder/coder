@@ -334,13 +334,19 @@ resource "coder_agent" "main" {
     key          = "3_ready"
     interval     = 5
     timeout      = 3
-    # cursor-agent returns 200 on /readyz when the worker is idle and
-    # connected, 503 when it's claimed or not yet connected. Treating
-    # 200 as "idle / available for claim" gives operators a single
-    # field to scan for "is this worker free?"
+    # The management server exposes the cursor_self_hosted_worker_session_active
+    # gauge: 1 when a Cloud Agent session is running on this worker, 0 when
+    # idle. /readyz is a generic readiness probe (it returns OK whenever the
+    # worker is connected and able to accept work) and does not flip when
+    # a session is claimed, so we read the metric directly.
     script       = <<-EOS
-      if curl -fsS -o /dev/null http://127.0.0.1:8080/readyz; then echo idle
-      else echo busy-or-starting; fi
+      val=$(curl -fs --max-time 2 http://127.0.0.1:8080/metrics 2>/dev/null \
+            | awk '/^cursor_self_hosted_worker_session_active /{print $2}')
+      case "$val" in
+        0) echo idle ;;
+        1) echo in-use ;;
+        *) echo unknown ;;
+      esac
     EOS
   }
 }
@@ -440,6 +446,7 @@ state. For deeper debugging:
 # Inside the workspace:
 curl -s http://127.0.0.1:8080/healthz
 curl -s http://127.0.0.1:8080/readyz
+curl -s http://127.0.0.1:8080/metrics | grep cursor_self_hosted_worker_
 tail -f ~/cursor-agent.log
 ```
 
