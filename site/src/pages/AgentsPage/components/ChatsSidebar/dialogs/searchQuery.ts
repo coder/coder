@@ -77,6 +77,7 @@ const getKeyValuePair = (
 	}
 
 	const rawKey = token.slice(0, delimiterIndex).replaceAll('"', "");
+	// rawKey preserves the original casing; key is lowercased for filter matching.
 	return {
 		key: rawKey.toLowerCase(),
 		rawKey,
@@ -84,9 +85,8 @@ const getKeyValuePair = (
 	};
 };
 
-// Passthrough filters are emitted as `key:value`. The backend parser splits
-// tokens on unquoted whitespace and colons, so a value containing a space or a
-// colon (e.g. a diff URL) must be wrapped in quotes to round-trip correctly.
+// The backend splits on unquoted whitespace and colons, so values containing
+// either (e.g. a diff URL) must be quoted.
 const normalizePassthroughChatSearchFilter = ({
 	key,
 	rawKey,
@@ -121,7 +121,7 @@ export const normalizeChatSearchInput = (
 	}
 
 	const tokens = splitSearchInput(trimmedInput);
-	const keyValuePairs: string[] = [];
+	const passthroughFilters: string[] = [];
 	const normalizedTokens: string[] = [];
 	const titleTerms: string[] = [];
 	let hasBareTitleText = false;
@@ -135,9 +135,8 @@ export const normalizeChatSearchInput = (
 		}
 
 		if (keyValuePair.key === "title") {
-			// Keep the raw token here; when multiple title terms are present they
-			// are merged and re-quoted in the hasBareTitleText branch below, so
-			// normalizing it now would be redundant.
+			// Title tokens are merged and re-quoted later, so normalizing here
+			// would be redundant.
 			normalizedTokens.push(token);
 			titleTerms.push(keyValuePair.value);
 			continue;
@@ -150,7 +149,7 @@ export const normalizeChatSearchInput = (
 		}
 
 		const normalizedFilter = normalizePassthroughChatSearchFilter(keyValuePair);
-		keyValuePairs.push(normalizedFilter);
+		passthroughFilters.push(normalizedFilter);
 		normalizedTokens.push(normalizedFilter);
 	}
 
@@ -165,7 +164,7 @@ export const normalizeChatSearchInput = (
 	}
 
 	return [
-		...keyValuePairs,
+		...passthroughFilters,
 		`title:"${sanitizeChatSearchValue(titleTerms.join(" "))}"`,
 	].join(" ");
 };

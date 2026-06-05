@@ -481,6 +481,12 @@ export const DiffURLFilterPill: Story = {
 
 		const diffURLPill = await body.findByText(`diff_url:${longDiffURL}`);
 		await expect(diffURLPill).toBeInTheDocument();
+		// The full value is truncated in the pill, so it must stay reachable via
+		// the title tooltip once the free-text input clears.
+		await expect(diffURLPill).toHaveAttribute(
+			"title",
+			`diff_url:${longDiffURL}`,
+		);
 		await expect(searchInput).toBeVisible();
 
 		const searchContainer = searchInput.parentElement;
@@ -496,10 +502,8 @@ export const DiffURLFilterPill: Story = {
 			throw new Error("Expected the search input to render inside a dialog");
 		}
 
-		// The long diff URL must be truncated inside the search box rather than
-		// widening the layout, so neither the input box nor the committed pill may
-		// extend past the dialog. This guards the overflow fix
-		// (min-w-0/truncate/max-w-full); without it the pill would spill outside.
+		// Guards the overflow fix (min-w-0/truncate/max-w-full); without it the
+		// input box or pill would spill outside the dialog.
 		await waitFor(() => {
 			const dialogRight = Math.ceil(dialog.getBoundingClientRect().right);
 			expect(
