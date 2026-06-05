@@ -56,7 +56,11 @@ export const resolveChatSearchFilterAlias = (key: string): string => {
 // Matches a host that looks like a URL (e.g. `github.com`, `example.co.uk`).
 // Used to detect bare URL-like input so it can be routed to the `diff_url:`
 // filter instead of falling back to a useless title search on the URL string.
-const HOST_WITH_PATH_PATTERN = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(:\d+)?\/\S*$/i;
+// Requires at least two path segments so values like `fix.lint/issue` or
+// `v2.api/endpoints` (a short word ending in a TLD-like suffix followed by a
+// single slug) stay treated as title text.
+const HOST_WITH_PATH_PATTERN =
+	/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(:\d+)?\/[^\s/]+\/\S*$/i;
 const SCHEMED_URL_PATTERN = /^https?:\/\/\S+$/i;
 const ANY_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 
@@ -101,7 +105,7 @@ export const normalizeChatDiffURLValue = (value: string): string => {
  * Serializes a single `key:value` filter token for the chat search backend.
  *
  * Values containing characters that the backend's parser treats specially
- * (`:`, `"`, or whitespace) are wrapped in double quotes after stripping any
+ * (`:` or whitespace) are wrapped in double quotes after stripping any
  * internal quotes. Without this, a value like `https://github.com/...` would
  * be split on its `:` and rejected with a "can only contain 1 ':'" error.
  *
@@ -210,6 +214,9 @@ const TITLE_PLACEHOLDER = "\u0000__TITLE__\u0000";
  *   - Recognized `key:value` filters are re-serialized through
  *     {@link formatChatSearchFilterToken} so values containing `:` are quoted
  *     and `diff_url` values without a scheme get `https://` prepended.
+ *   - Duplicate non-title filters (e.g. two `has_unread:` tokens) are
+ *     deduplicated first-wins because the backend rejects a parameter that
+ *     appears more than once.
  */
 export const normalizeChatSearchInput = (
 	rawInput: string,

@@ -157,6 +157,18 @@ describe("normalizeChatSearchInput", () => {
 		expect(normalizeChatSearchInput("prstatus:open")).toBe("pr_status:open");
 		expect(normalizeChatSearchInput("pr-status:open")).toBe("pr_status:open");
 	});
+
+	it("deduplicates repeated non-title filters first-wins", () => {
+		// The backend rejects a parameter that appears more than once, so the
+		// later token is dropped instead of producing a query the API will
+		// reject.
+		expect(normalizeChatSearchInput("has_unread:true has_unread:false")).toBe(
+			"has_unread:true",
+		);
+		expect(normalizeChatSearchInput("archived:true archived:false")).toBe(
+			"archived:true",
+		);
+	});
 });
 
 describe("CHAT_SEARCH_FILTER_KEYS", () => {
@@ -197,6 +209,10 @@ describe("looksLikeChatDiffURL", () => {
 		["1.2.3", false],
 		["", false],
 		["title:foo", false],
+		// Short title text that ends in a TLD-like suffix followed by a single
+		// slug should not be misread as a URL.
+		["fix.lint/issue", false],
+		["v2.api/endpoints", false],
 	])("%s -> %s", (input, expected) => {
 		expect(looksLikeChatDiffURL(input)).toBe(expected);
 	});
