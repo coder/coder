@@ -25,6 +25,12 @@ describe("normalizeChatSearchInput", () => {
 				"diff_url:https://github.com/coder/coder/pull/26016",
 			),
 		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+		expect(
+			normalizeChatSearchInput("diff_url:github.com/coder/coder/pull/26016"),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+		expect(
+			normalizeChatSearchInput('diff_url:"github.com/coder/coder/pull/26016"'),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
 	});
 
 	it("converts bare search text into a title filter", () => {

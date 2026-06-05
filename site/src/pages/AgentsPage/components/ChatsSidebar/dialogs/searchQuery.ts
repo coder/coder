@@ -6,6 +6,10 @@ const sanitizeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', "");
 };
 
+const addDefaultURLScheme = (value: string): string => {
+	return /^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `https://${value}`;
+};
+
 // Filter keys that may pass through to the backend unchanged. `title` is not
 // listed here because bare text and `title:` filters are merged into a single
 // title filter; see the title-handling branch in normalizeChatSearchInput.
@@ -81,13 +85,18 @@ const getKeyValuePair = (
 };
 
 const normalizePassthroughChatSearchFilter = ({
+	key,
 	rawKey,
 	value,
 }: {
+	readonly key: string;
 	readonly rawKey: string;
 	readonly value: string;
 }): string => {
-	const sanitizedValue = sanitizeChatSearchValue(value);
+	const sanitizedValue =
+		key === "diff_url"
+			? addDefaultURLScheme(sanitizeChatSearchValue(value))
+			: sanitizeChatSearchValue(value);
 	return sanitizedValue.includes(":")
 		? `${rawKey}:"${sanitizedValue}"`
 		: `${rawKey}:${sanitizedValue}`;

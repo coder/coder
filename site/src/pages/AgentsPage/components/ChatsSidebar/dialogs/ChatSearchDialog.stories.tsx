@@ -85,7 +85,7 @@ const cappedMockChats: Chat[] = Array.from(
 	}),
 );
 const longDiffURL =
-	"https://github.com/coder/coder/pull/26016/files/1234567890abcdef1234567890abcdef1234567890abcdef";
+	"github.com/coder/coder/pull/26016/files/1234567890abcdef1234567890abcdef1234567890abcdef";
 
 const meta: Meta<typeof ChatSearchDialog> = {
 	title: "pages/AgentsPage/ChatSearchDialog",
@@ -483,7 +483,6 @@ export const DiffURLFilterPill: Story = {
 		await expect(diffURLPill).toBeInTheDocument();
 		await expect(searchInput).toBeVisible();
 
-		const dialog = body.getByRole("dialog");
 		const searchContainer = searchInput.parentElement;
 		const searchWrapper = searchContainer?.parentElement;
 		if (!searchContainer || !searchWrapper) {
@@ -495,7 +494,7 @@ export const DiffURLFilterPill: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: `diff_url:"${longDiffURL}"`,
+				q: `diff_url:"https://${longDiffURL}"`,
 			});
 		});
 	},
