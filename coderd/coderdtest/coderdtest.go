@@ -908,6 +908,16 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 	require.NoError(t, err)
 	for _, org := range orgs {
 		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+		// The implicit role set (organization-member plus the org's
+		// default_org_member_roles) is unioned at request time by
+		// GetAuthorizationUserRoles. Subjects built directly here bypass
+		// that SQL union, so mirror it explicitly.
+		for _, name := range org.DefaultOrgMemberRoles {
+			roles = append(roles, rbac.RoleIdentifier{
+				Name:           name,
+				OrganizationID: org.ID,
+			})
+		}
 	}
 
 	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
