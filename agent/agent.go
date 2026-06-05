@@ -90,10 +90,8 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
-	// EnvInfo overrides how session command environments are resolved
-	// (user, shell, home directory, environment). Only tests should set
-	// this. Production leaves it nil so agentssh defaults to
-	// usershell.SystemEnvInfo.
+	// EnvInfo overrides the session command environment source. Only
+	// tests set this. Nil defaults to usershell.SystemEnvInfo.
 	EnvInfo usershell.EnvInfoer
 	Logger  slog.Logger
 	// IgnorePorts tells the api handler which ports to ignore when

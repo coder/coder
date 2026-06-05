@@ -107,11 +107,9 @@ type Config struct {
 	// where users will land when they connect via SSH. Default is the home
 	// directory of the user.
 	WorkingDirectory func() string
-	// EnvInfo provides external information about the environment (user,
-	// shell, home directory, environment variables) used when creating
-	// session commands. Default is usershell.SystemEnvInfo, which reflects
-	// the host environment. A container override still applies per session
-	// when ExperimentalContainers is enabled.
+	// EnvInfo sources the session command environment. Default is
+	// usershell.SystemEnvInfo. A container override still applies per
+	// session when ExperimentalContainers is enabled.
 	EnvInfo usershell.EnvInfoer
 	// X11DisplayOffset is the offset to add to the X11 display number.
 	// Default is 10.
