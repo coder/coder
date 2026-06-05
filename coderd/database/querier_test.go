@@ -3072,7 +3072,7 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	require.Contains(t, initialSA.Roles, wantWorkspaceAccess)
 
 	// Shrinking the org default to empty must immediately drop the role
-	// from both effective sets without touching organization_members.
+	// from both effective sets.
 	_, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
 		ID:                    org.ID,
 		UpdatedAt:             dbtime.Now(),

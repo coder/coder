@@ -495,7 +495,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
-			require.Contains(t, apiErr.Message, "Gateway Accounts are not enabled")
+			require.Contains(t, apiErr.Message, "Changing default organization roles is not enabled")
 		})
 
 		t.Run("DeviationAllowedWithExperiment", func(t *testing.T) {

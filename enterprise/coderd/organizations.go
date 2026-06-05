@@ -68,7 +68,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		!slices.Equal(*req.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()) &&
 		!api.AGPL.Experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Gateway Accounts are not enabled on this deployment.",
+			Message: "Changing default organization roles is not enabled on this deployment.",
 			Detail:  fmt.Sprintf("Setting default_org_member_roles to anything other than %v requires the %q experiment.", rbac.DefaultOrgMemberRoles(), codersdk.ExperimentMinimumImplicitMember),
 		})
 		return
