@@ -16522,6 +16522,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shared": {
+                    "type": "boolean"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },

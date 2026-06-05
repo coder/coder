@@ -126,6 +126,7 @@ type Chat struct {
 	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
 	Archived          bool               `json:"archived"`
+	Shared            bool               `json:"shared"`
 	PinOrder          int32              `json:"pin_order"`
 	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
 	Labels            map[string]string  `json:"labels"`

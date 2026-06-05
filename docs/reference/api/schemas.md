@@ -2319,6 +2319,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2452,6 +2453,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2491,6 +2493,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`                | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -4130,6 +4133,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",

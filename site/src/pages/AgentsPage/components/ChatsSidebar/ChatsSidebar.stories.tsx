@@ -72,6 +72,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -192,6 +193,7 @@ export const SharedChat: Story = {
 				owner_id: "sharing-user",
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
+				shared: true,
 				last_turn_summary: "This summary is hidden for shared chats",
 			}),
 		],
@@ -199,7 +201,7 @@ export const SharedChat: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getByText("Shared")).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
 		await expect(
 			canvas.getByText("Shared by Sharing User"),
 		).toBeInTheDocument();

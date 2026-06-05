@@ -159,6 +159,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -284,6 +285,7 @@ Status Code **200**
 | `» pin_order`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» plan_mode`                     | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» root_chat_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» shared`                        | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» title`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» updated_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -503,6 +505,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -636,6 +639,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -920,6 +924,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -1107,6 +1112,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -1240,6 +1246,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1508,6 +1515,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -1641,6 +1649,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2796,6 +2805,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2929,6 +2939,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",

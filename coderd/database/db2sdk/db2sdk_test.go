@@ -947,6 +947,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,
+		UserACL:           database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
 		PinOrder:          1,
 		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 		MCPServerIDs:      []uuid.UUID{uuid.New()},

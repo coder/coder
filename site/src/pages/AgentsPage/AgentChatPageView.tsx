@@ -98,6 +98,7 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -203,6 +204,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
+	isSharedChat,
 	chatOwner,
 	canShareChat,
 	workspaceAgent,
@@ -479,6 +481,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
+								isSharedChat={isSharedChat}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 								renderChatSharingContent={

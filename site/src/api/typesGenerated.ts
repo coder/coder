@@ -1546,6 +1546,7 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly shared: boolean;
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
