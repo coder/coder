@@ -2070,6 +2070,13 @@ export const GenericToolFailedNoResult: Story = {
 const longCodeLine =
 	'export const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };';
 
+// A file that overflows on both axes: one very wide line plus enough
+// lines to exceed the viewer's max height.
+const tallWideFileContent = [
+	longCodeLine,
+	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
+].join("\n");
+
 export const ReadFileLongLine: Story = {
 	args: {
 		name: "read_file",
@@ -2093,6 +2100,42 @@ export const ReadFileLongLine: Story = {
 				expect(getComputedStyle(code).overflow).toBe("visible");
 			}
 		});
+	},
+};
+
+export const ReadFileTallAndWide: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: tallWideFileContent },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+		// With both axes overflowing, the wheel guard must leave a vertical
+		// gesture to native scrolling instead of redirecting it horizontally.
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find(
+			(v) => v.scrollWidth > v.clientWidth && v.scrollHeight > v.clientHeight,
+		);
+		if (!viewport) {
+			throw new Error("Expected a viewport overflowing on both axes.");
+		}
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
+		);
+		// A synthetic wheel cannot trigger native scrolling, so assert the
+		// handler did not hijack the vertical gesture into horizontal scroll.
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		expect(viewport.scrollLeft).toBe(0);
 	},
 };
 
