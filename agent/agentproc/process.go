@@ -84,7 +84,7 @@ type manager struct {
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, envInfo usershell.EnvInfoer) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
 	if envInfo == nil {
 		envInfo = &usershell.SystemEnvInfo{}
 	}

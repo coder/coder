@@ -138,7 +138,7 @@ func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, err
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil, workingDir, nil)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, updateEnv, workingDir)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
@@ -153,7 +153,7 @@ func newTestAPIWithEnvInfo(t *testing.T, workingDir func() string, envInfo users
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, workingDir, envInfo)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, envInfo, nil, workingDir)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
@@ -1144,9 +1144,9 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	defer unsub()
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, func(current []string) ([]string, error) {
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, pathStore, nil, func(current []string) ([]string, error) {
 		return current, nil
-	}, pathStore, nil, nil)
+	}, nil)
 	defer api.Close()
 
 	routes := agentchat.Middleware(api.Routes())

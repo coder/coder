@@ -37,10 +37,10 @@ type API struct {
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore, workingDir func() string, envInfo usershell.EnvInfoer) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, updateEnv, workingDir, envInfo),
+		manager:   newManager(logger, execer, envInfo, updateEnv, workingDir),
 		pathStore: pathStore,
 	}
 }
