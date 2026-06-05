@@ -434,7 +434,7 @@ func (a *agent) init() {
 			return m.Directory
 		}
 		return ""
-	})
+	}, a.envInfo)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
