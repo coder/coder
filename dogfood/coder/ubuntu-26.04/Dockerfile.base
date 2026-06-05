@@ -128,6 +128,20 @@ RUN chmod a+x /opt/configure-chrome-flags.sh && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
 	rm google-chrome-stable_current_amd64.deb
 
+# Install Firefox from Mozilla's official APT repository.
+# Ubuntu 26.04 only ships Firefox as a snap, which does not work in
+# Docker containers.
+RUN install -d -m 0755 /etc/apt/keyrings && \
+	wget -q https://packages.mozilla.org/apt/repo-signing-key.gpg \
+		-O /etc/apt/keyrings/packages.mozilla.org.asc && \
+	echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
+		> /etc/apt/sources.list.d/mozilla.list && \
+	printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' \
+		> /etc/apt/preferences.d/mozilla && \
+	apt-get update --quiet && \
+	apt-get install --yes --allow-downgrades firefox && \
+	apt-get clean
+
 # Install Rust via rustup. Using rustup ensures we get a current stable
 # toolchain.
 ENV RUSTUP_HOME=/usr/local/rustup \
