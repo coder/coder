@@ -125,6 +125,45 @@ type Story = StoryObj<typeof ChatSearchDialog>;
 
 export const EmptyState: Story = {};
 
+export const IconInputAlignment: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		const toggleButton = await body.findByRole("button", {
+			name: "Toggle filters",
+		});
+
+		const container = toggleButton.parentElement;
+		if (!container) {
+			throw new Error("Expected the toggle button to have a parent container");
+		}
+		const searchIcon = container.querySelector("svg");
+		const filterIcon = toggleButton.querySelector("svg");
+		if (!searchIcon || !filterIcon) {
+			throw new Error("Expected the search and filter icons to render");
+		}
+
+		// The icons must stay vertically centered on the single input row.
+		// A regression here (e.g. a fixed top margin that no longer matches the
+		// input height) leaves the icons floating above the text.
+		const verticalCenter = (element: Element) => {
+			const rect = element.getBoundingClientRect();
+			return rect.top + rect.height / 2;
+		};
+		await waitFor(() => {
+			const inputCenter = verticalCenter(searchInput);
+			expect(
+				Math.abs(verticalCenter(searchIcon) - inputCenter),
+			).toBeLessThanOrEqual(1);
+			expect(
+				Math.abs(verticalCenter(filterIcon) - inputCenter),
+			).toBeLessThanOrEqual(1);
+		});
+	},
+};
+
 export const LoadingState: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats").mockImplementation(

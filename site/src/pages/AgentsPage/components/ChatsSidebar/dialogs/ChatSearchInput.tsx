@@ -49,7 +49,13 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
-			<SearchIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
+			{/* h-7 matches the input row height (text-sm line height 1.5rem plus
+			    py-0.5) so the icon centers on the first row while the container
+			    stays top-aligned, keeping the icons in place when filter pills
+			    wrap onto multiple lines. */}
+			<div className="flex h-7 shrink-0 items-center">
+				<SearchIcon className="size-4 text-content-secondary" />
+			</div>
 			<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
 				{completedFilters.map((f) => (
 					<span
@@ -99,7 +105,7 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 				type="button"
 				onClick={onToggleDropdown}
 				className={cn(
-					"mt-0.5 inline-flex shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary",
+					"inline-flex h-7 shrink-0 cursor-pointer items-center border-none bg-transparent p-0 text-content-secondary hover:text-content-primary",
 					isDropdownOpen && "text-content-primary",
 				)}
 				aria-label="Toggle filters"
