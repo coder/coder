@@ -6,6 +6,7 @@ package cli
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -50,6 +51,9 @@ func forwardGPGAgent(ctx context.Context, stderr io.Writer, sshClient *gossh.Cli
 	}
 	f, err := os.Open(localSocket)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, xerrors.Errorf("gpg-agent socket %q does not exist. Is the gpg-agent running? Try starting it with 'gpg-agent --daemon'", localSocket)
+		}
 		return nil, xerrors.Errorf("open gpg-agent-extra socket file %q: %w", localSocket, err)
 	}
 

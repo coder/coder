@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/sys/unix"
+	"golang.org/x/xerrors"
 )
 
 func listenWindowSize(ctx context.Context) <-chan os.Signal {
@@ -28,6 +30,13 @@ func forwardGPGAgent(ctx context.Context, stderr io.Writer, sshClient *gossh.Cli
 	localSocket, err := localGPGExtraSocket(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if _, err := os.Stat(localSocket); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, xerrors.Errorf("gpg-agent socket %q does not exist. Is the gpg-agent running? Try starting it with 'gpg-agent --daemon'", localSocket)
+		}
+		return nil, xerrors.Errorf("stat gpg-agent socket %q: %w", localSocket, err)
 	}
 
 	remoteSocket, err := remoteGPGAgentSocket(sshClient)
