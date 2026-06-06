@@ -27,7 +27,7 @@ _Replace `coder.example.com` with your Coder deployment URL. Model IDs must matc
 
 ### OpenAI-compatible models
 
-Set **API type** to `Responses`.
+Set **API type** to `responses`.
 
 ```json
 {
@@ -53,7 +53,7 @@ Set **API type** to `Responses`.
 
 ### Anthropic models
 
-Set **API type** to `Messages`.
+Set **API type** to `messages`.
 
 ```json
 {
