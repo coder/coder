@@ -36,7 +36,6 @@ describe("normalizeChatSearchInput", () => {
 	it("re-quotes passthrough values containing spaces so the result round-trips", () => {
 		const normalized = normalizeChatSearchInput('pr_status:"open merged"');
 		expect(normalized).toBe('pr_status:"open merged"');
-		// Normalization must be idempotent.
 		expect(normalizeChatSearchInput(normalized ?? "")).toBe(
 			'pr_status:"open merged"',
 		);

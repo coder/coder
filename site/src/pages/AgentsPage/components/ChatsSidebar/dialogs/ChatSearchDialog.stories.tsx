@@ -145,9 +145,6 @@ export const IconInputAlignment: Story = {
 			throw new Error("Expected the search and filter icons to render");
 		}
 
-		// The icons must stay vertically centered on the single input row.
-		// A regression here (e.g. a fixed top margin that no longer matches the
-		// input height) leaves the icons floating above the text.
 		const verticalCenter = (element: Element) => {
 			const rect = element.getBoundingClientRect();
 			return rect.top + rect.height / 2;
@@ -521,8 +518,6 @@ export const DiffURLFilterPill: Story = {
 
 		const diffURLPill = await body.findByText(`diff_url:${longDiffURL}`);
 		await expect(diffURLPill).toBeInTheDocument();
-		// The full value is truncated in the pill, so it must stay reachable via
-		// the title tooltip once the free-text input clears.
 		await expect(diffURLPill).toHaveAttribute(
 			"title",
 			`diff_url:${longDiffURL}`,
@@ -542,8 +537,6 @@ export const DiffURLFilterPill: Story = {
 			throw new Error("Expected the search input to render inside a dialog");
 		}
 
-		// Guards the overflow fix (min-w-0/truncate/max-w-full); without it the
-		// input box or pill would spill outside the dialog.
 		await waitFor(() => {
 			const dialogRight = Math.ceil(dialog.getBoundingClientRect().right);
 			expect(

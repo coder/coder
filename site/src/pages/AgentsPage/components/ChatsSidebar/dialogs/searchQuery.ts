@@ -77,7 +77,6 @@ const getKeyValuePair = (
 	}
 
 	const rawKey = token.slice(0, delimiterIndex).replaceAll('"', "");
-	// rawKey preserves the original casing; key is lowercased for filter matching.
 	return {
 		key: rawKey.toLowerCase(),
 		rawKey,
@@ -135,8 +134,6 @@ export const normalizeChatSearchInput = (
 		}
 
 		if (keyValuePair.key === "title") {
-			// Title tokens are merged and re-quoted later, so normalizing here
-			// would be redundant.
 			normalizedTokens.push(token);
 			titleTerms.push(keyValuePair.value);
 			continue;
