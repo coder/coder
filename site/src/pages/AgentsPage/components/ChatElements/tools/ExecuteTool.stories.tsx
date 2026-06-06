@@ -215,7 +215,6 @@ export const ParsedCommandsWithIntent: Story = {
 	},
 };
 
-/** A long unbroken token wraps instead of overflowing the transcript. */
 export const LongUnbrokenLineOutput: Story = {
 	decorators: [
 		(Story) => (

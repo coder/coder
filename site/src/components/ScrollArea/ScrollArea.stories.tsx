@@ -37,7 +37,6 @@ const contrastRatio = (a: string, b: string): number => {
 	return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 };
 
-/** Scrollbar thumb meets WCAG target size (>=24px) and contrast (>=3:1). */
 export const Accessibility: Story = {
 	render: () => (
 		<div

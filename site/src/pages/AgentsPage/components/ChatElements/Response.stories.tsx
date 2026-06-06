@@ -144,7 +144,6 @@ const expectCodeBlock = async (
 	expect(codeStyles.paddingTop).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
-	// Precondition: visible overflow lets the outer ScrollArea own horizontal scroll.
 	expect(codeStyles.overflow).toBe("visible");
 
 	const lineStyles = getComputedStyle(line);
@@ -193,16 +192,12 @@ const longLineCodeBlockMarkdown = [
 	"",
 ].join("\n");
 
-// Must scroll horizontally within its bounds, not widen the
-// surrounding message.
 export const LongLineFencedBlock: Story = {
 	args: {
 		children: longLineCodeBlockMarkdown,
 	},
 	play: async ({ canvasElement }) => {
 		await expectCodeBlock(canvasElement, /apiUrl/);
-		// A plain vertical mouse wheel must scroll the wide block
-		// horizontally instead of the page (the orientation="both" handler).
 		const viewport = [
 			...canvasElement.querySelectorAll<HTMLElement>(
 				"[data-radix-scroll-area-viewport]",
@@ -218,9 +213,6 @@ export const LongLineFencedBlock: Story = {
 	},
 };
 
-// At its horizontal edges the wheel passes through to the page instead of
-// being trapped, so it does not preventDefault once there is no more room
-// to scroll in that direction.
 export const LongLineFencedBlockWheelEdges: Story = {
 	args: {
 		children: longLineCodeBlockMarkdown,
@@ -235,9 +227,6 @@ export const LongLineFencedBlockWheelEdges: Story = {
 		if (!viewport) {
 			throw new Error("Expected a horizontally scrollable viewport.");
 		}
-		// The handler runs on a non-passive listener, so a claimed gesture
-		// also prevents page scroll. dispatchWheel returns whether it was
-		// claimed at the current scroll position.
 		const dispatchWheel = (deltaY: number) => {
 			const event = new WheelEvent("wheel", {
 				deltaY,
@@ -248,13 +237,10 @@ export const LongLineFencedBlockWheelEdges: Story = {
 			return event.defaultPrevented;
 		};
 		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
-		// Mid-scroll: the block claims the vertical gesture.
 		viewport.scrollLeft = Math.floor(maxLeft / 2);
 		expect(dispatchWheel(200)).toBe(true);
-		// Right edge, scrolling further right: pass through to the page.
 		viewport.scrollLeft = maxLeft;
 		expect(dispatchWheel(200)).toBe(false);
-		// Left edge, scrolling further left: pass through to the page.
 		viewport.scrollLeft = 0;
 		expect(dispatchWheel(-200)).toBe(false);
 	},

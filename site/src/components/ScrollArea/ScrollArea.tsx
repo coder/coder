@@ -9,11 +9,6 @@ import { cn } from "#/utils/cn";
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
-	/**
-	 * Class for the horizontal scrollbar. Sets its thickness
-	 * independently of the vertical bar. For orientation "horizontal"
-	 * it falls back to scrollBarClassName when omitted.
-	 */
 	horizontalScrollBarClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;
@@ -33,23 +28,13 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 }) => {
 	const viewportRef = useRef<HTMLDivElement>(null);
 
-	// Redirect a vertical wheel gesture into horizontal scroll when the
-	// viewport overflows horizontally but not vertically, so a plain mouse
-	// wheel scrolls the block instead of the page (e.g. a wide "both" code
-	// block or a "horizontal" row of tabs). React attaches `wheel` listeners
-	// as passive, where preventDefault is a no-op, so attach a non-passive
-	// listener directly on the viewport.
 	useEffect(() => {
 		const el = viewportRef.current;
 		if (!el || orientation === "vertical") return;
 		const handleWheel = (e: WheelEvent) => {
-			// Only redirect a predominantly vertical gesture, and only when
-			// there is horizontal overflow and no vertical overflow to scroll.
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
 			if (el.scrollWidth <= el.clientWidth) return;
 			if (el.scrollHeight > el.clientHeight) return;
-			// Let the page keep scrolling once the block reaches a horizontal
-			// edge, so the wheel isn't trapped at the boundaries.
 			const maxLeft = el.scrollWidth - el.clientWidth;
 			if (e.deltaY > 0 && el.scrollLeft >= maxLeft) return;
 			if (e.deltaY < 0 && el.scrollLeft <= 0) return;
@@ -83,9 +68,6 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 					orientation="horizontal"
 					className={cn(
 						"z-10",
-						// scrollBarClassName sizes the vertical bar, so only fall
-						// back to it for a horizontal-only area. For "both", an
-						// unset horizontal class keeps the built-in thickness.
 						orientation === "both"
 							? horizontalScrollBarClassName
 							: (horizontalScrollBarClassName ?? scrollBarClassName),
