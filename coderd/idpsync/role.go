@@ -179,15 +179,29 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 					validExpected = append(validExpected, role.Name)
 				}
 			}
-			// Ignore the implied member role
-			validExpected = slices.DeleteFunc(validExpected, func(s string) bool {
-				return s == rbac.RoleOrgMember()
-			})
+
+			// The implicit role set (organization-member plus the org's
+			// default_org_member_roles) is applied at request time by
+			// GetAuthorizationUserRoles. Filter both sides of the diff so
+			// IdP sync neither tries to grant implicit roles explicitly nor
+			// remove them.
+			org, err := tx.GetOrganizationByID(ctx, orgID)
+			if err != nil {
+				return xerrors.Errorf("get organization %s for default roles: %w", orgID, err)
+			}
+			implicit := make(map[string]struct{}, len(org.DefaultOrgMemberRoles)+1)
+			implicit[rbac.RoleOrgMember()] = struct{}{}
+			for _, r := range org.DefaultOrgMemberRoles {
+				implicit[r] = struct{}{}
+			}
+			isImplicit := func(s string) bool {
+				_, ok := implicit[s]
+				return ok
+			}
+			validExpected = slices.DeleteFunc(validExpected, isImplicit)
 
 			existingFound := existingRoles[orgID]
-			existingFound = slices.DeleteFunc(existingFound, func(s string) bool {
-				return s == rbac.RoleOrgMember()
-			})
+			existingFound = slices.DeleteFunc(existingFound, isImplicit)
 
 			// Only care about unique roles. So remove all duplicates
 			existingFound = slice.Unique(existingFound)

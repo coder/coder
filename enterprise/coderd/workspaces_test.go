@@ -1315,7 +1315,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1518,7 +1518,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Kick of an autostart build.
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1545,12 +1545,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
 		})
 
 		// Force an autostart transition again.
-		tickTime2 := sched.Next(firstBuild.CreatedAt)
+		tickTime2 := coderdtest.NextAutostartTick(t, ws)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh

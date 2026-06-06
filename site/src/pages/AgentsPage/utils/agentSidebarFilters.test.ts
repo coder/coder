@@ -11,6 +11,7 @@ const defaultFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const archivedFilters: AgentSidebarFilters = {
@@ -18,6 +19,7 @@ const archivedFilters: AgentSidebarFilters = {
 	groupBy: "chat_status",
 	prStatuses: ["draft", "merged"],
 	chatStatuses: ["unread"],
+	sources: ["created_by_me", "shared_with_me"],
 };
 
 const renderFilters = (route = "/agents") => {
@@ -44,14 +46,15 @@ describe(getAgentSidebarFilters.name, () => {
 			expected: defaultFilters,
 		},
 		{
-			name: "parses archived, group_by, pr_status, and chat_status",
+			name: "parses archived, group_by, pr_status, chat_status, and source",
 			route:
-				"/agents?archived=archived&group_by=chat_status&pr_status=open,draft,closed&chat_status=unread",
+				"/agents?archived=archived&group_by=chat_status&pr_status=open,draft,closed&chat_status=unread&source=shared_with_me",
 			expected: {
 				archiveStatus: "archived",
 				groupBy: "chat_status",
 				prStatuses: ["draft", "open", "closed"],
 				chatStatuses: ["unread"],
+				sources: ["shared_with_me"],
 			},
 		},
 		{
@@ -82,6 +85,7 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("group_by")).toEqual(null);
 		expect(search.get("pr_status")).toEqual(null);
 		expect(search.get("chat_status")).toEqual(null);
+		expect(search.get("source")).toEqual(null);
 	});
 
 	it("writes archived status filter", async () => {
@@ -118,5 +122,6 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("group_by")).toBe("chat_status");
 		expect(search.get("pr_status")).toBe("draft,merged");
 		expect(search.get("chat_status")).toBe("unread");
+		expect(search.get("source")).toBe("created_by_me,shared_with_me");
 	});
 });

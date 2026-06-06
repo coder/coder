@@ -121,6 +121,7 @@ const makeChat = (
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -1542,12 +1543,13 @@ describe("infiniteChats", () => {
 			});
 		});
 
-		it("builds q from archived, prStatuses, and chatStatus", async () => {
+		it("builds q from archived, prStatuses, chatStatus, and source", async () => {
 			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
+				source: "all",
 			});
 
 			await queryFn({ pageParam: 0 });
@@ -1555,7 +1557,7 @@ describe("infiniteChats", () => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: 0,
-				q: "archived:true pr_status:draft,open,merged has_unread:true",
+				q: "archived:true pr_status:draft,open,merged has_unread:true source:all",
 			});
 		});
 

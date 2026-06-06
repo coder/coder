@@ -107,6 +107,10 @@ type Config struct {
 	// where users will land when they connect via SSH. Default is the home
 	// directory of the user.
 	WorkingDirectory func() string
+	// EnvInfo sources the session command environment. Default is
+	// usershell.SystemEnvInfo. A container override still applies per
+	// session when ExperimentalContainers is enabled.
+	EnvInfo usershell.EnvInfoer
 	// X11DisplayOffset is the offset to add to the X11 display number.
 	// Default is 10.
 	X11DisplayOffset *int
@@ -188,6 +192,9 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			}
 			return home
 		}
+	}
+	if config.EnvInfo == nil {
+		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if config.ReportConnection == nil {
 		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
@@ -619,7 +626,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		ptyLabel = "yes"
 	}
 
-	var ei usershell.EnvInfoer
+	ei := s.config.EnvInfo
 	var err error
 	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
