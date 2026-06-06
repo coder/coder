@@ -390,10 +390,28 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var sharedWithGroupIDs []string
+	if searchParams.SharedOnly {
+		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{HasMemberID: apiKey.UserID})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to list chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		sharedWithGroupIDs = make([]string, 0, len(groups))
+		for _, group := range groups {
+			sharedWithGroupIDs = append(sharedWithGroupIDs, group.Group.ID.String())
+		}
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
-		SharedOnly:          searchParams.SharedOnly,
 		ViewerID:            apiKey.UserID,
+		SharedOnly:          searchParams.SharedOnly,
+		SharedWithUserID:    apiKey.UserID,
+		SharedWithGroupIds:  sharedWithGroupIDs,
 		Archived:            searchParams.Archived,
 		AfterID:             paginationParams.AfterID,
 		LabelFilter:         labelFilter,
