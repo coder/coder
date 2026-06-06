@@ -58,10 +58,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import {
-	getAgentConnectivityIssues,
-	getAgentHealthIssues,
-} from "#/modules/workspaces/health";
+import { getAgentConnectivityIssues } from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -107,9 +104,9 @@ const statusBorderClassByLifecycle: Partial<
 	starting: "border-border-pending",
 	shutting_down: "border-border-pending",
 	ready: "border-border-success",
-	start_timeout: "border-border-warning",
+	start_timeout: "border-border-success",
 	shutdown_timeout: "border-border-warning",
-	start_error: "border-border-warning",
+	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
 	off: "border-border",
 };
@@ -171,8 +168,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasWarningConnectivityIssues = connectivityIssues.some(
 		(i) => i.severity === "warning",
 	);
-	// Get all issues (connectivity + script) for the logs panel alerts.
-	const healthIssues = getAgentHealthIssues(agent);
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
 		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
@@ -340,7 +335,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
-	const shouldExpandLogs = showLogs || (!hasStartupFeatures && hasAgentIssues);
+	const shouldExpandLogs =
+		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
 	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
 	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
