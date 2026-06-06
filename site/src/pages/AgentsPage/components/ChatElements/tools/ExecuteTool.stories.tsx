@@ -214,3 +214,41 @@ export const ParsedCommandsWithIntent: Story = {
 		],
 	},
 };
+
+/**
+ * Output with a very long unbroken token must wrap inside the transcript.
+ * Shell output never renders a horizontal scrollbar, so an unwrapped line
+ * would be clipped and unreachable. Regression test for `break-all`
+ * wrapping in a narrow container.
+ */
+export const LongUnbrokenLineOutput: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		command: "cat access-token.txt",
+		transcriptBlocks: [
+			{
+				kind: "output",
+				text: `token:${"A".repeat(400)}:end`,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const viewport = canvasElement.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		await expect(viewport).not.toBeNull();
+		// Wrapped content fits the viewport width. An unwrapped 400-char
+		// token would push scrollWidth far past clientWidth.
+		if (viewport) {
+			await expect(viewport.scrollWidth).toBeLessThanOrEqual(
+				viewport.clientWidth + 2,
+			);
+		}
+	},
+};

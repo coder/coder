@@ -1,0 +1,122 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor } from "storybook/test";
+import { ScrollArea } from "./ScrollArea";
+
+const meta: Meta<typeof ScrollArea> = {
+	title: "components/ScrollArea",
+	component: ScrollArea,
+};
+export default meta;
+type Story = StoryObj<typeof ScrollArea>;
+
+/** Content that overflows on both axes so both scrollbars are present. */
+const OverflowingContent = () => (
+	<div className="w-[1200px] p-3 font-mono text-xs leading-5">
+		{Array.from({ length: 60 }, (_, row) => (
+			<div key={row} className="whitespace-nowrap">
+				{`row ${row.toString().padStart(2, "0")} `}
+				{"value ".repeat(30)}
+			</div>
+		))}
+	</div>
+);
+
+/** Parses an `rgb()`/`rgba()` string into its relative luminance. */
+const luminance = (color: string): number => {
+	const parts = (color.match(/[\d.]+/g) ?? []).map(Number);
+	const [r, g, b] = parts.slice(0, 3).map((value) => {
+		const channel = value / 255;
+		return channel <= 0.03928
+			? channel / 12.92
+			: ((channel + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** WCAG contrast ratio between two `rgb()` colors. */
+const contrastRatio = (a: string, b: string): number => {
+	const la = luminance(a);
+	const lb = luminance(b);
+	return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+};
+
+/**
+ * The visible thumb stays slim, but its transparent `::before` gives the
+ * pointer/drag target at least 24px (WCAG 2.5.8 Target Size (Minimum)),
+ * and the thumb color keeps a >=3:1 contrast (WCAG 1.4.11 Non-text
+ * Contrast) against the surface it overlays.
+ */
+export const Accessibility: Story = {
+	render: () => (
+		<div
+			data-testid="surface"
+			className="w-96 rounded-md border border-solid border-border-default bg-surface-primary"
+		>
+			<ScrollArea
+				className="h-48"
+				type="always"
+				orientation="both"
+				scrollBarClassName="w-1.5"
+				horizontalScrollBarClassName="h-1.5"
+			>
+				<OverflowingContent />
+			</ScrollArea>
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const surface = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='surface']",
+		);
+		await expect(surface).not.toBeNull();
+
+		// Radix sizes thumbs after measuring the viewport, so wait until
+		// both scrollbars exist before measuring. Each scrollbar's only
+		// child is its thumb.
+		const getThumbs = () => {
+			const vertical = canvasElement.querySelector(
+				'[data-orientation="vertical"]',
+			)?.firstElementChild as HTMLElement | null | undefined;
+			const horizontal = canvasElement.querySelector(
+				'[data-orientation="horizontal"]',
+			)?.firstElementChild as HTMLElement | null | undefined;
+			return { vertical, horizontal };
+		};
+
+		await waitFor(() => {
+			const { vertical, horizontal } = getThumbs();
+			expect(vertical).toBeTruthy();
+			expect(horizontal).toBeTruthy();
+		});
+
+		const { vertical, horizontal } = getThumbs();
+		if (!vertical || !horizontal || !surface) {
+			throw new Error("scrollbar thumbs not found");
+		}
+
+		// Hit target: the transparent ::before is at least 24px on both
+		// axes for each thumb.
+		const verticalBefore = getComputedStyle(vertical, "::before");
+		await expect(
+			Number.parseFloat(verticalBefore.width),
+		).toBeGreaterThanOrEqual(24);
+		await expect(
+			Number.parseFloat(verticalBefore.height),
+		).toBeGreaterThanOrEqual(24);
+
+		const horizontalBefore = getComputedStyle(horizontal, "::before");
+		await expect(
+			Number.parseFloat(horizontalBefore.width),
+		).toBeGreaterThanOrEqual(24);
+		await expect(
+			Number.parseFloat(horizontalBefore.height),
+		).toBeGreaterThanOrEqual(24);
+
+		// Contrast: the thumb color is legible against the surface it
+		// overlays.
+		const thumbColor = getComputedStyle(vertical).backgroundColor;
+		const surfaceColor = getComputedStyle(surface).backgroundColor;
+		await expect(
+			contrastRatio(thumbColor, surfaceColor),
+		).toBeGreaterThanOrEqual(3);
+	},
+};
