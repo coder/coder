@@ -115,16 +115,7 @@ export const ScrollBar: React.FC<
 		>
 			<ScrollAreaPrimitive.ScrollAreaThumb
 				className={cn(
-					// The visible thumb stays slim. `surface-invert-secondary`
-					// keeps a >=3:1 contrast (WCAG 1.4.11 Non-text Contrast)
-					// against the surfaces the scrollbar overlays in both light
-					// and dark themes; `surface-quaternary` fell well below 3:1.
 					"relative flex-1 rounded-full bg-surface-invert-secondary",
-					// A transparent `::before` enlarges the pointer/drag target to
-					// at least 24px (WCAG 2.5.8 Target Size (Minimum)) without
-					// thickening the visible thumb. It extends inward from the
-					// scroll area's outer edge so it is never clipped by the
-					// viewport's overflow.
 					"before:absolute before:content-['']",
 					orientation === "vertical"
 						? "before:right-0 before:top-1/2 before:h-full before:min-h-6 before:w-6 before:-translate-y-1/2"

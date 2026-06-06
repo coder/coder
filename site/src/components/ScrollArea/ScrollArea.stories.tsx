@@ -9,7 +9,6 @@ const meta: Meta<typeof ScrollArea> = {
 export default meta;
 type Story = StoryObj<typeof ScrollArea>;
 
-/** Content that overflows on both axes so both scrollbars are present. */
 const OverflowingContent = () => (
 	<div className="w-[1200px] p-3 font-mono text-xs leading-5">
 		{Array.from({ length: 60 }, (_, row) => (
@@ -21,7 +20,6 @@ const OverflowingContent = () => (
 	</div>
 );
 
-/** Parses an `rgb()`/`rgba()` string into its relative luminance. */
 const luminance = (color: string): number => {
 	const parts = (color.match(/[\d.]+/g) ?? []).map(Number);
 	const [r, g, b] = parts.slice(0, 3).map((value) => {
@@ -33,19 +31,13 @@ const luminance = (color: string): number => {
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
 
-/** WCAG contrast ratio between two `rgb()` colors. */
 const contrastRatio = (a: string, b: string): number => {
 	const la = luminance(a);
 	const lb = luminance(b);
 	return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 };
 
-/**
- * The visible thumb stays slim, but its transparent `::before` gives the
- * pointer/drag target at least 24px (WCAG 2.5.8 Target Size (Minimum)),
- * and the thumb color keeps a >=3:1 contrast (WCAG 1.4.11 Non-text
- * Contrast) against the surface it overlays.
- */
+/** Scrollbar thumb meets WCAG target size (>=24px) and contrast (>=3:1). */
 export const Accessibility: Story = {
 	render: () => (
 		<div
@@ -69,9 +61,6 @@ export const Accessibility: Story = {
 		);
 		await expect(surface).not.toBeNull();
 
-		// Radix sizes thumbs after measuring the viewport, so wait until
-		// both scrollbars exist before measuring. Each scrollbar's only
-		// child is its thumb.
 		const getThumbs = () => {
 			const vertical = canvasElement.querySelector(
 				'[data-orientation="vertical"]',
@@ -93,8 +82,6 @@ export const Accessibility: Story = {
 			throw new Error("scrollbar thumbs not found");
 		}
 
-		// Hit target: the transparent ::before is at least 24px on both
-		// axes for each thumb.
 		const verticalBefore = getComputedStyle(vertical, "::before");
 		await expect(
 			Number.parseFloat(verticalBefore.width),
@@ -111,8 +98,6 @@ export const Accessibility: Story = {
 			Number.parseFloat(horizontalBefore.height),
 		).toBeGreaterThanOrEqual(24);
 
-		// Contrast: the thumb color is legible against the surface it
-		// overlays.
 		const thumbColor = getComputedStyle(vertical).backgroundColor;
 		const surfaceColor = getComputedStyle(surface).backgroundColor;
 		await expect(

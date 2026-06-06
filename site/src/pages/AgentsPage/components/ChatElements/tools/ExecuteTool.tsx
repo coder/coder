@@ -229,8 +229,6 @@ const ShellTranscriptBody: React.FC<{
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">
-				{/* break-all wraps long unbroken tokens; shell output has no
-				    horizontal scrollbar, so an unwrapped line would be clipped. */}
 				<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					<span aria-hidden className="select-none">
 						$

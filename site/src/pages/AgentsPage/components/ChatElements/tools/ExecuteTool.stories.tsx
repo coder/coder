@@ -215,12 +215,7 @@ export const ParsedCommandsWithIntent: Story = {
 	},
 };
 
-/**
- * Output with a very long unbroken token must wrap inside the transcript.
- * Shell output never renders a horizontal scrollbar, so an unwrapped line
- * would be clipped and unreachable. Regression test for `break-all`
- * wrapping in a narrow container.
- */
+/** A long unbroken token wraps instead of overflowing the transcript. */
 export const LongUnbrokenLineOutput: Story = {
 	decorators: [
 		(Story) => (
@@ -243,8 +238,6 @@ export const LongUnbrokenLineOutput: Story = {
 			"[data-radix-scroll-area-viewport]",
 		);
 		await expect(viewport).not.toBeNull();
-		// Wrapped content fits the viewport width. An unwrapped 400-char
-		// token would push scrollWidth far past clientWidth.
 		if (viewport) {
 			await expect(viewport.scrollWidth).toBeLessThanOrEqual(
 				viewport.clientWidth + 2,
