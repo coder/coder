@@ -6,6 +6,10 @@ func resourceIDMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "id"})
 }
 
+func chatResourceIDMatcher() sqltypes.VariableMatcher {
+	return sqltypes.StringVarMatcher("chats_expanded.id :: text", []string{"input", "object", "id"})
+}
+
 func organizationOwnerMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"})
 }
@@ -72,7 +76,7 @@ func ChatNoACLConverter() *sqltypes.VariableConverter {
 
 func chatBaseConverter() *sqltypes.VariableConverter {
 	return sqltypes.NewVariableConverter().RegisterMatcher(
-		resourceIDMatcher(),
+		chatResourceIDMatcher(),
 		sqltypes.StringVarMatcher("chats_expanded.organization_id :: text", []string{"input", "object", "org_owner"}),
 		userOwnerMatcher(),
 	)

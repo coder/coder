@@ -38,17 +38,27 @@ import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { ChatTopBar } from "./components/ChatTopBar";
 import {
+	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
-} from "./components/Sidebar/sidebarWidth";
+} from "./components/ChatsSidebar/sidebarWidth";
+import { ChatTopBar } from "./components/ChatTopBar";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 
 const defaultModelConfigID = "model-config-1";
+
+const defaultSidebarFilters: AgentSidebarFilters = {
+	archiveStatus: "active",
+	groupBy: "date",
+	prStatuses: [],
+	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
+};
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -144,6 +154,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
+	owner_username: "owner",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
@@ -152,6 +163,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -224,6 +236,23 @@ const agentsRouting = {
 	],
 };
 
+const setInnerWidthForStory = (width: number) => {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "innerWidth");
+	Object.defineProperty(globalThis, "innerWidth", {
+		configurable: true,
+		value: width,
+	});
+
+	return () => {
+		if (descriptor) {
+			Object.defineProperty(globalThis, "innerWidth", descriptor);
+			return;
+		}
+
+		Reflect.deleteProperty(globalThis, "innerWidth");
+	};
+};
+
 const AgentTopBarRouteElement = () => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsOutletContext>();
@@ -241,6 +270,40 @@ const AgentTopBarRouteElement = () => {
 	);
 };
 
+const ChatPaneMinimumRouteElement = () => (
+	<div
+		data-testid="agents-chat-panel"
+		className="flex h-full min-h-0 flex-1 flex-col bg-surface-primary"
+		style={{ minWidth: AGENTS_MAIN_PANEL_MIN_WIDTH }}
+	>
+		<div className="mt-auto px-4 pb-3">
+			<div
+				data-testid="chat-composer"
+				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+			>
+				<span className="truncate text-xs text-content-secondary">
+					Chat message
+				</span>
+				<button
+					type="button"
+					className="size-7 shrink-0 rounded-full border-0 bg-content-link text-content-invert"
+				>
+					Send
+				</button>
+			</div>
+		</div>
+	</div>
+);
+
+const agentsWithChatPaneMinimumRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <ChatPaneMinimumRouteElement /> }
+			: route,
+	),
+};
+
 const agentsWithChatTopBarRouting = {
 	...agentsRouting,
 	children: agentsRouting.children.map((route) =>
@@ -256,6 +319,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
 	handleNewAgent: fn(),
+	isSearchDialogOpen: false,
+	onSearchDialogOpenChange: fn(),
 	isCreating: false,
 	isArchiving: false,
 	archivingChatId: undefined,
@@ -279,8 +344,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,
-	archivedFilter: "active",
-	onArchivedFilterChange: fn(),
+	sidebarFilters: defaultSidebarFilters,
+	onSidebarFiltersChange: fn(),
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,
@@ -425,28 +490,6 @@ export default meta;
 type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
-
-export const ArchivedEmptyState: Story = {
-	args: {
-		archivedFilter: "archived",
-		chatList: [],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents",
-				searchParams: { archived: "archived" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async () => {
-		await expect(await screen.findByText("No archived agents")).toBeVisible();
-		await expect(
-			screen.getByRole("button", { name: /back to active/i }),
-		).toBeVisible();
-	},
-};
 
 export const WithChatList: Story = {
 	args: {
@@ -599,6 +642,76 @@ export const PersistedResizableSidebarWidth: Story = {
 	},
 };
 
+const narrowAgentsLayoutWidth = 720;
+
+export const WideSidebarPreservesChatPaneWidth: Story = {
+	args: {
+		agentId: "chat-wide-sidebar",
+		chatList: [
+			buildChat({
+				id: "chat-wide-sidebar",
+				title: "Wide sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	beforeEach: () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
+		return setInnerWidthForStory(narrowAgentsLayoutWidth);
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{
+					height: "100vh",
+					overflow: "hidden",
+					width: narrowAgentsLayoutWidth,
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-wide-sidebar" },
+			routing: agentsWithChatPaneMinimumRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = within(composer).getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const layoutRect = layout.getBoundingClientRect();
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
+
+			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
+			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
+			expect(mainRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
+		});
+	},
+};
+
 export const ResizableSidebarKeyboard: Story = {
 	args: {
 		chatList: [
@@ -737,7 +850,7 @@ export const EmptyStateZoom200Desktop: Story = {
 		});
 
 		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Collapse sidebar" }),
 		).toBeVisible();
@@ -947,23 +1060,7 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
-	if (settingsLink) {
-		await userEvent.click(settingsLink);
-		return;
-	}
-
-	const mobileMoreOptionsButton = canvas
-		.getAllByRole("button", { name: "More options" })
-		.find((button) => button.getAttribute("aria-haspopup") === "menu");
-	if (!mobileMoreOptionsButton) {
-		throw new Error("Expected a mobile More options menu button.");
-	}
-	await userEvent.click(mobileMoreOptionsButton);
-	const body = within(canvasElement.ownerDocument.body);
-	await userEvent.click(
-		await body.findByRole("menuitem", { name: "Settings" }),
-	);
+	await userEvent.click(await canvas.findByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -1041,7 +1138,7 @@ export const OpensSettingsForNonAdmins: Story = {
 		});
 
 		expect(
-			screen.queryByRole("link", { name: "Manage Agents" }),
+			screen.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -1059,7 +1156,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 	play: async () => {
 		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage Agents" }),
+			await screen.findByRole("link", { name: "Manage agents" }),
 		);
 
 		await expect(
@@ -1086,7 +1183,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
 		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
 			expect(
@@ -1098,11 +1195,11 @@ export const SettingsViewResets: Story = {
 
 		// Step back to the top-level settings panel, then back to conversations.
 		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to Settings",
+			name: "Back to settings",
 		});
 		await userEvent.click(backToSettingsButton);
 		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to Agents",
+			name: "Back to agents",
 		});
 		await userEvent.click(backToAgentsButton);
 

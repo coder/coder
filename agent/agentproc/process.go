@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -79,10 +80,14 @@ type manager struct {
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
+	envInfo    usershell.EnvInfoer
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
+	if envInfo == nil {
+		envInfo = &usershell.SystemEnvInfo{}
+	}
 	return &manager{
 		logger:     logger,
 		execer:     execer,
@@ -90,6 +95,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(curr
 		procs:      make(map[string]*process),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
+		envInfo:    envInfo,
 	}
 }
 
@@ -379,7 +385,7 @@ func (m *manager) resolveWorkDir(requested string) string {
 			}
 		}
 	}
-	if home, err := os.UserHomeDir(); err == nil {
+	if home, err := m.envInfo.HomeDir(); err == nil {
 		return home
 	}
 	return ""

@@ -7,6 +7,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { asRecord, asString, type ToolStatus } from "./utils";
 
 /**
@@ -36,11 +37,20 @@ export const ListTemplatesTool: React.FC<{
 			hasContent={hasContent}
 			header={
 				<>
-					<span className="text-[13px]">{label}</span>
+					<ToolIcon
+						name="list_templates"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">{label}</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+								<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to list templates"}
@@ -48,7 +58,7 @@ export const ListTemplatesTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+						<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}
@@ -79,7 +89,7 @@ export const ListTemplatesTool: React.FC<{
 								className="flex items-center gap-1.5 text-[13px] text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 							>
 								<span>{templateName}</span>
-								<ExternalLinkIcon className="h-3 w-3 shrink-0" />
+								<ExternalLinkIcon className="size-3 shrink-0" />
 							</Link>
 						</div>
 					);

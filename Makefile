@@ -53,8 +53,8 @@ endif
 	tailnet/tailnettest/coordinateemock.go \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go \
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
@@ -62,7 +62,7 @@ endif
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -728,11 +728,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
-# Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
+# Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -745,9 +745,8 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	linter_ver=$$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
+	golangci-lint run
+	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -790,15 +789,26 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	go tool github.com/rhysd/actionlint/cmd/actionlint
+	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
 
+# zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
+# external action references are skipped silently.
 lint/actions/zizmor:
-	./scripts/zizmor.sh \
+	@set -euo pipefail; \
+	if [ -z "$${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
+		GH_TOKEN="$$(gh auth token 2>/dev/null || true)"; \
+		export GH_TOKEN; \
+	fi; \
+	mise exec zizmor -- zizmor \
 		--strict-collection \
 		--persona=regular \
 		.
 .PHONY: lint/actions/zizmor
+
+lint/mise-versions:
+	./scripts/check_mise_versions.sh
+.PHONY: lint/mise-versions
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -811,28 +821,8 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
-TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github/workflows/ci.yaml)
-
-# Map uname values to typos release asset names.
-TYPOS_ARCH := $(shell uname -m)
-# typos release assets use aarch64, but macOS ARM reports arm64 via uname -m.
-ifeq ($(TYPOS_ARCH),arm64)
-TYPOS_ARCH := aarch64
-endif
-ifeq ($(shell uname -s),Darwin)
-TYPOS_OS := apple-darwin
-else
-TYPOS_OS := unknown-linux-musl
-endif
-
-build/typos-$(TYPOS_VERSION):
-	mkdir -p build/
-	curl -sSfL "https://github.com/crate-ci/typos/releases/download/v$(TYPOS_VERSION)/typos-v$(TYPOS_VERSION)-$(TYPOS_ARCH)-$(TYPOS_OS).tar.gz" \
-		| tar -xzf - -C build/ ./typos
-	mv build/typos "$@"
-
-lint/typos: build/typos-$(TYPOS_VERSION)
-	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
+lint/typos:
+	typos --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
 # pre-commit and pre-push mirror CI checks locally.
@@ -956,8 +946,8 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
@@ -967,7 +957,7 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -992,7 +982,10 @@ GEN_FILES := \
 	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db gen/golden-files $(GEN_FILES)
+# Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
+# start PostgreSQL via testcontainers).
+GEN_SKIP_GOLDEN ?=
+gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)
@@ -1032,7 +1025,7 @@ gen/mark-fresh:
 		agent/agentsocket/proto/agentsocket.pb.go \
 		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/aibridged/proto/aibridged.pb.go \
+		coderd/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
 		coderd/database/unique_constraint.go \
@@ -1121,8 +1114,8 @@ codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agen
 	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
-	go generate ./enterprise/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): coderd/aibridged/client.go coderd/aibridged/pool.go
+	go generate ./coderd/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -1189,13 +1182,13 @@ agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/bounda
 		--go_opt=paths=source_relative \
 		./agent/boundarylogproxy/codec/boundary.proto
 
-enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
+coderd/aibridged/proto/aibridged.pb.go: coderd/aibridged/proto/aibridged.proto
 	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/aibridged/proto/aibridged.proto
+		./coderd/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
 		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
@@ -1293,6 +1286,7 @@ coderd/apidoc/.gen: \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
 	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
+	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	.swaggo \
@@ -1442,8 +1436,16 @@ ifdef TEST_SHORT
 GOTEST_FLAGS += -short
 endif
 
+# RUN is single-quoted for the shell so regex metacharacters survive make.
+# Embedded single quotes are not supported; whichtests only emits RUN values
+# built from ASCII test names so generated regexes stay within this contract.
 ifdef RUN
-GOTEST_FLAGS += -run $(RUN)
+GOTEST_FLAGS += -run '$(RUN)'
+endif
+
+# TEST_SHUFFLE values must be off, on, or an integer seed.
+ifdef TEST_SHUFFLE
+GOTEST_FLAGS += -shuffle=$(TEST_SHUFFLE)
 endif
 
 ifdef TEST_CPUPROFILE
@@ -1631,12 +1633,6 @@ else
 	pnpm playwright:test
 endif
 .PHONY: test-e2e
-
-dogfood/coder/nix.hash: flake.nix flake.lock
-	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
-
-dogfood/coder/mise.hash: mise.toml mise.lock
-	sha256sum mise.toml mise.lock >./dogfood/coder/mise.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

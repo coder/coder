@@ -7,7 +7,9 @@ import {
 	MessageContent,
 	Shimmer,
 } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -33,10 +35,13 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
-		<Shimmer as="span" className="text-[13px] leading-relaxed">
-			Thinking
-		</Shimmer>
+	<div data-transcript-row="" className="text-content-secondary">
+		<TranscriptRow className="w-full gap-2">
+			<ToolIcon name="thinking" isError={false} />
+			<Shimmer as="span" className="text-[13px] leading-6">
+				Thinking
+			</Shimmer>
+		</TranscriptRow>
 	</div>
 );
 
@@ -47,7 +52,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
@@ -57,7 +61,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -92,7 +95,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-2">
+					<div className="relative flex flex-col gap-2 overflow-visible">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}
@@ -108,10 +111,7 @@ export const StreamingOutput: FC<{
 						)}
 						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
-							<ChatStatusCallout
-								status={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
+							<ChatStatusCallout status={liveStatus} />
 						)}
 					</div>
 				</MessageContent>

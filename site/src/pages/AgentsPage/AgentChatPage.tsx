@@ -15,6 +15,7 @@ import {
 	watchWorkspace,
 } from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
@@ -37,7 +38,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { preferenceSettings, user as userQuery } from "#/api/queries/users";
+import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -47,6 +48,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -71,7 +76,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
@@ -268,6 +273,32 @@ export const filterWorkspaceOptionsByOrganization = (
 	return workspaceOptions.filter(
 		(workspace) => workspace.organization_id === organizationID,
 	);
+};
+
+/** @internal Exported for testing. */
+export const getWorkspaceOptionsWithLinkedWorkspace = (
+	workspaceOptions: readonly TypesGen.Workspace[],
+	workspace: TypesGen.Workspace | undefined,
+	ownerID: string,
+): readonly TypesGen.Workspace[] => {
+	if (!workspace || workspace.owner_id !== ownerID) {
+		return workspaceOptions;
+	}
+
+	const existingIndex = workspaceOptions.findIndex(
+		(candidate) => candidate.id === workspace.id,
+	);
+	if (existingIndex === -1) {
+		return [workspace, ...workspaceOptions];
+	}
+
+	if (workspaceOptions[existingIndex] === workspace) {
+		return workspaceOptions;
+	}
+
+	const nextWorkspaceOptions = [...workspaceOptions];
+	nextWorkspaceOptions[existingIndex] = workspace;
+	return nextWorkspaceOptions;
 };
 
 const buildAttachmentMediaTypes = (
@@ -667,6 +698,8 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -716,6 +749,7 @@ const AgentChatPage: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+	const workspace = workspaceQuery.data;
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -729,7 +763,11 @@ const AgentChatPage: FC = () => {
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -828,27 +866,46 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
+	const isSharedChat = chatRecord?.shared ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
-	const chatOwnerQuery = useQuery({
-		...userQuery(chatRecord?.owner_id ?? ""),
-		enabled: isViewerNotOwner && !isArchived,
-	});
-	const chatOwner =
-		isViewerNotOwner && chatRecord !== undefined
+	const isRootChat =
+		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
+	const shouldCheckCanShareChat = isRootChat;
+	const chatAuthorizationObject =
+		chatRecord !== undefined
 			? {
-					id: chatRecord.owner_id,
-					...(chatOwnerQuery.data?.username
-						? { username: chatOwnerQuery.data.username }
-						: {}),
+					resource_type: "chat" as const,
+					owner_id: chatRecord.owner_id,
+					organization_id: chatRecord.organization_id,
 				}
 			: undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: chatAuthorizationObject,
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+	const chatOwner = isViewerNotOwner
+		? {
+				...(chatRecord?.owner_username
+					? { username: chatRecord.owner_username }
+					: {}),
+				...(chatRecord?.owner_name ? { name: chatRecord.owner_name } : {}),
+			}
+		: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1003,11 +1060,13 @@ const AgentChatPage: FC = () => {
 		agentStatus: workspaceAgent?.status,
 	});
 
-	// Detect workspace creation so the sidebar can resolve the
-	// workspace and display agent/git info.
-	useWorkspaceCreationWatcher({
+	// Detect completed chat tool results so sidebar data stays in sync
+	// with the server state those tools may have changed.
+	useChatToolInvalidations({
 		store,
 		chatID: agentId,
+		organizationName,
+		username: currentUser.username,
 	});
 
 	const handleCommit = (repoRoot: string) => {
@@ -1071,18 +1130,38 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const agentSetupNotice =
-		providerCount !== undefined &&
-		modelCount !== undefined &&
-		(providerCount === 0 || modelCount === 0) ? (
-			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
-		) : undefined;
+	const isAdmin = permissions.editDeploymentConfig;
+	const agentSetupNotice = (() => {
+		// Admin: show when providers or models are missing
+		if (
+			isAdmin &&
+			providerCount !== undefined &&
+			modelCount !== undefined &&
+			(providerCount === 0 || modelCount === 0)
+		) {
+			return (
+				<AgentSetupNotice
+					isAdmin
+					providerCount={providerCount}
+					modelCount={modelCount}
+				/>
+			);
+		}
+		// Member: show when no models are available
+		if (!isAdmin && modelCount !== undefined && modelCount === 0) {
+			return (
+				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
+			);
+		}
+		return undefined;
+	})();
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending;
+		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1116,9 +1195,11 @@ const AgentChatPage: FC = () => {
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
+			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
 				kind: "generic",
-				message: error.message || "An unexpected error occurred.",
+				message: getErrorMessage(error, "An unexpected error occurred."),
+				...(detail ? { detail } : {}),
 			};
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
@@ -1531,7 +1612,9 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			isSharedChat={isSharedChat}
 			chatOwner={chatOwner}
+			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
@@ -1553,7 +1636,9 @@ const AgentChatPage: FC = () => {
 			isInterruptPending={isInterruptPending}
 			workspaceOptions={workspaceOptions}
 			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={handleWorkspaceChange}
+			onWorkspaceChange={
+				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+			}
 			isWorkspaceLoading={isWorkspaceLoading}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}

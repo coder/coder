@@ -1,6 +1,6 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -36,6 +36,7 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
+	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
 
@@ -72,12 +73,29 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? catalogModelOptions.length
 			: undefined;
-	const agentSetupNotice =
-		providerCount !== undefined &&
-		modelCount !== undefined &&
-		(providerCount === 0 || modelCount === 0) ? (
-			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
-		) : undefined;
+	const isAdmin = permissions.editDeploymentConfig;
+	const agentSetupNotice = (() => {
+		if (
+			isAdmin &&
+			providerCount !== undefined &&
+			modelCount !== undefined &&
+			(providerCount === 0 || modelCount === 0)
+		) {
+			return (
+				<AgentSetupNotice
+					isAdmin
+					providerCount={providerCount}
+					modelCount={modelCount}
+				/>
+			);
+		}
+		if (!isAdmin && modelCount !== undefined && modelCount === 0) {
+			return (
+				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
+			);
+		}
+		return undefined;
+	})();
 
 	const handleCreateChat = async ({
 		message,
@@ -112,7 +130,10 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
-		navigate(buildAgentChatPath({ chatId: createdChat.id }));
+		navigate({
+			pathname: buildAgentChatPath({ chatId: createdChat.id }),
+			search: location.search,
+		});
 	};
 
 	const rootPersonalModelOverride = personalModelOverridesQuery.data?.enabled

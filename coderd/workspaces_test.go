@@ -91,7 +91,7 @@ func TestWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Getting with deleted=true should still work.
+		// Getting with include_deleted=true should still work.
 		_, err := client.DeletedWorkspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
@@ -102,12 +102,12 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err, "delete the workspace")
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		// Getting with deleted=true should work.
+		// Getting with include_deleted=true should work.
 		workspaceNew, err := client.DeletedWorkspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
-		// Getting with deleted=false should not work.
+		// Getting with include_deleted=false should not work.
 		_, err = client.Workspace(ctx, workspace.ID)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "410") // gone
@@ -1517,12 +1517,12 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		// Then:
-		// When we call without includes_deleted, we don't expect to get the workspace back
+		// When we call without include_deleted, we don't expect to get the workspace back
 		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.ErrorContains(t, err, "404")
 
 		// Then:
-		// When we call with includes_deleted, we should get the workspace back
+		// When we call with include_deleted, we should get the workspace back
 		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
@@ -6212,8 +6212,8 @@ func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
 
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)

@@ -343,7 +343,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
 							Reason(reason).
-							Logger(log.Named("wsbuilder")).
 							BuildMetrics(e.workspaceBuilderMetrics)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&
@@ -423,6 +422,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					Isolation:    sql.LevelRepeatableRead,
 					TxIdentifier: "lifecycle",
 				})
+				// A concurrent build (e.g. from the API or another lifecycle
+				// executor) may have already inserted a build with the same
+				// number. This is a benign race; the other actor's build
+				// will take effect. Clear the error so downstream checks
+				// (audit, notification, stats) treat this as a no-op.
+				if database.IsUniqueViolation(err, database.UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey) {
+					log.Info(e.ctx, "skipping workspace: concurrent build already inserted", slog.Error(err))
+					err = nil
+					// Reset notification flags set before builder.Build.
+					// The build was rolled back, so this executor did not
+					// perform the transition. The concurrent actor handles
+					// both the build and any notifications. Without these
+					// resets, downstream code would send duplicate or
+					// incorrect notifications.
+					didAutoUpdate = false
+					shouldNotifyTaskPause = false
+				}
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.

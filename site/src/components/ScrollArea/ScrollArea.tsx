@@ -11,6 +11,7 @@ interface ScrollAreaProps extends React.ComponentPropsWithRef<
 > {
 	scrollBarClassName?: string;
 	viewportClassName?: string;
+	viewportTabIndex?: number;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
 }
@@ -19,6 +20,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
 	scrollBarClassName,
 	viewportClassName,
+	viewportTabIndex,
 	orientation = "vertical",
 	children,
 	...props
@@ -48,6 +50,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 		>
 			<ScrollAreaPrimitive.Viewport
 				ref={viewportRef}
+				tabIndex={viewportTabIndex}
 				onWheel={handleWheel}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>

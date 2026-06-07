@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Conversation, ConversationItem } from "./Conversation";
 import { Message, MessageContent } from "./Message";
 import { Shimmer } from "./Shimmer";
-import { Thinking } from "./Thinking";
 
 const meta: Meta<typeof Conversation> = {
 	title: "pages/AgentsPage/ChatElements/Conversation",
@@ -37,10 +36,6 @@ export const ConversationWithMessages: Story = {
 					<Message className="w-full">
 						<MessageContent className="whitespace-normal">
 							<div className="space-y-3">
-								<Thinking>
-									Inspecting auth state and recent command output before
-									suggesting a fix.
-								</Thinking>
 								<div className="text-sm text-content-primary">
 									The remote command failed because external auth needs to be
 									refreshed.

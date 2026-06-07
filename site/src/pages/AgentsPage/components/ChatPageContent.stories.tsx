@@ -71,6 +71,22 @@ const buildRegressionStore = () => {
 	return store;
 };
 
+const buildThinkingSpacerStore = () => {
+	const store = createChatStore();
+
+	store.replaceMessages([
+		buildMessage(1, "user", [{ type: "text", text: "Read the source files" }]),
+		buildMessage(2, "assistant", [
+			{
+				type: "reasoning",
+				text: "I should think before answering.",
+			},
+		]),
+	]);
+
+	return store;
+};
+
 export const StreamingToolCallGapRegression: Story = {
 	render: () => {
 		const store = buildRegressionStore();
@@ -85,13 +101,7 @@ export const StreamingToolCallGapRegression: Story = {
 		store.setStreamState(streamState);
 		store.setChatStatus("pending");
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -104,13 +114,7 @@ export const StartingPhaseToolCallGapRegression: Story = {
 		const store = buildRegressionStore();
 		store.setChatStatus("running");
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -121,18 +125,39 @@ export const StartingPhaseToolCallGapRegression: Story = {
 
 export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
-		const store = buildRegressionStore();
+		const store = buildThinkingSpacerStore();
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: /thinking/i });
 		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
+	},
+};
+
+export const HiddenAssistantPlaceholderDoesNotRender: Story = {
+	render: () => {
+		const store = createChatStore();
+
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
+			buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
+			buildMessage(3, "assistant", []),
+			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();
+
+		const rows = canvasElement.querySelectorAll(
+			'[data-role="user"], [data-role="assistant"]',
+		);
+		expect(rows).toHaveLength(3);
+		expect(rows[1]).toHaveAttribute("data-role", "assistant");
+		expect(rows[1]).toHaveTextContent("Done.");
 	},
 };

@@ -8,6 +8,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
 import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -29,13 +30,22 @@ export const ChatSummarizedTool: React.FC<{
 			hasContent={hasSummary}
 			header={
 				<>
-					<span className="text-[13px]">
+					<ToolIcon
+						name="chat_summarized"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">
 						{isRunning ? "Summarizing…" : "Summarized"}
 					</span>
+				</>
+			}
+			headerStatus={
+				<>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+								<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to summarize conversation"}
@@ -43,7 +53,7 @@ export const ChatSummarizedTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+						<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}

@@ -3,6 +3,7 @@ import type { FC, ReactNode } from "react";
 import { useState } from "react";
 import type { AgentDisplayMode } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
 	isAgentDisplayOpen,
@@ -16,8 +17,11 @@ interface ToolCollapsibleProps {
 	children: ReactNode;
 	header: ToolCollapsibleHeader;
 	headerActions?: ReactNode;
+	headerStatus?: ReactNode;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
+	expanded?: boolean;
+	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCollapsibleAriaLabel;
 	className?: string;
 	headerClassName?: string;
@@ -49,49 +53,65 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	children,
 	header,
 	headerActions,
+	headerStatus,
 	hasContent = true,
 	defaultExpanded = false,
+	expanded: expandedProp,
+	onExpandedChange,
 	ariaLabel,
 	className,
 	headerClassName,
 }) => {
-	const [expanded, setExpanded] = useState(defaultExpanded);
+	const [uncontrolledExpanded, setUncontrolledExpanded] =
+		useState(defaultExpanded);
+	const expanded = expandedProp ?? uncontrolledExpanded;
 	const renderedHeader =
 		typeof header === "function" ? header(expanded) : header;
+	const toggleExpanded = () => {
+		const nextExpanded = !expanded;
+		if (expandedProp === undefined) {
+			setUncontrolledExpanded(nextExpanded);
+		}
+		onExpandedChange?.(nextExpanded);
+	};
 	const headerButton = hasContent ? (
-		<button
-			type="button"
-			aria-expanded={expanded}
-			aria-label={
-				typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
-			}
-			onClick={() => setExpanded(!expanded)}
+		<TranscriptRow
+			asChild
 			className={cn(
-				"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-				"flex items-center gap-2 cursor-pointer",
-				"text-content-secondary transition-colors hover:text-content-primary",
+				"m-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors hover:text-content-primary",
 				headerActions ? "min-w-0 flex-1" : "w-full",
 				headerClassName,
 			)}
 		>
-			{renderedHeader}
-			<ChevronDownIcon
-				className={cn(
-					"h-3 w-3 shrink-0 text-current transition-transform",
-					expanded ? "rotate-0" : "-rotate-90",
-				)}
-			/>
-		</button>
+			<button
+				type="button"
+				aria-expanded={expanded}
+				aria-label={
+					typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
+				}
+				onClick={toggleExpanded}
+			>
+				{renderedHeader}
+				{headerStatus}
+				<ChevronDownIcon
+					className={cn(
+						"size-3 shrink-0 text-current transition-transform",
+						expanded ? "rotate-0" : "-rotate-90",
+					)}
+				/>
+			</button>
+		</TranscriptRow>
 	) : (
-		<div
+		<TranscriptRow
 			className={cn(
-				"flex items-center gap-2 text-content-secondary",
+				"gap-2 text-content-secondary",
 				headerActions && "min-w-0 flex-1",
 				headerClassName,
 			)}
 		>
 			{renderedHeader}
-		</div>
+			{headerStatus}
+		</TranscriptRow>
 	);
 
 	return (

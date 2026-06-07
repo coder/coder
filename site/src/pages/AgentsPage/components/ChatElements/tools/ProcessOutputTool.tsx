@@ -16,6 +16,7 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolIcon } from "./ToolIcon";
 import { COLLAPSED_OUTPUT_HEIGHT, signalTooltipLabel } from "./utils";
 
 type ProcessOutputToolProps = {
@@ -77,8 +78,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const toggleOutputExpansion = () => {
 		setOutputFullyExpanded((expanded) => !expanded);
 	};
-	const hasHeaderActions =
-		isRunning || Boolean(killedBySignal) || showExitCode || hasOutput;
+	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
 		<AgentDisplayModeToolCollapsible
@@ -89,13 +89,24 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			ariaLabel={(expanded) =>
 				expanded ? "Collapse process output" : "Expand process output"
 			}
-			header={<span className="text-[13px]">Process output</span>}
+			header={
+				<>
+					<ToolIcon
+						name="process_output"
+						isError={isError}
+						isRunning={isRunning}
+					/>
+					<span className="text-[13px] leading-6">Process output</span>
+				</>
+			}
+			headerStatus={
+				isRunning ? (
+					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				) : undefined
+			}
 			headerActions={
 				hasHeaderActions ? (
 					<>
-						{isRunning && (
-							<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-						)}
 						{killedBySignal && !isRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -111,7 +122,13 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 								exit {exitCode}
 							</span>
 						)}
-						{hasOutput && <CopyButton text={output} label="Copy output" />}
+						{hasOutput && (
+							<CopyButton
+								text={output}
+								label="Copy output"
+								className="-my-0.5 size-6 p-0"
+							/>
+						)}
 					</>
 				) : undefined
 			}
@@ -150,7 +167,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 				>
 					<ChevronDownIcon
 						className={cn(
-							"h-3 w-3 transition-transform",
+							"size-3 transition-transform",
 							outputFullyExpanded && "rotate-180",
 						)}
 					/>

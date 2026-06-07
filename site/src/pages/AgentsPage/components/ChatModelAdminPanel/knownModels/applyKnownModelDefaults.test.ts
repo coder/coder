@@ -106,6 +106,35 @@ describe("applyKnownModelDefaults", () => {
 		expect(result.appliedFields).toEqual([]);
 	});
 
+	it("populates display name with the Known Model display name", () => {
+		const result = applyDefaults({
+			values: buildInitialModelFormValues(),
+			initialValues: buildInitialModelFormValues(),
+			provider: "anthropic",
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
+		});
+
+		expect(result.values.displayName).toBe("Claude Opus 4.8");
+		expect(result.appliedFields).toContain("displayName");
+	});
+
+	it("skips display name when current value differs from initial value", () => {
+		const values = setPath(
+			buildInitialModelFormValues(),
+			"displayName",
+			"My Custom Name",
+		);
+		const result = applyDefaults({
+			values,
+			initialValues: buildInitialModelFormValues(),
+			provider: "anthropic",
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
+		});
+
+		expect(result.values.displayName).toBe("My Custom Name");
+		expect(result.appliedFields).not.toContain("displayName");
+	});
+
 	it("populates context limit when current value still equals initial value", () => {
 		const result = applyDefaults({
 			values: buildInitialModelFormValues(),
@@ -294,7 +323,7 @@ describe("applyKnownModelDefaults", () => {
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
 			provider: "anthropic",
-			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
 		});
 
 		expect(getPath(result.values, "config.anthropic.effort")).toBe("high");
@@ -327,7 +356,7 @@ describe("applyKnownModelDefaults", () => {
 			values: buildInitialModelFormValues(),
 			initialValues: buildInitialModelFormValues(),
 			provider: "anthropic",
-			knownModel: requireKnownModel("anthropic", "claude-opus-4-7"),
+			knownModel: requireKnownModel("anthropic", "claude-opus-4-8"),
 		});
 
 		expect(getPath(result.values, "config.anthropic.sendReasoning")).toBe("");

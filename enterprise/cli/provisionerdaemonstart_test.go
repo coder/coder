@@ -20,8 +20,8 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestProvisionerDaemon_PSK(t *testing.T) {
@@ -42,12 +42,12 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=matt-daemon")
 		err := conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
-		pty.ExpectMatchContext(ctx, "matt-daemon")
+		stdout.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "matt-daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
@@ -78,11 +78,11 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--name", "org-daemon", "--org", anotherOrg.Name)
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "starting provisioner daemon")
 	})
 
 	t.Run("NoUserNoPSK", func(t *testing.T) {
@@ -120,11 +120,11 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--name", "my-daemon")
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "starting provisioner daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
@@ -155,11 +155,11 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--tag", "owner="+admin.UserID.String(), "--name", "my-daemon")
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "starting provisioner daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
@@ -191,11 +191,11 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=organization", "--name", "org-daemon")
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "starting provisioner daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
@@ -227,11 +227,11 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--name", "org-daemon", "--org", anotherOrg.ID.String())
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "starting provisioner daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
@@ -275,10 +275,10 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
 		err = conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
-		pty.ExpectMatchContext(ctx, "matt-daemon")
+		stdout.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "matt-daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
@@ -320,10 +320,10 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
 		err = conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
-		pty.ExpectMatchContext(ctx, `tags={"tag1":"value1","tag2":"value2"}`)
+		stdout.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, `tags={"tag1":"value1","tag2":"value2"}`)
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
@@ -436,10 +436,10 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
 		err = conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
-		pty.ExpectMatchContext(ctx, "matt-daemon")
+		stdout.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "matt-daemon")
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
@@ -473,13 +473,13 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 	inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-enable", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
 	clitest.SetupConfig(t, anotherClient, conf)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 	defer cancel()
 
 	// Start "provisionerd" command
 	clitest.Start(t, inv)
-	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+	stdout.ExpectMatch(ctx, "starting provisioner daemon")
 
 	var daemons []codersdk.ProvisionerDaemon
 	var err error

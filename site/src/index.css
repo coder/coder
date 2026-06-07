@@ -18,14 +18,33 @@
 @layer components {
 	@media (max-width: 767px) {
 		/*
-			Full-width mobile dropdowns. We set a --mobile-dropdown-bottom
-			custom property on the chat input container so the dropdown
-			position tracks the actual input box, not a hardcoded offset.
+			Full-width mobile dropdowns. We set custom properties on
+			`document.documentElement` from the chat input container so
+			dropdown positions track the actual input box, not hardcoded
+			offsets. Radix popover wrappers are fixed-positioned, so
+			bottom offsets are measured from the layout viewport. The
+			above-composer max-height also accounts for the visual
+			viewport offset so soft-keyboard viewport panning on mobile
+			keeps dropdowns inside the visible area:
+
+			- `--mobile-dropdown-bottom`: distance from the layout
+			  viewport bottom to the composer's bottom edge. Used by the
+			  `-bottom` variant; the dropdown's bottom edge sits at the
+			  composer's bottom edge.
+			- `--mobile-dropdown-left` and `--mobile-dropdown-width`:
+			  composer-aligned horizontal geometry for full-width mobile
+			  dropdowns.
+			- `--mobile-dropdown-above-composer-bottom`: distance from
+			  the layout viewport bottom to a point just above the
+			  composer's top edge.
+			- `--mobile-dropdown-above-composer-max-height`: maximum
+			  height the `-above-composer` variant can grow to without
+			  extending past the visible viewport top.
 		*/
 		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
 			position: fixed !important;
-			left: 1rem !important;
-			width: calc(100vw - 2rem) !important;
+			left: var(--mobile-dropdown-left, 1rem) !important;
+			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
 			min-width: 0 !important;
 			transform: none !important;
 			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
@@ -41,10 +60,38 @@
 			bottom: auto !important;
 			top: 5rem !important;
 		}
+		[data-radix-popper-content-wrapper]:has(
+				> .mobile-full-width-dropdown-above-composer
+			) {
+			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
+			top: auto !important;
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
 		.mobile-full-width-dropdown {
 			width: 100% !important;
 			min-width: 0 !important;
 			max-width: none !important;
+		}
+		.mobile-full-width-dropdown-above-composer {
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
+		.mobile-full-width-dropdown-above-composer
+			.mobile-full-width-dropdown-scroll-area {
+			max-height: calc(
+				var(--mobile-dropdown-above-composer-max-height, 18rem) -
+				0.5rem
+			) !important;
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
 		}
 	}
 }
@@ -318,6 +365,8 @@
 	input:-webkit-autofill:focus,
 	input:-webkit-autofill:active {
 		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+		-webkit-text-fill-color: hsl(var(--content-primary)) !important;
+		caret-color: hsl(var(--content-primary));
 	}
 
 	::placeholder {

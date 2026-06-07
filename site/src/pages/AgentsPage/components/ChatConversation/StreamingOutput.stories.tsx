@@ -225,15 +225,15 @@ export const RetryTimeout: Story = {
 	},
 };
 
-/** Startup timeouts explain the first-token delay before retrying. */
-export const RetryStartupTimeout: Story = {
+/** Stream-silence timeouts explain the first-token delay before retrying. */
+export const RetryStreamSilenceTimeout: Story = {
 	args: {
 		streamState: null,
 		streamTools: [],
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
-				kind: "startup_timeout",
-				error: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				error: "Anthropic did not send response data in time.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -241,10 +241,10 @@ export const RetryStartupTimeout: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /startup timed out/i }),
+			canvas.getByRole("heading", { name: /response stalled/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time/i),
+			canvas.getByText(/anthropic did not send response data in time/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
@@ -279,13 +279,30 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
-		const matches = canvas.getAllByText("Thinking");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
+		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
 
-		const thinkingBlock = matches[0].parentElement;
-		expect(thinkingBlock).toBeInstanceOf(HTMLElement);
-		expect(getComputedStyle(thinkingBlock as HTMLElement).marginTop).toBe(
-			"8px",
+		const executeButton = canvas.getByRole("button", {
+			name: /expand command/i,
+		});
+		const readFileLabel = canvas.getByText(/reading README\.md/i);
+		const thinkingText = canvas.getAllByText("Thinking").at(-1);
+		expect(thinkingText).toBeInstanceOf(HTMLElement);
+
+		const wrappers = [
+			executeButton.closest("[data-transcript-row]") ?? executeButton,
+			readFileLabel.closest("[data-tool-call]") ?? readFileLabel,
+			(thinkingText as HTMLElement).closest("[data-transcript-row]") ??
+				(thinkingText as HTMLElement),
+		];
+		expect(wrappers.at(-1)).toHaveTextContent("Thinking");
+
+		const gap = Math.round(
+			wrappers[2].getBoundingClientRect().top -
+				wrappers[1].getBoundingClientRect().bottom,
 		);
+		expect(gap).toBe(8);
+
+		const placeholderRow = wrappers[2].firstElementChild ?? wrappers[2];
+		expect(Math.round(placeholderRow.getBoundingClientRect().height)).toBe(24);
 	},
 };

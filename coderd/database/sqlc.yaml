@@ -178,6 +178,7 @@ sql:
               type: "NullDecimal"
               package: "decimal"
         rename:
+          ai_provider_id: AIProviderID
           chat: ChatTable
           chats_expanded: Chat
           group_member: GroupMemberTable
@@ -260,6 +261,10 @@ sql:
           ai_provider: AIProvider
           ai_provider_key: AIProviderKey
           ai_provider_type: AIProviderType
+          ai_gateway_key: AIGatewayKey
+          resource_type_ai_provider: ResourceTypeAIProvider
+          resource_type_ai_provider_key: ResourceTypeAIProviderKey
+          resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken
