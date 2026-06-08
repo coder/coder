@@ -1417,8 +1417,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML: "client",
 		}
 		deploymentGroupConfig = serpent.Group{
-			Name:        "Config",
-			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+			Name: "Config",
+			Description: "Use a YAML configuration file to manage server settings as code. " +
+				"YAML is a supported, stable configuration format alongside flags and environment variables. " +
+				"Use `coder server --write-config` to generate a fully commented file from current settings.",
 		}
 		deploymentGroupEmail = serpent.Group{
 			Name:        "Email",

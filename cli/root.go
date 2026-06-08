@@ -339,8 +339,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			// Verify that every option is configurable.
 			if opt.Flag == "" && opt.Env == "" {
 				if cmd.Name() == "server" {
-					// The server command is funky and has YAML-only options, e.g.
-					// support links.
+					// The server command historically allowed YAML-only options.
+					// All current options expose a flag and env, but the bypass
+					// remains so future YAML-only fields are not blocked here.
 					return
 				}
 				if cmd.Name() == "agent-firewall" || cmd.Name() == "boundary" {

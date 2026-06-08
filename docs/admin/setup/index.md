@@ -4,6 +4,31 @@ Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our
 [CLI documentation](../../reference/cli/server.md).
 
+## Configuration file (YAML)
+
+Server settings can also be loaded from a YAML configuration file. This is the
+recommended option when the list of environment variables becomes hard to
+manage, and is the only convenient way to express list and map valued settings
+such as support links, OIDC providers, and external auth providers.
+
+Generate a fully commented file from the current configuration:
+
+```shell
+coder server --write-config > /etc/coder.d/coder.yaml
+```
+
+Load it at startup with `--config` or `CODER_CONFIG_PATH`:
+
+```shell
+coder server --config /etc/coder.d/coder.yaml
+```
+
+Flags and environment variables continue to work and take precedence over
+values in the YAML file. The YAML schema follows the option names shown in
+`coder server --help` and is a supported, stable configuration format. When a
+field is renamed or removed, it is announced in the release notes alongside
+the environment variable change.
+
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the
