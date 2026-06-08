@@ -483,6 +483,11 @@ newStream:
 
 					// Causes a new stream to be run with updated messages.
 					isFirst = false
+					// Commit the SSE stream before the next iteration so a
+					// later IsStreaming check always takes the SSE branch
+					// instead of racing with the Start goroutine.
+					// sync.Once makes this safe.
+					events.InitiateStream(w)
 					continue newStream
 				}
 

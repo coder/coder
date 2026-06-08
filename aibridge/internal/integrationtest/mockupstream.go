@@ -65,6 +65,19 @@ func newFixtureToolResponse(fix fixtures.Fixture) upstreamResponse {
 	return resp
 }
 
+// newErrorResponse returns an upstreamResponse that replays a raw HTTP error
+// response with the given status code. Used to drive iteration-N error paths
+// from inside a multi-call mockUpstream scripted-response list.
+func newErrorResponse(status int) upstreamResponse {
+	body := fmt.Sprintf(`{"error":{"message":%q}}`, http.StatusText(status))
+	raw := fmt.Sprintf("HTTP/1.1 %d %s\r\n", status, http.StatusText(status))
+	raw += "x-should-retry: false\r\n"
+	raw += "Content-Type: application/json\r\n"
+	raw += fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+	rawBytes := []byte(raw)
+	return upstreamResponse{Streaming: rawBytes, Blocking: rawBytes}
+}
+
 // receivedRequest captures the details of a single request handled by mockUpstream.
 type receivedRequest struct {
 	Method string
