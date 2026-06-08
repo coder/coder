@@ -23,6 +23,10 @@ contents:
   - src: coder.env
     dst: /etc/coder.d/coder.env
     type: "config|noreplace"
+    file_info:
+      mode: 0600
+      owner: coder
+      group: coder
   - src: coder.service
     dst: /usr/lib/systemd/system/coder.service
   - src: coder-workspace-proxy.service
