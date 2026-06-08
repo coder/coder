@@ -63,6 +63,7 @@ const OrganizationProvisionersPage: FC = () => {
 				error={provisionersQuery.error}
 				provisioners={provisionersQuery.data}
 				buildVersion={buildInfoQuery.data?.version}
+				buildAPIVersion={buildInfoQuery.data?.provisioner_api_version}
 				onRetry={provisionersQuery.refetch}
 				filter={queryParams}
 				onFilterChange={({ ids, offline }) => {

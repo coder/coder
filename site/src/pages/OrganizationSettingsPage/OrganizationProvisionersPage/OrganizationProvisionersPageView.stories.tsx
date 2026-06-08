@@ -13,6 +13,7 @@ const meta: Meta<typeof OrganizationProvisionersPageView> = {
 	component: OrganizationProvisionersPageView,
 	args: {
 		buildVersion: MockBuildInfo.version,
+		buildAPIVersion: MockBuildInfo.provisioner_api_version,
 		provisioners: [
 			MockProvisioner,
 			{

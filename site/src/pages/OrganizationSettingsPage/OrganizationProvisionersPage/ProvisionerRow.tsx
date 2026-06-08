@@ -21,7 +21,11 @@ import {
 import { ProvisionerKey } from "#/pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { cn } from "#/utils/cn";
 import { relativeTime } from "#/utils/time";
-import { ProvisionerVersion } from "./ProvisionerVersion";
+import {
+	getProvisionerCompatibility,
+	ProvisionerVersion,
+	provisionerCompatibilityLabel,
+} from "./ProvisionerVersion";
 
 const variantByStatus: Record<
 	ProvisionerDaemonStatus,
@@ -35,15 +39,23 @@ const variantByStatus: Record<
 type ProvisionerRowProps = {
 	provisioner: ProvisionerDaemon;
 	buildVersion: string | undefined;
+	buildAPIVersion: string | undefined;
 	defaultIsOpen: boolean;
 };
 
 export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 	provisioner,
 	buildVersion,
+	buildAPIVersion,
 	defaultIsOpen = false,
 }) => {
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
+	const compatibility = getProvisionerCompatibility(
+		buildVersion,
+		buildAPIVersion,
+		provisioner.version,
+		provisioner.api_version,
+	);
 
 	return (
 		<>
@@ -75,7 +87,9 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 				<TableCell>
 					<ProvisionerVersion
 						buildVersion={buildVersion}
+						buildAPIVersion={buildAPIVersion}
 						provisionerVersion={provisioner.version}
+						provisionerAPIVersion={provisioner.api_version}
 					/>
 				</TableCell>
 				<TableCell>
@@ -123,10 +137,11 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 
 							<dt>Version:</dt>
 							<dd>
-								{provisioner.version === buildVersion
-									? "up to date"
-									: "outdated"}
+								{provisionerCompatibilityLabel[compatibility].toLowerCase()}
 							</dd>
+
+							<dt>API version:</dt>
+							<dd>{provisioner.api_version}</dd>
 
 							<dt>Tags:</dt>
 							<dd>

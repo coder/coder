@@ -10,6 +10,7 @@ const meta: Meta<typeof ProvisionerRow> = {
 	args: {
 		provisioner: MockProvisioner,
 		buildVersion: MockBuildInfo.version,
+		buildAPIVersion: MockBuildInfo.provisioner_api_version,
 	},
 	render: (args) => {
 		return (

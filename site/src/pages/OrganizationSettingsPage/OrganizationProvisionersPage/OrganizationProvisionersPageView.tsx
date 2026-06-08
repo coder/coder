@@ -39,6 +39,7 @@ interface OrganizationProvisionersPageViewProps {
 	showPaywall: boolean | undefined;
 	provisioners: readonly ProvisionerDaemon[] | undefined;
 	buildVersion: string | undefined;
+	buildAPIVersion: string | undefined;
 	error: unknown;
 	filter: ProvisionersFilter;
 	onRetry: () => void;
@@ -52,6 +53,7 @@ export const OrganizationProvisionersPageView: FC<
 	error,
 	provisioners,
 	buildVersion,
+	buildAPIVersion,
 	filter,
 	onFilterChange,
 	onRetry,
@@ -141,6 +143,7 @@ export const OrganizationProvisionersPageView: FC<
 											provisioner={provisioner}
 											key={provisioner.id}
 											buildVersion={buildVersion}
+											buildAPIVersion={buildAPIVersion}
 											defaultIsOpen={filter.ids.includes(provisioner.id)}
 										/>
 									))
