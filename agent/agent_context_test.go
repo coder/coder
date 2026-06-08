@@ -43,7 +43,7 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 		pushes = client.ContextStatePushes()
 		for _, push := range pushes {
 			for _, r := range push.GetResources() {
-				if r.GetKind() == agentproto.ContextResource_INSTRUCTION_FILE &&
+				if r.GetInstructionFile() != nil &&
 					filepath.Base(r.GetSource()) == "AGENTS.md" {
 					return true
 				}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/structpb"
 	"storj.io/drpc/drpcerr"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -48,7 +49,10 @@ func (p *DRPCPusher) PushContextState(ctx context.Context, req *PushRequest) (*P
 }
 
 // pushRequestToProto converts the Go push payload to its
-// generated protobuf equivalent.
+// generated protobuf equivalent. The Kind on each Resource
+// selects which body variant of the proto oneof is set; a body
+// is always set (zero-valued if necessary) so coderd can tell
+// the kind even when Status != OK.
 func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	pb := &agentproto.PushContextStateRequest{
 		Version:       req.Version,
@@ -61,16 +65,13 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	for i := range req.Resources {
 		r := req.Resources[i]
 		entry := &agentproto.ContextResource{
-			Id:          r.ID,
-			Kind:        resourceKindToProto(r.Kind),
 			Source:      r.Source,
 			ContentHash: append([]byte(nil), r.ContentHash[:]...),
-			Payload:     append([]byte(nil), r.Payload...),
 			Status:      resourceStatusToProto(r.Status),
 			SizeBytes:   r.SizeBytes,
 			Error:       r.Error,
-			Description: r.Description,
 		}
+		setResourceBody(entry, r)
 		if r.SourcePath != "" {
 			sp := r.SourcePath
 			entry.SourcePath = &sp
@@ -80,30 +81,78 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 	return pb
 }
 
-// resourceKindToProto maps a ResourceKind to its proto enum.
-// Unknown kinds map to KIND_UNSPECIFIED so future kinds added
-// to the Go enum without a matching proto bump do not crash.
-func resourceKindToProto(k ResourceKind) agentproto.ContextResource_Kind {
-	switch k {
+// setResourceBody picks the proto oneof variant for r's Kind and
+// populates the kind-specific fields from r. A body is set even
+// when status is not OK so coderd can attribute the failure to a
+// known kind. Unknown kinds leave the body unset; the recipient
+// can surface that as "kind not recognized".
+func setResourceBody(entry *agentproto.ContextResource, r Resource) {
+	switch r.Kind {
 	case KindInstructionFile:
-		return agentproto.ContextResource_INSTRUCTION_FILE
+		entry.Body = &agentproto.ContextResource_InstructionFile{
+			InstructionFile: &agentproto.InstructionFileBody{
+				Content: append([]byte(nil), r.Payload...),
+			},
+		}
 	case KindSkill:
-		return agentproto.ContextResource_SKILL
+		entry.Body = &agentproto.ContextResource_Skill{
+			Skill: &agentproto.SkillMetaBody{
+				Meta:        append([]byte(nil), r.Payload...),
+				Name:        r.Name,
+				Description: r.Description,
+			},
+		}
 	case KindMCPConfig:
-		return agentproto.ContextResource_MCP_CONFIG
+		// MCPConfigBody is intentionally empty: secrets in env
+		// blocks must not leave the agent.
+		entry.Body = &agentproto.ContextResource_McpConfig{
+			McpConfig: &agentproto.MCPConfigBody{},
+		}
 	case KindMCPServer:
-		return agentproto.ContextResource_MCP_SERVER
-	case KindPlugin:
-		return agentproto.ContextResource_PLUGIN
-	case KindHook:
-		return agentproto.ContextResource_HOOK
-	case KindSubagent:
-		return agentproto.ContextResource_SUBAGENT
-	case KindCommand:
-		return agentproto.ContextResource_COMMAND
-	default:
-		return agentproto.ContextResource_KIND_UNSPECIFIED
+		entry.Body = &agentproto.ContextResource_McpServer{
+			McpServer: &agentproto.MCPServerBody{
+				ServerName:  serverNameOrSource(r),
+				Description: r.Description,
+				Tools:       mcpToolsToProto(r.Tools),
+			},
+		}
 	}
+}
+
+// serverNameOrSource returns r.Name when populated and falls
+// back to r.Source so providers that have not yet adopted the
+// Name field still produce a usable wire value.
+func serverNameOrSource(r Resource) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Source
+}
+
+// mcpToolsToProto converts the Go MCPTool slice to its wire
+// representation. InputSchema is marshaled via structpb.NewStruct;
+// schemas that fail to convert are dropped from the wire copy
+// (the resource ContentHash still detects the change) and the
+// tool ships with InputSchema unset rather than failing the
+// whole push.
+func mcpToolsToProto(in []MCPTool) []*agentproto.MCPTool {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*agentproto.MCPTool, 0, len(in))
+	for _, t := range in {
+		entry := &agentproto.MCPTool{
+			Name:        t.Name,
+			Description: t.Description,
+		}
+		if len(t.InputSchema) > 0 {
+			if s, err := structpb.NewStruct(t.InputSchema); err == nil {
+				entry.InputSchema = s
+			}
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 // resourceStatusToProto maps a ResourceStatus to its proto enum.

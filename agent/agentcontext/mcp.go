@@ -14,9 +14,15 @@ type MCPProvider interface {
 	//
 	//   - Have Kind == KindMCPServer.
 	//   - Use the server name as Source.
-	//   - Populate ContentHash over the canonical encoding
-	//     of the tool list so changes flip the dirty bit.
+	//   - Set Name to the server name (matches Source today;
+	//     reserved for the case where a future provider scheme
+	//     decouples them).
+	//   - Populate ContentHash over a canonical encoding of the
+	//     server name plus the tool list (proto Tools field)
+	//     so any tool-set change flips the dirty bit.
 	//   - Carry a Description summarizing the server.
+	//   - Populate Tools with the structured tool list; Payload
+	//     is unused for this kind and should be left empty.
 	//
 	// Implementations should never block; the resolver calls
 	// this on every re-resolve.

@@ -564,6 +564,7 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 		return res, true
 	}
 	res.Description = description
+	res.Name = name
 	res.Payload = data
 	return res, true
 }
@@ -865,12 +866,17 @@ func (s ResourceStatus) String() string {
 }
 
 // Resource is what the resolver emits for each recognized file
-// or live server it discovers under a scan root.
+// or live server it discovers under a scan root. The struct is
+// intentionally flat; the typed wire mapping happens in
+// drpc.go where Kind selects the proto oneof variant.
 type Resource struct {
 	// ID is stable across pushes for the same logical
-	// resource. The current scheme is "<kind>:<source>".
+	// resource. The current scheme is "<kind>:<source>". It is
+	// used for in-snapshot dedup and as part of the aggregate
+	// hash; it is not transmitted on the wire.
 	ID string
-	// Kind classifies the resource for snapshot consumers.
+	// Kind classifies the resource. Drives which proto oneof
+	// variant the DRPC adapter sets.
 	Kind ResourceKind
 	// Source is the file path or MCP server name.
 	Source string
@@ -879,6 +885,7 @@ type Resource struct {
 	ContentHash [32]byte
 	// Payload is the full bytes when Status == StatusOK; the
 	// per-resource and aggregate caps may leave it empty.
+	// Unused for KindMCPServer (Tools is used instead).
 	Payload []byte
 	// SizeBytes is the original payload size, populated
 	// regardless of Status.
@@ -888,12 +895,30 @@ type Resource struct {
 	// Error is populated whenever Status != StatusOK; may
 	// also carry a non-fatal warning when Status == StatusOK.
 	Error string
+	// Name is the resource's own short identifier. Currently
+	// populated for KindSkill (from front-matter) and
+	// KindMCPServer (server name); empty for other kinds.
+	Name string
 	// Description is a short human-readable summary (skill
-	// front-matter description, MCP server description, etc.).
+	// front-matter description, MCP server description,
+	// instruction-file first line). Shipped on the wire only
+	// for kinds whose body type carries a description field.
 	Description string
 	// SourcePath is the user-declared source that contributed
 	// the resource; empty for built-in scan roots.
 	SourcePath string
+	// Tools is populated for KindMCPServer with the live
+	// server's tool list; empty otherwise.
+	Tools []MCPTool
+}
+
+// MCPTool mirrors the wire MCPTool message. InputSchema is the
+// JSON-Schema-shaped object the MCP server reported for the
+// tool's arguments.
+type MCPTool struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
 }
 
 // Snapshot is the immutable bundle of resources produced by a

@@ -64,6 +64,46 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				Error:     "bad frontmatter",
 				SizeBytes: 99,
 			},
+			{
+				ID:          "skill:/tmp/.agents/skills/code-review",
+				Kind:        agentcontext.KindSkill,
+				Source:      "/tmp/.agents/skills/code-review",
+				ContentHash: [32]byte{0x03},
+				Payload:     []byte("---\nname: code-review\n---\nbody\n"),
+				SizeBytes:   31,
+				Status:      agentcontext.StatusOK,
+				Name:        "code-review",
+				Description: "Critical review for Go PRs.",
+				SourcePath:  "/tmp",
+			},
+			{
+				ID:          "mcp_config:/tmp/.mcp.json",
+				Kind:        agentcontext.KindMCPConfig,
+				Source:      "/tmp/.mcp.json",
+				ContentHash: [32]byte{0x04},
+				SizeBytes:   412,
+				Status:      agentcontext.StatusOK,
+				SourcePath:  "/tmp",
+			},
+			{
+				ID:          "mcp_server:github",
+				Kind:        agentcontext.KindMCPServer,
+				Source:      "github",
+				Name:        "github",
+				ContentHash: [32]byte{0x05},
+				SizeBytes:   138,
+				Status:      agentcontext.StatusOK,
+				Description: "GitHub MCP server (1 tool)",
+				SourcePath:  "/tmp/.mcp.json",
+				Tools: []agentcontext.MCPTool{{
+					Name:        "create_issue",
+					Description: "Create a GitHub issue",
+					InputSchema: map[string]any{
+						"type":     "object",
+						"required": []any{"title"},
+					},
+				}},
+			},
 		},
 	}
 
@@ -79,20 +119,55 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.Equal(t, uint64(1), pb.SchemaVersion)
 	require.Equal(t, "watcher degraded", pb.SnapshotError)
 
-	require.Len(t, pb.Resources, 2)
+	require.Len(t, pb.Resources, 5)
+
+	// Instruction file: wire-flat fields plus typed body.
 	instr := pb.Resources[0]
-	require.Equal(t, "instruction_file:/tmp/AGENTS.md", instr.Id)
-	require.Equal(t, agentproto.ContextResource_INSTRUCTION_FILE, instr.Kind)
+	require.Equal(t, "/tmp/AGENTS.md", instr.Source)
 	require.Equal(t, agentproto.ContextResource_OK, instr.Status)
-	require.Equal(t, []byte("body"), instr.Payload)
-	require.Equal(t, "tagline", instr.Description)
 	require.NotNil(t, instr.SourcePath)
 	require.Equal(t, "/tmp", *instr.SourcePath)
+	instrBody := instr.GetInstructionFile()
+	require.NotNil(t, instrBody, "instruction_file body must be set")
+	require.Equal(t, []byte("body"), instrBody.GetContent())
+	require.Nil(t, instr.GetSkill())
+	require.Nil(t, instr.GetMcpConfig())
+	require.Nil(t, instr.GetMcpServer())
 
-	skill := pb.Resources[1]
-	require.Equal(t, agentproto.ContextResource_SKILL, skill.Kind)
-	require.Equal(t, agentproto.ContextResource_INVALID, skill.Status)
-	require.Nil(t, skill.SourcePath, "empty user source must remain optional/nil")
+	// Skill with INVALID status still has the skill body set so
+	// coderd can attribute the failure to the correct kind.
+	invalidSkill := pb.Resources[1]
+	require.Equal(t, agentproto.ContextResource_INVALID, invalidSkill.Status)
+	require.Equal(t, "bad frontmatter", invalidSkill.Error)
+	require.NotNil(t, invalidSkill.GetSkill(), "skill body must be set even when status != OK")
+	require.Nil(t, invalidSkill.SourcePath, "empty user source must remain optional/nil")
+
+	// OK skill: meta + name + description populated.
+	skill := pb.Resources[2]
+	skillBody := skill.GetSkill()
+	require.NotNil(t, skillBody)
+	require.Equal(t, []byte("---\nname: code-review\n---\nbody\n"), skillBody.GetMeta())
+	require.Equal(t, "code-review", skillBody.GetName())
+	require.Equal(t, "Critical review for Go PRs.", skillBody.GetDescription())
+
+	// MCP config: body present but empty. SizeBytes / ContentHash
+	// on the outer resource still detect changes.
+	mcpCfg := pb.Resources[3]
+	require.Equal(t, uint64(412), mcpCfg.SizeBytes)
+	require.NotNil(t, mcpCfg.GetMcpConfig(), "mcp_config body must be set")
+
+	// MCP server: structured tool list with input schema.
+	mcpSrv := pb.Resources[4]
+	srvBody := mcpSrv.GetMcpServer()
+	require.NotNil(t, srvBody)
+	require.Equal(t, "github", srvBody.GetServerName())
+	require.Equal(t, "GitHub MCP server (1 tool)", srvBody.GetDescription())
+	require.Len(t, srvBody.GetTools(), 1)
+	tool := srvBody.GetTools()[0]
+	require.Equal(t, "create_issue", tool.GetName())
+	require.Equal(t, "Create a GitHub issue", tool.GetDescription())
+	require.NotNil(t, tool.GetInputSchema(), "input_schema must be set when supplied")
+	require.Equal(t, "object", tool.GetInputSchema().GetFields()["type"].GetStringValue())
 }
 
 func TestDRPCPusher_UnimplementedTranslated(t *testing.T) {
