@@ -503,6 +503,13 @@ type sqlcQuerier interface {
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
+	// Returns the highest group AI budget across the groups the user belongs to,
+	// breaking ties by group name ascending. Implements the "highest" budget policy.
+	// group_members_expanded is a UNION of group_members and organization_members,
+	// so the implicit "Everyone" group (group_id == organization_id) is included.
+	// Returns no rows when the user has no budgeted groups; callers should treat
+	// sql.ErrNoRows as "no group budget".
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
