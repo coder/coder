@@ -68,6 +68,15 @@ Pre-shared key to authenticate with Coder server.
 
 Provisioner key to authenticate with Coder server.
 
+### --key-file
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_KEY_FILE</code> |
+
+Path to a file containing the provisioner key to authenticate with Coder server. The file contents are read at startup and trimmed of surrounding whitespace. Mutually exclusive with --key.
+
 ### --name
 
 |             |                                             |

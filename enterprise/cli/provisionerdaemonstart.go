@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		pollJitter     time.Duration
 		preSharedKey   string
 		provisionerKey string
+		keyFile        string
 		verbose        bool
 		experiments    []string
 
@@ -70,6 +72,20 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			defer stopCancel()
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
+
+			if keyFile != "" {
+				if provisionerKey != "" {
+					return xerrors.New("cannot provide both --key and --key-file")
+				}
+				keyBytes, err := os.ReadFile(keyFile)
+				if err != nil {
+					return xerrors.Errorf("read provisioner key file %q: %w", keyFile, err)
+				}
+				provisionerKey = strings.TrimSpace(string(keyBytes))
+				if provisionerKey == "" {
+					return xerrors.Errorf("provisioner key file %q is empty", keyFile)
+				}
+			}
 
 			orgID := uuid.Nil
 			if preSharedKey == "" && provisionerKey == "" {
@@ -287,6 +303,12 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		Description: "Provisioner key to authenticate with Coder server.",
 		Value:       serpent.StringOf(&provisionerKey),
 	}
+	keyFileOption := serpent.Option{
+		Flag:        "key-file",
+		Env:         "CODER_PROVISIONER_DAEMON_KEY_FILE",
+		Description: "Path to a file containing the provisioner key to authenticate with Coder server. The file contents are read at startup and trimmed of surrounding whitespace. Mutually exclusive with --key.",
+		Value:       serpent.StringOf(&keyFile),
+	}
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "cache-dir",
@@ -325,6 +347,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			UseInstead:  []serpent.Option{keyOption},
 		},
 		keyOption,
+		keyFileOption,
 		{
 			Flag:        "name",
 			Env:         "CODER_PROVISIONER_DAEMON_NAME",

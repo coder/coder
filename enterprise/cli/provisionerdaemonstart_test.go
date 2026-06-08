@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -452,6 +454,123 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		require.Equal(t, buildinfo.Version(), daemons[0].Version)
 		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("KeyFile", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+		// nolint:gocritic // test
+		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "key-file-daemon",
+		})
+		require.NoError(t, err)
+
+		// Write the key to a file with a trailing newline to exercise trimming.
+		keyPath := filepath.Join(t.TempDir(), "provisioner.key")
+		require.NoError(t, os.WriteFile(keyPath, []byte(res.Key+"\n"), 0o600))
+
+		inv, conf := newCLI(t, "provisionerd", "start", "--key-file", keyPath, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		clitest.Start(t, inv)
+		stdout.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		stdout.ExpectMatch(ctx, "matt-daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		require.Eventually(t, func() bool {
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		require.Equal(t, "matt-daemon", daemons[0].Name)
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+	})
+
+	t.Run("KeyFileAndKeyConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+
+		keyPath := filepath.Join(t.TempDir(), "provisioner.key")
+		require.NoError(t, os.WriteFile(keyPath, []byte("some-key\n"), 0o600))
+
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", "inline-key", "--key-file", keyPath, "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "cannot provide both --key and --key-file")
+	})
+
+	t.Run("KeyFileMissing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+
+		missingPath := filepath.Join(t.TempDir(), "does-not-exist.key")
+		inv, conf := newCLI(t, "provisionerd", "start", "--key-file", missingPath, "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "read provisioner key file")
+	})
+
+	t.Run("KeyFileEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+
+		keyPath := filepath.Join(t.TempDir(), "provisioner.key")
+		require.NoError(t, os.WriteFile(keyPath, []byte("   \n\t\n"), 0o600))
+
+		inv, conf := newCLI(t, "provisionerd", "start", "--key-file", keyPath, "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "is empty")
 	})
 }
 
