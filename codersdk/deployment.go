@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
@@ -706,8 +707,12 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	return m, nil
 }
 
-// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+// ParseSSHConfigOption parses a single ssh config option into its key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
+	if strings.ContainsAny(opt, "\r\n\x00") {
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+	}
+
 	// An equal sign or whitespace is the separator between the key and value.
 	idx := strings.IndexFunc(opt, func(r rune) bool {
 		return r == ' ' || r == '='
@@ -716,6 +721,66 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
+}
+
+// isSingleHostPatternToken reports whether s is safe to write as a single SSH
+// host pattern token, i.e. it contains no whitespace, newlines, or NUL bytes
+// that could break out into additional SSH config directives.
+func isSingleHostPatternToken(s string) bool {
+	return !strings.ContainsAny(s, "\r\n\x00") && strings.IndexFunc(s, unicode.IsSpace) == -1
+}
+
+// ValidateWorkspaceHostnameSuffix validates a deployment-provided SSH hostname
+// suffix before it is made available to clients.
+func ValidateWorkspaceHostnameSuffix(suffix string) error {
+	if strings.HasPrefix(suffix, ".") {
+		return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s", suffix)
+	}
+	if !isSingleHostPatternToken(suffix) {
+		return xerrors.New("workspace hostname suffix must be a single SSH host pattern token")
+	}
+	return nil
+}
+
+// ValidateWorkspaceHostnamePrefix validates a deployment-provided SSH hostname
+// prefix before it is made available to clients. Unlike the suffix, a prefix
+// may legitimately contain a trailing dot (the default is "coder."), so only
+// the single-token requirement is enforced.
+func ValidateWorkspaceHostnamePrefix(prefix string) error {
+	if !isSingleHostPatternToken(prefix) {
+		return xerrors.New("workspace hostname prefix must be a single SSH host pattern token")
+	}
+	return nil
+}
+
+// ValidateSSHConfigOptions validates deployment SSH settings before they are
+// written to users' local SSH configs.
+func ValidateSSHConfigOptions(options map[string]string) error {
+	for key, value := range options {
+		if err := ValidateSSHConfigOption(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateSSHConfigOption validates one deployment SSH option before it is
+// written to users' local SSH configs.
+func ValidateSSHConfigOption(key, value string) error {
+	if key == "" {
+		return xerrors.New("ssh config option key is invalid")
+	}
+	if strings.ContainsAny(key, "=\r\n\x00") || strings.IndexFunc(key, unicode.IsSpace) != -1 {
+		return xerrors.Errorf("ssh config option key %q is invalid", key)
+	}
+	switch strings.ToLower(key) {
+	case "host", "match", "include", "proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand":
+		return xerrors.Errorf("ssh config option %q is not allowed", key)
+	}
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return xerrors.Errorf("ssh config option %q must be a single line", key)
+	}
+	return nil
 }
 
 // SessionLifetime refers to "sessions" authenticating into Coderd. Coder has

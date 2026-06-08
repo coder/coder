@@ -578,6 +578,20 @@ func mergeSSHOptions(
 ) (
 	sshConfigOptions, error,
 ) {
+	if coderd.HostnamePrefix != "" {
+		if err := codersdk.ValidateWorkspaceHostnamePrefix(coderd.HostnamePrefix); err != nil {
+			return sshConfigOptions{}, xerrors.Errorf("validate coderd workspace hostname prefix: %w", err)
+		}
+	}
+	if coderd.HostnameSuffix != "" {
+		if err := codersdk.ValidateWorkspaceHostnameSuffix(coderd.HostnameSuffix); err != nil {
+			return sshConfigOptions{}, xerrors.Errorf("validate coderd workspace hostname suffix: %w", err)
+		}
+	}
+	if err := codersdk.ValidateSSHConfigOptions(coderd.SSHConfigOptions); err != nil {
+		return sshConfigOptions{}, xerrors.Errorf("validate coderd ssh config options: %w", err)
+	}
+
 	// Write agent configuration.
 	defaultOptions := []string{
 		"ConnectTimeout=0",
