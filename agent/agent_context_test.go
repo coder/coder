@@ -26,7 +26,7 @@ import (
 // agent/agent.go and this test in the change that bumps the
 // version constant.
 func TestAgent_ContextStatePushed(t *testing.T) {
-	t.Skip("PushContextState gated until CurrentMinor=10 lands with coderd persistence")
+	t.Skip("PushContextState gated until CurrentMinor=10 lands with coderd persistence (CODAGT-569)")
 	t.Parallel()
 
 	dir := t.TempDir()

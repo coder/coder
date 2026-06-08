@@ -82,7 +82,8 @@ import (
 //     flag, but advertising v2.10 today would expose an API
 //     whose only new method returns Unimplemented from every
 //     deployed server. Bump CurrentMinor in the same change
-//     that wires coderd PushContextState persistence.
+//     that wires coderd PushContextState persistence. Tracked
+//     by CODAGT-569.
 const (
 	CurrentMajor = 2
 	CurrentMinor = 9

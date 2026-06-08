@@ -1265,7 +1265,7 @@ func (a *agent) run() (retErr error) {
 	// and persists incoming snapshots. Re-enable the
 	// startAgentAPI210("push context state", ...) block here
 	// in the same change that bumps tailnet/proto.CurrentMinor
-	// to 10.
+	// to 10. Tracked by CODAGT-569.
 
 	// channels to sync goroutines below
 	//  handle manifest
