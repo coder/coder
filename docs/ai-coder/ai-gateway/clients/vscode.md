@@ -6,9 +6,6 @@
 
 VS Code's native chat can be configured to use AI Gateway via the **Custom Endpoint** language model provider (VS Code 1.122+, Stable). GitHub sign-in is not required, so this works in air-gapped or restricted environments.
 
-> [!NOTE]
-> **Limitation:** Inline suggestions and Next Edit Suggestions still require GitHub Copilot with a GitHub account. Custom Endpoint covers chat, tools, and MCP only.
-
 ## Setup
 
 Requires VS Code 1.122+ and the [GitHub Copilot Chat extension](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat).
