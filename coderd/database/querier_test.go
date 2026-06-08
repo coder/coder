@@ -1587,12 +1587,14 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.Equal(t, sharedACL, sharedOnly[0].Chat.UserACL)
 	require.Empty(t, sharedOnly[0].Chat.GroupACL)
 
-	_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		OwnedOnly:  true,
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+	ownedAndShared, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		OwnedOnly:        true,
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
 	}, preparedRecipient)
-	require.ErrorContains(t, err, "owned_only and shared_only")
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(ownedAndShared))
 
 	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 	recipientCtx := dbauthz.As(ctx, recipientSubject)
