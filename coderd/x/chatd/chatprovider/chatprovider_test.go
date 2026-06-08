@@ -29,6 +29,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestProviderBaseURLHostname(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
+		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
+		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
+		{name: "Empty", baseURL: "", want: ""},
+		{name: "Invalid", baseURL: "://", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.ProviderBaseURLHostname(tt.baseURL))
+		})
+	}
+}
+
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
 
@@ -1472,6 +1494,34 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			providerHint: fantasyopenaicompat.Name,
 			wantProvider: fantasyopenaicompat.Name,
 			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "OpenRouterHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenrouter.Name,
+			wantProvider: fantasyopenrouter.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAICompatHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenaicompat.Name,
+			wantProvider: fantasyopenaicompat.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintStripsCanonicalPrefix",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintPreservesUnknownSlashNamespace",
+			modelName:    "meta-llama/llama-3-70b",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyopenai.Name,
+			wantModel:    "meta-llama/llama-3-70b",
 		},
 		{
 			name:         "AnthropicHintStripsCanonicalPrefix",
