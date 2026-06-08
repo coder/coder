@@ -182,6 +182,23 @@ func TestGuessSessionID(t *testing.T) {
 			name:   "coder_agents_without_chat_id",
 			client: aibridge.ClientCoderAgents,
 		},
+		// OpenCode.
+		{
+			name:      "opencode_with_session_header",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "ses_15a48edefffe7oY0YcIHRv29dD"},
+			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+		},
+		{
+			name:      "opencode_with_whitespace_in_header",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "  ses_15a48edefffe7oY0YcIHRv29dD  "},
+			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+		},
+		{
+			name:   "opencode_without_session_header",
+			client: aibridge.ClientOpenCode,
+		},
 		// Crush.
 		{
 			name:   "crush_returns_empty",
