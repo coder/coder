@@ -953,8 +953,25 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	if config.OAuth2Scopes != "" {
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
-	oauth2Config.Scopes = scopes
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+
+	authCodeOpts := []oauth2.AuthCodeOption{oauth2.S256ChallengeOption(verifier)}
+	if isSlackUserTokenAuthURL(config.OAuth2AuthURL) {
+		// Slack's user-token OAuth flow (oauth.v2; the
+		// /oauth/v2_user/authorize endpoint) expects the
+		// requested scopes in the "user_scope" parameter, NOT
+		// the standard "scope" parameter. "scope" is reserved
+		// for bot-token scopes. If we send our scopes as
+		// "scope" (the default for oauth2.Config), Slack mints a
+		// user token with zero user scopes and every subsequent
+		// API call fails. So move the scopes to "user_scope"
+		// and leave the library's "scope" empty.
+		oauth2Config.Scopes = nil
+		authCodeOpts = append(authCodeOpts,
+			oauth2.SetAuthURLParam("user_scope", strings.Join(scopes, " ")))
+	} else {
+		oauth2Config.Scopes = scopes
+	}
+	authURL := oauth2Config.AuthCodeURL(state, authCodeOpts...)
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -1048,7 +1065,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 
 	// Recover the PKCE code_verifier set during the connect step.
 	var exchangeOpts []oauth2.AuthCodeOption
+	var pkceVerifier string
 	if verifierCookie, err := r.Cookie("mcp_oauth2_verifier_" + config.ID.String()); err == nil {
+		pkceVerifier = verifierCookie.Value
 		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifierCookie.Value))
 	}
 	// Clear the verifier cookie regardless of whether it was present.
@@ -1085,7 +1104,18 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if api.HTTPClient != nil {
 		exchangeCtx = context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
 	}
-	token, err := oauth2Config.Exchange(exchangeCtx, code, exchangeOpts...)
+	var token *oauth2.Token
+	if isSlackUserTokenAuthURL(config.OAuth2AuthURL) {
+		// Slack's oauth.v2.user.access response is non-standard:
+		// it returns HTTP 200 with {"ok": false, "error": ...} on
+		// failure, and nests the user access token under
+		// "authed_user.access_token" rather than the top-level
+		// "access_token" the stdlib oauth2 library reads. Exchange
+		// via a Slack-aware helper so we capture the right token.
+		token, err = exchangeSlackUserToken(exchangeCtx, api.HTTPClient, oauth2Config, code, pkceVerifier)
+	} else {
+		token, err = oauth2Config.Exchange(exchangeCtx, code, exchangeOpts...)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to exchange authorization code for token.",
@@ -1240,6 +1270,106 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 		return uuid.Nil, false
 	}
 	return mcpServerID, true
+}
+
+// isSlackUserTokenAuthURL reports whether the given OAuth2 authorization
+// URL is Slack's user-token authorize endpoint. Slack's user-token flow
+// (oauth.v2) is non-standard in two ways that require special handling:
+// requested scopes must be sent in the "user_scope" parameter instead of
+// "scope", and the token-exchange response nests the user access token
+// under "authed_user.access_token". We key off the host + path so that
+// only Slack's user-token endpoint triggers the workarounds; Slack's
+// bot-token endpoint (/oauth/v2/authorize) and all other providers use
+// the standard path.
+func isSlackUserTokenAuthURL(authURL string) bool {
+	u, err := url.Parse(authURL)
+	if err != nil {
+		return false
+	}
+	if !strings.EqualFold(u.Host, "slack.com") {
+		return false
+	}
+	return strings.HasPrefix(u.Path, "/oauth/v2_user/")
+}
+
+// slackUserTokenResponse models the relevant fields of Slack's
+// oauth.v2.user.access response. Slack returns HTTP 200 even on failure,
+// signalling errors via "ok": false, and places the per-user access token
+// under "authed_user" rather than at the top level.
+type slackUserTokenResponse struct {
+	OK         bool   `json:"ok"`
+	Error      string `json:"error"`
+	AuthedUser struct {
+		AccessToken  string `json:"access_token"`
+		TokenType    string `json:"token_type"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+	} `json:"authed_user"`
+}
+
+// exchangeSlackUserToken performs the authorization-code exchange against
+// Slack's oauth.v2.user.access endpoint and returns an *oauth2.Token built
+// from the nested "authed_user" object. It is used instead of the stdlib
+// oauth2.Config.Exchange, which reads the (empty) top-level access_token
+// and does not treat Slack's {"ok": false} as an error. The PKCE
+// code_verifier (when present) is forwarded as a form value.
+func exchangeSlackUserToken(ctx context.Context, httpClient *http.Client, cfg *oauth2.Config, code, pkceVerifier string) (*oauth2.Token, error) {
+	v := url.Values{}
+	v.Set("client_id", cfg.ClientID)
+	v.Set("client_secret", cfg.ClientSecret)
+	v.Set("code", code)
+	v.Set("grant_type", "authorization_code")
+	if cfg.RedirectURL != "" {
+		v.Set("redirect_uri", cfg.RedirectURL)
+	}
+	if pkceVerifier != "" {
+		v.Set("code_verifier", pkceVerifier)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.Endpoint.TokenURL, strings.NewReader(v.Encode()))
+	if err != nil {
+		return nil, xerrors.Errorf("build slack token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := httpClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("slack token exchange request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var body slackUserTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, xerrors.Errorf("decode slack token response: %w", err)
+	}
+	if !body.OK {
+		if body.Error == "" {
+			body.Error = "unknown error"
+		}
+		return nil, xerrors.Errorf("slack token exchange failed: %s", body.Error)
+	}
+	if body.AuthedUser.AccessToken == "" {
+		return nil, xerrors.New("slack token exchange returned no user access token")
+	}
+
+	tokenType := body.AuthedUser.TokenType
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	tok := &oauth2.Token{
+		AccessToken:  body.AuthedUser.AccessToken,
+		TokenType:    tokenType,
+		RefreshToken: body.AuthedUser.RefreshToken,
+	}
+	if body.AuthedUser.ExpiresIn > 0 {
+		tok.Expiry = time.Now().Add(time.Duration(body.AuthedUser.ExpiresIn) * time.Second)
+	}
+	return tok, nil
 }
 
 // convertMCPServerConfig converts a database MCP server config to the

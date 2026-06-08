@@ -2,6 +2,8 @@ package coderd
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -212,5 +214,100 @@ func TestOIDCMCPTokenSource(t *testing.T) {
 		tok, err := src.OIDCAccessToken(ctx, user.ID)
 		require.NoError(t, err)
 		require.Empty(t, tok)
+	})
+}
+
+func TestIsSlackUserTokenAuthURL(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		authURL string
+		want    bool
+	}{
+		{"slack user-token endpoint", "https://slack.com/oauth/v2_user/authorize", true},
+		{"slack bot-token endpoint", "https://slack.com/oauth/v2/authorize", false},
+		{"slack legacy endpoint", "https://slack.com/oauth/authorize", false},
+		{"other provider", "https://github.com/login/oauth/authorize", false},
+		{"empty", "", false},
+		{"not a url", "://bogus", false},
+		{"lookalike host", "https://notslack.com/oauth/v2_user/authorize", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, isSlackUserTokenAuthURL(tc.authURL))
+		})
+	}
+}
+
+func TestExchangeSlackUserToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		var gotForm string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, r.ParseForm())
+			gotForm = r.Form.Encode()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"ok": true,
+				"authed_user": {
+					"id": "U123",
+					"access_token": "xoxp-user-token",
+					"token_type": "Bearer"
+				}
+			}`))
+		}))
+		defer srv.Close()
+
+		cfg := &oauth2.Config{
+			ClientID:     "cid",
+			ClientSecret: "secret",
+			Endpoint:     oauth2.Endpoint{TokenURL: srv.URL},
+			RedirectURL:  "https://coder.example.com/callback",
+		}
+		tok, err := exchangeSlackUserToken(context.Background(), srv.Client(), cfg, "the-code", "the-verifier")
+		require.NoError(t, err)
+		require.Equal(t, "xoxp-user-token", tok.AccessToken)
+		require.Equal(t, "Bearer", tok.TokenType)
+		// The user token (not a bot token) must be the one stored.
+		require.Contains(t, gotForm, "code=the-code")
+		require.Contains(t, gotForm, "code_verifier=the-verifier")
+		require.Contains(t, gotForm, "grant_type=authorization_code")
+	})
+
+	t.Run("SlackErrorOnHTTP200", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// Slack signals failures with HTTP 200 + ok:false.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok": false, "error": "invalid_code"}`))
+		}))
+		defer srv.Close()
+
+		cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: srv.URL}}
+		_, err := exchangeSlackUserToken(context.Background(), srv.Client(), cfg, "bad", "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid_code")
+	})
+
+	t.Run("MissingUserToken", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// ok:true but no authed_user.access_token (e.g. only a bot token).
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok": true, "access_token": "xoxb-bot-only"}`))
+		}))
+		defer srv.Close()
+
+		cfg := &oauth2.Config{Endpoint: oauth2.Endpoint{TokenURL: srv.URL}}
+		_, err := exchangeSlackUserToken(context.Background(), srv.Client(), cfg, "code", "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "no user access token")
 	})
 }
