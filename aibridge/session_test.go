@@ -196,6 +196,18 @@ func TestGuessSessionID(t *testing.T) {
 			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
 		},
 		{
+			name:      "opencode_zen_header_takes_precedence_over_session_affinity",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"X-OpenCode-Session": "zen-session", "x-session-affinity": "other-session"},
+			sessionID: utils.PtrTo("zen-session"),
+		},
+		{
+			name:      "opencode_session_affinity_fallback",
+			client:    aibridge.ClientOpenCode,
+			headers:   map[string]string{"x-session-affinity": "affinity-session-123"},
+			sessionID: utils.PtrTo("affinity-session-123"),
+		},
+		{
 			name:   "opencode_without_session_header",
 			client: aibridge.ClientOpenCode,
 		},
