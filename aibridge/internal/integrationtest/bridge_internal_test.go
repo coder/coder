@@ -149,6 +149,50 @@ func TestAnthropicMessages(t *testing.T) {
 			})
 		}
 	})
+
+	// When the upstream's first response is an injected tool call with no
+	// text preamble and the next upstream call fails, the response must
+	// remain a well-formed SSE stream. The upstream error is relayed as a
+	// well-formed SSE event.
+	t.Run("streaming injected tool call no preamble with upstream 500", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleInjectedToolNoPreamble)
+		upstream := newMockUpstream(ctx, t,
+			newFixtureResponse(fix),
+			newErrorResponse(http.StatusInternalServerError),
+		)
+
+		mockMCP := setupMCPForTest(t, defaultTracer)
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
+
+		reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		bodyStr := string(body)
+
+		// Once iteration 1 succeeded the response is committed as SSE,
+		// so the iteration-2 error MUST be an SSE event and not a raw JSON body.
+		require.Contains(t, bodyStr, "event: error",
+			"iteration-2 error must be relayed as an SSE event")
+
+		// Tool was invoked despite the iteration-2 failure.
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1,
+			"expected MCP tool to be invoked exactly once")
+
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
 }
 
 func TestAnthropicMessagesModelThoughts(t *testing.T) {
