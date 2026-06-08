@@ -358,6 +358,41 @@ export CODER_SESSION_TOKEN=your_token
 coder provisioner start
 ```
 
+## Example: Running an external provisioner as a system service
+
+When Coder is installed from the
+[Linux package](../../install/index.md), a `coder-provisioner.service`
+systemd unit is installed alongside `coder.service`. Use this unit instead of
+editing or duplicating `coder.service` to run an external provisioner.
+
+1. Edit `/etc/coder.d/coder-provisioner.env` and set, at minimum,
+   `CODER_URL` and `CODER_PROVISIONER_DAEMON_KEY` (preferred) or
+   `CODER_PROVISIONER_DAEMON_PSK`. Run `coder provisioner start --help` for
+   the full list of supported environment variables.
+
+   ```shell
+   sudoedit /etc/coder.d/coder-provisioner.env
+   ```
+
+1. Start the provisioner now and on boot:
+
+   ```shell
+   sudo systemctl enable --now coder-provisioner
+
+   # View the logs to confirm a successful start
+   journalctl -u coder-provisioner.service -b
+   ```
+
+1. To restart the provisioner after editing the env file:
+
+   ```shell
+   sudo systemctl restart coder-provisioner
+   ```
+
+The `coder-provisioner` unit and the `coder` server unit can coexist on the
+same host, but they read separate environment files so each daemon can be
+configured and restarted independently.
+
 ## Example: Running an external provisioner via Docker
 
 ```sh

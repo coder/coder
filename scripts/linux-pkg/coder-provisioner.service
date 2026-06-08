@@ -1,0 +1,37 @@
+[Unit]
+Description="Coder - external provisioner daemon"
+Documentation=https://coder.com/docs/admin/provisioners
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=/etc/coder.d/coder-provisioner.env
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+# Type=exec is used here instead of Type=notify because `coder provisioner
+# start` does not yet send sd_notify(READY=1). Switch to Type=notify once the
+# daemon supports systemd readiness notification, to match coder.service.
+Type=exec
+EnvironmentFile=/etc/coder.d/coder-provisioner.env
+User=coder
+Group=coder
+ProtectSystem=full
+PrivateTmp=yes
+PrivateDevices=yes
+# The server unit grants CAP_IPC_LOCK, CAP_NET_BIND_SERVICE, and CAP_SYSLOG
+# because the API server may bind low ports and lock secrets in memory. An
+# external provisioner only runs terraform as the unprivileged `coder` user,
+# binds the prometheus port (default 2112), and writes logs via stderr, so the
+# capability set is left empty.
+CapabilityBoundingSet=
+CacheDirectory=coder
+KillSignal=SIGINT
+KillMode=mixed
+NoNewPrivileges=yes
+ExecStart=/usr/bin/coder provisioner start
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target
