@@ -1473,10 +1473,12 @@ func TestAgent_SFTP(t *testing.T) {
 			expectedDir = "/" + strings.ReplaceAll(customDir, "\\", "/")
 		}
 
-		//nolint:dogsled
-		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		conn, agentClient, _, fs, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: customDir,
 		}, 0)
+		// The agent stats the working directory against its filesystem, so
+		// the directory must exist there for it to be honored.
+		require.NoError(t, fs.MkdirAll(customDir, 0o700))
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -1490,6 +1492,34 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
+
+	t.Run("MissingWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err, "get home dir")
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
+
+		// A configured directory that does not exist on the agent's
+		// filesystem must fall back to the home directory.
+		missingDir := filepath.Join(t.TempDir(), "does-not-exist")
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Directory: missingDir,
+		}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should fall back to user home")
 	})
 }
 
