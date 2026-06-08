@@ -1,14 +1,8 @@
 import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -39,8 +33,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "./subagentDescriptor";
-import { ToolCollapsible } from "./ToolCollapsible";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
@@ -918,67 +911,43 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 
 	const hasContent = Boolean(toolInput || fileContent || resultOutput);
-	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
-	const toolHeader = (
-		<>
-			<ToolIcon
-				name={name}
-				isError={status === "error" || isError}
-				iconUrl={mcpServer?.icon_url}
-				isRunning={isRunning}
-				serverName={mcpServer?.display_name}
-			/>
-			{modelIntent ? (
-				<span className="truncate text-[13px]">
-					{formatModelIntentLabel(modelIntent)}
-				</span>
-			) : (
-				<ToolLabel
-					name={name}
-					args={args}
-					result={result}
-					mcpSlug={mcpServer?.slug}
-				/>
-			)}
-		</>
-	);
-	const toolHeaderStatus = (
-		<>
-			{isError && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
-					</TooltipTrigger>
-					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
-				</Tooltip>
-			)}
-			{isRunning && (
-				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-			)}
-		</>
-	);
-
-	const toolContent = (
-		<GenericToolContent
-			toolInput={toolInput}
-			fileContent={fileContent}
-			fileContentOptions={fileContentOptions}
-			isDark={isDark}
-			resultOutput={resultOutput}
-		/>
-	);
-
 	return (
-		<ToolCollapsible
+		<ToolCall.Root
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || "Tool call failed"}
 			hasContent={hasContent}
-			header={toolHeader}
-			headerStatus={toolHeaderStatus}
 		>
-			{toolContent}
-		</ToolCollapsible>
+			<ToolCall.Header
+				iconName={name}
+				iconUrl={mcpServer?.icon_url}
+				serverName={mcpServer?.display_name}
+				label={
+					modelIntent ? (
+						formatModelIntentLabel(modelIntent)
+					) : (
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					)
+				}
+			/>
+			<ToolCall.Content>
+				<GenericToolContent
+					toolInput={toolInput}
+					fileContent={fileContent}
+					fileContentOptions={fileContentOptions}
+					isDark={isDark}
+					resultOutput={resultOutput}
+				/>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 

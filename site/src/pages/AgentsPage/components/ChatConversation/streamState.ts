@@ -116,6 +116,12 @@ export const applyMessagePartToStreamState = (
 					toolResults,
 				};
 			}
+			if (part.result_delta === "") {
+				return {
+					...nextState,
+					blocks: ensureToolBlock(nextState.blocks, toolCallID),
+				};
+			}
 
 			const nextResult = mergeStreamPayload(
 				existing?.result,

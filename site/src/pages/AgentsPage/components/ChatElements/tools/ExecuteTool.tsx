@@ -1,15 +1,11 @@
 import {
 	CheckIcon,
-	ChevronDownIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LayersIcon,
-	LoaderIcon,
 	OctagonXIcon,
-	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -21,12 +17,8 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { TranscriptRow } from "../TranscriptRow";
-import {
-	type AgentDisplayState,
-	isAgentDisplayOpen,
-	resolveAgentDisplayState,
-} from "./displayMode";
-import { ToolIcon } from "./ToolIcon";
+import type { AgentDisplayState } from "./displayMode";
+import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
@@ -49,33 +41,7 @@ type ExecuteToolProps = {
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
-type ExecuteToolInnerProps = ExecuteToolProps & {
-	outputInitiallyOpen: boolean;
-};
-
-export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
-	const hasTranscriptBlocks = props.transcriptBlocks.length > 0;
-	const autoDisplayState: AgentDisplayState =
-		hasTranscriptBlocks ||
-		props.status === "running" ||
-		props.isBackgrounded ||
-		!!props.killedBySignal
-			? "preview"
-			: "collapsed";
-	const resolvedDisplayState = resolveAgentDisplayState(
-		props.shellToolDisplayMode,
-		autoDisplayState,
-	);
-	return (
-		<ExecuteToolInner
-			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
-			{...props}
-			outputInitiallyOpen={isAgentDisplayOpen(resolvedDisplayState)}
-		/>
-	);
-};
-
-const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
+export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	command,
 	transcriptBlocks,
 	status,
@@ -85,58 +51,54 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
-	outputInitiallyOpen,
+	shellToolDisplayMode,
 }) => {
 	const hasCommand = command.trim().length > 0;
+	const hasTranscriptBlocks = transcriptBlocks.length > 0;
+	const autoDisplayState: AgentDisplayState =
+		hasTranscriptBlocks ||
+		status === "running" ||
+		isBackgrounded ||
+		!!killedBySignal
+			? "preview"
+			: "collapsed";
 	const isRunning = status === "running";
-	const showFailureIndicator = isError && !isRunning;
-	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
+	const { commandLabel, durationSuffix } = getShellCommandLine({
+		command,
+		modelIntent,
+		parsedCommands,
+		durationLabel,
+	});
 
 	if (!hasCommand) {
 		return null;
 	}
 
 	return (
-		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
-			<TranscriptRow
-				asChild
-				className="col-start-1 row-start-1 m-0 w-full min-w-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<button
-					type="button"
-					aria-expanded={outputOpen}
-					aria-label={outputToggleLabel}
-					onClick={() => setOutputOpen((value) => !value)}
-				>
-					<ShellCommandLine
-						command={command}
-						modelIntent={modelIntent}
-						parsedCommands={parsedCommands}
-						durationLabel={durationLabel}
-						expanded={outputOpen}
-					/>
-				</button>
-			</TranscriptRow>
+		<ToolCall.AgentDisplayModeRoot
+			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
+			status={status}
+			isError={isError && !isRunning}
+			errorMessage="Command failed"
+			hasContent
+			displayMode={shellToolDisplayMode}
+			autoDisplayState={autoDisplayState}
+			ariaLabel={(expanded) =>
+				expanded ? "Collapse command" : "Expand command"
+			}
+		>
+			<ToolCall.Header
+				iconName="execute"
+				label={commandLabel}
+				secondaryLabel={
+					durationSuffix ? (
+						<span className="text-content-secondary">{durationSuffix}</span>
+					) : undefined
+				}
+				headerClassName="col-start-1 row-start-1 min-w-0 font-normal"
+			/>
 			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
-				{isRunning && (
-					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-				)}
-				{showFailureIndicator && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span
-								aria-label="Command failed"
-								role="img"
-								className="flex shrink-0 text-content-secondary"
-							>
-								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-							</span>
-						</TooltipTrigger>
-						<TooltipContent>Command failed</TooltipContent>
-					</Tooltip>
-				)}
 				{isBackgrounded && !isRunning && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -167,24 +129,30 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
 			</TranscriptRow>
-			{outputOpen && (
+			<ToolCall.Content>
 				<ShellTranscriptBody
 					command={command}
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 				/>
-			)}
-		</div>
+			</ToolCall.Content>
+		</ToolCall.AgentDisplayModeRoot>
 	);
 };
 
-const ShellCommandLine: React.FC<{
+type ShellCommandLineInput = {
 	command: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
-	expanded?: boolean;
-}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
+};
+
+const getShellCommandLine = ({
+	command,
+	modelIntent,
+	parsedCommands,
+	durationLabel,
+}: ShellCommandLineInput) => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
 		parsedCommands && parsedCommands.length > 0
@@ -196,25 +164,7 @@ const ShellCommandLine: React.FC<{
 		: `Ran ${commandDisplay}`;
 	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
 
-	return (
-		<>
-			<ToolIcon name="execute" isError={false} />
-			<span className="min-w-0 truncate text-[13px] font-normal leading-6 text-current">
-				{commandLabel}
-				{durationSuffix && (
-					<span className="text-content-secondary">{durationSuffix}</span>
-				)}
-			</span>
-			{expanded !== undefined && (
-				<ChevronDownIcon
-					className={cn(
-						"size-3 shrink-0 text-current transition-transform",
-						expanded ? "rotate-0" : "-rotate-90",
-					)}
-				/>
-			)}
-		</>
-	);
+	return { commandLabel, durationSuffix };
 };
 
 const ShellTranscriptBody: React.FC<{
@@ -331,32 +281,39 @@ export const WaitForExternalAuthTool: React.FC<{
 }) => {
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
-	let icon: React.ReactNode = (
-		<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-	);
+	let statusIcon: React.ReactNode = null;
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
-		icon = (
-			<TriangleAlertIcon className="size-3.5 shrink-0 text-content-secondary" />
-		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
-		icon = (
+		statusIcon = (
 			<CircleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
 		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
-		icon = <CheckIcon className="size-3.5 shrink-0 text-content-success" />;
+		statusIcon = (
+			<CheckIcon className="size-3.5 shrink-0 text-content-success" />
+		);
 	}
 
 	return (
-		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2">
-			<div className="flex items-center gap-2">
-				{icon}
-				<span className="text-[13px] text-content-primary">{label}</span>
-			</div>
-		</div>
+		<ToolCall.Root
+			className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2"
+			status={status}
+			isError={isError}
+			errorMessage={
+				errorMessage ||
+				`Failed while waiting for ${providerLabel} authentication`
+			}
+			hasContent={false}
+		>
+			<ToolCall.Header
+				iconName="wait_for_external_auth"
+				label={label}
+				trailing={statusIcon}
+			/>
+		</ToolCall.Root>
 	);
 };

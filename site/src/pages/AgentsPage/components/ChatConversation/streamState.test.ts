@@ -276,6 +276,28 @@ describe("applyMessagePartToStreamState", () => {
 		).toBe("completed");
 	});
 
+	it("ignores empty tool result deltas", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "edit_files",
+			tool_call_id: "edit-1",
+			args: { files: "[]" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "edit_files",
+			tool_call_id: "edit-1",
+			result_delta: "",
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["edit-1"]).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+	});
+
 	it("resets streaming tool result deltas", () => {
 		let state: StreamState | null = null;
 		state = applyMessagePartToStreamState(state, {
