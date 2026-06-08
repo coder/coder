@@ -21,8 +21,8 @@ export const getFileReferenceDisplay = ({
 }) => {
 	const shortFile = getPathBasename(fileName);
 	const lineRange =
-		startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
-	const title = `${fileName}:L${lineRange}`;
+		startLine === endLine ? `L${startLine}` : `L${startLine}-L${endLine}`;
+	const title = `${fileName}:${lineRange}`;
 
 	return { shortFile, lineRange, title };
 };

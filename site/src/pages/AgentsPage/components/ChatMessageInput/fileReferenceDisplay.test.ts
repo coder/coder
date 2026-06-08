@@ -15,8 +15,8 @@ describe("getFileReferenceDisplay", () => {
 			}),
 		).toEqual({
 			shortFile: "Button.tsx",
-			lineRange: "12-18",
-			title: "site/src/pages/AgentsPage/components/Button.tsx:L12-18",
+			lineRange: "L12-L18",
+			title: "site/src/pages/AgentsPage/components/Button.tsx:L12-L18",
 		});
 	});
 
@@ -29,7 +29,7 @@ describe("getFileReferenceDisplay", () => {
 			}),
 		).toEqual({
 			shortFile: "main.go",
-			lineRange: "7",
+			lineRange: "L7",
 			title: "main.go:L7",
 		});
 	});
