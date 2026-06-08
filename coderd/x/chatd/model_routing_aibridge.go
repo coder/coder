@@ -32,8 +32,8 @@ const (
 )
 
 // canonicalizedProvider pairs a database row with its pre-computed canonical
-// provider type. Keeping them together ensures the type is derived once and
-// used consistently; callers cannot re-canonicalize and risk a different result.
+// provider type, so the type is derived once at the routing boundary and
+// carried through rather than re-derived from the row at each use site.
 type canonicalizedProvider struct {
 	Row           database.AIProvider
 	CanonicalType codersdk.AIProviderType
