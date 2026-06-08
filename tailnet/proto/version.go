@@ -70,23 +70,20 @@ import (
 //     ReportBoundaryLogsRequest on the Agent API.
 //   - Added sequence_number field to BoundaryLog on the Agent API.
 //
-// API v2.10 (proposed, NOT advertised):
-//   - PushContextState RPC on the Agent API for pushing
+// API v2.10:
+//   - Added PushContextState RPC on the Agent API for pushing
 //     resolved workspace context snapshots (instruction files,
 //     skills, MCP configs, MCP server tool lists) from the
-//     agent to coderd. Adds ContextResource, PushContextState
-//     Request, and PushContextStateResponse messages.
-//   - CurrentMinor stays at 9 until coderd persistence and the
-//     KindMCPServer provider land. The RPC is defined and the
-//     agent-side plumbing exists so we can iterate behind a
-//     flag, but advertising v2.10 today would expose an API
-//     whose only new method returns Unimplemented from every
-//     deployed server. Bump CurrentMinor in the same change
-//     that wires coderd PushContextState persistence. Tracked
-//     by CODAGT-569.
+//     agent to coderd. Adds ContextResource, PushContextStateRequest,
+//     and PushContextStateResponse messages. The coderd handler
+//     ships as a stub returning Unimplemented; the agent push
+//     loop shuts down cleanly on that response so older coderd
+//     deployments remain interoperable. Real persistence,
+//     KindMCPServer provider, and chatd hydration land in
+//     CODAGT-569.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 9
+	CurrentMinor = 10
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

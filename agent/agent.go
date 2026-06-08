@@ -1156,15 +1156,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	//
-	// This agent currently connects with Agent API v2.9. The
-	// v2.10 connector and the PushContextState push goroutine
-	// are defined and tested in this codebase but disabled in
-	// production until the coderd persistence path that
-	// consumes context snapshots lands. Re-enable
-	// ConnectRPC210WithRole in the same change that bumps
-	// tailnet/proto.CurrentMinor to 10.
-	aAPI, tAPI, err := a.client.ConnectRPC29WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1258,14 +1250,21 @@ func (a *agent) run() (retErr error) {
 	// gracefulShutdownBehaviorRemain.
 	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
 
-	// PushContextState (Agent API v2.10) is not yet enabled in
-	// production. The agentcontext.Manager still runs and
-	// exposes its snapshot via the local HTTP API, but no DRPC
-	// push goroutine is started until coderd advertises v2.10
-	// and persists incoming snapshots. Re-enable the
-	// startAgentAPI210("push context state", ...) block here
-	// in the same change that bumps tailnet/proto.CurrentMinor
-	// to 10. Tracked by CODAGT-569.
+	// Push resolved workspace context (instructions, skills, MCP
+	// configs, MCP server tool lists) to coderd. The push loop
+	// uses gracefulShutdownBehaviorStop because the snapshot is
+	// only useful while chats are alive, and a stale snapshot at
+	// shutdown costs nothing. The coderd handler is a stub that
+	// returns Unimplemented today (CODAGT-569 lands persistence);
+	// DRPCPusher translates Unimplemented to ErrPushUnimplemented
+	// so the goroutine exits cleanly on older coderd deployments.
+	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+			pusher := agentcontext.NewDRPCPusher(aAPI)
+			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
+				Logger: a.logger.Named("agentcontext-push"),
+			})
+		})
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -2522,7 +2521,7 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	aAPI      proto.DRPCAgentClient29
+	aAPI      proto.DRPCAgentClient210
 	tAPI      tailnetproto.DRPCTailnetClient28
 	eg        *errgroup.Group
 	stopCtx   context.Context
@@ -2531,7 +2530,7 @@ type apiConnRoutineManager struct {
 
 func newAPIConnRoutineManager(
 	gracefulCtx, hardCtx context.Context, logger slog.Logger,
-	aAPI proto.DRPCAgentClient29, tAPI tailnetproto.DRPCTailnetClient28,
+	aAPI proto.DRPCAgentClient210, tAPI tailnetproto.DRPCTailnetClient28,
 ) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
@@ -2565,6 +2564,35 @@ func newAPIConnRoutineManager(
 func (a *apiConnRoutineManager) startAgentAPI(
 	name string, behavior gracefulShutdownBehavior,
 	f func(context.Context, proto.DRPCAgentClient28) error,
+) {
+	logger := a.logger.With(slog.F("name", name))
+	var ctx context.Context
+	switch behavior {
+	case gracefulShutdownBehaviorStop:
+		ctx = a.stopCtx
+	case gracefulShutdownBehaviorRemain:
+		ctx = a.remainCtx
+	default:
+		panic("unknown behavior")
+	}
+	a.eg.Go(func() error {
+		logger.Debug(ctx, "starting agent routine")
+		err := f(ctx, a.aAPI)
+		err = shouldPropagateError(ctx, logger, err)
+		logger.Debug(ctx, "routine exited", slog.Error(err))
+		if err != nil {
+			return xerrors.Errorf("error in routine %s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// startAgentAPI210 is the v2.10 counterpart to startAgentAPI; it hands the
+// routine the full v2.10 Agent API client. Use it for routines that need
+// RPCs introduced after v2.8 (notably PushContextState).
+func (a *apiConnRoutineManager) startAgentAPI210(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient210) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context

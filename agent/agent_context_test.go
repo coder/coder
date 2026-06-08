@@ -19,14 +19,7 @@ import (
 // TestAgent_ContextStatePushed verifies the agent's
 // agentcontext.Manager pushes its initial Snapshot to coderd
 // over the v2.10 PushContextState RPC during a normal boot.
-//
-// The push goroutine is disabled in this PR because
-// tailnet/proto.CurrentMinor stays at 9 until coderd persists
-// context snapshots. Re-enable both the push site in
-// agent/agent.go and this test in the change that bumps the
-// version constant.
 func TestAgent_ContextStatePushed(t *testing.T) {
-	t.Skip("PushContextState gated until CurrentMinor=10 lands with coderd persistence (CODAGT-569)")
 	t.Parallel()
 
 	dir := t.TempDir()
