@@ -871,6 +871,7 @@ const AgentChatPage: FC = () => {
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
+	const isSharedChat = chatRecord?.shared ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
 	const isRootChat =
@@ -1611,6 +1612,7 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			isSharedChat={isSharedChat}
 			chatOwner={chatOwner}
 			canShareChat={canShareChat}
 			workspace={workspace}

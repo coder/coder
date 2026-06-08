@@ -21,6 +21,7 @@ const (
 	ClientMux         Client = "Mux"
 	ClientRoo         Client = "Roo Code"
 	ClientCursor      Client = "Cursor"
+	ClientOpenCode    Client = "OpenCode"
 	ClientUnknown     Client = "Unknown"
 )
 
@@ -55,6 +56,8 @@ func GuessClient(r *http.Request) Client {
 		return ClientCrush
 	case r.Header.Get("x-cursor-client-version") != "":
 		return ClientCursor
+	case strings.HasPrefix(userAgent, "opencode/"):
+		return ClientOpenCode
 	}
 	return ClientUnknown
 }

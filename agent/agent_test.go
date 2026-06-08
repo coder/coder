@@ -1741,6 +1741,43 @@ func TestAgent_SSHConnectionLoginVars(t *testing.T) {
 	}
 }
 
+// TestAgent_SSHEnvInfoShell verifies that an agent.Options.EnvInfo whose
+// Shell() reports a custom shell is piped through to the SSH session, so the
+// session command runs under that shell instead of the host default.
+func TestAgent_SSHEnvInfoShell(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake shell is a POSIX script")
+	}
+
+	// A fake shell that ignores its arguments and prints a sentinel. The
+	// sentinel only appears in the session output if the injected Shell() was
+	// honored. Otherwise the command's own output ("should-not-run") appears.
+	const marker = "injected-shell-was-used"
+	shellPath := filepath.Join(t.TempDir(), "fakeshell")
+	//nolint:gosec // Executable test shell with test-controlled content.
+	err := os.WriteFile(shellPath, []byte("#!/bin/sh\necho "+marker+"\n"), 0o700)
+	require.NoError(t, err)
+
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, o *agent.Options) {
+		o.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
+	})
+
+	output, err := session.Output("echo should-not-run")
+	require.NoError(t, err)
+	require.Contains(t, string(output), marker)
+	require.NotContains(t, string(output), "should-not-run")
+}
+
+// shellOverrideEnvInfo is a usershell.EnvInfoer that delegates to the system
+// implementation but reports a custom shell.
+type shellOverrideEnvInfo struct {
+	usershell.SystemEnvInfo
+	shell string
+}
+
+func (e shellOverrideEnvInfo) Shell(string) (string, error) { return e.shell, nil }
+
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 

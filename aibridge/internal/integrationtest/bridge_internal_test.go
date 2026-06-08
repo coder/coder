@@ -906,6 +906,17 @@ func TestSimple(t *testing.T) {
 			expectedClient:    aibridge.ClientCodex,
 		},
 		{
+			name:              config.ProviderOpenAI + "_opencode",
+			fixture:           fixtures.OaiChatSimple,
+			basePath:          "",
+			expectedPath:      "/chat/completions",
+			getResponseIDFunc: getOpenAIResponseID,
+			path:              pathOpenAIChatCompletions,
+			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
+			userAgent:         "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
+			expectedClient:    aibridge.ClientOpenCode,
+		},
+		{
 			name:              config.ProviderAnthropic + "_baseURL_path",
 			fixture:           fixtures.AntSimple,
 			basePath:          "/api",

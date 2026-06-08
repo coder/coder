@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -89,7 +90,10 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	// EnvInfo overrides the session command environment source. Only
+	// tests set this. Nil defaults to usershell.SystemEnvInfo.
+	EnvInfo usershell.EnvInfoer
+	Logger  slog.Logger
 	// IgnorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
@@ -226,6 +230,7 @@ func New(options Options) Agent {
 		statsReportInterval:                options.StatsReportInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
+		envInfo:                            options.EnvInfo,
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
@@ -303,6 +308,7 @@ type agent struct {
 	announcementBannersRefreshInterval time.Duration
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
+	envInfo                            usershell.EnvInfoer
 	blockFileTransfer                  bool
 	blockReversePortForwarding         bool
 	blockLocalPortForwarding           bool
@@ -365,6 +371,7 @@ func (a *agent) init() {
 		AnnouncementBanners:        func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:                  a.updateCommandEnv,
 		WorkingDirectory:           func() string { return a.manifest.Load().Directory },
+		EnvInfo:                    a.envInfo,
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
@@ -420,7 +427,7 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}

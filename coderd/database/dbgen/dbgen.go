@@ -1034,13 +1034,14 @@ func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) databas
 
 func Organization(t testing.TB, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
-		ID:          takeFirst(orig.ID, uuid.New()),
-		Name:        takeFirst(orig.Name, testutil.GetRandomName(t)),
-		DisplayName: takeFirst(orig.Name, testutil.GetRandomName(t)),
-		Description: takeFirst(orig.Description, testutil.GetRandomName(t)),
-		Icon:        takeFirst(orig.Icon, ""),
-		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ID:                    takeFirst(orig.ID, uuid.New()),
+		Name:                  takeFirst(orig.Name, testutil.GetRandomName(t)),
+		DisplayName:           takeFirst(orig.Name, testutil.GetRandomName(t)),
+		Description:           takeFirst(orig.Description, testutil.GetRandomName(t)),
+		Icon:                  takeFirst(orig.Icon, ""),
+		CreatedAt:             takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:             takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DefaultOrgMemberRoles: takeFirstSlice(orig.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()),
 	})
 	require.NoError(t, err, "insert organization")
 

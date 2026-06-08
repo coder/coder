@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -36,10 +37,10 @@ type API struct {
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore, workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, updateEnv, workingDir),
+		manager:   newManager(logger, execer, envInfo, updateEnv, workingDir),
 		pathStore: pathStore,
 	}
 }

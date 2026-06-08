@@ -57,13 +57,16 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
-	owner_id: "owner-1",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: "model-1",
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -110,6 +113,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -171,6 +175,7 @@ describe("ChatsSidebar filters", () => {
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
 			chatStatuses: ["unread"],
+			sources: ["shared_with_me"],
 		};
 
 		render(
@@ -197,6 +202,53 @@ describe("ChatsSidebar filters", () => {
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: ["unread", "read"],
+			sources: ["created_by_me"],
+		});
+	});
+
+	it("applies source filters", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		const { rerender } = render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["created_by_me", "shared_with_me"],
+		});
+
+		rerender(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						sources: ["created_by_me", "shared_with_me"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["shared_with_me"],
 		});
 	});
 
