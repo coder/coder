@@ -61,8 +61,8 @@
 			top: 5rem !important;
 		}
 		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-above-composer
-			) {
+			> .mobile-full-width-dropdown-above-composer
+		) {
 			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
 			top: auto !important;
 			max-height: var(
@@ -86,8 +86,7 @@
 		.mobile-full-width-dropdown-above-composer
 			.mobile-full-width-dropdown-scroll-area {
 			max-height: calc(
-				var(--mobile-dropdown-above-composer-max-height, 18rem) -
-				0.5rem
+				var(--mobile-dropdown-above-composer-max-height, 18rem) - 0.5rem
 			) !important;
 			overflow-y: auto !important;
 			overscroll-behavior: contain;

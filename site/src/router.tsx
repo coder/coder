@@ -392,15 +392,11 @@ const AISettingsProvidersPage = lazy(
 );
 const AISettingsUpdateProviderPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"
-		),
+		import("./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"),
 );
 const AISettingsAddProviderPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
-		),
+		import("./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"),
 );
 
 const GlobalLayout = () => {

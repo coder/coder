@@ -205,13 +205,16 @@ describe("getProviderDisplayType", () => {
 		["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
 		["openrouter", "https://openrouter.ai/api/v1"],
 		["vercel", "https://ai-gateway.vercel.sh/v1"],
-	])("recovers the %s preset from a canonical base_url", (expected, baseUrl) => {
-		const provider: AIProvider = {
-			...MockAIProviderOpenAI,
-			base_url: baseUrl,
-		};
-		expect(getProviderDisplayType(provider)).toBe(expected);
-	});
+	])(
+		"recovers the %s preset from a canonical base_url",
+		(expected, baseUrl) => {
+			const provider: AIProvider = {
+				...MockAIProviderOpenAI,
+				base_url: baseUrl,
+			};
+			expect(getProviderDisplayType(provider)).toBe(expected);
+		},
+	);
 
 	it("preserves an explicit provider type over host detection", () => {
 		const provider: AIProvider = {
@@ -560,16 +563,19 @@ describe("aiProviderToFormValues", () => {
 		["openai-compat", "https://compat.example.com/v1"],
 		["openrouter", "https://openrouter.ai/api/v1"],
 		["vercel", "https://ai-gateway.vercel.sh/v1"],
-	] as const)("seeds %s form values from the provider type", (type, baseUrl) => {
-		const provider: AIProvider = {
-			...MockAIProviderOpenAI,
-			type,
-			base_url: baseUrl,
-		};
-		const values = aiProviderToFormValues(provider);
-		expect(values.type).toBe(type);
-		expect(values.baseUrl).toBe(baseUrl);
-	});
+	] as const)(
+		"seeds %s form values from the provider type",
+		(type, baseUrl) => {
+			const provider: AIProvider = {
+				...MockAIProviderOpenAI,
+				type,
+				base_url: baseUrl,
+			};
+			const values = aiProviderToFormValues(provider);
+			expect(values.type).toBe(type);
+			expect(values.baseUrl).toBe(baseUrl);
+		},
+	);
 
 	it("uses the Google preset for a generic provider with the Google host", () => {
 		const provider: AIProvider = {
