@@ -578,6 +578,9 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 // ResponseErrorFromKeyPool translates a *keypool.Error into
 // a developer-facing ResponseError shaped for the Anthropic API.
 func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
+	if keyPoolErr == nil {
+		return nil
+	}
 	switch keyPoolErr.Kind {
 	case keypool.ErrorKindPermanent:
 		return newResponseError(
