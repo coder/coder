@@ -1,0 +1,169 @@
+package aibridged
+
+import (
+	"context"
+
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/policy"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+)
+
+// BuildProviderPipelines loads the active policy pipeline snapshot from the
+// database and compiles it into per-provider pipelines keyed by provider name.
+// A provider with no active, enabled pipeline is absent from the returned map
+// and runs no policies (pass-through).
+//
+// The snapshot is read in a single query (GetActiveAIGatewayPipelinePolicies),
+// which returns each live, enabled pipeline's active version members joined to
+// their pinned policy versions. A single malformed policy row is logged and
+// excluded rather than failing the whole snapshot; only a DB query failure is
+// propagated, so a reload preserves the last-good snapshot.
+func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.Logger) (map[string]aibridge.ProviderPipelines, []PipelinePolicyOutcome, error) {
+	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
+	authCtx := dbauthz.AsAIBridged(ctx)
+
+	rows, err := db.GetActiveAIGatewayPipelinePolicies(authCtx)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("load active ai gateway pipeline policies: %w", err)
+	}
+
+	// activeVersion records each provider's live pipeline version for metrics.
+	activeVersion := make(map[string]int32)
+
+	// Group stage configs per (provider, hook). Rows arrive ordered by
+	// provider, hook, kind, then policy name, so decide ordering is stable.
+	type hookKey struct {
+		provider string
+		hook     database.AIGatewayHook
+	}
+	configs := make(map[hookKey]*policy.PipelineConfig)
+
+	for _, row := range rows {
+		if !hookAllowsKind(row.Hook, row.Kind) {
+			// Defense in depth: the registration gate enforces kind-validity by
+			// hook, but a direct DB write must not smuggle an invalid posture
+			// into the runtime.
+			logger.Warn(ctx, "skipping policy with kind invalid for hook",
+				slog.F("provider", row.ProviderName),
+				slog.F("policy", row.PolicyName),
+				slog.F("hook", string(row.Hook)),
+				slog.F("kind", string(row.Kind)),
+			)
+			continue
+		}
+
+		activeVersion[row.ProviderName] = row.PipelineVersionNumber
+
+		key := hookKey{row.ProviderName, row.Hook}
+		cfg := configs[key]
+		if cfg == nil {
+			cfg = &policy.PipelineConfig{}
+			configs[key] = cfg
+		}
+
+		failMode := policy.FailClosed
+		if row.FailMode == database.AIGatewayFailModeFailOpen {
+			failMode = policy.FailOpen
+		}
+		opt := policy.WithFailMode(failMode)
+
+		// TODO: cache compiled queries by policy_version_id across reloads.
+		// Versions are immutable, so a prepared query is reusable; at the
+		// current pipeline scale this is unnecessary.
+		switch row.Kind {
+		case database.AIGatewayPolicyKindClassify:
+			p, err := policy.NewClassify(row.PolicyName, row.Rego, opt)
+			if err != nil {
+				logSkipPolicy(ctx, logger, row, err)
+				continue
+			}
+			cfg.Classify = append(cfg.Classify, p)
+		case database.AIGatewayPolicyKindRoute:
+			p, err := policy.NewRoute(row.PolicyName, row.Rego, opt)
+			if err != nil {
+				logSkipPolicy(ctx, logger, row, err)
+				continue
+			}
+			cfg.Route = p
+		case database.AIGatewayPolicyKindDecide:
+			p, err := policy.NewDecide(row.PolicyName, row.Rego, opt)
+			if err != nil {
+				logSkipPolicy(ctx, logger, row, err)
+				continue
+			}
+			cfg.Decide = append(cfg.Decide, p)
+		case database.AIGatewayPolicyKindTransform:
+			p, err := policy.NewTransform(row.PolicyName, row.Rego, opt)
+			if err != nil {
+				logSkipPolicy(ctx, logger, row, err)
+				continue
+			}
+			cfg.Transform = append(cfg.Transform, p)
+		default:
+			logger.Warn(ctx, "skipping policy with unknown kind",
+				slog.F("provider", row.ProviderName),
+				slog.F("policy", row.PolicyName),
+				slog.F("kind", string(row.Kind)),
+			)
+		}
+	}
+
+	out := make(map[string]aibridge.ProviderPipelines)
+	for key, cfg := range configs {
+		pipe, err := policy.NewPipeline(*cfg)
+		if err != nil {
+			// A malformed composition (e.g. >1 classify) should be impossible
+			// given the DB constraints; skip the whole hook for this provider
+			// rather than risk an inconsistent posture.
+			logger.Error(ctx, "skipping invalid policy pipeline for hook",
+				slog.F("provider", key.provider),
+				slog.F("hook", string(key.hook)),
+				slog.Error(err),
+			)
+			continue
+		}
+		pp := out[key.provider]
+		pp.Version = activeVersion[key.provider]
+		switch key.hook {
+		case database.AIGatewayHookPreAuth:
+			pp.PreAuth = pipe
+		case database.AIGatewayHookPreReq:
+			pp.PreReq = pipe
+		}
+		out[key.provider] = pp
+	}
+
+	outcomes := make([]PipelinePolicyOutcome, 0, len(activeVersion))
+	for provider, version := range activeVersion {
+		outcomes = append(outcomes, PipelinePolicyOutcome{Provider: provider, PipelineVersion: version})
+	}
+
+	return out, outcomes, nil
+}
+
+// hookAllowsKind reports whether a kind is valid at a hook. pre-auth has no
+// request body or identity, so only identity-free kinds run there.
+func hookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewayPolicyKind) bool {
+	switch hook {
+	case database.AIGatewayHookPreAuth:
+		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
+	case database.AIGatewayHookPreReq:
+		return true
+	default:
+		return false
+	}
+}
+
+func logSkipPolicy(ctx context.Context, logger slog.Logger, row database.GetActiveAIGatewayPipelinePoliciesRow, err error) {
+	logger.Error(ctx, "skipping policy that failed to compile",
+		slog.F("provider", row.ProviderName),
+		slog.F("policy", row.PolicyName),
+		slog.F("policy_version_id", row.PolicyVersionID),
+		slog.F("kind", string(row.Kind)),
+		slog.Error(err),
+	)
+}

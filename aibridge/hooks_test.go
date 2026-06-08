@@ -73,7 +73,9 @@ func newPolicyBridge(t *testing.T, preReq *policy.Pipeline) (http.Handler, *test
 	bridge, err := aibridge.NewRequestBridge(
 		t.Context(), []provider.Provider{prov}, rec, nil,
 		slogtest.Make(t, nil), nil, bridgeTestTracer,
-		aibridge.WithPolicyHooks(nil, preReq),
+		aibridge.WithPolicyHooks(map[string]aibridge.ProviderPipelines{
+			"mock": {PreReq: preReq},
+		}),
 	)
 	require.NoError(t, err)
 	return bridge, rec, cap

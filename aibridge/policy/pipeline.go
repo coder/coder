@@ -2,12 +2,28 @@ package policy
 
 import (
 	"context"
+	"errors"
 	"maps"
+	"time"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
 )
+
+// evalTimeout bounds a single policy stage evaluation. A stage that exceeds it
+// fails closed (BLOCK) regardless of the stage's configured fail mode, so a
+// pathological policy cannot hang a request or fail open by timing out.
+const evalTimeout = time.Second
+
+// stageBlocks reports whether a stage error should block the request. A timeout
+// always blocks (fail closed); other errors honor the stage's fail mode.
+func stageBlocks(failMode FailMode, err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return failMode == FailClosed
+}
 
 // Pipeline runs an ordered set of policy kinds against a single Input for one
 // hook. Evaluation is sequential and the Input is threaded copy-on-write so
@@ -76,9 +92,11 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 
 	// classify: merge annotations into the threaded Input.
 	for _, c := range p.classify {
-		ann, ok, err := c.Evaluate(ctx, cur)
+		ann, ok, err := evalStage(ctx, func(sctx context.Context) (map[string]any, bool, error) {
+			return c.Evaluate(sctx, cur)
+		})
 		if err != nil {
-			if c.failMode == FailClosed {
+			if stageBlocks(c.failMode, err) {
 				return blockedBy(c.name), nil
 			}
 			continue
@@ -95,10 +113,12 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 
 	// route: override input.request.model so later stages see the new model.
 	if p.route != nil {
-		model, ok, err := p.route.Evaluate(ctx, cur)
+		model, ok, err := evalStage(ctx, func(sctx context.Context) (string, bool, error) {
+			return p.route.Evaluate(sctx, cur)
+		})
 		switch {
 		case err != nil:
-			if p.route.failMode == FailClosed {
+			if stageBlocks(p.route.failMode, err) {
 				return blockedBy(p.route.name), nil
 			}
 		case ok:
@@ -131,9 +151,11 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 	var blockingDecide string
 	verdicts := []Verdict{VerdictAllow}
 	for _, d := range p.decide {
-		v, err := d.Evaluate(ctx, cur)
+		v, err := evalStage1(ctx, func(sctx context.Context) (Verdict, error) {
+			return d.Evaluate(sctx, cur)
+		})
 		if err != nil {
-			if d.failMode == FailClosed {
+			if stageBlocks(d.failMode, err) {
 				return blockedBy(d.name), nil
 			}
 			continue
@@ -151,9 +173,11 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 
 	// transform: replace the whole request body (host re-validates downstream).
 	for _, t := range p.transform {
-		body, ok, err := t.Evaluate(ctx, cur)
+		body, ok, err := evalStage(ctx, func(sctx context.Context) ([]byte, bool, error) {
+			return t.Evaluate(sctx, cur)
+		})
 		if err != nil {
-			if t.failMode == FailClosed {
+			if stageBlocks(t.failMode, err) {
 				return blockedBy(t.name), nil
 			}
 			continue
@@ -173,6 +197,20 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		res.RequestBody = finalBody
 	}
 	return res, nil
+}
+
+// evalStage runs a (value, ok, error) stage under a per-stage timeout.
+func evalStage[T any](ctx context.Context, fn func(context.Context) (T, bool, error)) (T, bool, error) {
+	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
+	defer cancel()
+	return fn(sctx)
+}
+
+// evalStage1 runs a (value, error) stage under a per-stage timeout.
+func evalStage1[T any](ctx context.Context, fn func(context.Context) (T, error)) (T, error) {
+	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
+	defer cancel()
+	return fn(sctx)
 }
 
 func blockedBy(name string) Result { return Result{Verdict: VerdictBlock, BlockedBy: name} }

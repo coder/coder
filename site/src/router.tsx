@@ -438,6 +438,9 @@ const AISettingsLayout = lazy(
 const AISettingsProvidersPage = lazy(
 	() => import("./pages/AISettingsPage/ProvidersPage/ProvidersPage"),
 );
+const AISettingsPoliciesPage = lazy(
+	() => import("./pages/AISettingsPage/PoliciesPage/PoliciesPage"),
+);
 const AISettingsUpdateProviderPage = lazy(
 	() =>
 		import(
@@ -702,6 +705,7 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
+						<Route path="policies" element={<AISettingsPoliciesPage />} />
 						<Route index element={<AISettingsProvidersPage />} />
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route

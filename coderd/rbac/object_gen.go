@@ -24,6 +24,16 @@ var (
 		Type: "ai_gateway_key",
 	}
 
+	// ResourceAIGatewayPolicy
+	// Valid Actions
+	//  - "ActionCreate" :: create AI gateway policies and pipelines
+	//  - "ActionDelete" :: delete AI gateway policies and pipelines
+	//  - "ActionRead" :: read AI gateway policies and pipelines
+	//  - "ActionUpdate" :: update AI gateway policies and pipelines
+	ResourceAIGatewayPolicy = Object{
+		Type: "ai_gateway_policy",
+	}
+
 	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
@@ -489,6 +499,7 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAIGatewayKey,
+		ResourceAIGatewayPolicy,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
 		ResourceAiSeat,

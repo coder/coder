@@ -1,0 +1,195 @@
+package codersdk
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// AIGatewayPipeline attaches at most one policy pipeline to a provider.
+type AIGatewayPipeline struct {
+	ID              uuid.UUID                  `json:"id" format:"uuid"`
+	ProviderID      uuid.UUID                  `json:"provider_id" format:"uuid"`
+	Enabled         bool                       `json:"enabled"`
+	ActiveVersionID *uuid.UUID                 `json:"active_version_id,omitempty" format:"uuid"`
+	CreatedAt       time.Time                  `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                  `json:"updated_at" format:"date-time"`
+	ActiveVersion   *AIGatewayPipelineVersion  `json:"active_version,omitempty"`
+}
+
+// AIGatewayPipelineVersion is an immutable composition snapshot.
+type AIGatewayPipelineVersion struct {
+	ID            uuid.UUID                  `json:"id" format:"uuid"`
+	PipelineID    uuid.UUID                  `json:"pipeline_id" format:"uuid"`
+	VersionNumber int32                      `json:"version_number"`
+	CreatedAt     time.Time                  `json:"created_at" format:"date-time"`
+	Policies      []AIGatewayPipelinePolicy  `json:"policies"`
+}
+
+// AIGatewayPipelinePolicy is one member of a pipeline version: a pinned policy
+// version bound to a hook with a fail mode.
+type AIGatewayPipelinePolicy struct {
+	PolicyVersionID uuid.UUID           `json:"policy_version_id" format:"uuid"`
+	Hook            AIGatewayHook       `json:"hook"`
+	Kind            AIGatewayPolicyKind `json:"kind"`
+	FailMode        AIGatewayFailMode   `json:"fail_mode"`
+	// Enabled disables this policy within this pipeline without disabling it
+	// globally. Disabled members are excluded from the runtime snapshot.
+	Enabled bool `json:"enabled"`
+}
+
+// AIGatewayPipelinePolicyRequest pins a policy version into a pipeline version
+// at a hook. Kind is derived server-side from the policy version. Enabled
+// defaults to true when omitted.
+type AIGatewayPipelinePolicyRequest struct {
+	PolicyVersionID uuid.UUID         `json:"policy_version_id" format:"uuid"`
+	Hook            AIGatewayHook     `json:"hook"`
+	FailMode        AIGatewayFailMode `json:"fail_mode"`
+	Enabled         *bool             `json:"enabled,omitempty"`
+}
+
+// CreateAIGatewayPipelineRequest creates a pipeline for a provider and its
+// first version.
+type CreateAIGatewayPipelineRequest struct {
+	ProviderID uuid.UUID                        `json:"provider_id" format:"uuid"`
+	Enabled    bool                             `json:"enabled"`
+	Policies   []AIGatewayPipelinePolicyRequest `json:"policies"`
+}
+
+func (req CreateAIGatewayPipelineRequest) Validate() []ValidationError {
+	var v []ValidationError
+	if req.ProviderID == uuid.Nil {
+		v = append(v, ValidationError{Field: "provider_id", Detail: "provider_id is required"})
+	}
+	v = append(v, validateAIGatewayPipelinePolicies(req.Policies)...)
+	return v
+}
+
+// CreateAIGatewayPipelineVersionRequest mints a new pipeline version.
+type CreateAIGatewayPipelineVersionRequest struct {
+	Policies []AIGatewayPipelinePolicyRequest `json:"policies"`
+	Activate bool                             `json:"activate"`
+}
+
+func (req CreateAIGatewayPipelineVersionRequest) Validate() []ValidationError {
+	return validateAIGatewayPipelinePolicies(req.Policies)
+}
+
+// UpdateAIGatewayPipelineRequest partially updates a pipeline parent.
+type UpdateAIGatewayPipelineRequest struct {
+	Enabled         *bool      `json:"enabled,omitempty"`
+	ActiveVersionID *uuid.UUID `json:"active_version_id,omitempty" format:"uuid"`
+}
+
+func (req UpdateAIGatewayPipelineRequest) IsEmpty() bool {
+	return req.Enabled == nil && req.ActiveVersionID == nil
+}
+
+func validateAIGatewayPipelinePolicies(policies []AIGatewayPipelinePolicyRequest) []ValidationError {
+	var v []ValidationError
+	for i, p := range policies {
+		if p.PolicyVersionID == uuid.Nil {
+			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].policy_version_id", i), Detail: "policy_version_id is required"})
+		}
+		switch p.Hook {
+		case AIGatewayHookPreAuth, AIGatewayHookPreReq:
+		default:
+			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].hook", i), Detail: fmt.Sprintf("unsupported hook %q", p.Hook)})
+		}
+		switch p.FailMode {
+		case AIGatewayFailModeOpen, AIGatewayFailModeClosed:
+		case "":
+			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].fail_mode", i), Detail: "fail_mode is required"})
+		default:
+			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].fail_mode", i), Detail: fmt.Sprintf("unsupported fail_mode %q", p.FailMode)})
+		}
+	}
+	return v
+}
+
+// AIGatewayPipelines lists all (non-deleted) pipelines.
+func (c *Client) AIGatewayPipelines(ctx context.Context) ([]AIGatewayPipeline, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/pipelines", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var out []AIGatewayPipeline
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// AIGatewayPipeline fetches a single pipeline (with its active version) by ID.
+func (c *Client) AIGatewayPipeline(ctx context.Context, id uuid.UUID) (AIGatewayPipeline, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/aibridge/pipelines/%s", id), nil)
+	if err != nil {
+		return AIGatewayPipeline{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewayPipeline{}, ReadBodyAsError(res)
+	}
+	var out AIGatewayPipeline
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// CreateAIGatewayPipeline creates a pipeline and its first (active) version.
+func (c *Client) CreateAIGatewayPipeline(ctx context.Context, req CreateAIGatewayPipelineRequest) (AIGatewayPipeline, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/aibridge/pipelines", req)
+	if err != nil {
+		return AIGatewayPipeline{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return AIGatewayPipeline{}, ReadBodyAsError(res)
+	}
+	var out AIGatewayPipeline
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// CreateAIGatewayPipelineVersion mints a new version of a pipeline.
+func (c *Client) CreateAIGatewayPipelineVersion(ctx context.Context, id uuid.UUID, req CreateAIGatewayPipelineVersionRequest) (AIGatewayPipelineVersion, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/aibridge/pipelines/%s/versions", id), req)
+	if err != nil {
+		return AIGatewayPipelineVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return AIGatewayPipelineVersion{}, ReadBodyAsError(res)
+	}
+	var out AIGatewayPipelineVersion
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// UpdateAIGatewayPipeline partially updates a pipeline.
+func (c *Client) UpdateAIGatewayPipeline(ctx context.Context, id uuid.UUID, req UpdateAIGatewayPipelineRequest) (AIGatewayPipeline, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/aibridge/pipelines/%s", id), req)
+	if err != nil {
+		return AIGatewayPipeline{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewayPipeline{}, ReadBodyAsError(res)
+	}
+	var out AIGatewayPipeline
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// DeleteAIGatewayPipeline soft-deletes a pipeline.
+func (c *Client) DeleteAIGatewayPipeline(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/aibridge/pipelines/%s", id), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

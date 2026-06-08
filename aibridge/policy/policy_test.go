@@ -157,7 +157,7 @@ func TestVerdict_Reduce(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, policy.VerdictAllow, policy.ReduceVerdicts())
-	require.Equal(t, policy.VerdictBlock, policy.ReduceVerdicts(policy.VerdictLog, policy.VerdictBlock, policy.VerdictFlag))
-	require.Equal(t, policy.VerdictFlag, policy.ReduceVerdicts(policy.VerdictAllow, policy.VerdictLog, policy.VerdictFlag))
+	require.Equal(t, policy.VerdictBlock, policy.ReduceVerdicts(policy.VerdictLog, policy.VerdictBlock))
 	require.Equal(t, policy.VerdictLog, policy.ReduceVerdicts(policy.VerdictAllow, policy.VerdictLog))
+	require.Equal(t, policy.VerdictAllow, policy.ReduceVerdicts(policy.VerdictAllow))
 }

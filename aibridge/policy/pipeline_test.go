@@ -30,11 +30,11 @@ func TestPipeline_ClassifyAnnotationVisibleToDecide(t *testing.T) {
 annotations := {"risk": "high"} if object.get(input.request, "max_tokens", 0) > 1000
 `)
 	require.NoError(t, err)
-	// FLAG (a pass-through verdict) so the pipeline completes and surfaces the
+	// LOG (a pass-through verdict) so the pipeline completes and surfaces the
 	// annotations; a BLOCK would short-circuit and is exercised separately.
 	decide := mustDecide(t, `
 default verdict := "ALLOW"
-verdict := "FLAG" if input.annotations.risk == "high"
+verdict := "LOG" if input.annotations.risk == "high"
 `)
 
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
@@ -44,10 +44,10 @@ verdict := "FLAG" if input.annotations.risk == "high"
 	require.NoError(t, err)
 
 	// High max_tokens -> classify sets risk=high -> decide (reading the
-	// threaded annotation) flags. The FLAG proves the annotation was visible.
+	// threaded annotation) flags. The LOG proves the annotation was visible.
 	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":5000}`, nil))
 	require.NoError(t, err)
-	require.Equal(t, policy.VerdictFlag, res.Verdict)
+	require.Equal(t, policy.VerdictLog, res.Verdict)
 	require.Equal(t, "high", res.Annotations["risk"])
 
 	// Low max_tokens -> no annotation -> allowed.
@@ -63,11 +63,11 @@ func TestPipeline_RouteModelVisibleToDecide(t *testing.T) {
 model := "blocked-model" if input.request.model == "trigger"
 `)
 	require.NoError(t, err)
-	// FLAG (pass-through) so the rewritten body is surfaced rather than
+	// LOG (pass-through) so the rewritten body is surfaced rather than
 	// short-circuited by a BLOCK.
 	decide := mustDecide(t, `
 default verdict := "ALLOW"
-verdict := "FLAG" if input.request.model == "blocked-model"
+verdict := "LOG" if input.request.model == "blocked-model"
 `)
 
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
@@ -76,11 +76,11 @@ verdict := "FLAG" if input.request.model == "blocked-model"
 	})
 	require.NoError(t, err)
 
-	// Route rewrites the model; the later decide sees the rewritten value (FLAG
+	// Route rewrites the model; the later decide sees the rewritten value (LOG
 	// only fires on the rewritten model).
 	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"trigger"}`, nil))
 	require.NoError(t, err)
-	require.Equal(t, policy.VerdictFlag, res.Verdict)
+	require.Equal(t, policy.VerdictLog, res.Verdict)
 
 	// The rewritten body is surfaced for the host to forward.
 	require.NotNil(t, res.RequestBody)

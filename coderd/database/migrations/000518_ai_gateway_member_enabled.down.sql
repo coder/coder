@@ -1,0 +1,1 @@
+ALTER TABLE ai_gateway_pipeline_version_policies DROP COLUMN enabled;

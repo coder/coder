@@ -1,0 +1,738 @@
+# AI Gateway
+
+## List AI gateway pipelines
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/pipelines`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "active_version": {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+      "policies": [
+        {
+          "enabled": true,
+          "fail_mode": "fail_open",
+          "hook": "pre_auth",
+          "kind": "classify",
+          "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+        }
+      ],
+      "version_number": 0
+    },
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "created_at": "2019-08-24T14:15:22Z",
+    "enabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+<h3 id="list-ai-gateway-pipelines-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                    | Type                                                                             | Required | Restrictions | Description                                                                                                                               |
+|-------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`          | array                                                                            | false    |              |                                                                                                                                           |
+| `» active_version`      | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                           |
+| `»» created_at`         | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| `»» id`                 | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» pipeline_id`        | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» policies`           | array                                                                            | false    |              |                                                                                                                                           |
+| `»»» enabled`           | boolean                                                                          | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
+| `»»» fail_mode`         | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
+| `»»» hook`              | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
+| `»»» kind`              | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)           | false    |              |                                                                                                                                           |
+| `»»» policy_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» version_number`     | integer                                                                          | false    |              |                                                                                                                                           |
+| `» active_version_id`   | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» created_at`          | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| `» enabled`             | boolean                                                                          | false    |              |                                                                                                                                           |
+| `» id`                  | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» provider_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» updated_at`          | string(date-time)                                                                | false    |              |                                                                                                                                           |
+
+#### Enumerated Values
+
+| Property    | Value(s)                                   |
+|-------------|--------------------------------------------|
+| `fail_mode` | `fail_closed`, `fail_open`                 |
+| `hook`      | `pre_auth`, `pre_req`                      |
+| `kind`      | `classify`, `decide`, `route`, `transform` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway pipeline
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/pipelines`
+
+> Body parameter
+
+```json
+{
+  "enabled": true,
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ],
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description             |
+|--------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
+| `body` | body | [codersdk.CreateAIGatewayPipelineRequest](schemas.md#codersdkcreateaigatewaypipelinerequest) | true     | Create pipeline request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "active_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                             |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get an AI gateway pipeline
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/pipelines/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+|------|------|--------------|----------|-------------|
+| `id` | path | string(uuid) | true     | Pipeline ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete an AI gateway pipeline
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/aibridge/pipelines/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+|------|------|--------------|----------|-------------|
+| `id` | path | string(uuid) | true     | Pipeline ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update an AI gateway pipeline
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/aibridge/pipelines/{id}`
+
+> Body parameter
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description             |
+|--------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
+| `id`   | path | string(uuid)                                                                                 | true     | Pipeline ID             |
+| `body` | body | [codersdk.UpdateAIGatewayPipelineRequest](schemas.md#codersdkupdateaigatewaypipelinerequest) | true     | Update pipeline request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway pipeline version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/pipelines/{id}/versions`
+
+> Body parameter
+
+```json
+{
+  "activate": true,
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                       | Required | Description            |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|------------------------|
+| `id`   | path | string(uuid)                                                                                               | true     | Pipeline ID            |
+| `body` | body | [codersdk.CreateAIGatewayPipelineVersionRequest](schemas.md#codersdkcreateaigatewaypipelineversionrequest) | true     | Create version request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "kind": "classify",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ],
+  "version_number": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                           |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI gateway policies
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/policies \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/policies`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "created_at": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "classify",
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "versions": [
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+        "description": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "input_schema_version": 0,
+        "output_schema_version": 0,
+        "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+        "rego": "string",
+        "version_number": 0
+      }
+    ]
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayPolicy](schemas.md#codersdkaigatewaypolicy) |
+
+<h3 id="list-ai-gateway-policies-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                       | Type                                                                   | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`             | array                                                                  | false    |              |             |
+| `» active_version_id`      | string(uuid)                                                           | false    |              |             |
+| `» created_at`             | string(date-time)                                                      | false    |              |             |
+| `» display_name`           | string                                                                 | false    |              |             |
+| `» id`                     | string(uuid)                                                           | false    |              |             |
+| `» kind`                   | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind) | false    |              |             |
+| `» name`                   | string                                                                 | false    |              |             |
+| `» updated_at`             | string(date-time)                                                      | false    |              |             |
+| `» versions`               | array                                                                  | false    |              |             |
+| `»» created_at`            | string(date-time)                                                      | false    |              |             |
+| `»» created_by`            | string(uuid)                                                           | false    |              |             |
+| `»» description`           | string                                                                 | false    |              |             |
+| `»» id`                    | string(uuid)                                                           | false    |              |             |
+| `»» input_schema_version`  | integer                                                                | false    |              |             |
+| `»» output_schema_version` | integer                                                                | false    |              |             |
+| `»» policy_id`             | string(uuid)                                                           | false    |              |             |
+| `»» rego`                  | string                                                                 | false    |              |             |
+| `»» version_number`        | integer                                                                | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                   |
+|----------|--------------------------------------------|
+| `kind`   | `classify`, `decide`, `route`, `transform` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway policy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/policies \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/policies`
+
+> Body parameter
+
+```json
+{
+  "description": "string",
+  "display_name": "string",
+  "kind": "classify",
+  "name": "string",
+  "rego": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                     | Required | Description           |
+|--------|------|------------------------------------------------------------------------------------------|----------|-----------------------|
+| `body` | body | [codersdk.CreateAIGatewayPolicyRequest](schemas.md#codersdkcreateaigatewaypolicyrequest) | true     | Create policy request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "classify",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_schema_version": 0,
+      "output_schema_version": 0,
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "rego": "string",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                         |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayPolicy](schemas.md#codersdkaigatewaypolicy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get an AI gateway policy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/policies/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/policies/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+|------|------|--------------|----------|-------------|
+| `id` | path | string(uuid) | true     | Policy ID   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "classify",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_schema_version": 0,
+      "output_schema_version": 0,
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "rego": "string",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPolicy](schemas.md#codersdkaigatewaypolicy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete an AI gateway policy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/aibridge/policies/{id} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/aibridge/policies/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+|------|------|--------------|----------|-------------|
+| `id` | path | string(uuid) | true     | Policy ID   |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update an AI gateway policy
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/aibridge/policies/{id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/aibridge/policies/{id}`
+
+> Body parameter
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "display_name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                     | Required | Description           |
+|--------|------|------------------------------------------------------------------------------------------|----------|-----------------------|
+| `id`   | path | string(uuid)                                                                             | true     | Policy ID             |
+| `body` | body | [codersdk.UpdateAIGatewayPolicyRequest](schemas.md#codersdkupdateaigatewaypolicyrequest) | true     | Update policy request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "classify",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_schema_version": 0,
+      "output_schema_version": 0,
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "rego": "string",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPolicy](schemas.md#codersdkaigatewaypolicy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway policy version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/policies/{id}/versions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/policies/{id}/versions`
+
+> Body parameter
+
+```json
+{
+  "activate": true,
+  "description": "string",
+  "rego": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                   | Required | Description            |
+|--------|------|--------------------------------------------------------------------------------------------------------|----------|------------------------|
+| `id`   | path | string(uuid)                                                                                           | true     | Policy ID              |
+| `body` | body | [codersdk.CreateAIGatewayPolicyVersionRequest](schemas.md#codersdkcreateaigatewaypolicyversionrequest) | true     | Create version request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_schema_version": 0,
+  "output_schema_version": 0,
+  "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+  "rego": "string",
+  "version_number": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                       |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayPolicyVersion](schemas.md#codersdkaigatewaypolicyversion) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

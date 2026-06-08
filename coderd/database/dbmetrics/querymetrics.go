@@ -313,6 +313,14 @@ func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAIGatewayPolicyVersionsInActivePipelines(ctx, policyID)
+	m.queryLatencies.WithLabelValues("CountAIGatewayPolicyVersionsInActivePipelines").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAIGatewayPolicyVersionsInActivePipelines").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAuditLogs(ctx, arg)
@@ -383,6 +391,22 @@ func (m queryMetricsStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID)
 	m.queryLatencies.WithLabelValues("DeleteAIGatewayKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayKey").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAIGatewayPipelineByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIGatewayPipelineByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayPipelineByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAIGatewayPolicyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIGatewayPolicyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayPolicyByID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -1041,6 +1065,102 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelineByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelineByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelineByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelineByProviderID(ctx context.Context, providerID uuid.UUID) (database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelineByProviderID(ctx, providerID)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelineByProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelineByProviderID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]database.GetAIGatewayPipelinePolicyDriftRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelinePolicyDrift(ctx)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelinePolicyDrift").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelinePolicyDrift").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelineVersionPolicies(ctx, pipelineVersionID)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelineVersionPolicies").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelineVersionPolicies").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]database.AIGatewayPipelineVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelineVersionsByPipelineID(ctx, pipelineID)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelineVersionsByPipelineID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelineVersionsByPipelineID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelines(ctx context.Context, arg database.GetAIGatewayPipelinesParams) ([]database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelines(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelines").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelines").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPipelinesReferencingPolicy(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPipelinesReferencingPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPipelinesReferencingPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPolicies(ctx context.Context, arg bool) ([]database.AIGatewayPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPolicies(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPolicies").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPolicies").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPolicyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPolicyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPolicyByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPolicyByName(ctx context.Context, name string) (database.AIGatewayPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPolicyByName(ctx, name)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPolicyByName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPolicyByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPolicyVersionByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPolicyVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPolicyVersionByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPolicyVersionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPolicyVersionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayPolicyVersionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.AIGatewayPolicyVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayPolicyVersionsByPolicyID(ctx, policyID)
+	m.queryLatencies.WithLabelValues("GetAIGatewayPolicyVersionsByPolicyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayPolicyVersionsByPolicyID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -1158,6 +1278,14 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	r0, r1 := m.s.GetAPIKeysLastUsedAfter(ctx, lastUsed)
 	m.queryLatencies.WithLabelValues("GetAPIKeysLastUsedAfter").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAPIKeysLastUsedAfter").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetActiveAIGatewayPipelinePolicies(ctx context.Context) ([]database.GetActiveAIGatewayPipelinePoliciesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveAIGatewayPipelinePolicies(ctx)
+	m.queryLatencies.WithLabelValues("GetActiveAIGatewayPipelinePolicies").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveAIGatewayPipelinePolicies").Inc()
 	return r0, r1
 }
 
@@ -3745,6 +3873,46 @@ func (m queryMetricsStore) InsertAIGatewayKey(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIGatewayPipeline(ctx context.Context, arg database.InsertAIGatewayPipelineParams) (database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIGatewayPipeline(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayPipeline").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayPipeline").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIGatewayPipelineVersion(ctx context.Context, arg database.InsertAIGatewayPipelineVersionParams) (database.AIGatewayPipelineVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIGatewayPipelineVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayPipelineVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayPipelineVersion").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg database.InsertAIGatewayPipelineVersionPolicyParams) (database.AIGatewayPipelineVersionPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIGatewayPipelineVersionPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayPipelineVersionPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayPipelineVersionPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIGatewayPolicy(ctx context.Context, arg database.InsertAIGatewayPolicyParams) (database.AIGatewayPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIGatewayPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIGatewayPolicyVersion(ctx context.Context, arg database.InsertAIGatewayPolicyVersionParams) (database.AIGatewayPolicyVersion, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIGatewayPolicyVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIGatewayPolicyVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIGatewayPolicyVersion").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIProvider(ctx, arg)
@@ -4767,6 +4935,38 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIBridgeInterceptionEnded").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIGatewayPipeline(ctx context.Context, arg database.UpdateAIGatewayPipelineParams) (database.AIGatewayPipeline, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIGatewayPipeline(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayPipeline").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayPipeline").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg database.UpdateAIGatewayPipelineActiveVersionParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateAIGatewayPipelineActiveVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayPipelineActiveVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayPipelineActiveVersion").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateAIGatewayPolicy(ctx context.Context, arg database.UpdateAIGatewayPolicyParams) (database.AIGatewayPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIGatewayPolicy(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayPolicy").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayPolicy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIGatewayPolicyActiveVersion(ctx context.Context, arg database.UpdateAIGatewayPolicyActiveVersionParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateAIGatewayPolicyActiveVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayPolicyActiveVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayPolicyActiveVersion").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {

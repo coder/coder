@@ -25,6 +25,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				<SidebarNavItem href="/ai/settings" end>
 					Providers
 				</SidebarNavItem>
+				<SidebarNavItem href="/ai/settings/policies">Policies</SidebarNavItem>
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/agents/settings/agents">
 						<div className="flex flex-row items-center gap-1">

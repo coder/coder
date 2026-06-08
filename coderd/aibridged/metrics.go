@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,6 +26,22 @@ type Metrics struct {
 	// against ProvidersLastReloadTimestampSeconds means the loop is
 	// firing but the refresh function is failing.
 	ProvidersLastReloadSuccessTimestampSeconds prometheus.Gauge
+
+	// PolicyPipelineInfo is one series per provider with an active policy
+	// pipeline; value is always 1 and the pipeline_version label carries the
+	// live version so operators can confirm what is enforced after a swap.
+	// Labels: provider_name, pipeline_version.
+	PolicyPipelineInfo *prometheus.GaugeVec
+
+	// PolicyPipelineReloadsTotal counts policy pipeline snapshot reloads by
+	// result (success or failure). A rising failure count with a stale snapshot
+	// is the keep-last-good divergence signal.
+	PolicyPipelineReloadsTotal *prometheus.CounterVec
+
+	// PolicyPipelineDrift is the number of active-pipeline memberships pinned to
+	// a non-current policy version (drift). Nonzero means a pipeline is running
+	// an out-of-date policy version.
+	PolicyPipelineDrift prometheus.Gauge
 }
 
 // NewMetrics registers the provider metrics against reg.
@@ -48,6 +65,21 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name: "providers_last_reload_success_timestamp_seconds",
 			Help: "Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against coder_aibridged_providers_last_reload_timestamp_seconds means the loop is firing but the refresh function is failing.",
 		}),
+
+		PolicyPipelineInfo: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "policy_pipeline_info",
+			Help: "One series per provider with an active policy pipeline. Value is always 1; the pipeline_version label carries the live version.",
+		}, []string{"provider_name", "pipeline_version"}),
+
+		PolicyPipelineReloadsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Name: "policy_pipeline_reloads_total",
+			Help: "Count of AI gateway policy pipeline snapshot reloads by result (success or failure).",
+		}, []string{"result"}),
+
+		PolicyPipelineDrift: factory.NewGauge(prometheus.GaugeOpts{
+			Name: "policy_pipeline_drift",
+			Help: "Number of active-pipeline memberships pinned to a non-current policy version.",
+		}),
 	}
 }
 
@@ -59,6 +91,46 @@ func (m *Metrics) Unregister() {
 	m.registerer.Unregister(m.ProviderInfo)
 	m.registerer.Unregister(m.ProvidersLastReloadTimestampSeconds)
 	m.registerer.Unregister(m.ProvidersLastReloadSuccessTimestampSeconds)
+	m.registerer.Unregister(m.PolicyPipelineInfo)
+	m.registerer.Unregister(m.PolicyPipelineReloadsTotal)
+	m.registerer.Unregister(m.PolicyPipelineDrift)
+}
+
+// PipelinePolicyOutcome summarizes one provider's active policy pipeline for
+// the reload metrics.
+type PipelinePolicyOutcome struct {
+	Provider        string
+	PipelineVersion int32
+}
+
+// RecordPipelineReloadSuccess rewrites the PolicyPipelineInfo gauge from the
+// outcomes and bumps the success counter.
+func (m *Metrics) RecordPipelineReloadSuccess(outcomes []PipelinePolicyOutcome) {
+	if m == nil {
+		return
+	}
+	m.PolicyPipelineReloadsTotal.WithLabelValues("success").Inc()
+	m.PolicyPipelineInfo.Reset()
+	for _, o := range outcomes {
+		m.PolicyPipelineInfo.WithLabelValues(o.Provider, strconv.Itoa(int(o.PipelineVersion))).Set(1)
+	}
+}
+
+// RecordPipelineReloadFailure bumps the failure counter, leaving the
+// PolicyPipelineInfo gauge (and the live snapshot) unchanged.
+func (m *Metrics) RecordPipelineReloadFailure() {
+	if m == nil {
+		return
+	}
+	m.PolicyPipelineReloadsTotal.WithLabelValues("failure").Inc()
+}
+
+// SetPolicyDrift sets the drift gauge to n.
+func (m *Metrics) SetPolicyDrift(n int) {
+	if m == nil {
+		return
+	}
+	m.PolicyPipelineDrift.Set(float64(n))
 }
 
 // RecordReloadAttempt stamps the attempt-time gauge at the start of a

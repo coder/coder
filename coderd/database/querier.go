@@ -88,6 +88,9 @@ type sqlcQuerier interface {
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
+	// Used to block soft-deleting a policy whose versions are referenced by an
+	// active pipeline version. The operator must first remove it from the pipeline.
+	CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// Counts enabled, non-deleted model configs that lack both input and
@@ -102,6 +105,8 @@ type sqlcQuerier interface {
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error)
+	DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) error
+	DeleteAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
@@ -257,6 +262,25 @@ type sqlcQuerier interface {
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
+	GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (AIGatewayPipeline, error)
+	GetAIGatewayPipelineByProviderID(ctx context.Context, providerID uuid.UUID) (AIGatewayPipeline, error)
+	// Membership rows whose pinned policy version is not the policy's current active
+	// version. Surfaced as a drift metric.
+	GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]GetAIGatewayPipelinePolicyDriftRow, error)
+	GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionPolicy, error)
+	GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]AIGatewayPipelineVersion, error)
+	GetAIGatewayPipelines(ctx context.Context, arg GetAIGatewayPipelinesParams) ([]AIGatewayPipeline, error)
+	// Live pipelines whose active version pins any version of the given policy.
+	// Used to propagate a newly activated policy version into the pipelines that
+	// use it (assisted upgrade).
+	GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPipeline, error)
+	// Returns policy parent rows. Soft-deleted rows are excluded unless
+	// include_deleted is set.
+	GetAIGatewayPolicies(ctx context.Context, includeDeleted bool) ([]AIGatewayPolicy, error)
+	GetAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) (AIGatewayPolicy, error)
+	GetAIGatewayPolicyByName(ctx context.Context, name string) (AIGatewayPolicy, error)
+	GetAIGatewayPolicyVersionByID(ctx context.Context, id uuid.UUID) (AIGatewayPolicyVersion, error)
+	GetAIGatewayPolicyVersionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPolicyVersion, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
@@ -290,6 +314,12 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
+	// The runtime snapshot load: every member policy of every live, enabled
+	// pipeline's active version, joined to its pinned policy version. Disabled or
+	// soft-deleted policies are excluded. Ordered by name so decide ordering is
+	// stable. This is a single consistent read; callers should run it on the
+	// primary to avoid replica lag against the post-commit reload notification.
+	GetActiveAIGatewayPipelinePolicies(ctx context.Context) ([]GetActiveAIGatewayPipelinePoliciesRow, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
@@ -925,6 +955,11 @@ type sqlcQuerier interface {
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
 	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
+	InsertAIGatewayPipeline(ctx context.Context, arg InsertAIGatewayPipelineParams) (AIGatewayPipeline, error)
+	InsertAIGatewayPipelineVersion(ctx context.Context, arg InsertAIGatewayPipelineVersionParams) (AIGatewayPipelineVersion, error)
+	InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg InsertAIGatewayPipelineVersionPolicyParams) (AIGatewayPipelineVersionPolicy, error)
+	InsertAIGatewayPolicy(ctx context.Context, arg InsertAIGatewayPolicyParams) (AIGatewayPolicy, error)
+	InsertAIGatewayPolicyVersion(ctx context.Context, arg InsertAIGatewayPolicyVersionParams) (AIGatewayPolicyVersion, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
@@ -1178,6 +1213,10 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
+	UpdateAIGatewayPipeline(ctx context.Context, arg UpdateAIGatewayPipelineParams) (AIGatewayPipeline, error)
+	UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg UpdateAIGatewayPipelineActiveVersionParams) error
+	UpdateAIGatewayPolicy(ctx context.Context, arg UpdateAIGatewayPolicyParams) (AIGatewayPolicy, error)
+	UpdateAIGatewayPolicyActiveVersion(ctx context.Context, arg UpdateAIGatewayPolicyActiveVersionParams) error
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error

@@ -1409,6 +1409,388 @@
 				]
 			}
 		},
+		"/api/v2/aibridge/pipelines": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "List AI gateway pipelines",
+				"operationId": "list-ai-gateway-pipelines",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIGatewayPipeline"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Create an AI gateway pipeline",
+				"operationId": "create-an-ai-gateway-pipeline",
+				"parameters": [
+					{
+						"description": "Create pipeline request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayPipelineRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPipeline"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/pipelines/{id}": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Get an AI gateway pipeline",
+				"operationId": "get-an-ai-gateway-pipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Pipeline ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPipeline"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"delete": {
+				"tags": ["AI Gateway"],
+				"summary": "Delete an AI gateway pipeline",
+				"operationId": "delete-an-ai-gateway-pipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Pipeline ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"patch": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Update an AI gateway pipeline",
+				"operationId": "update-an-ai-gateway-pipeline",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Pipeline ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update pipeline request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateAIGatewayPipelineRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPipeline"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/pipelines/{id}/versions": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Create an AI gateway pipeline version",
+				"operationId": "create-an-ai-gateway-pipeline-version",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Pipeline ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create version request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayPipelineVersionRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPipelineVersion"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/policies": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "List AI gateway policies",
+				"operationId": "list-ai-gateway-policies",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIGatewayPolicy"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Create an AI gateway policy",
+				"operationId": "create-an-ai-gateway-policy",
+				"parameters": [
+					{
+						"description": "Create policy request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayPolicyRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPolicy"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/policies/{id}": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Get an AI gateway policy",
+				"operationId": "get-an-ai-gateway-policy",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Policy ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPolicy"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"delete": {
+				"tags": ["AI Gateway"],
+				"summary": "Delete an AI gateway policy",
+				"operationId": "delete-an-ai-gateway-policy",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Policy ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"patch": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Update an AI gateway policy",
+				"operationId": "update-an-ai-gateway-policy",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Policy ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Update policy request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.UpdateAIGatewayPolicyRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPolicy"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/policies/{id}/versions": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["AI Gateway"],
+				"summary": "Create an AI gateway policy version",
+				"operationId": "create-an-ai-gateway-policy-version",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Policy ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create version request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayPolicyVersionRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIGatewayPolicyVersion"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/aibridge/sessions": {
 			"get": {
 				"produces": ["application/json"],
@@ -13522,6 +13904,16 @@
 				}
 			}
 		},
+		"codersdk.AIGatewayFailMode": {
+			"type": "string",
+			"enum": ["fail_open", "fail_closed"],
+			"x-enum-varnames": ["AIGatewayFailModeOpen", "AIGatewayFailModeClosed"]
+		},
+		"codersdk.AIGatewayHook": {
+			"type": "string",
+			"enum": ["pre_auth", "pre_req"],
+			"x-enum-varnames": ["AIGatewayHookPreAuth", "AIGatewayHookPreReq"]
+		},
 		"codersdk.AIGatewayKey": {
 			"type": "object",
 			"properties": {
@@ -13542,6 +13934,185 @@
 				},
 				"name": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIGatewayPipeline": {
+			"type": "object",
+			"properties": {
+				"active_version": {
+					"$ref": "#/definitions/codersdk.AIGatewayPipelineVersion"
+				},
+				"active_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"enabled": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"provider_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		},
+		"codersdk.AIGatewayPipelinePolicy": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"description": "Enabled disables this policy within this pipeline without disabling it\nglobally. Disabled members are excluded from the runtime snapshot.",
+					"type": "boolean"
+				},
+				"fail_mode": {
+					"$ref": "#/definitions/codersdk.AIGatewayFailMode"
+				},
+				"hook": {
+					"$ref": "#/definitions/codersdk.AIGatewayHook"
+				},
+				"kind": {
+					"$ref": "#/definitions/codersdk.AIGatewayPolicyKind"
+				},
+				"policy_version_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.AIGatewayPipelinePolicyRequest": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"fail_mode": {
+					"$ref": "#/definitions/codersdk.AIGatewayFailMode"
+				},
+				"hook": {
+					"$ref": "#/definitions/codersdk.AIGatewayHook"
+				},
+				"policy_version_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.AIGatewayPipelineVersion": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"pipeline_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIGatewayPipelinePolicy"
+					}
+				},
+				"version_number": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.AIGatewayPolicy": {
+			"type": "object",
+			"properties": {
+				"active_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"kind": {
+					"$ref": "#/definitions/codersdk.AIGatewayPolicyKind"
+				},
+				"name": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"versions": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIGatewayPolicyVersion"
+					}
+				}
+			}
+		},
+		"codersdk.AIGatewayPolicyKind": {
+			"type": "string",
+			"enum": ["classify", "route", "decide", "transform"],
+			"x-enum-varnames": [
+				"AIGatewayPolicyKindClassify",
+				"AIGatewayPolicyKindRoute",
+				"AIGatewayPolicyKindDecide",
+				"AIGatewayPolicyKindTransform"
+			]
+		},
+		"codersdk.AIGatewayPolicyVersion": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"created_by": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"description": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"input_schema_version": {
+					"type": "integer"
+				},
+				"output_schema_version": {
+					"type": "integer"
+				},
+				"policy_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"rego": {
+					"type": "string"
+				},
+				"version_number": {
+					"type": "integer"
 				}
 			}
 		},
@@ -13762,6 +14333,11 @@
 				"ai_gateway_key:create",
 				"ai_gateway_key:delete",
 				"ai_gateway_key:read",
+				"ai_gateway_policy:*",
+				"ai_gateway_policy:create",
+				"ai_gateway_policy:delete",
+				"ai_gateway_policy:read",
+				"ai_gateway_policy:update",
 				"ai_model_price:*",
 				"ai_model_price:read",
 				"ai_model_price:update",
@@ -13996,6 +14572,11 @@
 				"APIKeyScopeAiGatewayKeyCreate",
 				"APIKeyScopeAiGatewayKeyDelete",
 				"APIKeyScopeAiGatewayKeyRead",
+				"APIKeyScopeAiGatewayPolicyAll",
+				"APIKeyScopeAiGatewayPolicyCreate",
+				"APIKeyScopeAiGatewayPolicyDelete",
+				"APIKeyScopeAiGatewayPolicyRead",
+				"APIKeyScopeAiGatewayPolicyUpdate",
 				"APIKeyScopeAiModelPriceAll",
 				"APIKeyScopeAiModelPriceRead",
 				"APIKeyScopeAiModelPriceUpdate",
@@ -16023,6 +16604,73 @@
 					"type": "string"
 				},
 				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.CreateAIGatewayPipelineRequest": {
+			"type": "object",
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIGatewayPipelinePolicyRequest"
+					}
+				},
+				"provider_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.CreateAIGatewayPipelineVersionRequest": {
+			"type": "object",
+			"properties": {
+				"activate": {
+					"type": "boolean"
+				},
+				"policies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIGatewayPipelinePolicyRequest"
+					}
+				}
+			}
+		},
+		"codersdk.CreateAIGatewayPolicyRequest": {
+			"type": "object",
+			"properties": {
+				"description": {
+					"type": "string"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"kind": {
+					"$ref": "#/definitions/codersdk.AIGatewayPolicyKind"
+				},
+				"name": {
+					"type": "string"
+				},
+				"rego": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.CreateAIGatewayPolicyVersionRequest": {
+			"type": "object",
+			"properties": {
+				"activate": {
+					"description": "Activate sets the new version as the policy's active version.",
+					"type": "boolean"
+				},
+				"description": {
+					"type": "string"
+				},
+				"rego": {
 					"type": "string"
 				}
 			}
@@ -20624,6 +21272,7 @@
 			"enum": [
 				"*",
 				"ai_gateway_key",
+				"ai_gateway_policy",
 				"ai_model_price",
 				"ai_provider",
 				"ai_seat",
@@ -20676,6 +21325,7 @@
 			"x-enum-varnames": [
 				"ResourceWildcard",
 				"ResourceAIGatewayKey",
+				"ResourceAIGatewayPolicy",
 				"ResourceAiModelPrice",
 				"ResourceAIProvider",
 				"ResourceAiSeat",
@@ -20928,6 +21578,8 @@
 				"ai_provider",
 				"ai_provider_key",
 				"ai_gateway_key",
+				"ai_gateway_policy",
+				"ai_gateway_pipeline",
 				"group_ai_budget",
 				"chat",
 				"user_secret",
@@ -20964,6 +21616,8 @@
 				"ResourceTypeAIProvider",
 				"ResourceTypeAIProviderKey",
 				"ResourceTypeAIGatewayKey",
+				"ResourceTypeAIGatewayPolicy",
+				"ResourceTypeAIGatewayPipeline",
 				"ResourceTypeGroupAIBudget",
 				"ResourceTypeChat",
 				"ResourceTypeUserSecret",
@@ -22417,6 +23071,30 @@
 				"p95": {
 					"type": "integer",
 					"example": 146
+				}
+			}
+		},
+		"codersdk.UpdateAIGatewayPipelineRequest": {
+			"type": "object",
+			"properties": {
+				"active_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"enabled": {
+					"type": "boolean"
+				}
+			}
+		},
+		"codersdk.UpdateAIGatewayPolicyRequest": {
+			"type": "object",
+			"properties": {
+				"active_version_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"display_name": {
+					"type": "string"
 				}
 			}
 		},

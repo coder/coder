@@ -628,6 +628,7 @@ var (
 					rbac.ResourceAiModelPrice.Type:         {policy.ActionUpdate}, // Required for the startup price seeder.
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
 					rbac.ResourceAIProvider.Type:           {policy.ActionRead},   // Required to load the provider snapshot (and per-provider keys) at startup.
+					rbac.ResourceAIGatewayPolicy.Type:      {policy.ActionRead},   // Required to load the policy pipeline snapshot at startup and on reload.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1844,6 +1845,13 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prep)
 }
 
+func (q *querier) CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return 0, err
+	}
+	return q.db.CountAIGatewayPolicyVersionsInActivePipelines(ctx, policyID)
+}
+
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	// Shortcut if the user is an owner. The SQL filter is noticeable,
 	// and this is an easy win for owners. Which is the common case.
@@ -1925,6 +1933,20 @@ func (q *querier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (databas
 		return database.DeleteAIGatewayKeyRow{}, err
 	}
 	return q.db.DeleteAIGatewayKey(ctx, id)
+}
+
+func (q *querier) DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.DeleteAIGatewayPipelineByID(ctx, id)
+}
+
+func (q *querier) DeleteAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.DeleteAIGatewayPolicyByID(ctx, id)
 }
 
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -2631,6 +2653,90 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
+func (q *querier) GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipeline{}, err
+	}
+	return q.db.GetAIGatewayPipelineByID(ctx, id)
+}
+
+func (q *querier) GetAIGatewayPipelineByProviderID(ctx context.Context, providerID uuid.UUID) (database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipeline{}, err
+	}
+	return q.db.GetAIGatewayPipelineByProviderID(ctx, providerID)
+}
+
+func (q *querier) GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]database.GetAIGatewayPipelinePolicyDriftRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelinePolicyDrift(ctx)
+}
+
+func (q *querier) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelineVersionPolicies(ctx, pipelineVersionID)
+}
+
+func (q *querier) GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]database.AIGatewayPipelineVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelineVersionsByPipelineID(ctx, pipelineID)
+}
+
+func (q *querier) GetAIGatewayPipelines(ctx context.Context, arg database.GetAIGatewayPipelinesParams) ([]database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelines(ctx, arg)
+}
+
+func (q *querier) GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelinesReferencingPolicy(ctx, policyID)
+}
+
+func (q *querier) GetAIGatewayPolicies(ctx context.Context, arg bool) ([]database.AIGatewayPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPolicies(ctx, arg)
+}
+
+func (q *querier) GetAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicy{}, err
+	}
+	return q.db.GetAIGatewayPolicyByID(ctx, id)
+}
+
+func (q *querier) GetAIGatewayPolicyByName(ctx context.Context, name string) (database.AIGatewayPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicy{}, err
+	}
+	return q.db.GetAIGatewayPolicyByName(ctx, name)
+}
+
+func (q *querier) GetAIGatewayPolicyVersionByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPolicyVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicyVersion{}, err
+	}
+	return q.db.GetAIGatewayPolicyVersionByID(ctx, id)
+}
+
+func (q *querier) GetAIGatewayPolicyVersionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]database.AIGatewayPolicyVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPolicyVersionsByPolicyID(ctx, policyID)
+}
+
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AiModelPrice{}, err
@@ -2723,6 +2829,13 @@ func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPI
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+}
+
+func (q *querier) GetActiveAIGatewayPipelinePolicies(ctx context.Context) ([]database.GetActiveAIGatewayPipelinePoliciesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetActiveAIGatewayPipelinePolicies(ctx)
 }
 
 func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
@@ -5504,6 +5617,41 @@ func (q *querier) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIG
 	return q.db.InsertAIGatewayKey(ctx, arg)
 }
 
+func (q *querier) InsertAIGatewayPipeline(ctx context.Context, arg database.InsertAIGatewayPipelineParams) (database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipeline{}, err
+	}
+	return q.db.InsertAIGatewayPipeline(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayPipelineVersion(ctx context.Context, arg database.InsertAIGatewayPipelineVersionParams) (database.AIGatewayPipelineVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipelineVersion{}, err
+	}
+	return q.db.InsertAIGatewayPipelineVersion(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg database.InsertAIGatewayPipelineVersionPolicyParams) (database.AIGatewayPipelineVersionPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipelineVersionPolicy{}, err
+	}
+	return q.db.InsertAIGatewayPipelineVersionPolicy(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayPolicy(ctx context.Context, arg database.InsertAIGatewayPolicyParams) (database.AIGatewayPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicy{}, err
+	}
+	return q.db.InsertAIGatewayPolicy(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayPolicyVersion(ctx context.Context, arg database.InsertAIGatewayPolicyVersionParams) (database.AIGatewayPolicyVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicyVersion{}, err
+	}
+	return q.db.InsertAIGatewayPolicyVersion(ctx, arg)
+}
+
 func (q *querier) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
@@ -6665,6 +6813,34 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
+}
+
+func (q *querier) UpdateAIGatewayPipeline(ctx context.Context, arg database.UpdateAIGatewayPipelineParams) (database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipeline{}, err
+	}
+	return q.db.UpdateAIGatewayPipeline(ctx, arg)
+}
+
+func (q *querier) UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg database.UpdateAIGatewayPipelineActiveVersionParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.UpdateAIGatewayPipelineActiveVersion(ctx, arg)
+}
+
+func (q *querier) UpdateAIGatewayPolicy(ctx context.Context, arg database.UpdateAIGatewayPolicyParams) (database.AIGatewayPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPolicy{}, err
+	}
+	return q.db.UpdateAIGatewayPolicy(ctx, arg)
+}
+
+func (q *querier) UpdateAIGatewayPolicyActiveVersion(ctx context.Context, arg database.UpdateAIGatewayPolicyActiveVersionParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.UpdateAIGatewayPolicyActiveVersion(ctx, arg)
 }
 
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {

@@ -10,6 +10,23 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_gateway_fail_mode AS ENUM (
+    'fail_open',
+    'fail_closed'
+);
+
+CREATE TYPE ai_gateway_hook AS ENUM (
+    'pre_auth',
+    'pre_req'
+);
+
+CREATE TYPE ai_gateway_policy_kind AS ENUM (
+    'classify',
+    'route',
+    'decide',
+    'transform'
+);
+
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -569,7 +586,9 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider_key',
     'group_ai_budget',
     'user_skill',
-    'ai_gateway_key'
+    'ai_gateway_key',
+    'ai_gateway_policy',
+    'ai_gateway_pipeline'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1307,6 +1326,68 @@ CREATE TABLE ai_gateway_keys (
 COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
 
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
+CREATE TABLE ai_gateway_pipeline_version_policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    pipeline_version_id uuid NOT NULL,
+    policy_version_id uuid NOT NULL,
+    hook ai_gateway_hook NOT NULL,
+    kind ai_gateway_policy_kind NOT NULL,
+    fail_mode ai_gateway_fail_mode DEFAULT 'fail_closed'::ai_gateway_fail_mode NOT NULL,
+    enabled boolean DEFAULT true NOT NULL
+);
+
+COMMENT ON TABLE ai_gateway_pipeline_version_policies IS 'Membership of a pipeline version: which policy versions run at which hook.';
+
+CREATE TABLE ai_gateway_pipeline_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    pipeline_id uuid NOT NULL,
+    version_number integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid
+);
+
+COMMENT ON TABLE ai_gateway_pipeline_versions IS 'Immutable composition snapshots forming a pipeline''s version history.';
+
+CREATE TABLE ai_gateway_pipelines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider_id uuid NOT NULL,
+    active_version_id uuid,
+    enabled boolean DEFAULT true NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE ai_gateway_pipelines IS 'At most one policy pipeline per AI provider; active_version_id is the atomic swap point.';
+
+CREATE TABLE ai_gateway_policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    display_name text,
+    kind ai_gateway_policy_kind NOT NULL,
+    active_version_id uuid,
+    deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_gateway_policies_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+COMMENT ON TABLE ai_gateway_policies IS 'Reusable, versioned Rego policies for the AI gateway policy engine.';
+
+CREATE TABLE ai_gateway_policy_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    policy_id uuid NOT NULL,
+    version_number integer NOT NULL,
+    rego text NOT NULL,
+    input_schema_version integer NOT NULL,
+    output_schema_version integer NOT NULL,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid
+);
+
+COMMENT ON TABLE ai_gateway_policy_versions IS 'Immutable Rego text + frozen schema bindings for each policy version.';
 
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
@@ -3793,6 +3874,36 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_gateway_pipeline_version_policies
+    ADD CONSTRAINT ai_gateway_pipeline_version_p_pipeline_version_id_policy_ve_key UNIQUE (pipeline_version_id, policy_version_id, hook);
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_policies
+    ADD CONSTRAINT ai_gateway_pipeline_version_policies_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_versions
+    ADD CONSTRAINT ai_gateway_pipeline_versions_pipeline_id_id_key UNIQUE (pipeline_id, id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_versions
+    ADD CONSTRAINT ai_gateway_pipeline_versions_pipeline_id_version_number_key UNIQUE (pipeline_id, version_number);
+
+ALTER TABLE ONLY ai_gateway_pipeline_versions
+    ADD CONSTRAINT ai_gateway_pipeline_versions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_pipelines
+    ADD CONSTRAINT ai_gateway_pipelines_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_policies
+    ADD CONSTRAINT ai_gateway_policies_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_policy_versions
+    ADD CONSTRAINT ai_gateway_policy_versions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_policy_versions
+    ADD CONSTRAINT ai_gateway_policy_versions_policy_id_id_key UNIQUE (policy_id, id);
+
+ALTER TABLE ONLY ai_gateway_policy_versions
+    ADD CONSTRAINT ai_gateway_policy_versions_policy_id_version_number_key UNIQUE (policy_id, version_number);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
@@ -4182,6 +4293,16 @@ CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING b
 CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
 
 CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
+
+CREATE UNIQUE INDEX ai_gateway_pipelines_provider_unique ON ai_gateway_pipelines USING btree (provider_id) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX ai_gateway_policies_name_unique ON ai_gateway_policies USING btree (name) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX ai_gateway_pvp_one_classify ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'classify'::ai_gateway_policy_kind);
+
+CREATE UNIQUE INDEX ai_gateway_pvp_one_route ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'route'::ai_gateway_policy_kind);
+
+CREATE UNIQUE INDEX ai_gateway_pvp_one_transform ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'transform'::ai_gateway_policy_kind);
 
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
@@ -4586,6 +4707,33 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_policies
+    ADD CONSTRAINT ai_gateway_pipeline_version_policies_pipeline_version_id_fkey FOREIGN KEY (pipeline_version_id) REFERENCES ai_gateway_pipeline_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_policies
+    ADD CONSTRAINT ai_gateway_pipeline_version_policies_policy_version_id_fkey FOREIGN KEY (policy_version_id) REFERENCES ai_gateway_policy_versions(id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_versions
+    ADD CONSTRAINT ai_gateway_pipeline_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY ai_gateway_pipeline_versions
+    ADD CONSTRAINT ai_gateway_pipeline_versions_pipeline_id_fkey FOREIGN KEY (pipeline_id) REFERENCES ai_gateway_pipelines(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_gateway_pipelines
+    ADD CONSTRAINT ai_gateway_pipelines_active_version_id_fkey FOREIGN KEY (id, active_version_id) REFERENCES ai_gateway_pipeline_versions(pipeline_id, id);
+
+ALTER TABLE ONLY ai_gateway_pipelines
+    ADD CONSTRAINT ai_gateway_pipelines_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_gateway_policies
+    ADD CONSTRAINT ai_gateway_policies_active_version_id_fkey FOREIGN KEY (id, active_version_id) REFERENCES ai_gateway_policy_versions(policy_id, id);
+
+ALTER TABLE ONLY ai_gateway_policy_versions
+    ADD CONSTRAINT ai_gateway_policy_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY ai_gateway_policy_versions
+    ADD CONSTRAINT ai_gateway_policy_versions_policy_id_fkey FOREIGN KEY (policy_id) REFERENCES ai_gateway_policies(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

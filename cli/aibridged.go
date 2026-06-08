@@ -66,6 +66,25 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg 
 		unsubscribe = func() {}
 	}
 
+	// Subscribe to AI gateway policy/pipeline changes so the pool tracks
+	// policy edits without a restart. The initial reload above already loaded
+	// the policy snapshot, so this is event-driven only.
+	unsubscribePipelines, err := aibridged.SubscribePipelineReload(coderAPI.Pubsub, policyReloader{reloader}, logger.Named("pipeline-reload"))
+	if err != nil {
+		logger.Warn(ctx, "subscribe to ai gateway pipelines change channel", slog.Error(err))
+		unsubscribePipelines = func() {}
+	}
+
+	// Periodic backstop reload against missed notifications and replica lag.
+	stopPeriodic := aibridged.StartPeriodicReload(reloader, aibridged.DefaultReloadInterval, logger.Named("periodic-reload"))
+
+	cleanup := func() {
+		stopPeriodic()
+		unsubscribePipelines()
+		unsubscribe()
+	}
+	unsubscribe = cleanup
+
 	// Create daemon.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
@@ -88,6 +107,9 @@ type poolDBReloader struct {
 	metrics *aibridged.Metrics
 }
 
+// Reload refreshes both the provider snapshot and the policy pipeline snapshot.
+// Used by the provider change channel, the initial load, and the periodic
+// backstop.
 func (r *poolDBReloader) Reload(ctx context.Context) error {
 	r.metrics.RecordReloadAttempt()
 	providers, outcomes, err := BuildProviders(ctx, r.db, r.cfg, r.logger)
@@ -99,8 +121,43 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 	}
 	r.pool.ReplaceProviders(providers)
 	r.metrics.RecordReloadSuccess(outcomes)
+
+	// A policy reload failure keeps the last-good policy snapshot and does not
+	// fail the provider reload.
+	if err := r.reloadPolicies(ctx); err != nil {
+		r.logger.Warn(ctx, "reload ai gateway policy pipelines", slog.Error(err))
+	}
 	return nil
 }
+
+// reloadPolicies rebuilds only the policy pipeline snapshot. Policy/pipeline
+// edits use this so they do not needlessly rebuild the provider snapshot
+// (re-decoding settings and key pools).
+func (r *poolDBReloader) reloadPolicies(ctx context.Context) error {
+	hooks, pipelineOutcomes, err := aibridged.BuildProviderPipelines(ctx, r.db, r.logger)
+	if err != nil {
+		r.metrics.RecordPipelineReloadFailure()
+		return xerrors.Errorf("load ai gateway policy pipelines from database: %w", err)
+	}
+	r.pool.ReplacePolicyHooks(hooks)
+	r.metrics.RecordPipelineReloadSuccess(pipelineOutcomes)
+
+	// Surface policy-version drift (a pipeline pinned to a non-current policy
+	// version) as a gauge. A drift query failure is non-fatal.
+	//nolint:gocritic // AsAIBridged has the minimal permissions for this read.
+	if drift, derr := r.db.GetAIGatewayPipelinePolicyDrift(dbauthz.AsAIBridged(ctx)); derr != nil {
+		r.logger.Warn(ctx, "compute ai gateway policy drift", slog.Error(derr))
+	} else {
+		r.metrics.SetPolicyDrift(len(drift))
+	}
+	return nil
+}
+
+// policyReloader adapts a poolDBReloader to reload only policy hooks, for the
+// pipeline change channel.
+type policyReloader struct{ r *poolDBReloader }
+
+func (p policyReloader) Reload(ctx context.Context) error { return p.r.reloadPolicies(ctx) }
 
 // BuildProviders loads all ai_providers rows (enabled and disabled),
 // attaches keys to enabled rows, and constructs the equivalent

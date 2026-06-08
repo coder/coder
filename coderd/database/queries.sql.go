@@ -2719,6 +2719,853 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
+const countAIGatewayPolicyVersionsInActivePipelines = `-- name: CountAIGatewayPolicyVersionsInActivePipelines :one
+SELECT COUNT(*) FROM ai_gateway_pipeline_version_policies m
+JOIN ai_gateway_pipelines pl ON pl.active_version_id = m.pipeline_version_id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+WHERE pver.policy_id = $1::uuid AND pl.deleted = FALSE
+`
+
+// Used to block soft-deleting a policy whose versions are referenced by an
+// active pipeline version. The operator must first remove it from the pipeline.
+func (q *sqlQuerier) CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAIGatewayPolicyVersionsInActivePipelines, policyID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteAIGatewayPipelineByID = `-- name: DeleteAIGatewayPipelineByID :exec
+UPDATE ai_gateway_pipelines
+SET deleted = TRUE, enabled = FALSE, updated_at = NOW()
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIGatewayPipelineByID, id)
+	return err
+}
+
+const deleteAIGatewayPolicyByID = `-- name: DeleteAIGatewayPolicyByID :exec
+UPDATE ai_gateway_policies
+SET deleted = TRUE, enabled = FALSE, updated_at = NOW()
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIGatewayPolicyByID, id)
+	return err
+}
+
+const getAIGatewayPipelineByID = `-- name: GetAIGatewayPipelineByID :one
+SELECT id, provider_id, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_pipelines
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (AIGatewayPipeline, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPipelineByID, id)
+	var i AIGatewayPipeline
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayPipelineByProviderID = `-- name: GetAIGatewayPipelineByProviderID :one
+SELECT id, provider_id, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_pipelines
+WHERE provider_id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayPipelineByProviderID(ctx context.Context, providerID uuid.UUID) (AIGatewayPipeline, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPipelineByProviderID, providerID)
+	var i AIGatewayPipeline
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayPipelinePolicyDrift = `-- name: GetAIGatewayPipelinePolicyDrift :many
+SELECT
+    pl.provider_id,
+    pl.id AS pipeline_id,
+    p.id AS policy_id,
+    p.name AS policy_name,
+    m.policy_version_id AS pinned_version_id,
+    p.active_version_id AS current_version_id
+FROM ai_gateway_pipelines pl
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+JOIN ai_gateway_policies p ON p.id = pver.policy_id
+WHERE pl.deleted = FALSE
+    AND p.deleted = FALSE
+    AND (p.active_version_id IS NULL OR m.policy_version_id != p.active_version_id)
+`
+
+type GetAIGatewayPipelinePolicyDriftRow struct {
+	ProviderID       uuid.UUID     `db:"provider_id" json:"provider_id"`
+	PipelineID       uuid.UUID     `db:"pipeline_id" json:"pipeline_id"`
+	PolicyID         uuid.UUID     `db:"policy_id" json:"policy_id"`
+	PolicyName       string        `db:"policy_name" json:"policy_name"`
+	PinnedVersionID  uuid.UUID     `db:"pinned_version_id" json:"pinned_version_id"`
+	CurrentVersionID uuid.NullUUID `db:"current_version_id" json:"current_version_id"`
+}
+
+// Membership rows whose pinned policy version is not the policy's current active
+// version. Surfaced as a drift metric.
+func (q *sqlQuerier) GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]GetAIGatewayPipelinePolicyDriftRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelinePolicyDrift)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIGatewayPipelinePolicyDriftRow
+	for rows.Next() {
+		var i GetAIGatewayPipelinePolicyDriftRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.PipelineID,
+			&i.PolicyID,
+			&i.PolicyName,
+			&i.PinnedVersionID,
+			&i.CurrentVersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelineVersionPolicies = `-- name: GetAIGatewayPipelineVersionPolicies :many
+SELECT id, pipeline_version_id, policy_version_id, hook, kind, fail_mode, enabled FROM ai_gateway_pipeline_version_policies
+WHERE pipeline_version_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionPolicy, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionPolicies, pipelineVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipelineVersionPolicy
+	for rows.Next() {
+		var i AIGatewayPipelineVersionPolicy
+		if err := rows.Scan(
+			&i.ID,
+			&i.PipelineVersionID,
+			&i.PolicyVersionID,
+			&i.Hook,
+			&i.Kind,
+			&i.FailMode,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelineVersionsByPipelineID = `-- name: GetAIGatewayPipelineVersionsByPipelineID :many
+SELECT id, pipeline_id, version_number, created_at, created_by FROM ai_gateway_pipeline_versions
+WHERE pipeline_id = $1::uuid
+ORDER BY version_number DESC
+`
+
+func (q *sqlQuerier) GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]AIGatewayPipelineVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionsByPipelineID, pipelineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipelineVersion
+	for rows.Next() {
+		var i AIGatewayPipelineVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.PipelineID,
+			&i.VersionNumber,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelines = `-- name: GetAIGatewayPipelines :many
+SELECT id, provider_id, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_pipelines
+WHERE
+    ($1::boolean OR NOT deleted)
+    AND ($2::boolean OR enabled)
+ORDER BY created_at ASC
+`
+
+type GetAIGatewayPipelinesParams struct {
+	IncludeDeleted  bool `db:"include_deleted" json:"include_deleted"`
+	IncludeDisabled bool `db:"include_disabled" json:"include_disabled"`
+}
+
+func (q *sqlQuerier) GetAIGatewayPipelines(ctx context.Context, arg GetAIGatewayPipelinesParams) ([]AIGatewayPipeline, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelines, arg.IncludeDeleted, arg.IncludeDisabled)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipeline
+	for rows.Next() {
+		var i AIGatewayPipeline
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.ActiveVersionID,
+			&i.Enabled,
+			&i.Deleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelinesReferencingPolicy = `-- name: GetAIGatewayPipelinesReferencingPolicy :many
+SELECT DISTINCT pl.id, pl.provider_id, pl.active_version_id, pl.enabled, pl.deleted, pl.created_at, pl.updated_at
+FROM ai_gateway_pipelines pl
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+WHERE pl.deleted = FALSE AND pver.policy_id = $1::uuid
+`
+
+// Live pipelines whose active version pins any version of the given policy.
+// Used to propagate a newly activated policy version into the pipelines that
+// use it (assisted upgrade).
+func (q *sqlQuerier) GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPipeline, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelinesReferencingPolicy, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipeline
+	for rows.Next() {
+		var i AIGatewayPipeline
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.ActiveVersionID,
+			&i.Enabled,
+			&i.Deleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPolicies = `-- name: GetAIGatewayPolicies :many
+SELECT id, name, display_name, kind, active_version_id, deleted, created_at, updated_at FROM ai_gateway_policies
+WHERE
+    ($1::boolean OR NOT deleted)
+ORDER BY name ASC
+`
+
+// Returns policy parent rows. Soft-deleted rows are excluded unless
+// include_deleted is set.
+func (q *sqlQuerier) GetAIGatewayPolicies(ctx context.Context, includeDeleted bool) ([]AIGatewayPolicy, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPolicies, includeDeleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPolicy
+	for rows.Next() {
+		var i AIGatewayPolicy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DisplayName,
+			&i.Kind,
+			&i.ActiveVersionID,
+			&i.Deleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPolicyByID = `-- name: GetAIGatewayPolicyByID :one
+SELECT id, name, display_name, kind, active_version_id, deleted, created_at, updated_at FROM ai_gateway_policies
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) (AIGatewayPolicy, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPolicyByID, id)
+	var i AIGatewayPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Kind,
+		&i.ActiveVersionID,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayPolicyByName = `-- name: GetAIGatewayPolicyByName :one
+SELECT id, name, display_name, kind, active_version_id, deleted, created_at, updated_at FROM ai_gateway_policies
+WHERE name = $1::text AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayPolicyByName(ctx context.Context, name string) (AIGatewayPolicy, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPolicyByName, name)
+	var i AIGatewayPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Kind,
+		&i.ActiveVersionID,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayPolicyVersionByID = `-- name: GetAIGatewayPolicyVersionByID :one
+SELECT id, policy_id, version_number, rego, input_schema_version, output_schema_version, description, created_at, created_by FROM ai_gateway_policy_versions
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIGatewayPolicyVersionByID(ctx context.Context, id uuid.UUID) (AIGatewayPolicyVersion, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPolicyVersionByID, id)
+	var i AIGatewayPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.VersionNumber,
+		&i.Rego,
+		&i.InputSchemaVersion,
+		&i.OutputSchemaVersion,
+		&i.Description,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getAIGatewayPolicyVersionsByPolicyID = `-- name: GetAIGatewayPolicyVersionsByPolicyID :many
+SELECT id, policy_id, version_number, rego, input_schema_version, output_schema_version, description, created_at, created_by FROM ai_gateway_policy_versions
+WHERE policy_id = $1::uuid
+ORDER BY version_number DESC
+`
+
+func (q *sqlQuerier) GetAIGatewayPolicyVersionsByPolicyID(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPolicyVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPolicyVersionsByPolicyID, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPolicyVersion
+	for rows.Next() {
+		var i AIGatewayPolicyVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.PolicyID,
+			&i.VersionNumber,
+			&i.Rego,
+			&i.InputSchemaVersion,
+			&i.OutputSchemaVersion,
+			&i.Description,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getActiveAIGatewayPipelinePolicies = `-- name: GetActiveAIGatewayPipelinePolicies :many
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.kind,
+    m.fail_mode,
+    p.id AS policy_id,
+    p.name AS policy_name,
+    pver.id AS policy_version_id,
+    pver.rego,
+    pver.input_schema_version,
+    pver.output_schema_version
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = pl.active_version_id
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+JOIN ai_gateway_policies p ON p.id = pver.policy_id
+WHERE pl.deleted = FALSE
+    AND pl.enabled = TRUE
+    AND m.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND p.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, m.kind, p.name
+`
+
+type GetActiveAIGatewayPipelinePoliciesRow struct {
+	ProviderID            uuid.UUID           `db:"provider_id" json:"provider_id"`
+	ProviderName          string              `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID           `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID           `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32               `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook       `db:"hook" json:"hook"`
+	Kind                  AIGatewayPolicyKind `db:"kind" json:"kind"`
+	FailMode              AIGatewayFailMode   `db:"fail_mode" json:"fail_mode"`
+	PolicyID              uuid.UUID           `db:"policy_id" json:"policy_id"`
+	PolicyName            string              `db:"policy_name" json:"policy_name"`
+	PolicyVersionID       uuid.UUID           `db:"policy_version_id" json:"policy_version_id"`
+	Rego                  string              `db:"rego" json:"rego"`
+	InputSchemaVersion    int32               `db:"input_schema_version" json:"input_schema_version"`
+	OutputSchemaVersion   int32               `db:"output_schema_version" json:"output_schema_version"`
+}
+
+// The runtime snapshot load: every member policy of every live, enabled
+// pipeline's active version, joined to its pinned policy version. Disabled or
+// soft-deleted policies are excluded. Ordered by name so decide ordering is
+// stable. This is a single consistent read; callers should run it on the
+// primary to avoid replica lag against the post-commit reload notification.
+func (q *sqlQuerier) GetActiveAIGatewayPipelinePolicies(ctx context.Context) ([]GetActiveAIGatewayPipelinePoliciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveAIGatewayPipelinePolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveAIGatewayPipelinePoliciesRow
+	for rows.Next() {
+		var i GetActiveAIGatewayPipelinePoliciesRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.PipelineID,
+			&i.PipelineVersionID,
+			&i.PipelineVersionNumber,
+			&i.Hook,
+			&i.Kind,
+			&i.FailMode,
+			&i.PolicyID,
+			&i.PolicyName,
+			&i.PolicyVersionID,
+			&i.Rego,
+			&i.InputSchemaVersion,
+			&i.OutputSchemaVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAIGatewayPipeline = `-- name: InsertAIGatewayPipeline :one
+INSERT INTO ai_gateway_pipelines (
+    id,
+    provider_id,
+    enabled
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::boolean
+)
+RETURNING id, provider_id, active_version_id, enabled, deleted, created_at, updated_at
+`
+
+type InsertAIGatewayPipelineParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ProviderID uuid.UUID `db:"provider_id" json:"provider_id"`
+	Enabled    bool      `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPipeline(ctx context.Context, arg InsertAIGatewayPipelineParams) (AIGatewayPipeline, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPipeline, arg.ID, arg.ProviderID, arg.Enabled)
+	var i AIGatewayPipeline
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayPipelineVersion = `-- name: InsertAIGatewayPipelineVersion :one
+INSERT INTO ai_gateway_pipeline_versions (
+    id,
+    pipeline_id,
+    version_number,
+    created_by
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::integer,
+    $4::uuid
+)
+RETURNING id, pipeline_id, version_number, created_at, created_by
+`
+
+type InsertAIGatewayPipelineVersionParams struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	PipelineID    uuid.UUID     `db:"pipeline_id" json:"pipeline_id"`
+	VersionNumber int32         `db:"version_number" json:"version_number"`
+	CreatedBy     uuid.NullUUID `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPipelineVersion(ctx context.Context, arg InsertAIGatewayPipelineVersionParams) (AIGatewayPipelineVersion, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPipelineVersion,
+		arg.ID,
+		arg.PipelineID,
+		arg.VersionNumber,
+		arg.CreatedBy,
+	)
+	var i AIGatewayPipelineVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PipelineID,
+		&i.VersionNumber,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const insertAIGatewayPipelineVersionPolicy = `-- name: InsertAIGatewayPipelineVersionPolicy :one
+INSERT INTO ai_gateway_pipeline_version_policies (
+    id,
+    pipeline_version_id,
+    policy_version_id,
+    hook,
+    kind,
+    fail_mode,
+    enabled
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::ai_gateway_hook,
+    $5::ai_gateway_policy_kind,
+    $6::ai_gateway_fail_mode,
+    $7::boolean
+)
+RETURNING id, pipeline_version_id, policy_version_id, hook, kind, fail_mode, enabled
+`
+
+type InsertAIGatewayPipelineVersionPolicyParams struct {
+	ID                uuid.UUID           `db:"id" json:"id"`
+	PipelineVersionID uuid.UUID           `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PolicyVersionID   uuid.UUID           `db:"policy_version_id" json:"policy_version_id"`
+	Hook              AIGatewayHook       `db:"hook" json:"hook"`
+	Kind              AIGatewayPolicyKind `db:"kind" json:"kind"`
+	FailMode          AIGatewayFailMode   `db:"fail_mode" json:"fail_mode"`
+	Enabled           bool                `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg InsertAIGatewayPipelineVersionPolicyParams) (AIGatewayPipelineVersionPolicy, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPipelineVersionPolicy,
+		arg.ID,
+		arg.PipelineVersionID,
+		arg.PolicyVersionID,
+		arg.Hook,
+		arg.Kind,
+		arg.FailMode,
+		arg.Enabled,
+	)
+	var i AIGatewayPipelineVersionPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.PipelineVersionID,
+		&i.PolicyVersionID,
+		&i.Hook,
+		&i.Kind,
+		&i.FailMode,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const insertAIGatewayPolicy = `-- name: InsertAIGatewayPolicy :one
+INSERT INTO ai_gateway_policies (
+    id,
+    name,
+    display_name,
+    kind
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::ai_gateway_policy_kind
+)
+RETURNING id, name, display_name, kind, active_version_id, deleted, created_at, updated_at
+`
+
+type InsertAIGatewayPolicyParams struct {
+	ID          uuid.UUID           `db:"id" json:"id"`
+	Name        string              `db:"name" json:"name"`
+	DisplayName sql.NullString      `db:"display_name" json:"display_name"`
+	Kind        AIGatewayPolicyKind `db:"kind" json:"kind"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPolicy(ctx context.Context, arg InsertAIGatewayPolicyParams) (AIGatewayPolicy, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPolicy,
+		arg.ID,
+		arg.Name,
+		arg.DisplayName,
+		arg.Kind,
+	)
+	var i AIGatewayPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Kind,
+		&i.ActiveVersionID,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayPolicyVersion = `-- name: InsertAIGatewayPolicyVersion :one
+INSERT INTO ai_gateway_policy_versions (
+    id,
+    policy_id,
+    version_number,
+    rego,
+    input_schema_version,
+    output_schema_version,
+    description,
+    created_by
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::integer,
+    $4::text,
+    $5::integer,
+    $6::integer,
+    $7::text,
+    $8::uuid
+)
+RETURNING id, policy_id, version_number, rego, input_schema_version, output_schema_version, description, created_at, created_by
+`
+
+type InsertAIGatewayPolicyVersionParams struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	PolicyID            uuid.UUID      `db:"policy_id" json:"policy_id"`
+	VersionNumber       int32          `db:"version_number" json:"version_number"`
+	Rego                string         `db:"rego" json:"rego"`
+	InputSchemaVersion  int32          `db:"input_schema_version" json:"input_schema_version"`
+	OutputSchemaVersion int32          `db:"output_schema_version" json:"output_schema_version"`
+	Description         sql.NullString `db:"description" json:"description"`
+	CreatedBy           uuid.NullUUID  `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPolicyVersion(ctx context.Context, arg InsertAIGatewayPolicyVersionParams) (AIGatewayPolicyVersion, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPolicyVersion,
+		arg.ID,
+		arg.PolicyID,
+		arg.VersionNumber,
+		arg.Rego,
+		arg.InputSchemaVersion,
+		arg.OutputSchemaVersion,
+		arg.Description,
+		arg.CreatedBy,
+	)
+	var i AIGatewayPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.PolicyID,
+		&i.VersionNumber,
+		&i.Rego,
+		&i.InputSchemaVersion,
+		&i.OutputSchemaVersion,
+		&i.Description,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const updateAIGatewayPipeline = `-- name: UpdateAIGatewayPipeline :one
+UPDATE ai_gateway_pipelines
+SET enabled = $1::boolean, updated_at = NOW()
+WHERE id = $2::uuid AND deleted = FALSE
+RETURNING id, provider_id, active_version_id, enabled, deleted, created_at, updated_at
+`
+
+type UpdateAIGatewayPipelineParams struct {
+	Enabled bool      `db:"enabled" json:"enabled"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayPipeline(ctx context.Context, arg UpdateAIGatewayPipelineParams) (AIGatewayPipeline, error) {
+	row := q.db.QueryRowContext(ctx, updateAIGatewayPipeline, arg.Enabled, arg.ID)
+	var i AIGatewayPipeline
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAIGatewayPipelineActiveVersion = `-- name: UpdateAIGatewayPipelineActiveVersion :exec
+UPDATE ai_gateway_pipelines
+SET active_version_id = $1::uuid, updated_at = NOW()
+WHERE id = $2::uuid AND deleted = FALSE
+`
+
+type UpdateAIGatewayPipelineActiveVersionParams struct {
+	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
+	ID              uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg UpdateAIGatewayPipelineActiveVersionParams) error {
+	_, err := q.db.ExecContext(ctx, updateAIGatewayPipelineActiveVersion, arg.ActiveVersionID, arg.ID)
+	return err
+}
+
+const updateAIGatewayPolicy = `-- name: UpdateAIGatewayPolicy :one
+UPDATE ai_gateway_policies
+SET
+    display_name = $1::text,
+    updated_at = NOW()
+WHERE id = $2::uuid AND deleted = FALSE
+RETURNING id, name, display_name, kind, active_version_id, deleted, created_at, updated_at
+`
+
+type UpdateAIGatewayPolicyParams struct {
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayPolicy(ctx context.Context, arg UpdateAIGatewayPolicyParams) (AIGatewayPolicy, error) {
+	row := q.db.QueryRowContext(ctx, updateAIGatewayPolicy, arg.DisplayName, arg.ID)
+	var i AIGatewayPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Kind,
+		&i.ActiveVersionID,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAIGatewayPolicyActiveVersion = `-- name: UpdateAIGatewayPolicyActiveVersion :exec
+UPDATE ai_gateway_policies
+SET active_version_id = $1::uuid, updated_at = NOW()
+WHERE id = $2::uuid AND deleted = FALSE
+`
+
+type UpdateAIGatewayPolicyActiveVersionParams struct {
+	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
+	ID              uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayPolicyActiveVersion(ctx context.Context, arg UpdateAIGatewayPolicyActiveVersionParams) error {
+	_, err := q.db.ExecContext(ctx, updateAIGatewayPolicyActiveVersion, arg.ActiveVersionID, arg.ID)
+	return err
+}
+
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
 SELECT
 	COUNT(*)

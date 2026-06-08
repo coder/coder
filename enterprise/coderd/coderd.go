@@ -299,6 +299,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
 	})
 
+	// AI gateway policy and pipeline CRUD, gated by the AI Governance add-on.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge/policies", func(r chi.Router) {
+			r.Use(apiKeyMiddleware, api.RequireFeatureMW(codersdk.FeatureAIBridge))
+			api.AGPL.AIGatewayPoliciesRoutes(r)
+		})
+	})
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge/pipelines", func(r chi.Router) {
+			r.Use(apiKeyMiddleware, api.RequireFeatureMW(codersdk.FeatureAIBridge))
+			api.AGPL.AIGatewayPipelinesRoutes(r)
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge/keys", func(r chi.Router) {
 			r.Use(

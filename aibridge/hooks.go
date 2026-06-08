@@ -26,15 +26,25 @@ const (
 	hookPreReq  = "pre-req"
 )
 
-// policyHooks holds the compiled per-hook pipelines applied to each bridged
-// request. A nil pipeline is a no-op, so a bridge configured with no policies
-// passes every request through unchanged.
+// ProviderPipelines holds the compiled per-hook policy pipelines for a single
+// provider. A nil pipeline is a no-op for that hook.
 //
 // Pipelines are compiled once (compile-once, eval-many); only evaluation runs
 // per request.
+type ProviderPipelines struct {
+	PreAuth *policy.Pipeline
+	PreReq  *policy.Pipeline
+	// Version is the active pipeline version that produced these pipelines. It
+	// is recorded on policy decisions so an audit can reconstruct exactly which
+	// version evaluated a past request.
+	Version int32
+}
+
+// policyHooks holds the compiled pipelines keyed by provider name. A provider
+// with no entry runs no policies (pass-through), matching the design's
+// "absence = pass-through" posture.
 type policyHooks struct {
-	preAuth *policy.Pipeline
-	preReq  *policy.Pipeline
+	byProvider map[string]ProviderPipelines
 }
 
 // RequestBridgeOption configures optional [RequestBridge] behavior.
@@ -44,11 +54,11 @@ type requestBridgeOptions struct {
 	hooks policyHooks
 }
 
-// WithPolicyHooks attaches the pre-auth and pre-req policy pipelines. Either may
-// be nil.
-func WithPolicyHooks(preAuth, preReq *policy.Pipeline) RequestBridgeOption {
+// WithPolicyHooks attaches per-provider policy pipelines keyed by provider name.
+// Providers absent from the map run no policies.
+func WithPolicyHooks(byProvider map[string]ProviderPipelines) RequestBridgeOption {
 	return func(o *requestBridgeOptions) {
-		o.hooks = policyHooks{preAuth: preAuth, preReq: preReq}
+		o.hooks = policyHooks{byProvider: byProvider}
 	}
 }
 
@@ -63,13 +73,17 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	ctx := r.Context()
 	model := payload.Model()
 
-	if h.preAuth != nil {
+	// Absence = pass-through: a provider with no configured pipelines runs no
+	// policies.
+	ph := h.byProvider[provider]
+
+	if ph.PreAuth != nil {
 		in, err := policy.BuildAuthInput(headerMap(r.Header, remoteIP(r)), credentialMap(r))
 		if err != nil {
 			p, a, b := h.fail(w, ctx, hookPreAuth, "build pre-auth input", err, logger)
 			return p, a, nil, b
 		}
-		res, ok := h.evaluate(w, ctx, h.preAuth, in, hookPreAuth, provider, model, m, logger)
+		res, ok := h.evaluate(w, ctx, ph.PreAuth, in, hookPreAuth, provider, model, ph.Version, m, logger)
 		if !ok {
 			return payload, nil, nil, true
 		}
@@ -77,7 +91,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 		modifications = res.Modifications
 	}
 
-	if h.preReq != nil {
+	if ph.PreReq != nil {
 		in, err := policy.BuildInput(payload.Body(), identityMap(actor))
 		if err != nil {
 			p, a, b := h.fail(w, ctx, hookPreReq, "build pre-req input", err, logger)
@@ -90,7 +104,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 				return p, a, nil, b
 			}
 		}
-		res, ok := h.evaluate(w, ctx, h.preReq, in, hookPreReq, provider, model, m, logger)
+		res, ok := h.evaluate(w, ctx, ph.PreReq, in, hookPreReq, provider, model, ph.Version, m, logger)
 		if !ok {
 			return payload, nil, nil, true
 		}
@@ -106,7 +120,10 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 
 // evaluate runs a pipeline, records metrics, and blocks the response on a BLOCK
 // verdict. ok is false when the request was blocked (response already written).
-func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *policy.Pipeline, in policy.Input, hook, provider, model string, m *metrics.Metrics, logger slog.Logger) (policy.Result, bool) {
+func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *policy.Pipeline, in policy.Input, hook, provider, model string, pipelineVersion int32, m *metrics.Metrics, logger slog.Logger) (policy.Result, bool) {
+	// pipeline_version is recorded on every policy outcome so audits can
+	// reconstruct which version evaluated a past request after a swap.
+	logger = logger.With(slog.F("hook", hook), slog.F("pipeline_version", pipelineVersion))
 	start := time.Now()
 	res, err := pipe.Evaluate(ctx, in)
 	if m != nil {
@@ -115,7 +132,7 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 	if err != nil {
 		// A pipeline only returns an error on an internal failure (not a
 		// policy verdict); fail closed.
-		logger.Warn(ctx, "evaluate policies", slog.F("hook", hook), slog.Error(err))
+		logger.Warn(ctx, "evaluate policies", slog.Error(err))
 		http.Error(w, blockedByPolicyMessage, http.StatusForbidden)
 		return policy.Result{}, false
 	}
@@ -127,13 +144,13 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 		if res.BlockedBy != "" {
 			msg = fmt.Sprintf("request blocked by policy %q", res.BlockedBy)
 		}
-		logger.Debug(ctx, "request blocked by policy", slog.F("hook", hook), slog.F("policy", res.BlockedBy))
+		logger.Debug(ctx, "request blocked by policy", slog.F("policy", res.BlockedBy))
 		http.Error(w, msg, http.StatusForbidden)
 		return policy.Result{}, false
 	}
 	for name, mod := range res.Modifications {
 		logger.Debug(ctx, "policy modified request",
-			slog.F("hook", hook), slog.F("policy", name), slog.F("modification", mod))
+			slog.F("policy", name), slog.F("modification", mod))
 	}
 	return res, true
 }

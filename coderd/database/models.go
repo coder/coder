@@ -16,6 +16,186 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIGatewayFailMode string
+
+const (
+	AIGatewayFailModeFailOpen   AIGatewayFailMode = "fail_open"
+	AIGatewayFailModeFailClosed AIGatewayFailMode = "fail_closed"
+)
+
+func (e *AIGatewayFailMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIGatewayFailMode(s)
+	case string:
+		*e = AIGatewayFailMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIGatewayFailMode: %T", src)
+	}
+	return nil
+}
+
+type NullAIGatewayFailMode struct {
+	AIGatewayFailMode AIGatewayFailMode `json:"ai_gateway_fail_mode"`
+	Valid             bool              `json:"valid"` // Valid is true if AIGatewayFailMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIGatewayFailMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIGatewayFailMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIGatewayFailMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIGatewayFailMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIGatewayFailMode), nil
+}
+
+func (e AIGatewayFailMode) Valid() bool {
+	switch e {
+	case AIGatewayFailModeFailOpen,
+		AIGatewayFailModeFailClosed:
+		return true
+	}
+	return false
+}
+
+func AllAIGatewayFailModeValues() []AIGatewayFailMode {
+	return []AIGatewayFailMode{
+		AIGatewayFailModeFailOpen,
+		AIGatewayFailModeFailClosed,
+	}
+}
+
+type AIGatewayHook string
+
+const (
+	AIGatewayHookPreAuth AIGatewayHook = "pre_auth"
+	AIGatewayHookPreReq  AIGatewayHook = "pre_req"
+)
+
+func (e *AIGatewayHook) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIGatewayHook(s)
+	case string:
+		*e = AIGatewayHook(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIGatewayHook: %T", src)
+	}
+	return nil
+}
+
+type NullAIGatewayHook struct {
+	AIGatewayHook AIGatewayHook `json:"ai_gateway_hook"`
+	Valid         bool          `json:"valid"` // Valid is true if AIGatewayHook is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIGatewayHook) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIGatewayHook, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIGatewayHook.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIGatewayHook) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIGatewayHook), nil
+}
+
+func (e AIGatewayHook) Valid() bool {
+	switch e {
+	case AIGatewayHookPreAuth,
+		AIGatewayHookPreReq:
+		return true
+	}
+	return false
+}
+
+func AllAIGatewayHookValues() []AIGatewayHook {
+	return []AIGatewayHook{
+		AIGatewayHookPreAuth,
+		AIGatewayHookPreReq,
+	}
+}
+
+type AIGatewayPolicyKind string
+
+const (
+	AIGatewayPolicyKindClassify  AIGatewayPolicyKind = "classify"
+	AIGatewayPolicyKindRoute     AIGatewayPolicyKind = "route"
+	AIGatewayPolicyKindDecide    AIGatewayPolicyKind = "decide"
+	AIGatewayPolicyKindTransform AIGatewayPolicyKind = "transform"
+)
+
+func (e *AIGatewayPolicyKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIGatewayPolicyKind(s)
+	case string:
+		*e = AIGatewayPolicyKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIGatewayPolicyKind: %T", src)
+	}
+	return nil
+}
+
+type NullAIGatewayPolicyKind struct {
+	AIGatewayPolicyKind AIGatewayPolicyKind `json:"ai_gateway_policy_kind"`
+	Valid               bool                `json:"valid"` // Valid is true if AIGatewayPolicyKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIGatewayPolicyKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIGatewayPolicyKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIGatewayPolicyKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIGatewayPolicyKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIGatewayPolicyKind), nil
+}
+
+func (e AIGatewayPolicyKind) Valid() bool {
+	switch e {
+	case AIGatewayPolicyKindClassify,
+		AIGatewayPolicyKindRoute,
+		AIGatewayPolicyKindDecide,
+		AIGatewayPolicyKindTransform:
+		return true
+	}
+	return false
+}
+
+func AllAIGatewayPolicyKindValues() []AIGatewayPolicyKind {
+	return []AIGatewayPolicyKind{
+		AIGatewayPolicyKindClassify,
+		AIGatewayPolicyKindRoute,
+		AIGatewayPolicyKindDecide,
+		AIGatewayPolicyKindTransform,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -3366,6 +3546,8 @@ const (
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
+	ResourceTypeAIGatewayPolicy             ResourceType = "ai_gateway_policy"
+	ResourceTypeAIGatewayPipeline           ResourceType = "ai_gateway_pipeline"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3438,7 +3620,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
-		ResourceTypeAIGatewayKey:
+		ResourceTypeAIGatewayKey,
+		ResourceTypeAIGatewayPolicy,
+		ResourceTypeAIGatewayPipeline:
 		return true
 	}
 	return false
@@ -3480,6 +3664,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
+		ResourceTypeAIGatewayPolicy,
+		ResourceTypeAIGatewayPipeline,
 	}
 }
 
@@ -4459,6 +4645,62 @@ type AIGatewayKey struct {
 	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+// At most one policy pipeline per AI provider; active_version_id is the atomic swap point.
+type AIGatewayPipeline struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	ProviderID      uuid.UUID     `db:"provider_id" json:"provider_id"`
+	ActiveVersionID uuid.NullUUID `db:"active_version_id" json:"active_version_id"`
+	Enabled         bool          `db:"enabled" json:"enabled"`
+	Deleted         bool          `db:"deleted" json:"deleted"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+}
+
+// Immutable composition snapshots forming a pipeline's version history.
+type AIGatewayPipelineVersion struct {
+	ID            uuid.UUID     `db:"id" json:"id"`
+	PipelineID    uuid.UUID     `db:"pipeline_id" json:"pipeline_id"`
+	VersionNumber int32         `db:"version_number" json:"version_number"`
+	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
+	CreatedBy     uuid.NullUUID `db:"created_by" json:"created_by"`
+}
+
+// Membership of a pipeline version: which policy versions run at which hook.
+type AIGatewayPipelineVersionPolicy struct {
+	ID                uuid.UUID           `db:"id" json:"id"`
+	PipelineVersionID uuid.UUID           `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PolicyVersionID   uuid.UUID           `db:"policy_version_id" json:"policy_version_id"`
+	Hook              AIGatewayHook       `db:"hook" json:"hook"`
+	Kind              AIGatewayPolicyKind `db:"kind" json:"kind"`
+	FailMode          AIGatewayFailMode   `db:"fail_mode" json:"fail_mode"`
+	Enabled           bool                `db:"enabled" json:"enabled"`
+}
+
+// Reusable, versioned Rego policies for the AI gateway policy engine.
+type AIGatewayPolicy struct {
+	ID              uuid.UUID           `db:"id" json:"id"`
+	Name            string              `db:"name" json:"name"`
+	DisplayName     sql.NullString      `db:"display_name" json:"display_name"`
+	Kind            AIGatewayPolicyKind `db:"kind" json:"kind"`
+	ActiveVersionID uuid.NullUUID       `db:"active_version_id" json:"active_version_id"`
+	Deleted         bool                `db:"deleted" json:"deleted"`
+	CreatedAt       time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time           `db:"updated_at" json:"updated_at"`
+}
+
+// Immutable Rego text + frozen schema bindings for each policy version.
+type AIGatewayPolicyVersion struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	PolicyID            uuid.UUID      `db:"policy_id" json:"policy_id"`
+	VersionNumber       int32          `db:"version_number" json:"version_number"`
+	Rego                string         `db:"rego" json:"rego"`
+	InputSchemaVersion  int32          `db:"input_schema_version" json:"input_schema_version"`
+	OutputSchemaVersion int32          `db:"output_schema_version" json:"output_schema_version"`
+	Description         sql.NullString `db:"description" json:"description"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	CreatedBy           uuid.NullUUID  `db:"created_by" json:"created_by"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.

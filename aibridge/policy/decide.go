@@ -7,8 +7,9 @@ import (
 )
 
 // Decide is a pure decision policy. It evaluates data.gateway.verdict and
-// returns a Verdict. An undefined rule defaults to ALLOW; an unrecognized
-// verdict value is an error (which fails closed in a pipeline).
+// returns a Verdict. An undefined rule defaults to ALLOW (registration requires
+// a default verdict, so this should not happen for stored policies); an
+// unrecognized verdict value is an error (which fails closed in a pipeline).
 type Decide struct {
 	prepared preparedQuery
 	failMode FailMode
@@ -38,7 +39,7 @@ func (d *Decide) Evaluate(ctx context.Context, in Input) (Verdict, error) {
 	}
 	v := Verdict(s)
 	switch v {
-	case VerdictAllow, VerdictLog, VerdictFlag, VerdictBlock:
+	case VerdictAllow, VerdictLog, VerdictBlock:
 		return v, nil
 	default:
 		return "", xerrors.Errorf("unknown verdict %q", s)

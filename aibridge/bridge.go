@@ -2,7 +2,6 @@ package aibridge
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,26 +24,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
-	"github.com/coder/coder/v2/aibridge/policy"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 )
-
-//go:embed policy/examples/classification.rego
-var defaultClassificationPolicy string
-
-//go:embed policy/examples/routing.rego
-var defaultRoutingPolicy string
-
-//go:embed policy/examples/decision.rego
-var defaultDecisionPolicy string
-
-//go:embed policy/examples/transform.rego
-var defaultTransformPolicy string
-
-//go:embed policy/examples/pre_auth_classification.rego
-var defaultPreAuthClassificationPolicy string
 
 const (
 	// The duration after which an async recording will be aborted.
@@ -122,52 +105,9 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		opt(&options)
 	}
 	hooks := options.hooks
-
-	// When no pre-auth pipeline is configured, activate the source-IP
-	// classification policy as a default.
-	// TODO: replace with registered policies sourced from the DB.
-	if hooks.preAuth == nil {
-		classify, err := policy.NewClassify("source-ip-classifier", defaultPreAuthClassificationPolicy)
-		if err != nil {
-			return nil, xerrors.Errorf("compile default pre-auth classification policy: %w", err)
-		}
-		hooks.preAuth, err = policy.NewPipeline(policy.PipelineConfig{
-			Classify: []*policy.Classify{classify},
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("build default pre-auth pipeline: %w", err)
-		}
-	}
-
-	// When no pre-req pipeline is configured, activate the four example policies
-	// as a default. TODO: replace with registered policies sourced from the DB.
-	if hooks.preReq == nil {
-		classify, err := policy.NewClassify("request-shape-classifier", defaultClassificationPolicy)
-		if err != nil {
-			return nil, xerrors.Errorf("compile default classification policy: %w", err)
-		}
-		route, err := policy.NewRoute("premium-tier-downgrade", defaultRoutingPolicy)
-		if err != nil {
-			return nil, xerrors.Errorf("compile default routing policy: %w", err)
-		}
-		decide, err := policy.NewDecide("block-banana", defaultDecisionPolicy)
-		if err != nil {
-			return nil, xerrors.Errorf("compile default decision policy: %w", err)
-		}
-		transform, err := policy.NewTransform("anthropic-banana-system-prompt", defaultTransformPolicy)
-		if err != nil {
-			return nil, xerrors.Errorf("compile default transform policy: %w", err)
-		}
-		hooks.preReq, err = policy.NewPipeline(policy.PipelineConfig{
-			Classify:  []*policy.Classify{classify},
-			Route:     route,
-			Decide:    []*policy.Decide{decide},
-			Transform: []*policy.Transform{transform},
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("build default pre-req pipeline: %w", err)
-		}
-	}
+	// Policy pipelines are sourced per-provider from the DB by the caller (see
+	// coderd/aibridged) and passed via WithPolicyHooks. A provider with no
+	// configured pipeline runs no policies (pass-through).
 
 	mux := http.NewServeMux()
 

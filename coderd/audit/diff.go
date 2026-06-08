@@ -37,6 +37,8 @@ type Auditable interface {
 		database.AIProvider |
 		database.AIProviderKey |
 		database.AIGatewayKey |
+		database.AIGatewayPolicy |
+		database.AIGatewayPipeline |
 		database.Chat |
 		database.AuditableGroupAiBudget |
 		database.UserSecret |

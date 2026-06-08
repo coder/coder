@@ -146,7 +146,9 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: "policy",
 			Name:      "eval_duration_seconds",
 			Help:      "The duration of policy pipeline evaluation, per hook, in seconds.",
-			Buckets:   []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
+			// Buckets align with the 1s per-stage eval timeout: the top bucket is
+			// the timeout, so saturation against it is visible.
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
 		}, []string{"provider", "hook"}),
 	}
 }

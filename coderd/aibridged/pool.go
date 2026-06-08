@@ -57,7 +57,13 @@ type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
 	// providers is the live provider set used by new RequestBridge
 	// instances. Includes disabled providers.
-	providers       atomic.Pointer[[]aibridge.Provider]
+	providers atomic.Pointer[[]aibridge.Provider]
+	// policyHooks is the live per-provider policy pipeline snapshot used by new
+	// RequestBridge instances. A provider absent from the map runs no policies.
+	policyHooks atomic.Pointer[map[string]aibridge.ProviderPipelines]
+	// providerVersion is bumped whenever the provider OR policy snapshot is
+	// replaced; it is part of the singleflight key so a replacement forces new
+	// bridges to be built.
 	providerVersion atomic.Int64
 	logger          slog.Logger
 	options         PoolOptions
@@ -139,10 +145,40 @@ func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
 	)
 }
 
+// ReplacePolicyHooks swaps the per-provider policy pipeline snapshot used by
+// future Acquires. Like ReplaceProviders it bumps the version and clears the
+// cache so in-flight requests keep their snapshot while new bridges pick up the
+// change. It is safe to call concurrently and is a no-op after Shutdown.
+func (p *CachedBridgePool) ReplacePolicyHooks(hooks map[string]aibridge.ProviderPipelines) {
+	select {
+	case <-p.shuttingDownCh:
+		return
+	default:
+	}
+	p.policyHooks.Store(&hooks)
+	version := time.Now().UnixNano()
+	p.providerVersion.Store(version)
+	p.cache.Clear()
+	p.cache.Wait()
+	p.logger.Info(context.Background(), "request bridge pool policy hooks reloaded",
+		slog.F("providers_with_policies", len(hooks)),
+		slog.F("snapshot_version", version),
+	)
+}
+
 // loadProviders returns the current providers snapshot. The returned
 // slice must not be mutated.
 func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 	if ptr := p.providers.Load(); ptr != nil {
+		return *ptr
+	}
+	return nil
+}
+
+// loadPolicyHooks returns the current per-provider policy pipeline snapshot. The
+// returned map must not be mutated.
+func (p *CachedBridgePool) loadPolicyHooks() map[string]aibridge.ProviderPipelines {
+	if ptr := p.policyHooks.Load(); ptr != nil {
 		return *ptr
 	}
 	return nil
@@ -222,7 +258,11 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer)
+		opts := []aibridge.RequestBridgeOption{}
+		if hooks := p.loadPolicyHooks(); hooks != nil {
+			opts = append(opts, aibridge.WithPolicyHooks(hooks))
+		}
+		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, opts...)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}

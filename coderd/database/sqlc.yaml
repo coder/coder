@@ -262,9 +262,27 @@ sql:
           ai_provider_key: AIProviderKey
           ai_provider_type: AIProviderType
           ai_gateway_key: AIGatewayKey
+          ai_gateway_policy: AIGatewayPolicy
+          ai_gateway_policy_version: AIGatewayPolicyVersion
+          ai_gateway_pipeline: AIGatewayPipeline
+          ai_gateway_pipeline_version: AIGatewayPipelineVersion
+          ai_gateway_pipeline_version_policy: AIGatewayPipelineVersionPolicy
+          ai_gateway_policy_kind: AIGatewayPolicyKind
+          ai_gateway_policy_kind_classify: AIGatewayPolicyKindClassify
+          ai_gateway_policy_kind_route: AIGatewayPolicyKindRoute
+          ai_gateway_policy_kind_decide: AIGatewayPolicyKindDecide
+          ai_gateway_policy_kind_transform: AIGatewayPolicyKindTransform
+          ai_gateway_hook: AIGatewayHook
+          ai_gateway_hook_pre_auth: AIGatewayHookPreAuth
+          ai_gateway_hook_pre_req: AIGatewayHookPreReq
+          ai_gateway_fail_mode: AIGatewayFailMode
+          ai_gateway_fail_mode_fail_open: AIGatewayFailModeFailOpen
+          ai_gateway_fail_mode_fail_closed: AIGatewayFailModeFailClosed
           resource_type_ai_provider: ResourceTypeAIProvider
           resource_type_ai_provider_key: ResourceTypeAIProviderKey
           resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
+          resource_type_ai_gateway_policy: ResourceTypeAIGatewayPolicy
+          resource_type_ai_gateway_pipeline: ResourceTypeAIGatewayPipeline
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

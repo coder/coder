@@ -304,6 +304,19 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aigatewaypolicies.go
+export type AIGatewayFailMode = "fail_closed" | "fail_open";
+
+export const AIGatewayFailModes: AIGatewayFailMode[] = [
+	"fail_closed",
+	"fail_open",
+];
+
+// From codersdk/aigatewaypolicies.go
+export type AIGatewayHook = "pre_auth" | "pre_req";
+
+export const AIGatewayHooks: AIGatewayHook[] = ["pre_auth", "pre_req"];
+
 // From codersdk/aigatewaykeys.go
 /**
  * AIGatewayKey is a shared secret used by a standalone AI Gateway
@@ -315,6 +328,104 @@ export interface AIGatewayKey {
 	readonly key_prefix: string;
 	readonly created_at: string;
 	readonly last_used_at?: string;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipeline attaches at most one policy pipeline to a provider.
+ */
+export interface AIGatewayPipeline {
+	readonly id: string;
+	readonly provider_id: string;
+	readonly enabled: boolean;
+	readonly active_version_id?: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly active_version?: AIGatewayPipelineVersion;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipelinePolicy is one member of a pipeline version: a pinned policy
+ * version bound to a hook with a fail mode.
+ */
+export interface AIGatewayPipelinePolicy {
+	readonly policy_version_id: string;
+	readonly hook: AIGatewayHook;
+	readonly kind: AIGatewayPolicyKind;
+	readonly fail_mode: AIGatewayFailMode;
+	/**
+	 * Enabled disables this policy within this pipeline without disabling it
+	 * globally. Disabled members are excluded from the runtime snapshot.
+	 */
+	readonly enabled: boolean;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipelinePolicyRequest pins a policy version into a pipeline version
+ * at a hook. Kind is derived server-side from the policy version. Enabled
+ * defaults to true when omitted.
+ */
+export interface AIGatewayPipelinePolicyRequest {
+	readonly policy_version_id: string;
+	readonly hook: AIGatewayHook;
+	readonly fail_mode: AIGatewayFailMode;
+	readonly enabled?: boolean;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipelineVersion is an immutable composition snapshot.
+ */
+export interface AIGatewayPipelineVersion {
+	readonly id: string;
+	readonly pipeline_id: string;
+	readonly version_number: number;
+	readonly created_at: string;
+	readonly policies: readonly AIGatewayPipelinePolicy[];
+}
+
+// From codersdk/aigatewaypolicies.go
+/**
+ * AIGatewayPolicy is a reusable, versioned Rego policy.
+ */
+export interface AIGatewayPolicy {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly kind: AIGatewayPolicyKind;
+	readonly active_version_id?: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly versions?: readonly AIGatewayPolicyVersion[];
+}
+
+// From codersdk/aigatewaypolicies.go
+export type AIGatewayPolicyKind = "classify" | "decide" | "route" | "transform";
+
+export const AIGatewayPolicyKinds: AIGatewayPolicyKind[] = [
+	"classify",
+	"decide",
+	"route",
+	"transform",
+];
+
+// From codersdk/aigatewaypolicies.go
+/**
+ * AIGatewayPolicyVersion is an immutable snapshot of a policy's Rego text and
+ * its frozen schema bindings.
+ */
+export interface AIGatewayPolicyVersion {
+	readonly id: string;
+	readonly policy_id: string;
+	readonly version_number: number;
+	readonly rego: string;
+	readonly input_schema_version: number;
+	readonly output_schema_version: number;
+	readonly description: string;
+	readonly created_at: string;
+	readonly created_by?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -535,6 +646,11 @@ export type APIKeyScope =
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
 	| "ai_gateway_key:read"
+	| "ai_gateway_policy:*"
+	| "ai_gateway_policy:create"
+	| "ai_gateway_policy:delete"
+	| "ai_gateway_policy:read"
+	| "ai_gateway_policy:update"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -769,6 +885,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
 	"ai_gateway_key:read",
+	"ai_gateway_policy:*",
+	"ai_gateway_policy:create",
+	"ai_gateway_policy:delete",
+	"ai_gateway_policy:read",
+	"ai_gateway_policy:update",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -3290,6 +3411,51 @@ export interface CreateAIGatewayKeyResponse {
 	readonly key: string;
 	readonly key_prefix: string;
 	readonly created_at: string;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * CreateAIGatewayPipelineRequest creates a pipeline for a provider and its
+ * first version.
+ */
+export interface CreateAIGatewayPipelineRequest {
+	readonly provider_id: string;
+	readonly enabled: boolean;
+	readonly policies: readonly AIGatewayPipelinePolicyRequest[];
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * CreateAIGatewayPipelineVersionRequest mints a new pipeline version.
+ */
+export interface CreateAIGatewayPipelineVersionRequest {
+	readonly policies: readonly AIGatewayPipelinePolicyRequest[];
+	readonly activate: boolean;
+}
+
+// From codersdk/aigatewaypolicies.go
+/**
+ * CreateAIGatewayPolicyRequest creates a policy and its first version.
+ */
+export interface CreateAIGatewayPolicyRequest {
+	readonly name: string;
+	readonly display_name?: string;
+	readonly kind: AIGatewayPolicyKind;
+	readonly rego: string;
+	readonly description?: string;
+}
+
+// From codersdk/aigatewaypolicies.go
+/**
+ * CreateAIGatewayPolicyVersionRequest mints a new immutable version.
+ */
+export interface CreateAIGatewayPolicyVersionRequest {
+	readonly rego: string;
+	readonly description?: string;
+	/**
+	 * Activate sets the new version as the policy's active version.
+	 */
+	readonly activate: boolean;
 }
 
 // From codersdk/aiproviders.go
@@ -6948,6 +7114,7 @@ export const RBACActions: RBACAction[] = [
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
 	| "ai_gateway_key"
+	| "ai_gateway_policy"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -7000,6 +7167,7 @@ export type RBACResource =
 
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
+	"ai_gateway_policy",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
@@ -7157,6 +7325,8 @@ export interface ResolveAutostartResponse {
 // From codersdk/audit.go
 export type ResourceType =
 	| "ai_gateway_key"
+	| "ai_gateway_pipeline"
+	| "ai_gateway_policy"
 	| "ai_provider"
 	| "ai_provider_key"
 	| "ai_seat"
@@ -7193,6 +7363,8 @@ export type ResourceType =
 
 export const ResourceTypes: ResourceType[] = [
 	"ai_gateway_key",
+	"ai_gateway_pipeline",
+	"ai_gateway_policy",
 	"ai_provider",
 	"ai_provider_key",
 	"ai_seat",
@@ -8543,6 +8715,25 @@ export interface TraceConfig {
 export interface TransitionStats {
 	readonly P50: number | null;
 	readonly P95: number | null;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * UpdateAIGatewayPipelineRequest partially updates a pipeline parent.
+ */
+export interface UpdateAIGatewayPipelineRequest {
+	readonly enabled?: boolean;
+	readonly active_version_id?: string;
+}
+
+// From codersdk/aigatewaypolicies.go
+/**
+ * UpdateAIGatewayPolicyRequest partially updates a policy parent. At least one
+ * field must be set.
+ */
+export interface UpdateAIGatewayPolicyRequest {
+	readonly display_name?: string;
+	readonly active_version_id?: string;
 }
 
 // From codersdk/aiproviders.go

@@ -1,13 +1,13 @@
 package policy
 
 // Verdict is the outcome of a decision policy. Verdicts compose across a
-// pipeline by precedence: BLOCK > FLAG > LOG > ALLOW.
+// pipeline by precedence: BLOCK > LOG > ALLOW. (FLAG is a deferred verdict; see
+// the policy engine design doc.)
 type Verdict string
 
 const (
 	VerdictAllow Verdict = "ALLOW"
 	VerdictLog   Verdict = "LOG"
-	VerdictFlag  Verdict = "FLAG"
 	VerdictBlock Verdict = "BLOCK"
 )
 
@@ -15,8 +15,6 @@ const (
 func (v Verdict) rank() int {
 	switch v {
 	case VerdictBlock:
-		return 3
-	case VerdictFlag:
 		return 2
 	case VerdictLog:
 		return 1
@@ -28,7 +26,7 @@ func (v Verdict) rank() int {
 // Blocks reports whether the verdict stops the request.
 func (v Verdict) Blocks() bool { return v == VerdictBlock }
 
-// ReduceVerdicts combines verdicts by precedence BLOCK > FLAG > LOG > ALLOW.
+// ReduceVerdicts combines verdicts by precedence BLOCK > LOG > ALLOW.
 // With no verdicts it returns ALLOW.
 func ReduceVerdicts(vs ...Verdict) Verdict {
 	out := VerdictAllow

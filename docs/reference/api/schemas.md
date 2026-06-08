@@ -1248,6 +1248,34 @@
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
+## codersdk.AIGatewayFailMode
+
+```json
+"fail_open"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `fail_closed`, `fail_open` |
+
+## codersdk.AIGatewayHook
+
+```json
+"pre_auth"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `pre_auth`, `pre_req` |
+
 ## codersdk.AIGatewayKey
 
 ```json
@@ -1269,6 +1297,202 @@
 | `key_prefix`   | string | false    |              |             |
 | `last_used_at` | string | false    |              |             |
 | `name`         | string | false    |              |             |
+
+## codersdk.AIGatewayPipeline
+
+```json
+{
+  "active_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                | Type                                                                   | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `active_version`    | [codersdk.AIGatewayPipelineVersion](#codersdkaigatewaypipelineversion) | false    |              |             |
+| `active_version_id` | string                                                                 | false    |              |             |
+| `created_at`        | string                                                                 | false    |              |             |
+| `enabled`           | boolean                                                                | false    |              |             |
+| `id`                | string                                                                 | false    |              |             |
+| `provider_id`       | string                                                                 | false    |              |             |
+| `updated_at`        | string                                                                 | false    |              |             |
+
+## codersdk.AIGatewayPipelinePolicy
+
+```json
+{
+  "enabled": true,
+  "fail_mode": "fail_open",
+  "hook": "pre_auth",
+  "kind": "classify",
+  "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+}
+```
+
+### Properties
+
+| Name                | Type                                                         | Required | Restrictions | Description                                                                                                                               |
+|---------------------|--------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean                                                      | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
+| `fail_mode`         | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode)     | false    |              |                                                                                                                                           |
+| `hook`              | [codersdk.AIGatewayHook](#codersdkaigatewayhook)             | false    |              |                                                                                                                                           |
+| `kind`              | [codersdk.AIGatewayPolicyKind](#codersdkaigatewaypolicykind) | false    |              |                                                                                                                                           |
+| `policy_version_id` | string                                                       | false    |              |                                                                                                                                           |
+
+## codersdk.AIGatewayPipelinePolicyRequest
+
+```json
+{
+  "enabled": true,
+  "fail_mode": "fail_open",
+  "hook": "pre_auth",
+  "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+}
+```
+
+### Properties
+
+| Name                | Type                                                     | Required | Restrictions | Description |
+|---------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `enabled`           | boolean                                                  | false    |              |             |
+| `fail_mode`         | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode) | false    |              |             |
+| `hook`              | [codersdk.AIGatewayHook](#codersdkaigatewayhook)         | false    |              |             |
+| `policy_version_id` | string                                                   | false    |              |             |
+
+## codersdk.AIGatewayPipelineVersion
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "kind": "classify",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ],
+  "version_number": 0
+}
+```
+
+### Properties
+
+| Name             | Type                                                                          | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`     | string                                                                        | false    |              |             |
+| `id`             | string                                                                        | false    |              |             |
+| `pipeline_id`    | string                                                                        | false    |              |             |
+| `policies`       | array of [codersdk.AIGatewayPipelinePolicy](#codersdkaigatewaypipelinepolicy) | false    |              |             |
+| `version_number` | integer                                                                       | false    |              |             |
+
+## codersdk.AIGatewayPolicy
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "classify",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_schema_version": 0,
+      "output_schema_version": 0,
+      "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+      "rego": "string",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                                        | Required | Restrictions | Description |
+|---------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `active_version_id` | string                                                                      | false    |              |             |
+| `created_at`        | string                                                                      | false    |              |             |
+| `display_name`      | string                                                                      | false    |              |             |
+| `id`                | string                                                                      | false    |              |             |
+| `kind`              | [codersdk.AIGatewayPolicyKind](#codersdkaigatewaypolicykind)                | false    |              |             |
+| `name`              | string                                                                      | false    |              |             |
+| `updated_at`        | string                                                                      | false    |              |             |
+| `versions`          | array of [codersdk.AIGatewayPolicyVersion](#codersdkaigatewaypolicyversion) | false    |              |             |
+
+## codersdk.AIGatewayPolicyKind
+
+```json
+"classify"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                   |
+|--------------------------------------------|
+| `classify`, `decide`, `route`, `transform` |
+
+## codersdk.AIGatewayPolicyVersion
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_schema_version": 0,
+  "output_schema_version": 0,
+  "policy_id": "ee9b03e0-6495-427a-85a5-34444d24ae04",
+  "rego": "string",
+  "version_number": 0
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `created_at`            | string  | false    |              |             |
+| `created_by`            | string  | false    |              |             |
+| `description`           | string  | false    |              |             |
+| `id`                    | string  | false    |              |             |
+| `input_schema_version`  | integer | false    |              |             |
+| `output_schema_version` | integer | false    |              |             |
+| `policy_id`             | string  | false    |              |             |
+| `rego`                  | string  | false    |              |             |
+| `version_number`        | integer | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -1466,9 +1690,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_policy:*`, `ai_gateway_policy:create`, `ai_gateway_policy:delete`, `ai_gateway_policy:read`, `ai_gateway_policy:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -4467,6 +4691,94 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `key`        | string | false    |              |             |
 | `key_prefix` | string | false    |              |             |
 | `name`       | string | false    |              |             |
+
+## codersdk.CreateAIGatewayPipelineRequest
+
+```json
+{
+  "enabled": true,
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ],
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                        | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `enabled`     | boolean                                                                                     | false    |              |             |
+| `policies`    | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest) | false    |              |             |
+| `provider_id` | string                                                                                      | false    |              |             |
+
+## codersdk.CreateAIGatewayPipelineVersionRequest
+
+```json
+{
+  "activate": true,
+  "policies": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "hook": "pre_auth",
+      "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                                                        | Required | Restrictions | Description |
+|------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `activate` | boolean                                                                                     | false    |              |             |
+| `policies` | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest) | false    |              |             |
+
+## codersdk.CreateAIGatewayPolicyRequest
+
+```json
+{
+  "description": "string",
+  "display_name": "string",
+  "kind": "classify",
+  "name": "string",
+  "rego": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                         | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `description`  | string                                                       | false    |              |             |
+| `display_name` | string                                                       | false    |              |             |
+| `kind`         | [codersdk.AIGatewayPolicyKind](#codersdkaigatewaypolicykind) | false    |              |             |
+| `name`         | string                                                       | false    |              |             |
+| `rego`         | string                                                       | false    |              |             |
+
+## codersdk.CreateAIGatewayPolicyVersionRequest
+
+```json
+{
+  "activate": true,
+  "description": "string",
+  "rego": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                   |
+|---------------|---------|----------|--------------|---------------------------------------------------------------|
+| `activate`    | boolean | false    |              | Activate sets the new version as the policy's active version. |
+| `description` | string  | false    |              |                                                               |
+| `rego`        | string  | false    |              |                                                               |
 
 ## codersdk.CreateAIProviderRequest
 
@@ -10884,9 +11196,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_gateway_policy`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -11102,9 +11414,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_gateway_pipeline`, `ai_gateway_policy`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -13044,6 +13356,38 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------|---------|----------|--------------|-------------|
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UpdateAIGatewayPipelineRequest
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `active_version_id` | string  | false    |              |             |
+| `enabled`           | boolean | false    |              |             |
+
+## codersdk.UpdateAIGatewayPolicyRequest
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "display_name": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+|---------------------|--------|----------|--------------|-------------|
+| `active_version_id` | string | false    |              |             |
+| `display_name`      | string | false    |              |             |
 
 ## codersdk.UpdateAIProviderRequest
 

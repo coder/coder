@@ -3131,6 +3131,105 @@ class ApiMethods {
 			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
 		);
 	};
+
+	getAIGatewayPolicies = async (): Promise<TypesGen.AIGatewayPolicy[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayPolicy[]>(
+			"/api/v2/aibridge/policies",
+		);
+		return response.data;
+	};
+
+	getAIGatewayPolicy = async (
+		id: string,
+	): Promise<TypesGen.AIGatewayPolicy> => {
+		const response = await this.axios.get<TypesGen.AIGatewayPolicy>(
+			`/api/v2/aibridge/policies/${encodeURIComponent(id)}`,
+		);
+		return response.data;
+	};
+
+	createAIGatewayPolicy = async (
+		req: TypesGen.CreateAIGatewayPolicyRequest,
+	): Promise<TypesGen.AIGatewayPolicy> => {
+		const response = await this.axios.post<TypesGen.AIGatewayPolicy>(
+			"/api/v2/aibridge/policies",
+			req,
+		);
+		return response.data;
+	};
+
+	createAIGatewayPolicyVersion = async (
+		id: string,
+		req: TypesGen.CreateAIGatewayPolicyVersionRequest,
+	): Promise<TypesGen.AIGatewayPolicyVersion> => {
+		const response = await this.axios.post<TypesGen.AIGatewayPolicyVersion>(
+			`/api/v2/aibridge/policies/${encodeURIComponent(id)}/versions`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIGatewayPolicy = async (
+		id: string,
+		req: TypesGen.UpdateAIGatewayPolicyRequest,
+	): Promise<TypesGen.AIGatewayPolicy> => {
+		const response = await this.axios.patch<TypesGen.AIGatewayPolicy>(
+			`/api/v2/aibridge/policies/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIGatewayPolicy = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/aibridge/policies/${encodeURIComponent(id)}`,
+		);
+	};
+
+	getAIGatewayPipelines = async (): Promise<TypesGen.AIGatewayPipeline[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayPipeline[]>(
+			"/api/v2/aibridge/pipelines",
+		);
+		return response.data;
+	};
+
+	createAIGatewayPipeline = async (
+		req: TypesGen.CreateAIGatewayPipelineRequest,
+	): Promise<TypesGen.AIGatewayPipeline> => {
+		const response = await this.axios.post<TypesGen.AIGatewayPipeline>(
+			"/api/v2/aibridge/pipelines",
+			req,
+		);
+		return response.data;
+	};
+
+	createAIGatewayPipelineVersion = async (
+		id: string,
+		req: TypesGen.CreateAIGatewayPipelineVersionRequest,
+	): Promise<TypesGen.AIGatewayPipelineVersion> => {
+		const response = await this.axios.post<TypesGen.AIGatewayPipelineVersion>(
+			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}/versions`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIGatewayPipeline = async (
+		id: string,
+		req: TypesGen.UpdateAIGatewayPipelineRequest,
+	): Promise<TypesGen.AIGatewayPipeline> => {
+		const response = await this.axios.patch<TypesGen.AIGatewayPipeline>(
+			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIGatewayPipeline = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}`,
+		);
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";

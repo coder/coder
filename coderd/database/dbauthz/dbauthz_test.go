@@ -6674,6 +6674,142 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().DeleteAIGatewayKey(gomock.Any(), id).Return(database.DeleteAIGatewayKeyRow{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionDelete).Returns(database.DeleteAIGatewayKeyRow{})
 	}))
+
+	s.Run("GetAIGatewayPolicyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{})
+		dbm.EXPECT().GetAIGatewayPolicyByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
+		check.Args(p.ID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(p)
+	}))
+	s.Run("GetAIGatewayPolicyByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{})
+		dbm.EXPECT().GetAIGatewayPolicyByName(gomock.Any(), p.Name).Return(p, nil).AnyTimes()
+		check.Args(p.Name).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(p)
+	}))
+	s.Run("GetAIGatewayPolicies", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{})
+		b := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{})
+		dbm.EXPECT().GetAIGatewayPolicies(gomock.Any(), false).Return([]database.AIGatewayPolicy{a, b}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPolicy{a, b})
+	}))
+	s.Run("InsertAIGatewayPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPolicyParams{ID: uuid.New(), Name: "test-policy", Kind: database.AIGatewayPolicyKindDecide}
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{ID: arg.ID, Name: arg.Name})
+		dbm.EXPECT().InsertAIGatewayPolicy(gomock.Any(), arg).Return(p, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(p)
+	}))
+	s.Run("UpdateAIGatewayPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPolicy{})
+		arg := database.UpdateAIGatewayPolicyParams{ID: p.ID}
+		dbm.EXPECT().UpdateAIGatewayPolicy(gomock.Any(), arg).Return(p, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns(p)
+	}))
+	s.Run("UpdateAIGatewayPolicyActiveVersion", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateAIGatewayPolicyActiveVersionParams{ID: uuid.New(), ActiveVersionID: uuid.New()}
+		dbm.EXPECT().UpdateAIGatewayPolicyActiveVersion(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteAIGatewayPolicyByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteAIGatewayPolicyByID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionDelete).Returns()
+	}))
+	s.Run("InsertAIGatewayPolicyVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPolicyVersionParams{ID: uuid.New(), PolicyID: uuid.New(), VersionNumber: 1, Rego: "default verdict := \"ALLOW\""}
+		v := testutil.Fake(s.T(), faker, database.AIGatewayPolicyVersion{ID: arg.ID, PolicyID: arg.PolicyID})
+		dbm.EXPECT().InsertAIGatewayPolicyVersion(gomock.Any(), arg).Return(v, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(v)
+	}))
+	s.Run("GetAIGatewayPolicyVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		v := testutil.Fake(s.T(), faker, database.AIGatewayPolicyVersion{})
+		dbm.EXPECT().GetAIGatewayPolicyVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
+		check.Args(v.ID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(v)
+	}))
+	s.Run("GetAIGatewayPolicyVersionsByPolicyID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		v := testutil.Fake(s.T(), faker, database.AIGatewayPolicyVersion{})
+		dbm.EXPECT().GetAIGatewayPolicyVersionsByPolicyID(gomock.Any(), v.PolicyID).Return([]database.AIGatewayPolicyVersion{v}, nil).AnyTimes()
+		check.Args(v.PolicyID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPolicyVersion{v})
+	}))
+	s.Run("GetAIGatewayPipelineByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		dbm.EXPECT().GetAIGatewayPipelineByID(gomock.Any(), p.ID).Return(p, nil).AnyTimes()
+		check.Args(p.ID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(p)
+	}))
+	s.Run("GetAIGatewayPipelineByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		dbm.EXPECT().GetAIGatewayPipelineByProviderID(gomock.Any(), p.ProviderID).Return(p, nil).AnyTimes()
+		check.Args(p.ProviderID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(p)
+	}))
+	s.Run("GetAIGatewayPipelines", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		arg := database.GetAIGatewayPipelinesParams{}
+		dbm.EXPECT().GetAIGatewayPipelines(gomock.Any(), arg).Return([]database.AIGatewayPipeline{p}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipeline{p})
+	}))
+	s.Run("InsertAIGatewayPipeline", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPipelineParams{ID: uuid.New(), ProviderID: uuid.New(), Enabled: true}
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{ID: arg.ID, ProviderID: arg.ProviderID})
+		dbm.EXPECT().InsertAIGatewayPipeline(gomock.Any(), arg).Return(p, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(p)
+	}))
+	s.Run("UpdateAIGatewayPipeline", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		arg := database.UpdateAIGatewayPipelineParams{ID: p.ID, Enabled: true}
+		dbm.EXPECT().UpdateAIGatewayPipeline(gomock.Any(), arg).Return(p, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns(p)
+	}))
+	s.Run("UpdateAIGatewayPipelineActiveVersion", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateAIGatewayPipelineActiveVersionParams{ID: uuid.New(), ActiveVersionID: uuid.New()}
+		dbm.EXPECT().UpdateAIGatewayPipelineActiveVersion(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteAIGatewayPipelineByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteAIGatewayPipelineByID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionDelete).Returns()
+	}))
+	s.Run("InsertAIGatewayPipelineVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPipelineVersionParams{ID: uuid.New(), PipelineID: uuid.New(), VersionNumber: 1}
+		v := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersion{ID: arg.ID, PipelineID: arg.PipelineID})
+		dbm.EXPECT().InsertAIGatewayPipelineVersion(gomock.Any(), arg).Return(v, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(v)
+	}))
+	s.Run("InsertAIGatewayPipelineVersionPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPipelineVersionPolicyParams{ID: uuid.New(), PipelineVersionID: uuid.New(), PolicyVersionID: uuid.New(), Hook: database.AIGatewayHookPreReq, Kind: database.AIGatewayPolicyKindDecide, FailMode: database.AIGatewayFailModeFailClosed}
+		m := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersionPolicy{ID: arg.ID})
+		dbm.EXPECT().InsertAIGatewayPipelineVersionPolicy(gomock.Any(), arg).Return(m, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(m)
+	}))
+	s.Run("GetAIGatewayPipelineVersionPolicies", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		m := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersionPolicy{})
+		dbm.EXPECT().GetAIGatewayPipelineVersionPolicies(gomock.Any(), m.PipelineVersionID).Return([]database.AIGatewayPipelineVersionPolicy{m}, nil).AnyTimes()
+		check.Args(m.PipelineVersionID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipelineVersionPolicy{m})
+	}))
+	s.Run("GetAIGatewayPipelineVersionsByPipelineID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		v := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersion{})
+		dbm.EXPECT().GetAIGatewayPipelineVersionsByPipelineID(gomock.Any(), v.PipelineID).Return([]database.AIGatewayPipelineVersion{v}, nil).AnyTimes()
+		check.Args(v.PipelineID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipelineVersion{v})
+	}))
+	s.Run("GetAIGatewayPipelinesReferencingPolicy", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		id := uuid.New()
+		dbm.EXPECT().GetAIGatewayPipelinesReferencingPolicy(gomock.Any(), id).Return([]database.AIGatewayPipeline{p}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipeline{p})
+	}))
+	s.Run("GetActiveAIGatewayPipelinePolicies", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetActiveAIGatewayPipelinePoliciesRow{}
+		dbm.EXPECT().GetActiveAIGatewayPipelinePolicies(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("CountAIGatewayPolicyVersionsInActivePipelines", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().CountAIGatewayPolicyVersionsInActivePipelines(gomock.Any(), id).Return(int64(0), nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(int64(0))
+	}))
+	s.Run("GetAIGatewayPipelinePolicyDrift", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetAIGatewayPipelinePolicyDriftRow{}
+		dbm.EXPECT().GetAIGatewayPipelinePolicyDrift(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(rows)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {
