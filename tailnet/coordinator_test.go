@@ -105,6 +105,31 @@ func TestCoordinator(t *testing.T) {
 			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
 	})
 
+	t.Run("AgentWithoutClients_InvalidAllowedIP", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		// A valid self-address paired with an AllowedIP belonging to a different
+		// (victim) agent must be rejected.
+		victim := tailnet.TailscaleServicePrefix.PrefixFromUUID(uuid.New())
+		agent.UpdateNode(&proto.Node{
+			Addresses: []string{
+				tailnet.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+			},
+			AllowedIps:    []string{victim.String()},
+			PreferredDerp: 10,
+		})
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: victim.Addr().String()}}.Error())
+	})
+
 	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)

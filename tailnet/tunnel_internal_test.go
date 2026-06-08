@@ -1,10 +1,14 @@
 package tailnet
 
 import (
+	"context"
+	"net/netip"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 func TestTunnelStore_Bidir(t *testing.T) {
@@ -57,4 +61,48 @@ func TestTunnelStore_TunnelExists(t *testing.T) {
 	uut.remove(p1, p2)
 	require.False(t, uut.tunnelExists(p1, p2))
 	require.False(t, uut.tunnelExists(p2, p1))
+}
+
+func TestAgentCoordinateeAuth_Authorize_AllowedIPs(t *testing.T) {
+	t.Parallel()
+	agentID := uuid.MustParse("00000001-1111-1111-1111-111111111111")
+	auth := AgentCoordinateeAuth{ID: agentID}
+
+	validTailscale := TailscaleServicePrefix.PrefixFromUUID(agentID).String()
+	validCoder := CoderServicePrefix.PrefixFromUUID(agentID).String()
+	victim := TailscaleServicePrefix.PrefixFromUUID(uuid.MustParse("00000002-2222-2222-2222-222222222222"))
+
+	updateSelf := func(n *proto.Node) *proto.CoordinateRequest {
+		return &proto.CoordinateRequest{
+			UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: n},
+		}
+	}
+
+	t.Run("ValidAllowedIPs", func(t *testing.T) {
+		t.Parallel()
+		err := auth.Authorize(context.Background(), updateSelf(&proto.Node{
+			Addresses:  []string{validTailscale, validCoder},
+			AllowedIps: []string{validTailscale, validCoder},
+		}))
+		require.NoError(t, err)
+	})
+
+	t.Run("ForeignAllowedIP", func(t *testing.T) {
+		t.Parallel()
+		// The self-address is valid, but AllowedIPs claims a victim agent's /128.
+		err := auth.Authorize(context.Background(), updateSelf(&proto.Node{
+			Addresses:  []string{validTailscale},
+			AllowedIps: []string{victim.String()},
+		}))
+		require.ErrorIs(t, err, InvalidNodeAddressError{Addr: victim.Addr().String()})
+	})
+
+	t.Run("AllowedIPWrongBits", func(t *testing.T) {
+		t.Parallel()
+		err := auth.Authorize(context.Background(), updateSelf(&proto.Node{
+			Addresses:  []string{validTailscale},
+			AllowedIps: []string{netip.PrefixFrom(TailscaleServicePrefix.AddrFromUUID(agentID), 64).String()},
+		}))
+		require.ErrorIs(t, err, InvalidAddressBitsError{Bits: 64})
+	})
 }
