@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, source:\u003ccreated_by_me\\|shared_with_me\u003e, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
                         "name": "q",
                         "in": "query"
                     },
@@ -16522,6 +16522,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shared": {
+                    "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
+                    "type": "boolean"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
@@ -19252,12 +19256,14 @@ const docTemplate = `{
                 "oauth2",
                 "mcp-server-http",
                 "workspace-build-updates",
-                "nats_pubsub"
+                "nats_pubsub",
+                "minimum-implicit-member"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -19272,7 +19278,8 @@ const docTemplate = `{
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
-                "Enables embedded NATS pubsub."
+                "Enables embedded NATS pubsub.",
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19282,7 +19289,8 @@ const docTemplate = `{
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
-                "ExperimentNATSPubsub"
+                "ExperimentNATSPubsub",
+                "ExperimentMinimumImplicitMember"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -21062,6 +21070,13 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles are unioned into every member's effective\nroles at request time. Changes propagate to all members on the\nnext request.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "description": {
                     "type": "string"
@@ -24518,6 +24533,13 @@ const docTemplate = `{
         "codersdk.UpdateOrganizationRequest": {
             "type": "object",
             "properties": {
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles, when non-nil, replaces the org's default\nmember roles.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },

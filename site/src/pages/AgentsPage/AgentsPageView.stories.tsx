@@ -57,6 +57,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -162,6 +163,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",

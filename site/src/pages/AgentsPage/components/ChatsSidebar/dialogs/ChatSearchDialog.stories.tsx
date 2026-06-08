@@ -32,6 +32,7 @@ const mockChat: Chat = {
 	created_at: "2026-05-20T05:00:00.000Z",
 	updated_at: "2026-05-20T07:30:00.000Z",
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: true,
 	client_type: "ui",
@@ -84,6 +85,8 @@ const cappedMockChats: Chat[] = Array.from(
 		diff_status: undefined,
 	}),
 );
+const longDiffURL =
+	"github.com/coder/coder/pull/26016/files/1234567890abcdef1234567890abcdef1234567890abcdef";
 
 const meta: Meta<typeof ChatSearchDialog> = {
 	title: "pages/AgentsPage/ChatSearchDialog",
@@ -121,6 +124,42 @@ export default meta;
 type Story = StoryObj<typeof ChatSearchDialog>;
 
 export const EmptyState: Story = {};
+
+export const IconInputAlignment: Story = {
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		const toggleButton = await body.findByRole("button", {
+			name: "Toggle filters",
+		});
+
+		const container = toggleButton.parentElement;
+		if (!container) {
+			throw new Error("Expected the toggle button to have a parent container");
+		}
+		const searchIcon = container.querySelector("svg");
+		const filterIcon = toggleButton.querySelector("svg");
+		if (!searchIcon || !filterIcon) {
+			throw new Error("Expected the search and filter icons to render");
+		}
+
+		const verticalCenter = (element: Element) => {
+			const rect = element.getBoundingClientRect();
+			return rect.top + rect.height / 2;
+		};
+		await waitFor(() => {
+			const inputCenter = verticalCenter(searchInput);
+			expect(
+				Math.abs(verticalCenter(searchIcon) - inputCenter),
+			).toBeLessThanOrEqual(1);
+			expect(
+				Math.abs(verticalCenter(filterIcon) - inputCenter),
+			).toBeLessThanOrEqual(1);
+		});
+	},
+};
 
 export const LoadingState: Story = {
 	beforeEach: () => {
@@ -455,6 +494,63 @@ export const ParameterizedFilterPill: Story = {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
 				q: "pr_status:open",
+			});
+		});
+	},
+};
+
+export const DiffURLFilterPill: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Diff URL"));
+
+		await expect(await body.findByText("diff_url:")).toBeInTheDocument();
+
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, `${longDiffURL} `);
+
+		const diffURLPill = await body.findByText(`diff_url:${longDiffURL}`);
+		await expect(diffURLPill).toBeInTheDocument();
+		await expect(diffURLPill).toHaveAttribute(
+			"title",
+			`diff_url:${longDiffURL}`,
+		);
+		await expect(searchInput).toBeVisible();
+
+		const searchContainer = searchInput.parentElement;
+		const searchWrapper = searchContainer?.parentElement;
+		if (!searchContainer || !searchWrapper) {
+			throw new Error(
+				"Expected search input to render inside nested containers",
+			);
+		}
+
+		const dialog = searchWrapper.closest('[role="dialog"]');
+		if (!dialog) {
+			throw new Error("Expected the search input to render inside a dialog");
+		}
+
+		await waitFor(() => {
+			const dialogRight = Math.ceil(dialog.getBoundingClientRect().right);
+			expect(
+				Math.ceil(searchWrapper.getBoundingClientRect().right),
+			).toBeLessThanOrEqual(dialogRight);
+			expect(
+				Math.ceil(diffURLPill.getBoundingClientRect().right),
+			).toBeLessThanOrEqual(dialogRight);
+		});
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: `diff_url:"https://${longDiffURL}"`,
 			});
 		});
 	},

@@ -100,6 +100,11 @@ func TestGuessClient(t *testing.T) {
 			wantClient: aibridge.ClientCursor,
 		},
 		{
+			name:       "opencode",
+			userAgent:  "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
+			wantClient: aibridge.ClientOpenCode,
+		},
+		{
 			name:       "unknown_client",
 			userAgent:  "ccclaude-cli/calude-with-wrong-prefix",
 			wantClient: aibridge.ClientUnknown,

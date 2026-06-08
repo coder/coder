@@ -94,6 +94,7 @@ Available query filters:
   - `Coder Agents`
   - `Mux`
   - `Cursor`
+  - `OpenCode`
   - `Unknown`
 
   </details><br>

@@ -1387,6 +1387,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 			SharedOnly: true,
 		}, preparedMember)
 		require.ErrorContains(t, err, "viewer_id required")
+
+		_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			SharedOnly: true,
+			ViewerID:   member.ID,
+		}, preparedMember)
+		require.ErrorContains(t, err, "shared_with_user_id or shared_with_group_ids required")
 	})
 
 	t.Run("dbauthz", func(t *testing.T) {
@@ -1413,6 +1419,15 @@ func TestGetAuthorizedChats(t *testing.T) {
 		ownerRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{})
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		ownerSharedRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{
+			SharedOnly:         true,
+			ViewerID:           owner.ID,
+			SharedWithUserID:   owner.ID,
+			SharedWithGroupIds: []string{},
+		})
+		require.NoError(t, err)
+		require.Empty(t, ownerSharedRows, "shared-only must not include chats visible through owner RBAC")
 
 		// As secondMember: should see 0 chats.
 		secondSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
@@ -1563,26 +1578,37 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
 
 	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
 	}, preparedRecipient)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(sharedOnly))
 	require.Equal(t, sharedACL, sharedOnly[0].Chat.UserACL)
 	require.Empty(t, sharedOnly[0].Chat.GroupACL)
 
-	_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		OwnedOnly:  true,
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+	ownedAndShared, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		OwnedOnly:        true,
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
 	}, preparedRecipient)
-	require.ErrorContains(t, err, "owned_only and shared_only")
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(ownedAndShared))
 
 	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 	recipientCtx := dbauthz.As(ctx, recipientSubject)
 	authzRows, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(authzRows))
+
+	authzSharedOnly, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(authzSharedOnly))
 
 	rbac.SetChatACLDisabled(true)
 	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
@@ -1673,14 +1699,26 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
 
 	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+		SharedOnly:         true,
+		ViewerID:           recipient.ID,
+		SharedWithGroupIds: []string{group.ID.String()},
 	}, preparedRecipient)
 	require.NoError(t, err)
 	require.Len(t, sharedOnly, 1)
 	require.Equal(t, ownerChat.ID, sharedOnly[0].Chat.ID)
 	require.Empty(t, sharedOnly[0].Chat.UserACL)
 	require.Equal(t, sharedGroupACL, sharedOnly[0].Chat.GroupACL)
+
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	recipientCtx := dbauthz.As(ctx, recipientSubject)
+	authzSharedOnly, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{
+		SharedOnly:         true,
+		ViewerID:           recipient.ID,
+		SharedWithGroupIds: []string{group.ID.String()},
+	})
+	require.NoError(t, err)
+	require.Len(t, authzSharedOnly, 1)
+	require.Equal(t, ownerChat.ID, authzSharedOnly[0].Chat.ID)
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -3034,6 +3072,62 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, saRoles.Roles, wantSA)
 	require.NotContains(t, saRoles.Roles, wantMember)
+}
+
+// TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles verifies the
+// resolve-at-read semantics for organizations.default_org_member_roles:
+// every member's effective roles include the org's defaults, and changes
+// to the column propagate on the next request. The union applies to
+// regular users and to service accounts; the SQL array_cats the column
+// for both code paths.
+func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// New orgs default to organization-workspace-access; both the regular
+	// user's and the service account's effective roles must include the
+	// scoped form.
+	wantWorkspaceAccess := rbac.RoleOrgWorkspaceAccess() + ":" + org.ID.String()
+	initial, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.Contains(t, initial.Roles, wantWorkspaceAccess)
+	initialSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, initialSA.Roles, wantWorkspaceAccess)
+
+	// Shrinking the org default to empty must immediately drop the role
+	// from both effective sets.
+	_, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: []string{},
+	})
+	require.NoError(t, err)
+
+	shrunk, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunk.Roles, wantWorkspaceAccess)
+	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {

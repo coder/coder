@@ -1473,10 +1473,12 @@ func TestAgent_SFTP(t *testing.T) {
 			expectedDir = "/" + strings.ReplaceAll(customDir, "\\", "/")
 		}
 
-		//nolint:dogsled
-		conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		conn, agentClient, _, fs, _ := setupAgent(t, agentsdk.Manifest{
 			Directory: customDir,
 		}, 0)
+		// The agent stats the working directory against its filesystem, so
+		// the directory must exist there for it to be honored.
+		require.NoError(t, fs.MkdirAll(customDir, 0o700))
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		defer sshClient.Close()
@@ -1490,6 +1492,34 @@ func TestAgent_SFTP(t *testing.T) {
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
 		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	})
+
+	t.Run("MissingWorkingDirectory", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		home, err := os.UserHomeDir()
+		require.NoError(t, err, "get home dir")
+		if runtime.GOOS == "windows" {
+			home = "/" + strings.ReplaceAll(home, "\\", "/")
+		}
+
+		// A configured directory that does not exist on the agent's
+		// filesystem must fall back to the home directory.
+		missingDir := filepath.Join(t.TempDir(), "does-not-exist")
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Directory: missingDir,
+		}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		client, err := sftp.NewClient(sshClient)
+		require.NoError(t, err)
+		defer client.Close()
+		wd, err := client.Getwd()
+		require.NoError(t, err, "get working directory")
+		require.Equal(t, home, wd, "working directory should fall back to user home")
 	})
 }
 
@@ -1740,6 +1770,43 @@ func TestAgent_SSHConnectionLoginVars(t *testing.T) {
 		})
 	}
 }
+
+// TestAgent_SSHEnvInfoShell verifies that an agent.Options.EnvInfo whose
+// Shell() reports a custom shell is piped through to the SSH session, so the
+// session command runs under that shell instead of the host default.
+func TestAgent_SSHEnvInfoShell(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake shell is a POSIX script")
+	}
+
+	// A fake shell that ignores its arguments and prints a sentinel. The
+	// sentinel only appears in the session output if the injected Shell() was
+	// honored. Otherwise the command's own output ("should-not-run") appears.
+	const marker = "injected-shell-was-used"
+	shellPath := filepath.Join(t.TempDir(), "fakeshell")
+	//nolint:gosec // Executable test shell with test-controlled content.
+	err := os.WriteFile(shellPath, []byte("#!/bin/sh\necho "+marker+"\n"), 0o700)
+	require.NoError(t, err)
+
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil, func(_ *agenttest.Client, o *agent.Options) {
+		o.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
+	})
+
+	output, err := session.Output("echo should-not-run")
+	require.NoError(t, err)
+	require.Contains(t, string(output), marker)
+	require.NotContains(t, string(output), "should-not-run")
+}
+
+// shellOverrideEnvInfo is a usershell.EnvInfoer that delegates to the system
+// implementation but reports a custom shell.
+type shellOverrideEnvInfo struct {
+	usershell.SystemEnvInfo
+	shell string
+}
+
+func (e shellOverrideEnvInfo) Shell(string) (string, error) { return e.shell, nil }
 
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()

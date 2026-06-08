@@ -1,7 +1,8 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { AssignableRoles, Role } from "#/api/typesGenerated";
+import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -25,27 +26,45 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { docs } from "#/utils/docs";
+import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
 interface CustomRolesPageViewProps {
+	organization: Organization;
 	builtInRoles: AssignableRoles[] | undefined;
 	customRoles: AssignableRoles[] | undefined;
 	onDeleteRole: (role: Role) => void;
 	canCreateOrgRole: boolean;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
+	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
+	defaultRolesEnabled?: boolean;
+	defaultRolesEntitled?: boolean;
+	availableOrgRoles?: AssignableRoles[];
+	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
+	isUpdatingDefaultRoles?: boolean;
 }
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
+	organization,
 	builtInRoles,
 	customRoles,
 	onDeleteRole,
 	canCreateOrgRole,
 	canUpdateOrgRole,
 	canDeleteOrgRole,
+	canEditDefaultRoles,
 	isCustomRolesEnabled,
+	defaultRolesEnabled,
+	defaultRolesEntitled,
+	availableOrgRoles,
+	onUpdateDefaultRoles,
+	isUpdatingDefaultRoles,
 }) => {
+	const showDefaultRoles =
+		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
+
 	return (
 		<div className="flex flex-col gap-8">
 			{!isCustomRolesEnabled && (
@@ -53,6 +72,15 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/users/groups-roles")}
+				/>
+			)}
+			{showDefaultRoles && onUpdateDefaultRoles && (
+				<DefaultRolesSection
+					organization={organization}
+					availableOrgRoles={availableOrgRoles}
+					defaultRolesEntitled={Boolean(defaultRolesEntitled)}
+					isUpdatingDefaultRoles={Boolean(isUpdatingDefaultRoles)}
+					onUpdateDefaultRoles={onUpdateDefaultRoles}
 				/>
 			)}
 			<div className="flex flex-row gap-4 items-baseline justify-between">
@@ -96,6 +124,100 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				onDeleteRole={onDeleteRole}
 			/>
 		</div>
+	);
+};
+
+interface DefaultRolesSectionProps {
+	organization: Organization;
+	availableOrgRoles?: AssignableRoles[];
+	defaultRolesEntitled: boolean;
+	isUpdatingDefaultRoles: boolean;
+	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
+}
+
+const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
+	organization,
+	availableOrgRoles,
+	defaultRolesEntitled,
+	isUpdatingDefaultRoles,
+	onUpdateDefaultRoles,
+}) => {
+	const [isEditing, setIsEditing] = useState(false);
+
+	return (
+		<div className="flex flex-col gap-3">
+			<div className="flex flex-row gap-4 items-baseline justify-between">
+				<span>
+					<h2 className="mb-0 text-lg flex items-center gap-2">
+						Default Roles
+						{!defaultRolesEntitled && <PremiumBadge />}
+					</h2>
+					<span className="text-sm text-content-secondary leading-relaxed">
+						Roles attached to every member of this organization. An empty
+						selection limits new members to the floor permissions only.
+					</span>
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					onClick={() => setIsEditing(true)}
+					disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
+				>
+					Edit default roles
+				</Button>
+			</div>
+			<div className="text-sm">
+				{organization.default_org_member_roles.length === 0 ? (
+					<span className="text-content-secondary">
+						No default roles. New members receive only the floor.
+					</span>
+				) : (
+					<DefaultRolesSummary
+						roleNames={organization.default_org_member_roles}
+						availableRoles={availableOrgRoles}
+					/>
+				)}
+			</div>
+			{!defaultRolesEntitled && (
+				<p className="text-xs text-content-secondary mt-0 mb-0">
+					Editing organization settings requires a Premium license.
+				</p>
+			)}
+			<DefaultRolesDialog
+				open={isEditing}
+				currentRoles={organization.default_org_member_roles}
+				availableRoles={availableOrgRoles}
+				onCancel={() => setIsEditing(false)}
+				onConfirm={async (roles) => {
+					await onUpdateDefaultRoles(roles);
+					setIsEditing(false);
+				}}
+				isUpdating={isUpdatingDefaultRoles}
+			/>
+		</div>
+	);
+};
+
+interface DefaultRolesSummaryProps {
+	roleNames: readonly string[];
+	availableRoles?: AssignableRoles[];
+}
+
+const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
+	roleNames,
+	availableRoles,
+}) => {
+	const displayNameFor = (name: string): string => {
+		const role = availableRoles?.find((r) => r.name === name);
+		return role?.display_name || role?.name || name;
+	};
+
+	return (
+		<ul className="list-disc pl-5 m-0 flex flex-col gap-1">
+			{roleNames.map((name) => (
+				<li key={name}>{displayNameFor(name)}</li>
+			))}
+		</ul>
 	);
 };
 

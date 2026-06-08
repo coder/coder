@@ -1168,6 +1168,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "default_org_member_roles": [
+      "string"
+    ],
     "description": "string",
     "display_name": "string",
     "icon": "string",
@@ -1189,17 +1192,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-|------------------|-------------------|----------|--------------|-------------|
-| `[array item]`   | array             | false    |              |             |
-| `» created_at`   | string(date-time) | true     |              |             |
-| `» description`  | string            | false    |              |             |
-| `» display_name` | string            | false    |              |             |
-| `» icon`         | string            | false    |              |             |
-| `» id`           | string(uuid)      | true     |              |             |
-| `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | false    |              |             |
-| `» updated_at`   | string(date-time) | true     |              |             |
+| Name                         | Type              | Required | Restrictions | Description                                                                                                                                     |
+|------------------------------|-------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`               | array             | false    |              |                                                                                                                                                 |
+| `» created_at`               | string(date-time) | true     |              |                                                                                                                                                 |
+| `» default_org_member_roles` | array             | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `» description`              | string            | false    |              |                                                                                                                                                 |
+| `» display_name`             | string            | false    |              |                                                                                                                                                 |
+| `» icon`                     | string            | false    |              |                                                                                                                                                 |
+| `» id`                       | string(uuid)      | true     |              |                                                                                                                                                 |
+| `» is_default`               | boolean           | true     |              |                                                                                                                                                 |
+| `» name`                     | string            | false    |              |                                                                                                                                                 |
+| `» updated_at`               | string(date-time) | true     |              |                                                                                                                                                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1230,6 +1234,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",

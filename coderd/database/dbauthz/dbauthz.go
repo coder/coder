@@ -412,6 +412,11 @@ var (
 					User:        []rbac.Permission{},
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
+							Org: rbac.Permissions(map[string][]policy.Action{
+								// SubAgentAPI needs to check metadata of templates
+								// potentially shared via group_acl.
+								rbac.ResourceTemplate.Type: {policy.ActionRead},
+							}),
 							Member: rbac.Permissions(map[string][]policy.Action{
 								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 							}),
@@ -532,14 +537,9 @@ var (
 					rbac.ResourcePrebuiltWorkspace.Type: {
 						policy.ActionUpdate, policy.ActionDelete,
 					},
-					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
+					// Reads organization membership rows when reconciling the prebuilds user's memberships.
 					rbac.ResourceOrganizationMember.Type: {
 						policy.ActionRead,
-						policy.ActionCreate,
-					},
-					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
-					rbac.ResourceAssignOrgRole.Type: {
-						policy.ActionAssign,
 					},
 					// Needs to be able to read users to determine which organizations the prebuild system user is a member of.
 					rbac.ResourceUser.Type: {
@@ -1600,6 +1600,19 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 		return xerrors.Errorf("unknown job type: %q", job.Type)
 	}
 	return nil
+}
+
+// scopedOrgRoleIdentifiers wraps each role name as a RoleIdentifier scoped
+// to orgID. Used to feed rbac.ChangeRoleSet from a stored []string.
+func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdentifier {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]rbac.RoleIdentifier, len(names))
+	for i, name := range names {
+		out[i] = rbac.RoleIdentifier{Name: name, OrganizationID: orgID}
+	}
+	return out
 }
 
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
@@ -5779,9 +5792,23 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 		return database.OrganizationMember{}, xerrors.Errorf("converting to organization roles: %w", err)
 	}
 
+	// The org's default_org_member_roles are implied at request time by
+	// GetAuthorizationUserRoles. Include them in canAssignRoles so the
+	// caller is required to be authorized to grant the full effective set
+	// (the explicit roles, organization-member, plus the defaults).
+	org, err := q.db.GetOrganizationByID(ctx, arg.OrganizationID)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("get organization: %w", err)
+	}
+	defaultRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, org.DefaultOrgMemberRoles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("convert default member roles: %w", err)
+	}
+
 	// All roles are added roles. Org member is always implied.
 	//nolint:gocritic
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
+	addedRoles = append(addedRoles, defaultRoles...)
 	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -7049,9 +7076,23 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		return database.OrganizationMember{}, err
 	}
 
+	// The org's default_org_member_roles are implied at request time by
+	// GetAuthorizationUserRoles. Include them in the implied set so
+	// canAssignRoles validates the caller can grant the full effective set
+	// (the granted roles, organization-member, plus the defaults).
+	org, err := q.db.GetOrganizationByID(ctx, arg.OrgID)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("get organization: %w", err)
+	}
+	defaultRoles, err := q.convertToOrganizationRoles(arg.OrgID, org.DefaultOrgMemberRoles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("convert default member roles: %w", err)
+	}
+
 	// The org member role is always implied.
 	//nolint:gocritic
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
+	impliedTypes = append(impliedTypes, defaultRoles...)
 
 	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)
 	err = q.canAssignRoles(ctx, arg.OrgID, added, removed)
@@ -7092,10 +7133,29 @@ func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.
 }
 
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
-	fetch := func(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
-		return q.db.GetOrganizationByID(ctx, arg.ID)
+	existing, err := q.db.GetOrganizationByID(ctx, arg.ID)
+	if err != nil {
+		return database.Organization{}, err
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, existing); err != nil {
+		return database.Organization{}, err
+	}
+	// Treat a change to default_org_member_roles as assigning the added
+	// roles, and unassigning the removed roles, for every member of the
+	// org. Mirror the InsertOrganizationMember and UpdateMemberRoles
+	// guard so the caller cannot grant roles they could not grant
+	// individually, nor inject a malformed role name that would later
+	// break RoleNameFromString.
+	if !slices.Equal(existing.DefaultOrgMemberRoles, arg.DefaultOrgMemberRoles) {
+		added, removed := rbac.ChangeRoleSet(
+			scopedOrgRoleIdentifiers(existing.DefaultOrgMemberRoles, arg.ID),
+			scopedOrgRoleIdentifiers(arg.DefaultOrgMemberRoles, arg.ID),
+		)
+		if err := q.canAssignRoles(ctx, arg.ID, added, removed); err != nil {
+			return database.Organization{}, err
+		}
+	}
+	return q.db.UpdateOrganization(ctx, arg)
 }
 
 func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {

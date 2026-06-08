@@ -41,10 +41,10 @@ Only print the organization ID.
 
 ### -c, --column
 
-|         |                                                                                           |
-|---------|-------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default]</code> |
-| Default | <code>id,name,default</code>                                                              |
+|         |                                                                                                                     |
+|---------|---------------------------------------------------------------------------------------------------------------------|
+| Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default\|default org member roles]</code> |
+| Default | <code>id,name,default</code>                                                                                        |
 
 Columns to display in table output.
 
