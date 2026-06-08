@@ -49,8 +49,6 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
-			{/* h-7 matches one input row (text-sm line-height 1.5rem + py-0.5) so
-			    the icon centers on the first row even when filter pills wrap. */}
 			<div className="flex h-7 shrink-0 items-center">
 				<SearchIcon className="size-4 text-content-secondary" />
 			</div>
