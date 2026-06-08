@@ -169,12 +169,22 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 // AGPL returns all AGPL commands including any non-core commands that are
 // duplicated in the Enterprise CLI.
 func (r *RootCmd) AGPL() []*serpent.Command {
+	// In slim AGPL builds (e.g. the homebrew-core formula) the enterprise
+	// binary is not available, so attach stub subcommands to `provisioner`
+	// that explain how to install the full Coder build. In non-slim builds
+	// slimEnterpriseProvisionerStubs returns nil and this is a no-op.
+	provisioners := r.Provisioners()
+	provisioners.Children = append(provisioners.Children, r.slimEnterpriseProvisionerStubs()...)
+
 	all := append(
 		r.CoreSubcommands(),
 		r.Server( /* Do not import coderd here. */ nil),
-		r.Provisioners(),
+		provisioners,
 		ExperimentalCommand(r.AGPLExperimental()),
 	)
+	// Same rationale: top-level stubs for enterprise commands like
+	// `licenses`, `groups`, etc. in slim AGPL builds.
+	all = append(all, r.slimEnterpriseStubs()...)
 	return all
 }
 
