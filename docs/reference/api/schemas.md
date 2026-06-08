@@ -15880,7 +15880,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name        | Type    | Required | Restrictions | Description                                                                                                                             |
 |-------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | `name`      | string  | false    |              |                                                                                                                                         |
-| `sensitive` | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are not persisted and are redacted when returned by the API. |
+| `sensitive` | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are encrypted at rest and redacted when returned by the API. |
 | `value`     | string  | false    |              |                                                                                                                                         |
 
 ## codersdk.WorkspaceBuildTimings

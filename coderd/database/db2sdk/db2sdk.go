@@ -150,6 +150,11 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 	}
 }
 
+// redactedParameterValue is the placeholder used for sensitive values returned
+// by the API. It matches the redaction string used for sensitive template
+// variables.
+const redactedParameterValue = "*redacted*"
+
 // RedactWorkspaceBuildParameters returns a copy of params with the values of
 // sensitive parameters replaced by a redacted placeholder. Use this at API
 // boundaries so sensitive values are never exposed.
@@ -157,7 +162,7 @@ func RedactWorkspaceBuildParameters(params []codersdk.WorkspaceBuildParameter) [
 	out := make([]codersdk.WorkspaceBuildParameter, len(params))
 	for i, p := range params {
 		if p.Sensitive {
-			p.Value = "*redacted*"
+			p.Value = redactedParameterValue
 		}
 		out[i] = p
 	}

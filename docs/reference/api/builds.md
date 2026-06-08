@@ -661,7 +661,7 @@ Status Code **200**
 |----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]` | array   | false    |              |                                                                                                                                         |
 | `» name`       | string  | false    |              |                                                                                                                                         |
-| `» sensitive`  | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are not persisted and are redacted when returned by the API. |
+| `» sensitive`  | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are encrypted at rest and redacted when returned by the API. |
 | `» value`      | string  | false    |              |                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

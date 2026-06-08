@@ -134,7 +134,7 @@ type WorkspaceBuildParameter struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 	// Sensitive indicates the parameter is sensitive. Sensitive parameter
-	// values are not persisted and are redacted when returned by the API.
+	// values are encrypted at rest and redacted when returned by the API.
 	Sensitive bool `json:"sensitive,omitempty"`
 }
 
