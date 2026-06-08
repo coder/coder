@@ -1,96 +1,117 @@
-# Coder Desktop
+# Install Coder Desktop
 
-Coder Desktop provides seamless access to your remote workspaces through a native application. Connect to workspace services using simple hostnames like `myworkspace.coder`, launch applications with one click, and synchronize files between local and remote environments, all without installing a CLI or configuring manual port forwarding.
+Coder Desktop is a native macOS and Windows application that connects your local
+machine to your remote workspaces over a secure tunnel. Once installed, you can
+reach any workspace at `workspace-name.coder` from your terminal, browser, IDE,
+or SSH client, with no CLI setup and no manual port forwarding.
 
 > [!TIP]
-> Coder Desktop provides **automatic port forwarding** to every service running in your workspace. Any port your application listens on is instantly accessible at `workspace-name.coder:PORT` with no manual setup required. For a comparison of all port forwarding methods, see [Workspace Ports](../workspace-access/port-forwarding.md).
+> Coder Desktop provides **automatic port forwarding** to every service running
+> in your workspace. Any port your application listens on is instantly
+> accessible at `workspace-name.coder:PORT` with no manual setup required. For
+> a comparison of all port forwarding methods, see
+> [Workspace Ports](../workspace-access/port-forwarding.md).
 
-## What You'll Need
+## What is Coder Desktop?
 
-- A Coder deployment running `v2.20.0` or [later](https://github.com/coder/coder/releases/latest)
-- Administrator privileges on your local machine (for VPN extension installation)
-- Access to your Coder deployment URL
+Coder Desktop runs **Coder Connect**, a secure tunnel between your machine and
+your Coder deployment. With Coder Connect enabled, your workspaces appear as
+regular hosts on your local network, so any tool that speaks TCP works without
+extra configuration.
 
-## Quick Start
+- **Direct workspace hostnames**: Reach workspaces at `workspace-name.coder`.
+  No SSH config, no `coder port-forward` commands.
+- **All workspace ports, automatically**: Every port your workspace exposes is
+  available at `workspace-name.coder:PORT`. No allowlists, no per-port setup.
+- **Any local app, any protocol**: SSH clients, browsers, IDEs, database GUIs,
+  and HTTP/gRPC clients connect like the workspace is on your LAN.
+- **File sync**: Mirror a workspace directory to a local folder for offline
+  editing and fast local tooling.
+- **Split tunnel**: Only Coder traffic is routed through the tunnel. The rest
+  of your internet stays untouched.
 
-1. Install: `brew install --cask coder/coder/coder-desktop` (macOS) or `winget install Coder.CoderDesktop` (Windows)
-1. Open Coder Desktop and approve any system prompts to complete the installation.
-1. Sign in with your deployment URL and session token
-1. Enable "Coder Connect" toggle
-1. Access workspaces at `workspace-name.coder`
+For a deeper walkthrough of Coder Connect and file sync, see
+[Using Coder Connect and File Sync](./desktop-connect-sync.md).
 
-## How It Works
+## Install
 
-**Coder Connect**, the primary component of Coder Desktop, creates a secure tunnel to your Coder deployment, allowing you to:
-
-- **Access workspaces directly**: Connect via `workspace-name.coder` hostnames
-- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no configuration
-- **Use any application**: SSH clients, browsers, IDEs work seamlessly
-- **Sync files**: Bidirectional sync between local and remote directories
-- **Work offline**: Edit files locally, sync when reconnected
-
-The VPN extension routes only Coder traffic—your other internet activity remains unchanged.
-
-## Installation
-
-<div class="tabs">
+Coder Desktop requires a Coder deployment running `v2.20.0` or
+[later](https://github.com/coder/coder/releases/latest) and your deployment
+URL. Installation requires administrator privileges on your local machine to
+register the VPN extension.
 
 ### macOS
 
-<div class="tabs">
-
-#### Homebrew (Recommended)
+Install with Homebrew:
 
 ```shell
 brew install --cask coder/coder/coder-desktop
 ```
 
-#### Manual Installation
+Or download `Coder-Desktop.pkg` from the
+[coder-desktop-macos releases page](https://github.com/coder/coder-desktop-macos/releases)
+and run the installer. `Coder Desktop.app` is installed to your Applications
+folder.
 
-1. Download the latest release from [coder-desktop-macos releases](https://github.com/coder/coder-desktop-macos/releases)
-1. Run `Coder-Desktop.pkg` and follow the prompts to install
-1. `Coder Desktop.app` will be installed to your Applications folder
+After launching the app, macOS will prompt you to allow a new network extension:
 
-</div>
+1. When prompted with **"Coder Desktop" would like to use a new network
+   extension**, select **Open System Settings**.
+2. In **Network Extensions** settings, enable the Coder Desktop extension.
+3. Enter your password to authorize the extension if requested.
 
-Coder Desktop requires VPN extension permissions:
-
-1. When prompted with **"Coder Desktop" would like to use a new network extension**, select **Open System Settings**
-1. In **Network Extensions** settings, enable the Coder Desktop extension
-1. You may need to enter your password to authorize the extension
-
-✅ **Verify Installation**: Coder Desktop should appear in your menu bar
+Coder Desktop appears in your menu bar when it is running.
 
 ### Windows
 
-<div class="tabs">
-
-#### WinGet (Recommended)
+Install with WinGet:
 
 ```shell
 winget install Coder.CoderDesktop
 ```
 
-#### Manual Installation
+Or download the `CoderDesktop` installer (`.exe`) from the
+[coder-desktop-windows releases page](https://github.com/coder/coder-desktop-windows/releases).
+Pick the `x64` or `arm64` build to match your system, then run the installer
+and accept the license terms.
 
-1. Download the latest `CoderDesktop` installer (`.exe`) from [coder-desktop-windows releases](https://github.com/coder/coder-desktop-windows/releases)
-1. Choose the correct architecture (`x64` or `arm64`) for your system
-1. Run the installer and accept the license terms
-1. If prompted, install the .NET Windows Desktop Runtime
-1. Install Windows App Runtime SDK if prompted
+Coder Desktop on Windows depends on:
 
-</div>
+- [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0).
+  The installer prompts you to install it if it is not already present.
+- Windows App Runtime SDK. The installer may ask you to install this manually.
 
-- [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (installed automatically if not present)
-- Windows App Runtime SDK (may require manual installation)
+Coder Desktop appears in your system tray when it is running. Click the **^**
+chevron if the icon is hidden.
 
-✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to click **^** to show hidden icons)
+### Linux (experimental)
 
-</div>
+A Linux client exists at
+[coder/coder-desktop-linux](https://github.com/coder/coder-desktop-linux) but
+is **experimental and not production ready**. There is no recommended install
+command yet. To try it, download the latest build from the
+[coder-desktop-linux releases page](https://github.com/coder/coder-desktop-linux/releases)
+and follow the instructions in that repository.
 
-## Testing Your Connection
+If you need stable workspace access on Linux today, use the
+[Coder CLI](../../install/cli.md).
 
-Once connected, test access to your workspaces:
+## Get started
+
+After installing Coder Desktop:
+
+1. Open Coder Desktop and sign in with your deployment URL and session token.
+2. Toggle **Coder Connect** on. Approve any system prompts to load the VPN
+   extension.
+3. Open `http://workspace-name.coder` in your browser, run
+   `ssh workspace-name.coder`, or point any tool at `workspace-name.coder:PORT`.
+
+That is the full setup. No SSH config, no `coder` CLI install, no per-port
+forwarding rules.
+
+## Test your connection
+
+Once Coder Connect is enabled, confirm a workspace is reachable:
 
 <div class="tabs">
 
@@ -112,17 +133,21 @@ ping -n 3 your-workspace.coder
 
 ### Web Services
 
-Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with the specific service port you want to access (e.g. 3000 for frontend, 8080 for API)
+Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with
+the specific service port you want to access (e.g. 3000 for frontend, 8080 for
+API).
 
 </div>
 
-## Administrator Configuration
+## Administrator configuration
 
-Organizations that manage Coder Desktop deployments can configure the application using MDM (Mobile Device Management) or group policy.
+Organizations that manage Coder Desktop deployments can configure the
+application using MDM (Mobile Device Management) or group policy.
 
-### Disable Automatic Updates
+### Disable automatic updates
 
-Administrators can disable the built-in auto-updater to manage updates through their own software distribution system.
+Administrators can disable the built-in auto-updater to manage updates through
+their own software distribution system.
 
 <div class="tabs">
 
@@ -134,21 +159,26 @@ Set the `disableUpdater` preference to `true` using the `defaults` command:
 defaults write com.coder.Coder-Desktop disableUpdater -bool true
 ```
 
-Organization administrators can also enforce this setting across managed devices using MDM (Mobile Device Management) software by deploying a configuration profile that sets this preference.
+Organization administrators can also enforce this setting across managed
+devices using MDM (Mobile Device Management) software by deploying a
+configuration profile that sets this preference.
 
 ### Windows
 
-Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
+Set the `Updater:Enable` registry value to `0` under
+`HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
 
 ```powershell
 New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
 
-You can also configure a `Updater:ForcedChannel` string value to lock users to a specific update channel (e.g. `stable`).
+You can also configure a `Updater:ForcedChannel` string value to lock users to
+a specific update channel (e.g. `stable`).
 
 > [!NOTE]
-> For security, updater settings can only be configured at the machine level (`HKLM`), not per-user (`HKCU`).
+> For security, updater settings can only be configured at the machine level
+> (`HKLM`), not per-user (`HKCU`).
 
 </div>
 
@@ -169,14 +199,17 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
-### Getting Help
+### Getting help
 
 If you encounter issues not covered here:
 
-- **File an issue**: [macOS](https://github.com/coder/coder-desktop-macos/issues) | [Windows](https://github.com/coder/coder-desktop-windows/issues) | [General](https://github.com/coder/coder/issues)
+- **File an issue**:
+  [macOS](https://github.com/coder/coder-desktop-macos/issues) |
+  [Windows](https://github.com/coder/coder-desktop-windows/issues) |
+  [General](https://github.com/coder/coder/issues)
 - **Community support**: [Discord](https://coder.com/chat)
 
-## Uninstalling
+## Uninstall
 
 <div class="tabs">
 
@@ -186,7 +219,8 @@ If you encounter issues not covered here:
 2. **Quit Coder Desktop** completely
 3. **Remove VPN extension** from System Settings > Network Extensions
 4. **Delete the app** from Applications folder
-5. **Remove configuration** (optional): `rm -rf ~/Library/Application\ Support/Coder\ Desktop`
+5. **Remove configuration** (optional):
+   `rm -rf ~/Library/Application\ Support/Coder\ Desktop`
 
 ### Windows
 
@@ -197,7 +231,7 @@ If you encounter issues not covered here:
 
 </div>
 
-## Next Steps
+## Next steps
 
 - [Using Coder Connect and File Sync](./desktop-connect-sync.md)
 - [Compare port forwarding methods](../workspace-access/port-forwarding.md)
