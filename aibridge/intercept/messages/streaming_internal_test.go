@@ -454,10 +454,6 @@ func TestStreamingInterception_AgenticLoopFailover(t *testing.T) {
 			// keys 429 during the agentic continuation.
 			// Then: 3 requests, error injected as SSE event, both
 			// keys temporary.
-			//
-			// Known flake: race in eventstream.IsStreaming() can
-			// produce a malformed response on the all-keys-exhausted
-			// path. See https://github.com/coder/internal/issues/1524.
 			name: "agentic_all_keys_fail",
 			responses: []upstreamResponse{
 				{statusCode: http.StatusOK, headers: sseHeaders, body: toolUseStreamBody},
