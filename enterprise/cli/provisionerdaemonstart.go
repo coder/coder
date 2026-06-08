@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -242,6 +243,14 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				ExternalProvisioner: true,
 			})
 
+			// Updates the systemd status from activating to activated. This
+			// lets users reuse the bundled coder.service unit (Type=notify)
+			// for a standalone provisioner without switching to Type=exec.
+			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
+			if err != nil {
+				return xerrors.Errorf("notify systemd: %w", err)
+			}
+
 			waitForProvisionerJobs := false
 			var exitErr error
 			select {
@@ -260,6 +269,11 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
+			}
+
+			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
+			if err != nil {
+				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
 			err = srv.Shutdown(ctx, !waitForProvisionerJobs)
