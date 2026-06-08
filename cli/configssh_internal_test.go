@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_sshConfigSplitOnCoderSection(t *testing.T) {
@@ -300,6 +302,93 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name   string
+		coderd codersdk.SSHConfigResponse
+	}{
+		{
+			name: "HostnameSuffix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "coder\nHost *",
+			},
+		},
+		{
+			name: "HostnameSuffixWithUserOverride",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "coder\nHost *",
+			},
+		},
+		{
+			name: "HostnamePrefix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnamePrefix: "coder.\nHost *",
+			},
+		},
+		{
+			name: "ProxyCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"},
+			},
+		},
+		{
+			name: "PermitLocalCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PermitLocalCommand": "yes"},
+			},
+		},
+		{
+			name: "KnownHostsCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"KnownHostsCommand": "echo key"},
+			},
+		},
+		{
+			name: "NewlineInValue",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *"},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user := sshConfigOptions{}
+			if tt.name == "HostnameSuffixWithUserOverride" {
+				user.hostnameSuffix = "local"
+			}
+
+			_, err := mergeSSHOptions(user, tt.coderd, t.TempDir(), "/tmp/coder")
+			require.Error(t, err)
+		})
+	}
+}
+
+func Test_mergeSSHOptions_AllowsSafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	got, err := mergeSSHOptions(sshConfigOptions{}, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+		SSHConfigOptions: map[string]string{
+			"HostName":           "example.com",
+			"User":               "coder",
+			"Port":               "22",
+			"SetEnv":             "FOO=bar BAZ=qux",
+			"UserKnownHostsFile": "/tmp/coder_known_hosts",
+		},
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "coder.", got.userHostPrefix)
+	require.Equal(t, "coder", got.hostnameSuffix)
+	require.Contains(t, got.sshOptions, "HostName example.com")
+	require.Contains(t, got.sshOptions, "SetEnv FOO=bar BAZ=qux")
 }
 
 func Test_sshConfigOptions_addOption(t *testing.T) {

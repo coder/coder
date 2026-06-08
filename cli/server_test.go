@@ -1823,6 +1823,57 @@ func TestServer(t *testing.T) {
 	})
 }
 
+// TestServer_InvalidSSHDeploymentConfig verifies that the server refuses to
+// start when its SSH config flags would produce unsafe entries in users'
+// local SSH configs. The validation runs before any database connection, so
+// these invocations fail fast.
+func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		flag    string
+		wantErr string
+	}{
+		{
+			name:    "HostnameSuffixLeadingDot",
+			flag:    "--workspace-hostname-suffix=.coder",
+			wantErr: "validate workspace hostname suffix",
+		},
+		{
+			name:    "HostnameSuffixNewline",
+			flag:    "--workspace-hostname-suffix=coder\nHost *",
+			wantErr: "validate workspace hostname suffix",
+		},
+		{
+			name:    "HostnamePrefixNewline",
+			flag:    "--ssh-hostname-prefix=coder.\nHost *",
+			wantErr: "validate ssh hostname prefix",
+		},
+		{
+			name:    "SSHOptionUnparseable",
+			flag:    "--ssh-config-options=NoSeparatorOption",
+			wantErr: "parse ssh config options",
+		},
+		{
+			name:    "SSHOptionDisallowedKey",
+			flag:    "--ssh-config-options=ProxyCommand=ssh -W %h:%p bastion",
+			wantErr: "validate ssh config options",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			inv, _ := clitest.New(t, "server", tc.flag)
+			err := inv.WithContext(ctx).Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
 //nolint:tparallel,paralleltest // This test sets environment variables.
 func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 	type testCase struct {

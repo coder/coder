@@ -149,6 +149,202 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	}
 }
 
+func TestParseSSHConfigOption(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		option    string
+		wantKey   string
+		wantValue string
+		wantErr   bool
+	}{
+		{
+			name:      "ProxyCommandWithSpaces",
+			option:    "ProxyCommand=ssh -W %h:%p bastion",
+			wantKey:   "ProxyCommand",
+			wantValue: "ssh -W %h:%p bastion",
+		},
+		{
+			name:      "SetEnvWithEquals",
+			option:    "SetEnv=FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "SetEnvWithSpaceSeparator",
+			option:    "SetEnv FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "HostName",
+			option:    "HostName example.com",
+			wantKey:   "HostName",
+			wantValue: "example.com",
+		},
+		{
+			name:    "NewlineInValue",
+			option:  "ProxyCommand=echo hi\nHost *",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInValue",
+			option:  "ProxyCommand=echo hi\rHost *",
+			wantErr: true,
+		},
+		{
+			name:    "NULInValue",
+			option:  "ProxyCommand=echo hi\x00Host *",
+			wantErr: true,
+		},
+		{
+			name:    "NewlineInKey",
+			option:  "Proxy\nCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInKey",
+			option:  "Proxy\rCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "NULInKey",
+			option:  "Proxy\x00Command=value",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			key, value, err := codersdk.ParseSSHConfigOption(tt.option)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, key)
+			require.Equal(t, tt.wantValue, value)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		suffix  string
+		wantErr bool
+	}{
+		{name: "Coder", suffix: "coder"},
+		{name: "Example", suffix: "example"},
+		{name: "Dotted", suffix: "coder.example.com"},
+		{name: "LeadingDot", suffix: ".coder", wantErr: true},
+		{name: "Newline", suffix: "coder\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", suffix: "coder\r\nHost *", wantErr: true},
+		{name: "Space", suffix: "coder Host *", wantErr: true},
+		{name: "Tab", suffix: "coder\t*", wantErr: true},
+		{name: "NUL", suffix: "coder\x00", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnameSuffix(tt.suffix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		prefix  string
+		wantErr bool
+	}{
+		{name: "Default", prefix: "coder."},
+		{name: "NoDot", prefix: "coder"},
+		{name: "Empty", prefix: ""},
+		{name: "LeadingDot", prefix: ".coder"},
+		{name: "Newline", prefix: "coder.\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", prefix: "coder.\r\nHost *", wantErr: true},
+		{name: "Space", prefix: "coder. Host *", wantErr: true},
+		{name: "Tab", prefix: "coder.\t*", wantErr: true},
+		{name: "NUL", prefix: "coder.\x00", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnamePrefix(tt.prefix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateSSHConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		options map[string]string
+		wantErr bool
+	}{
+		{name: "HostName", options: map[string]string{"HostName": "example.com"}},
+		{name: "User", options: map[string]string{"User": "coder"}},
+		{name: "Port", options: map[string]string{"Port": "22"}},
+		{name: "SetEnv", options: map[string]string{"SetEnv": "FOO=bar BAZ=qux"}},
+		{name: "UserKnownHostsFile", options: map[string]string{"UserKnownHostsFile": "/tmp/coder_known_hosts"}},
+		{name: "EmptyKey", options: map[string]string{"": "value"}, wantErr: true},
+		{name: "NewlineInKey", options: map[string]string{"User\nProxyCommand": "evil"}, wantErr: true},
+		{name: "CarriageReturnInKey", options: map[string]string{"User\rProxyCommand": "evil"}, wantErr: true},
+		{name: "NULInKey", options: map[string]string{"User\x00ProxyCommand": "evil"}, wantErr: true},
+		{name: "SpaceInKey", options: map[string]string{"User ProxyCommand": "evil"}, wantErr: true},
+		{name: "EqualsInKey", options: map[string]string{"User=ProxyCommand": "evil"}, wantErr: true},
+		{name: "Host", options: map[string]string{"Host": "*"}, wantErr: true},
+		{name: "HostCaseInsensitive", options: map[string]string{"hOsT": "*"}, wantErr: true},
+		{name: "Match", options: map[string]string{"Match": "all"}, wantErr: true},
+		{name: "Include", options: map[string]string{"Include": "~/.ssh/config.d/*"}, wantErr: true},
+		{name: "ProxyCommand", options: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "ProxyCommandCaseInsensitive", options: map[string]string{"proxycommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "LocalCommand", options: map[string]string{"LocalCommand": "echo pwned"}, wantErr: true},
+		{name: "PermitLocalCommand", options: map[string]string{"PermitLocalCommand": "yes"}, wantErr: true},
+		{name: "RemoteCommand", options: map[string]string{"RemoteCommand": "some-command"}, wantErr: true},
+		{name: "KnownHostsCommand", options: map[string]string{"KnownHostsCommand": "echo key"}, wantErr: true},
+		{name: "NewlineInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *\nProxyCommand evil"}, wantErr: true},
+		{name: "CarriageReturnInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\r\nHost *"}, wantErr: true},
+		{name: "NULInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\x00suffix"}, wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateSSHConfigOptions(tt.options)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestSSHConfig_ParseOptions(t *testing.T) {
 	t.Parallel()
 
