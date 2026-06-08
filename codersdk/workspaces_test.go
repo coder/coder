@@ -273,9 +273,9 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("TransportError", func(t *testing.T) {
 		t.Parallel()
 
-		srvURL, err := url.Parse("http://example.com")
+		baseURL, err := url.Parse("http://example.com")
 		require.NoError(t, err)
-		client := codersdk.New(srvURL, codersdk.WithHTTPClient(&http.Client{
+		client := codersdk.New(baseURL, codersdk.WithHTTPClient(&http.Client{
 			Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
 				return nil, xerrors.New("transport error")
 			}),

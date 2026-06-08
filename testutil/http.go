@@ -12,6 +12,8 @@ import (
 // RoundTripperFunc adapts a function to an http.RoundTripper.
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
 
+var _ http.RoundTripper = RoundTripperFunc(nil)
+
 func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
