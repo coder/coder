@@ -12,6 +12,14 @@ BINARY_DIR="${BINARY_DIR:-$(mktemp -d -t coder.XXXXXX)}"
 BINARY_NAME=coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
 cd "$BINARY_DIR"
+# Remove any existing agent binary before downloading. When BINARY_DIR persists
+# across workspace restarts (e.g. envbox sets BINARY_DIR=$HOME/.coder) and a
+# previous agent process is still holding the executable open, writing to the
+# existing inode fails with ETXTBSY (text file busy) and curl/wget would loop
+# forever returning error 23. Unlinking the path is permitted while the file is
+# executing; any running process keeps its mapping to the old inode and the
+# next download creates a fresh one.
+rm -f "${BINARY_NAME}"
 # Attempt to download the coder agent.
 # This could fail for a number of reasons, many of which are likely transient.
 # So just keep trying!
