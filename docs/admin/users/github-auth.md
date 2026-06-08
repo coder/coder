@@ -96,7 +96,7 @@ coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="yo
 
 Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
-to the `/etc/coder.d/coder.env` file:
+to the `/etc/coder/coder.env` file:
 
 ```shell
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true

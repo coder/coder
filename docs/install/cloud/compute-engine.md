@@ -56,7 +56,7 @@ SSH or using the console:
 
 ```shell
 ssh ubuntu@<gcp-public-IPv4>
-sudo vim /etc/coder.d/coder.env # edit config
+sudo vim /etc/coder/coder.env # edit config
 sudo systemctl daemon-reload
 sudo systemctl restart coder # restart Coder
 ```

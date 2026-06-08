@@ -3,13 +3,13 @@ Description="Coder - Self-hosted developer workspaces on your infra"
 Documentation=https://coder.com/docs
 Requires=network-online.target
 After=network-online.target
-ConditionFileNotEmpty=/etc/coder.d/coder.env
+ConditionFileNotEmpty=/etc/coder/coder.env
 StartLimitIntervalSec=10
 StartLimitBurst=3
 
 [Service]
 Type=notify
-EnvironmentFile=/etc/coder.d/coder.env
+EnvironmentFile=/etc/coder/coder.env
 User=coder
 Group=coder
 ProtectSystem=full

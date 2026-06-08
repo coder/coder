@@ -570,7 +570,7 @@ To change the access URL associated with your server, you can edit any of the fo
 - YAML using the `accessURL` option
 - or ENV using the `CODER_ACCESS_URL` environmental variable.
 
-For example, if you're using an environment file to configure your server, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
+For example, if you're using an environment file to configure your server, you'll want to edit the file located at `/etc/coder/coder.env` and edit the following:
 
 `CODER_ACCESS_URL=https://yourcompany.coder.com` to your new desired URL.
 

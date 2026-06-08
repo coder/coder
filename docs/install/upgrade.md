@@ -9,6 +9,48 @@ This article describes how to upgrade your Coder server.
 For upgrade recommendations and troubleshooting, see
 [Upgrading Best Practices](./upgrade-best-practices.md).
 
+## Configuration directory moved from `/etc/coder.d/` to `/etc/coder/`
+
+Starting with this release, the deb and rpm packages install the server's
+environment file at `/etc/coder/coder.env` instead of `/etc/coder.d/coder.env`.
+The Unix `.d` suffix is reserved for drop-in directories whose contents are
+merged at runtime, and Coder only reads a single env file, so the suffix was
+misleading.
+
+The package's postinstall script handles backward compatibility automatically:
+
+- It creates `/etc/coder/` (owned by `coder:coder`) if it does not already
+  exist.
+- For every `*.env` file under `/etc/coder.d/`, it symlinks the file into
+  `/etc/coder/` whenever the new location is empty or still holds the shipped
+  default placeholder. Existing `/etc/coder/*.env` files with user content are
+  never overwritten.
+- It runs `systemctl daemon-reload` so the updated `EnvironmentFile=` path
+  takes effect on the next start.
+
+After the upgrade, restart the service to pick up the new unit:
+
+```shell
+sudo systemctl daemon-reload
+sudo systemctl restart coder
+```
+
+You can continue editing `/etc/coder.d/coder.env` indefinitely; the symlink
+makes the file visible at the new path. When you are ready to consolidate,
+move the file's contents into `/etc/coder/coder.env` and delete the symlink
+and the legacy directory:
+
+```shell
+sudo mv /etc/coder.d/coder.env /etc/coder/coder.env
+sudo rmdir /etc/coder.d
+```
+
+> [!NOTE]
+> On RPM-based systems with custom SELinux policy that explicitly labels
+> `/etc/coder.d/`, copy the same file context onto `/etc/coder/` (for example
+> with `semanage fcontext -a` and `restorecon`) before restarting the service.
+> The default `etc_t` label is inherited automatically and needs no action.
+
 ## Reinstall Coder to upgrade
 
 To upgrade your Coder server, reinstall Coder using your original method

@@ -16,12 +16,13 @@ suggests:
 
 scripts:
   preinstall: preinstall.sh
+  postinstall: postinstall.sh
 
 contents:
   - src: coder
     dst: /usr/bin/coder
   - src: coder.env
-    dst: /etc/coder.d/coder.env
+    dst: /etc/coder/coder.env
     type: "config|noreplace"
   - src: coder.service
     dst: /usr/lib/systemd/system/coder.service
