@@ -65,7 +65,10 @@ func aibridgeTestAIProvider(providerID uuid.UUID, providerName string, providerT
 }
 
 func aibridgeTestRoute(aiProvider database.AIProvider) resolvedModelRoute {
-	return newAIGatewayModelRoute(aiProvider, string(aiProvider.Type), aiGatewayProviderAuth{})
+	return newAIGatewayModelRoute(canonicalizedProvider{
+		Row:           aiProvider,
+		CanonicalType: codersdk.AIProviderType(aiProvider.Type),
+	}, aiGatewayProviderAuth{})
 }
 
 func aibridgeTestRequest(chat database.Chat, model string) modelClientRequest {
@@ -310,7 +313,10 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 			aiGatewayRoutingEnabled:  true,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 		}
-		route := newAIGatewayModelRoute(provider, string(provider.Type), auth)
+		route := newAIGatewayModelRoute(canonicalizedProvider{
+			Row:           provider,
+			CanonicalType: codersdk.AIProviderType(provider.Type),
+		}, auth)
 		return server, route
 	}
 
@@ -668,7 +674,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), newAIGatewayModelRoute(database.AIProvider{}, "", aiGatewayProviderAuth{}), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), newAIGatewayModelRoute(canonicalizedProvider{}, aiGatewayProviderAuth{}), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "concrete AI provider")
 	})
 }

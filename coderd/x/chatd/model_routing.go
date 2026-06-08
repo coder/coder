@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type modelClientRequest struct {
@@ -57,7 +58,7 @@ func (r resolvedModelRoute) providerHint() (string, error) {
 	case modelRouteKindDirect:
 		return r.direct.ProviderHint, nil
 	case modelRouteKindAIGateway:
-		return r.aiGateway.ModelProviderHint, nil
+		return string(r.aiGateway.Provider.CanonicalType), nil
 	default:
 		return "", xerrors.New("model route is not configured")
 	}
@@ -68,7 +69,7 @@ func (r resolvedModelRoute) withProviderHint(providerHint string) resolvedModelR
 	case modelRouteKindDirect:
 		r.direct.ProviderHint = providerHint
 	case modelRouteKindAIGateway:
-		r.aiGateway.ModelProviderHint = providerHint
+		r.aiGateway.Provider.CanonicalType = codersdk.AIProviderType(providerHint)
 	}
 	return r
 }

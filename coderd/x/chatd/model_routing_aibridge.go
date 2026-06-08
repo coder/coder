@@ -31,23 +31,28 @@ const (
 	aibridgeDelegatedBYOKMarker = "delegated"
 )
 
+// canonicalizedProvider pairs a database row with its pre-computed canonical
+// provider type. Keeping them together ensures the type is derived once and
+// used consistently; callers cannot re-canonicalize and risk a different result.
+type canonicalizedProvider struct {
+	Row           database.AIProvider
+	CanonicalType codersdk.AIProviderType
+}
+
 type aiGatewayModelRoute struct {
-	Provider          database.AIProvider
-	ModelProviderHint string
-	ProviderAuth      aiGatewayProviderAuth
+	Provider     canonicalizedProvider
+	ProviderAuth aiGatewayProviderAuth
 }
 
 func newAIGatewayModelRoute(
-	provider database.AIProvider,
-	modelProviderHint string,
+	provider canonicalizedProvider,
 	auth aiGatewayProviderAuth,
 ) resolvedModelRoute {
 	return resolvedModelRoute{
 		kind: modelRouteKindAIGateway,
 		aiGateway: aiGatewayModelRoute{
-			Provider:          provider,
-			ModelProviderHint: modelProviderHint,
-			ProviderAuth:      auth,
+			Provider:     provider,
+			ProviderAuth: auth,
 		},
 	}
 }
@@ -121,10 +126,10 @@ func (p *Server) newAIGatewayModel(
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, error) {
-	if route.Provider.ID == uuid.Nil {
+	if route.Provider.Row.ID == uuid.Nil {
 		return nil, xerrors.New("AI Gateway routing requires a concrete AI provider")
 	}
-	if route.Provider.Name == "" {
+	if route.Provider.Row.Name == "" {
 		return nil, xerrors.New("AI Gateway routing requires an AI provider name")
 	}
 	if opts.ActiveAPIKeyID == "" {
@@ -138,7 +143,7 @@ func (p *Server) newAIGatewayModel(
 		)
 	}
 
-	if err := ValidateAIGatewayProviderModel(route.Provider, req.ModelName); err != nil {
+	if err := ValidateAIGatewayProviderModel(route.Provider.Row, req.ModelName); err != nil {
 		return nil, chaterror.WithClassification(
 			err,
 			chaterror.ClassifiedError{
@@ -157,7 +162,7 @@ func (p *Server) newAIGatewayModel(
 	if factory == nil || *factory == nil {
 		return nil, xerrors.New("AI Gateway transport factory is not configured")
 	}
-	rt, err := (*factory).TransportFor(route.Provider.Name, aibridge.SourceAgents)
+	rt, err := (*factory).TransportFor(route.Provider.Row.Name, aibridge.SourceAgents)
 	if err != nil {
 		return nil, xerrors.Errorf("create AI Gateway transport: %w", err)
 	}
@@ -170,7 +175,7 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(codersdk.AIProviderType(route.ModelProviderHint))
+	config := fantasyConfigForAIBridge(route.Provider.CanonicalType)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -260,7 +265,10 @@ func (p *Server) resolveAIGatewayRoute(
 	if err != nil {
 		return resolvedModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
 	}
-	return newAIGatewayModelRoute(provider, modelProviderHint, auth), nil
+	return newAIGatewayModelRoute(canonicalizedProvider{
+		Row:           provider,
+		CanonicalType: codersdk.AIProviderType(modelProviderHint),
+	}, auth), nil
 }
 
 func (p *Server) resolveAIGatewayModelRouteForConfig(

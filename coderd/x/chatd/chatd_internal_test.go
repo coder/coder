@@ -338,7 +338,7 @@ func TestResolveAIGatewayModelRouteForProviderTypeMatchesCanonicalBedrockForAnth
 	require.NoError(t, err)
 
 	require.Equal(t, modelRouteKindAIGateway, route.kind)
-	require.Equal(t, providerID, route.aiGateway.Provider.ID)
+	require.Equal(t, providerID, route.aiGateway.Provider.Row.ID)
 	providerHint, err := route.providerHint()
 	require.NoError(t, err)
 	require.Equal(t, "bedrock", providerHint)
