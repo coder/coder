@@ -23062,6 +23062,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
 	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
