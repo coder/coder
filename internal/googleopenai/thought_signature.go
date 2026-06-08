@@ -33,8 +33,8 @@ func ShouldPatchGoogleUpstreamRequest(baseURL string, _ string) bool {
 // Vertex AI has different hosts and paths. Add it here only with a fixture that
 // confirms it accepts the same thought-signature fallback shape.
 func isDirectGeminiOpenAIEndpoint(baseURL string) bool {
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
+	parsed, ok := parseBaseURL(baseURL)
+	if !ok {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
@@ -43,11 +43,28 @@ func isDirectGeminiOpenAIEndpoint(baseURL string) bool {
 }
 
 func isCoderAIBridgeEndpoint(baseURL string) bool {
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
+	parsed, ok := parseBaseURL(baseURL)
+	if !ok {
 		return false
 	}
 	return strings.ToLower(parsed.Hostname()) == "coder-aibridge"
+}
+
+// parseBaseURL parses a provider base URL, handling bare hostnames without
+// a scheme by prepending "https://".
+func parseBaseURL(baseURL string) (*url.URL, bool) {
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return nil, false
+	}
+	parsed, err := url.Parse(baseURL)
+	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
+		parsed, err = url.Parse("https://" + baseURL)
+	}
+	if err != nil {
+		return nil, false
+	}
+	return parsed, true
 }
 
 func isGeminiModelID(modelID string) bool {
