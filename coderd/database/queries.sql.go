@@ -8023,19 +8023,18 @@ SELECT
 FROM
     chats_expanded
 WHERE
-    CASE
-        WHEN $1::boolean THEN chats_expanded.owner_id = $2::uuid
-        ELSE true
-    END
-    AND CASE
-        WHEN $3::boolean THEN
-            chats_expanded.owner_id != $2::uuid
+    (
+        (NOT $1::boolean AND NOT $2::boolean)
+        OR ($1::boolean AND chats_expanded.owner_id = $3::uuid)
+        OR (
+            $2::boolean
+            AND chats_expanded.owner_id != $3::uuid
             AND (
                 chats_expanded.user_acl ? ($4::uuid)::text
                 OR chats_expanded.group_acl ?| $5::text[]
             )
-        ELSE true
-    END
+        )
+    )
     AND CASE
         WHEN $6 :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = $6 :: boolean
@@ -8174,8 +8173,8 @@ LIMIT
 
 type GetChatsParams struct {
 	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
-	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
 	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
+	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
 	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
@@ -8200,8 +8199,8 @@ type GetChatsRow struct {
 func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnedOnly,
-		arg.ViewerID,
 		arg.SharedOnly,
+		arg.ViewerID,
 		arg.SharedWithUserID,
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,

@@ -2151,10 +2151,9 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
-export type ChatListSource = "all" | "created_by_me" | "shared_with_me";
+export type ChatListSource = "created_by_me" | "shared_with_me";
 
 export const ChatListSources: ChatListSource[] = [
-	"all",
 	"created_by_me",
 	"shared_with_me",
 ];
