@@ -65,6 +65,24 @@ func NewFixtureToolResponse(fix fixtures.Fixture) UpstreamResponse {
 	return resp
 }
 
+// NewErrorResponse returns an UpstreamResponse that replays a raw HTTP error
+// response with the given status code and optional Retry-After header. SDK
+// auto-retries are disabled via x-should-retry.
+func NewErrorResponse(status int, retryAfter string) UpstreamResponse {
+	body := fmt.Sprintf(`{"error":{"message":%q}}`, http.StatusText(status))
+
+	raw := fmt.Sprintf("HTTP/1.1 %d %s\r\n", status, http.StatusText(status))
+	if retryAfter != "" {
+		raw += fmt.Sprintf("Retry-After: %s\r\n", retryAfter)
+	}
+	raw += "x-should-retry: false\r\n"
+	raw += "Content-Type: application/json\r\n"
+	raw += fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+
+	rawBytes := []byte(raw)
+	return UpstreamResponse{Streaming: rawBytes, Blocking: rawBytes}
+}
+
 // ReceivedRequest captures the details of a single request handled by MockUpstream.
 type ReceivedRequest struct {
 	Method string

@@ -161,9 +161,9 @@ func TestAnthropicMessages(t *testing.T) {
 		t.Cleanup(cancel)
 
 		fix := fixtures.Parse(t, fixtures.AntSingleInjectedToolNoPreamble)
-		upstream := newMockUpstream(ctx, t,
-			newFixtureResponse(fix),
-			newErrorResponse(http.StatusInternalServerError),
+		upstream := testutil.NewMockUpstream(ctx, t,
+			testutil.NewFixtureResponse(fix),
+			testutil.NewErrorResponse(http.StatusInternalServerError, ""),
 		)
 
 		mockMCP := setupMCPForTest(t, defaultTracer)
