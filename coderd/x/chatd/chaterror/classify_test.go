@@ -2,6 +2,7 @@ package chaterror_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -217,6 +218,57 @@ func TestClassify(t *testing.T) {
 				Provider:   "",
 				Retryable:  false,
 				StatusCode: 0,
+			},
+		},
+		{
+			name: "ProviderTransportResetIsRetryable",
+			err:  errors.Join(chaterror.ErrProviderTransportReset, context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "BareContextCanceledStaysNonRetryable",
+			err:  context.Canceled,
+			want: chaterror.ClassifiedError{
+				Message:    "The request was canceled before it completed.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "Status500ContextCanceledClassifiesAsRetryable",
+			err:  xerrors.Errorf("received status 500 from upstream: %w", context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
+			},
+		},
+		{
+			name: "ProviderStatus500ContextCanceledClassifiesAsRetryable",
+			err: xerrors.Errorf("provider stream closed: %w", errors.Join(
+				context.Canceled,
+				&fantasy.ProviderError{
+					Message:    "context canceled",
+					StatusCode: http.StatusInternalServerError,
+				},
+			)),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Detail:     "context canceled",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
 			},
 		},
 		// The next cases model the error that fantasy produces
@@ -929,21 +981,21 @@ func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
 	}
 }
 
-func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
+func TestClassify_StreamSilenceTimeoutWrappedClassificationWins(t *testing.T) {
 	t.Parallel()
 
 	wrapped := chaterror.WithClassification(
 		xerrors.New("context canceled"),
 		chaterror.ClassifiedError{
-			Kind:      codersdk.ChatErrorKindStartupTimeout,
+			Kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 			Provider:  "openai",
 			Retryable: true,
 		},
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI did not start responding in time.",
-		Kind:       codersdk.ChatErrorKindStartupTimeout,
+		Message:    "OpenAI did not send response data in time.",
+		Kind:       codersdk.ChatErrorKindStreamSilenceTimeout,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 0,

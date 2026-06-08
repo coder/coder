@@ -58,7 +58,7 @@ const parseThresholdDraft = (value: string): number | null => {
 const ContextCompactionHeader: FC = () => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
-			Context Compaction
+			Context compaction
 		</h3>
 		<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each

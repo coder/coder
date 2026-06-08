@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { ProviderForm } from "./ProviderForm";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
+import { ProviderForm, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
 
 const meta: Meta<typeof ProviderForm> = {
 	title: "pages/AISettingsPage/ProviderForm",
@@ -14,6 +16,88 @@ const meta: Meta<typeof ProviderForm> = {
 
 export default meta;
 type Story = StoryObj<typeof ProviderForm>;
+
+const SuccessfulSubmitProviderForm = ({
+	args,
+	deferred,
+}: {
+	args: ComponentProps<typeof ProviderForm>;
+	deferred: Deferred<void>;
+}) => {
+	const [isLoading, setIsLoading] = useState(false);
+
+	return (
+		<ProviderForm
+			{...args}
+			isLoading={isLoading}
+			onSubmit={async (values) => {
+				args.onSubmit?.(values);
+				setIsLoading(true);
+				await deferred.promise;
+				setIsLoading(false);
+			}}
+		/>
+	);
+};
+
+const FailedSubmitProviderForm = ({
+	args,
+	deferred,
+}: {
+	args: ComponentProps<typeof ProviderForm>;
+	deferred: Deferred<void>;
+}) => {
+	const [isLoading, setIsLoading] = useState(false);
+	const [submitError, setSubmitError] = useState<unknown>();
+
+	return (
+		<ProviderForm
+			{...args}
+			isLoading={isLoading}
+			submitError={submitError}
+			onSubmit={async (values) => {
+				args.onSubmit?.(values);
+				setIsLoading(true);
+				await deferred.promise;
+				setSubmitError(new Error(errorSubmitMessage));
+				setIsLoading(false);
+			}}
+		/>
+	);
+};
+
+const ExternalLoadingProviderForm = ({
+	args,
+	deferred,
+}: {
+	args: ComponentProps<typeof ProviderForm>;
+	deferred: Deferred<void>;
+}) => {
+	const [isLoading, setIsLoading] = useState(false);
+
+	return (
+		<>
+			<ProviderForm {...args} isLoading={isLoading} />
+			<button
+				type="button"
+				onClick={async () => {
+					setIsLoading(true);
+					await deferred.promise;
+					setIsLoading(false);
+				}}
+			>
+				Simulate external save
+			</button>
+		</>
+	);
+};
+
+const errorSubmitMessage = "Failed to update provider.";
+
+let bedrockSubmitDeferred = createDeferred<void>();
+let apiKeySubmitDeferred = createDeferred<void>();
+let failedSubmitDeferred = createDeferred<void>();
+let externalSaveDeferred = createDeferred<void>();
 
 export const AddAnthropicDefault: Story = {};
 
@@ -47,6 +131,15 @@ export const AddBedrock: Story = {
 };
 
 export const EditBedrockKeepCredentials: Story = {
+	render: (args) => {
+		bedrockSubmitDeferred = createDeferred<void>();
+		return (
+			<SuccessfulSubmitProviderForm
+				args={args}
+				deferred={bedrockSubmitDeferred}
+			/>
+		);
+	},
 	args: {
 		editing: true,
 		bedrockSavedAccessCredentials: true,
@@ -61,6 +154,91 @@ export const EditBedrockKeepCredentials: Story = {
 			accessKeySecret: "",
 			enabled: true,
 		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const accessKeyInput = await canvas.findByLabelText(/^access key\s*\*?$/i);
+		const accessKeySecretInput =
+			await canvas.findByLabelText(/access key secret/i);
+
+		expect(accessKeyInput).toHaveProperty("type", "text");
+		expect(accessKeySecretInput).toHaveProperty("type", "text");
+		expect(accessKeyInput).toHaveValue(SAVED_CREDENTIAL_MASK);
+		expect(accessKeySecretInput).toHaveValue(SAVED_CREDENTIAL_MASK);
+
+		await userEvent.click(accessKeyInput);
+		await waitFor(() => expect(accessKeyInput).toHaveValue(""));
+		await userEvent.click(accessKeySecretInput);
+		await waitFor(() =>
+			expect(accessKeyInput).toHaveValue(SAVED_CREDENTIAL_MASK),
+		);
+
+		await userEvent.click(accessKeyInput);
+		await waitFor(() => expect(accessKeyInput).toHaveValue(""));
+		await userEvent.type(accessKeyInput, "AKIAI1lO0EXAMPLE");
+		expect(accessKeyInput).toHaveValue("AKIAI1lO0EXAMPLE");
+
+		await userEvent.click(accessKeySecretInput);
+		await waitFor(() => expect(accessKeySecretInput).toHaveValue(""));
+		await userEvent.type(accessKeySecretInput, "wJalrI1lO0Secret");
+		expect(accessKeySecretInput).toHaveValue("wJalrI1lO0Secret");
+
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Updated Bedrock");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					accessKey: "AKIAI1lO0EXAMPLE",
+					accessKeySecret: "wJalrI1lO0Secret",
+				}),
+			),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		bedrockSubmitDeferred.resolve();
+		await waitFor(() => {
+			expect(accessKeyInput).toHaveValue(SAVED_CREDENTIAL_MASK);
+			expect(accessKeySecretInput).toHaveValue(SAVED_CREDENTIAL_MASK);
+		});
+	},
+};
+
+export const AddCopilot: Story = {
+	args: {
+		// The real add flow passes only the type; the form fills name and
+		// endpoint from the copilot defaults.
+		initialValues: { type: "copilot" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByLabelText(/endpoint/i);
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+	},
+};
+
+export const EditCopilot: Story = {
+	args: {
+		editing: true,
+		initialValues: {
+			type: "copilot",
+			name: "copilot",
+			displayName: "GitHub Copilot",
+			baseUrl: "https://api.business.githubcopilot.com",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const name = await canvas.findByLabelText(/^name/i);
+		expect(name).toBeDisabled();
+		expect(canvas.queryByLabelText(/api key/i)).not.toBeInTheDocument();
 	},
 };
 
@@ -109,6 +287,134 @@ export const Submitting: Story = {
 };
 
 export const CredentialFocusClear: Story = {
+	render: (args) => {
+		apiKeySubmitDeferred = createDeferred<void>();
+		return (
+			<SuccessfulSubmitProviderForm
+				args={args}
+				deferred={apiKeySubmitDeferred}
+			/>
+		);
+	},
+	args: {
+		editing: true,
+		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		initialValues: {
+			type: "anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
+			baseUrl: "https://api.anthropic.com",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+
+		expect(apiKeyInput).toHaveProperty("type", "text");
+		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
+
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.click(displayName);
+		await waitFor(() =>
+			expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD"),
+		);
+
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+		await userEvent.type(apiKeyInput, "sk-ant-I1lO0-new-secret");
+		expect(apiKeyInput).toHaveValue("sk-ant-I1lO0-new-secret");
+
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Updated Anthropic");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiKey: "sk-ant-I1lO0-new-secret",
+				}),
+			),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		apiKeySubmitDeferred.resolve();
+		await waitFor(() =>
+			expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD"),
+		);
+	},
+};
+export const FailedSubmitKeepsCredential: Story = {
+	render: (args) => {
+		failedSubmitDeferred = createDeferred<void>();
+		return (
+			<FailedSubmitProviderForm args={args} deferred={failedSubmitDeferred} />
+		);
+	},
+	args: {
+		editing: true,
+		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		initialValues: {
+			type: "anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
+			baseUrl: "https://api.anthropic.com",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+		await userEvent.type(apiKeyInput, "sk-ant-I1lO0-new-secret");
+
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Failed Anthropic");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiKey: "sk-ant-I1lO0-new-secret",
+				}),
+			),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		failedSubmitDeferred.resolve();
+		await expect(await canvas.findByText(errorSubmitMessage)).toBeVisible();
+		expect(apiKeyInput).toHaveValue("sk-ant-I1lO0-new-secret");
+	},
+};
+
+export const ExternalLoadingKeepsCredential: Story = {
+	render: (args) => {
+		externalSaveDeferred = createDeferred<void>();
+		return (
+			<ExternalLoadingProviderForm
+				args={args}
+				deferred={externalSaveDeferred}
+			/>
+		);
+	},
 	args: {
 		editing: true,
 		openAiAnthropicSavedApiKey: true,
@@ -125,11 +431,25 @@ export const CredentialFocusClear: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const apiKeyInput = await canvas.findByLabelText(/api key/i);
-		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
+		const submitButton = canvas.getByRole("button", {
+			name: /update provider/i,
+		});
+
 		await userEvent.click(apiKeyInput);
 		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+		await userEvent.type(apiKeyInput, "sk-ant-I1lO0-new-secret");
+		await waitFor(() => expect(submitButton).toBeEnabled());
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /simulate external save/i }),
+		);
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		externalSaveDeferred.resolve();
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		expect(apiKeyInput).toHaveValue("sk-ant-I1lO0-new-secret");
 	},
 };
+
 export const UnsavedChangesPrompt: Story = {
 	args: {
 		editing: true,

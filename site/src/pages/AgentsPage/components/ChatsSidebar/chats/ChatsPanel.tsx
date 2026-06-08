@@ -35,6 +35,7 @@ import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
@@ -157,7 +158,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
-		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length;
+		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.sources.length !==
+			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		sidebarFilters.sources.some(
+			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
+		);
 	const disablePinnedReordering = hasAppliedResultFilters;
 
 	// Local override for pinned order during drag. Applied
@@ -333,6 +339,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
 
@@ -347,7 +354,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		>
 			<nav
 				aria-label="Sidebar"
-				className="hidden border-b border-border-default px-2 py-1.5 sm:flex sm:flex-col sm:gap-1"
+				className="hidden border-b border-border-default px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
@@ -389,7 +396,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				</div>
 				<SettingsNavItem
 					icon={SquarePenIcon}
-					label="New Agent"
+					label="New chat"
 					active={isChatsActive}
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
@@ -413,9 +420,9 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				)}
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
-				<div className="mx-2 mt-4 mb-2">
+				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
+						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
 							Chats
 						</h2>
 						<div className="flex items-center gap-1">
@@ -446,7 +453,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 					)}
 				>
-					<div className="flex flex-col gap-2 px-2 pb-3 pt-5">
+					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">
 								<ErrorAlert error={loadError} />
@@ -519,6 +526,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															<DndContext
 																sensors={sensors}
 																collisionDetection={closestCenter}
+																modifiers={[
+																	// Restrict the drag to the y-axis only
+																	({ transform }) => ({
+																		...transform,
+																		x: 0,
+																	}),
+																]}
 																onDragEnd={handleDragEnd}
 															>
 																<SortableContext

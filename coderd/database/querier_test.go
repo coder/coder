@@ -1387,6 +1387,12 @@ func TestGetAuthorizedChats(t *testing.T) {
 			SharedOnly: true,
 		}, preparedMember)
 		require.ErrorContains(t, err, "viewer_id required")
+
+		_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			SharedOnly: true,
+			ViewerID:   member.ID,
+		}, preparedMember)
+		require.ErrorContains(t, err, "shared_with_user_id or shared_with_group_ids required")
 	})
 
 	t.Run("dbauthz", func(t *testing.T) {
@@ -1413,6 +1419,15 @@ func TestGetAuthorizedChats(t *testing.T) {
 		ownerRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{})
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		ownerSharedRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{
+			SharedOnly:         true,
+			ViewerID:           owner.ID,
+			SharedWithUserID:   owner.ID,
+			SharedWithGroupIds: []string{},
+		})
+		require.NoError(t, err)
+		require.Empty(t, ownerSharedRows, "shared-only must not include chats visible through owner RBAC")
 
 		// As secondMember: should see 0 chats.
 		secondSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
@@ -1563,8 +1578,9 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
 
 	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
 	}, preparedRecipient)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(sharedOnly))
@@ -1583,6 +1599,14 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	authzRows, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(authzRows))
+
+	authzSharedOnly, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(authzSharedOnly))
 
 	rbac.SetChatACLDisabled(true)
 	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
@@ -1673,14 +1697,26 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
 
 	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-		SharedOnly: true,
-		ViewerID:   recipient.ID,
+		SharedOnly:         true,
+		ViewerID:           recipient.ID,
+		SharedWithGroupIds: []string{group.ID.String()},
 	}, preparedRecipient)
 	require.NoError(t, err)
 	require.Len(t, sharedOnly, 1)
 	require.Equal(t, ownerChat.ID, sharedOnly[0].Chat.ID)
 	require.Empty(t, sharedOnly[0].Chat.UserACL)
 	require.Equal(t, sharedGroupACL, sharedOnly[0].Chat.GroupACL)
+
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	recipientCtx := dbauthz.As(ctx, recipientSubject)
+	authzSharedOnly, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{
+		SharedOnly:         true,
+		ViewerID:           recipient.ID,
+		SharedWithGroupIds: []string{group.ID.String()},
+	})
+	require.NoError(t, err)
+	require.Len(t, authzSharedOnly, 1)
+	require.Equal(t, ownerChat.ID, authzSharedOnly[0].Chat.ID)
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -3034,6 +3070,62 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, saRoles.Roles, wantSA)
 	require.NotContains(t, saRoles.Roles, wantMember)
+}
+
+// TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles verifies the
+// resolve-at-read semantics for organizations.default_org_member_roles:
+// every member's effective roles include the org's defaults, and changes
+// to the column propagate on the next request. The union applies to
+// regular users and to service accounts; the SQL array_cats the column
+// for both code paths.
+func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// New orgs default to organization-workspace-access; both the regular
+	// user's and the service account's effective roles must include the
+	// scoped form.
+	wantWorkspaceAccess := rbac.RoleOrgWorkspaceAccess() + ":" + org.ID.String()
+	initial, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.Contains(t, initial.Roles, wantWorkspaceAccess)
+	initialSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, initialSA.Roles, wantWorkspaceAccess)
+
+	// Shrinking the org default to empty must immediately drop the role
+	// from both effective sets.
+	_, err = db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: []string{},
+	})
+	require.NoError(t, err)
+
+	shrunk, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunk.Roles, wantWorkspaceAccess)
+	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
@@ -14732,4 +14824,190 @@ func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 	}).ID
 	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsEmpty)
 	require.NoError(t, err)
+}
+
+func TestAIGatewayKeysTableConstraints(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	preExisting := database.InsertAIGatewayKeyParams{
+		ID:           uuid.New(),
+		Name:         "name",
+		SecretPrefix: "key_test__1",
+		HashedSecret: []byte("first-secret"),
+	}
+	_, err := db.InsertAIGatewayKey(ctx, preExisting)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		params          database.InsertAIGatewayKeyParams
+		expectUniqueErr database.UniqueConstraint
+		expectCheckErr  database.CheckConstraint
+	}{
+		{
+			name:            "duplicate name",
+			params:          aiGatewayKeyParams(preExisting.Name, "key_test002"),
+			expectUniqueErr: database.UniqueAiGatewayKeysNameIndex,
+		},
+		{
+			name:            "duplicate secret prefix",
+			params:          aiGatewayKeyParams("different-key", preExisting.SecretPrefix),
+			expectUniqueErr: database.UniqueAiGatewayKeysSecretPrefixIndex,
+		},
+		{
+			name:            "duplicate hashed secret",
+			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExisting.HashedSecret},
+			expectUniqueErr: database.UniqueAiGatewayKeysHashedSecretIndex,
+		},
+		{
+			name:           "empty name",
+			params:         aiGatewayKeyParams("", "key_empty__"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name with trailing dash",
+			params:         aiGatewayKeyParams("other-name-", "key_trail__"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name with consecutive dashes",
+			params:         aiGatewayKeyParams("other--name", "key_consec_"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name with underscore",
+			params:         aiGatewayKeyParams("other_name", "key_undersc"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name with space",
+			params:         aiGatewayKeyParams("other name", "key_spacen_"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name with leading dash",
+			params:         aiGatewayKeyParams("-other-name", "key_leadng_"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "name longer than 64 characters",
+			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "key_longna_"),
+			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+		},
+		{
+			name:           "empty secret prefix",
+			params:         aiGatewayKeyParams("check-empty-pfx", ""),
+			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+		},
+		{
+			name:           "invalid secret prefix length",
+			params:         aiGatewayKeyParams("check-short-pfx", "key_short"),
+			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+		},
+		{
+			name:           "empty hashed secret",
+			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "check-empty-hash", SecretPrefix: "key_ehash__", HashedSecret: []byte{}},
+			expectCheckErr: database.CheckAiGatewayKeysHashedSecretCheck,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			_, err := db.InsertAIGatewayKey(ctx, tc.params)
+			require.Error(t, err)
+			requireAIGatewayKeysViolation(t, err, tc.expectUniqueErr, tc.expectCheckErr)
+		})
+	}
+}
+
+func TestAIGatewayKeysQueries(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	first := aiGatewayKeyParams("first-key", "key_first__")
+	second := aiGatewayKeyParams("second-key", "key_second_")
+	second.HashedSecret = []byte("second-secret")
+
+	firstRow, err := db.InsertAIGatewayKey(ctx, first)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, firstRow.ID)
+
+	require.Equal(t, "first-key", firstRow.Name)
+	require.Equal(t, first.SecretPrefix, firstRow.SecretPrefix)
+
+	secondRow, err := db.InsertAIGatewayKey(ctx, second)
+	require.NoError(t, err)
+	require.Equal(t, second.ID, secondRow.ID)
+
+	require.Equal(t, "second-key", secondRow.Name)
+	require.Equal(t, second.SecretPrefix, secondRow.SecretPrefix)
+
+	keys, err := db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+
+	requireAIGatewayKeysRow(t, keys[0], first, firstRow.CreatedAt)
+	require.False(t, keys[0].LastUsedAt.Valid)
+	requireAIGatewayKeysRow(t, keys[1], second, secondRow.CreatedAt)
+	require.False(t, keys[1].LastUsedAt.Valid)
+
+	deleted, err := db.DeleteAIGatewayKey(ctx, first.ID)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, deleted.ID)
+	require.Equal(t, first.Name, deleted.Name)
+	require.Equal(t, first.SecretPrefix, deleted.SecretPrefix)
+	require.Equal(t, firstRow.CreatedAt, deleted.CreatedAt)
+
+	_, err = db.DeleteAIGatewayKey(ctx, first.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	keys, err = db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	requireAIGatewayKeysRow(t, keys[0], second, secondRow.CreatedAt)
+}
+
+func aiGatewayKeyParams(name string, secretPrefix string) database.InsertAIGatewayKeyParams {
+	return database.InsertAIGatewayKeyParams{
+		ID:           uuid.New(),
+		Name:         name,
+		SecretPrefix: secretPrefix,
+		HashedSecret: []byte("secret-" + name + "-" + secretPrefix),
+	}
+}
+
+func requireAIGatewayKeysRow(t *testing.T, listRow database.ListAIGatewayKeysRow, insertParams database.InsertAIGatewayKeyParams, insertCreatedAt time.Time) {
+	t.Helper()
+
+	require.Equal(t, insertParams.ID, listRow.ID)
+	require.Equal(t, insertParams.Name, listRow.Name)
+	require.Equal(t, insertParams.SecretPrefix, listRow.SecretPrefix)
+	require.Equal(t, insertCreatedAt, listRow.CreatedAt)
+}
+
+func requireAIGatewayKeysViolation(
+	t *testing.T,
+	err error,
+	uniqueConstraint database.UniqueConstraint,
+	checkConstraint database.CheckConstraint,
+) {
+	t.Helper()
+
+	switch {
+	case uniqueConstraint != "":
+		require.True(t, database.IsUniqueViolation(err, uniqueConstraint), "expected %q unique violation, got %v", uniqueConstraint, err)
+	case checkConstraint != "":
+		require.True(t, database.IsCheckViolation(err, checkConstraint), "expected %q check violation, got %v", checkConstraint, err)
+	default:
+		require.FailNow(t, "test case must expect a constraint error")
+	}
 }

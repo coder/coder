@@ -34,6 +34,19 @@ func TestExecuteTool(t *testing.T) {
 		assert.NotContains(t, info.Required, "model_intent")
 	})
 
+	t.Run("SchemaDisclosesShell", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.Execute(chattool.ExecuteOptions{})
+		info := tool.Info()
+		assert.Contains(t, info.Description, `Runs under "sh -c" (POSIX)`)
+
+		commandParam, ok := info.Parameters["command"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "string", commandParam["type"])
+		assert.Contains(t, commandParam["description"], `Runs under "sh -c" (POSIX)`)
+	})
+
 	t.Run("EmptyCommand", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

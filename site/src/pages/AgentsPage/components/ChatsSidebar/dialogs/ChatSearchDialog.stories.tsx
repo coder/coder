@@ -32,6 +32,7 @@ const mockChat: Chat = {
 	created_at: "2026-05-20T05:00:00.000Z",
 	updated_at: "2026-05-20T07:30:00.000Z",
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: true,
 	client_type: "ui",

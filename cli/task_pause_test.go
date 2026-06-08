@@ -8,8 +8,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestExpTaskPause(t *testing.T) {
@@ -67,6 +67,7 @@ func TestExpTaskPause(t *testing.T) {
 	t.Run("PromptConfirm", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		// Given: A running task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
@@ -78,13 +79,14 @@ func TestExpTaskPause(t *testing.T) {
 		// And: We confirm we want to pause the task
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatchContext(ctx, "Pause task")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Pause task")
+		stdin.WriteLine("yes")
 
 		// Then: We expect the task to be paused
-		pty.ExpectMatchContext(ctx, "has been paused")
+		stdout.ExpectMatch(ctx, "has been paused")
 		require.NoError(t, w.Wait())
 
 		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
@@ -95,6 +97,7 @@ func TestExpTaskPause(t *testing.T) {
 	t.Run("PromptDecline", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		// Given: A running task
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
@@ -106,10 +109,11 @@ func TestExpTaskPause(t *testing.T) {
 		// But: We say no at the confirmation screen
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		w := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatchContext(ctx, "Pause task")
-		pty.WriteLine("no")
+		stdout.ExpectMatch(ctx, "Pause task")
+		stdin.WriteLine("no")
 		require.Error(t, w.Wait())
 
 		// Then: We expect the task to not be paused

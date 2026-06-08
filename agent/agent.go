@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -52,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -89,7 +89,10 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	// EnvInfo overrides the session command environment source. Only
+	// tests set this. Nil defaults to usershell.SystemEnvInfo.
+	EnvInfo usershell.EnvInfoer
+	Logger  slog.Logger
 	// IgnorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
@@ -117,6 +120,9 @@ type Options struct {
 	ContextConfig                agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
+	// StatsReportInterval is the interval for the connstats callback
+	// installed at statsReporter creation.
+	StatsReportInterval time.Duration
 }
 
 type Client interface {
@@ -143,6 +149,9 @@ type Agent interface {
 func New(options Options) Agent {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
+	}
+	if options.EnvInfo == nil {
+		options.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if options.TempDir == "" {
 		options.TempDir = os.TempDir()
@@ -183,6 +192,10 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 
+	if options.StatsReportInterval == 0 {
+		options.StatsReportInterval = DefaultStatsReportInterval
+	}
+
 	if options.ListeningPortsGetter == nil {
 		options.ListeningPortsGetter = &osListeningPortsGetter{
 			cacheDuration: 1 * time.Second,
@@ -216,8 +229,10 @@ func New(options Options) Agent {
 			ignorePorts: maps.Clone(options.IgnorePorts),
 		},
 		reportMetadataInterval:             options.ReportMetadataInterval,
+		statsReportInterval:                options.StatsReportInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
+		envInfo:                            options.EnvInfo,
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
@@ -289,11 +304,13 @@ type agent struct {
 	// values. Callers that need secrets must explicitly load this.
 	secrets                            atomic.Pointer[[]agentsdk.WorkspaceSecret]
 	reportMetadataInterval             time.Duration
+	statsReportInterval                time.Duration
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
+	envInfo                            usershell.EnvInfoer
 	blockFileTransfer                  bool
 	blockReversePortForwarding         bool
 	blockLocalPortForwarding           bool
@@ -356,6 +373,7 @@ func (a *agent) init() {
 		AnnouncementBanners:        func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:                  a.updateCommandEnv,
 		WorkingDirectory:           func() string { return a.manifest.Load().Directory },
+		EnvInfo:                    a.envInfo,
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
@@ -411,7 +429,7 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
@@ -1287,12 +1305,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		//
 		// An example is VS Code Remote, which must know the directory
 		// before initializing a connection.
-		manifest.Directory, err = expandPathToAbs(manifest.Directory)
+		manifest.Directory, err = a.expandPathToAbs(manifest.Directory)
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
 		// Normalize all devcontainer paths by making them absolute.
-		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, expandPathToAbs, manifest.Devcontainers)
+		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, a.expandPathToAbs, manifest.Devcontainers)
 		subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
@@ -1321,7 +1339,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		// longer than file writes. Startup scripts still wait because they run
 		// sequentially below. Env var injection is unaffected because it
 		// happens lazily per-command in updateCommandEnv.
-		homeDir, err := os.UserHomeDir()
+		homeDir, err := a.envInfo.HomeDir()
 		if err != nil {
 			a.logger.Warn(ctx, "failed to resolve home directory for secret files", slog.Error(err))
 		}
@@ -1500,7 +1518,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			closing := a.closing
 			if !closing {
 				a.network = network
-				a.statsReporter = newStatsReporter(a.logger, network, a)
+				a.statsReporter = newStatsReporter(a.logger, network, a, a.statsReportInterval)
 			}
 			a.closeMutex.Unlock()
 			if closing {
@@ -2331,31 +2349,16 @@ lifecycleWaitLoop:
 	return nil
 }
 
-// userHomeDir returns the home directory of the current user, giving
-// priority to the $HOME environment variable.
-func userHomeDir() (string, error) {
-	// First we check the environment.
-	homedir, err := os.UserHomeDir()
-	if err == nil {
-		return homedir, nil
-	}
-
-	// As a fallback, we try the user information.
-	u, err := user.Current()
-	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
-	}
-	return u.HomeDir, nil
-}
-
 // expandPathToAbs converts a path to an absolute path. It primarily resolves
-// the home directory and any environment variables that may be set.
-func expandPathToAbs(path string) (string, error) {
+// the home directory and any environment variables that may be set. The home
+// directory is resolved through the agent's EnvInfoer so the injected
+// environment is honored.
+func (a *agent) expandPathToAbs(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
 	if path[0] == '~' {
-		home, err := userHomeDir()
+		home, err := a.envInfo.HomeDir()
 		if err != nil {
 			return "", err
 		}
@@ -2364,7 +2367,7 @@ func expandPathToAbs(path string) (string, error) {
 	path = os.ExpandEnv(path)
 
 	if !filepath.IsAbs(path) {
-		home, err := userHomeDir()
+		home, err := a.envInfo.HomeDir()
 		if err != nil {
 			return "", err
 		}

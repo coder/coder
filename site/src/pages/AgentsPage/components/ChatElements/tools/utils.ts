@@ -309,8 +309,10 @@ export const formatResultOutput = (result: unknown): string | null => {
 	return formatValue(result);
 };
 
-export const fileViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
+export const fileViewerCSS = [
+	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }",
+	"[data-code] { overflow: visible !important; }",
+].join(" ");
 
 // Selection override CSS maps the library's gold/yellow selection
 // palette to the Coder blue accent (`--content-link`) so line

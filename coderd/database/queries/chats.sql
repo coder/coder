@@ -486,7 +486,12 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN @shared_only::boolean THEN chats_expanded.owner_id != @viewer_id::uuid
+        WHEN @shared_only::boolean THEN
+            chats_expanded.owner_id != @viewer_id::uuid
+            AND (
+                chats_expanded.user_acl ? (@shared_with_user_id::uuid)::text
+                OR chats_expanded.group_acl ?| @shared_with_group_ids::text[]
+            )
         ELSE true
     END
     AND CASE

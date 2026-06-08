@@ -411,6 +411,55 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+export const DurableListTemplatesToolLifecycle: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Show me available templates" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "list-templates-1",
+						tool_name: "list_templates",
+						args: {},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "list-templates-1",
+						tool_name: "list_templates",
+						result: {
+							count: "1",
+							templates:
+								'[{"id":"template-1","name":"docker","display_name":"Docker"}]',
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getAllByText("Listed 1 template")).toHaveLength(1);
+		expect(canvas.queryByText("Listing templates…")).not.toBeInTheDocument();
+	},
+};
+
 /**
  * User bubbles should stay right-aligned, shrink to fit short content,
  * and cap long content so the timeline keeps some breathing room.

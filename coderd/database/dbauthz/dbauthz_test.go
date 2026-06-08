@@ -2266,9 +2266,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(arg).Asserts(org, policy.ActionUpdate).Returns(org)
 	}))
 	s.Run("InsertOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{})
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.InsertOrganizationMemberParams{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}}
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		dbm.EXPECT().InsertOrganizationMember(gomock.Any(), arg).Return(database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: arg.Roles}, nil).AnyTimes()
 		check.Args(arg).Asserts(
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
@@ -2305,12 +2306,17 @@ func (s *MethodTestSuite) TestOrganization() {
 		).WithNotAuthorized("no rows").WithCancelled(sql.ErrNoRows.Error())
 	}))
 	s.Run("UpdateOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique"})
-		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different"}
+		o := testutil.Fake(s.T(), faker, database.Organization{Name: "something-unique", DefaultOrgMemberRoles: []string{}})
+		// Change DefaultOrgMemberRoles so canAssignRoles fires alongside the
+		// ActionUpdate check; mirrors the InsertOrganizationMember pattern.
+		arg := database.UpdateOrganizationParams{ID: o.ID, Name: "something-different", DefaultOrgMemberRoles: []string{codersdk.RoleOrganizationAdmin}}
 
 		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		dbm.EXPECT().UpdateOrganization(gomock.Any(), arg).Return(o, nil).AnyTimes()
-		check.Args(arg).Asserts(o, policy.ActionUpdate)
+		check.Args(arg).Asserts(
+			o, policy.ActionUpdate,
+			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
+		)
 	}))
 	s.Run("UpdateOrganizationDeletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{Name: "doomed"})
@@ -2347,13 +2353,14 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(arg).Asserts(rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionRead).Returns(rows)
 	}))
 	s.Run("UpdateMemberRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{})
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
 		u := testutil.Fake(s.T(), faker, database.User{})
 		mem := testutil.Fake(s.T(), faker, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID, Roles: []string{codersdk.RoleOrganizationAdmin}})
 		out := mem
 		out.Roles = []string{}
 
 		dbm.EXPECT().OrganizationMembers(gomock.Any(), database.OrganizationMembersParams{OrganizationID: o.ID, UserID: u.ID, IncludeSystem: false}).Return([]database.OrganizationMembersRow{{OrganizationMember: mem}}, nil).AnyTimes()
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
 		arg := database.UpdateMemberRolesParams{GrantedRoles: []string{}, UserID: u.ID, OrgID: o.ID}
 		dbm.EXPECT().UpdateMemberRoles(gomock.Any(), arg).Return(out, nil).AnyTimes()
 
@@ -3137,6 +3144,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateGitSSHKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(key, policy.ActionUpdatePersonal).Returns(key)
 	}))
+	s.Run("GetExternalAgentTokensByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetExternalAgentTokensByTemplateIDParams{TemplateID: uuid.New(), OwnerID: uuid.Nil}
+		row := testutil.Fake(s.T(), faker, database.GetExternalAgentTokensByTemplateIDRow{})
+		dbm.EXPECT().GetExternalAgentTokensByTemplateID(gomock.Any(), arg).Return([]database.GetExternalAgentTokensByTemplateIDRow{row}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(row))
+	}))
 	s.Run("GetExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
 		arg := database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}
@@ -3169,6 +3182,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserLinkByUserIDLoginType(gomock.Any(), database.GetUserLinkByUserIDLoginTypeParams{UserID: link.UserID, LoginType: link.LoginType}).Return(link, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("UpdateUserLinkedID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.UserLink{})
+		arg := database.UpdateUserLinkedIDParams{LinkedID: link.LinkedID, UserID: link.UserID, LoginType: link.LoginType}
+		dbm.EXPECT().UpdateUserLinkedID(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
@@ -6637,6 +6656,23 @@ func (s *MethodTestSuite) TestAIBridge() {
 		}
 		dbm.EXPECT().UpdateEncryptedUserAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(key)
+	}))
+
+	s.Run("InsertAIGatewayKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		params := database.InsertAIGatewayKeyParams{}
+		row := database.InsertAIGatewayKeyRow{}
+		dbm.EXPECT().InsertAIGatewayKey(gomock.Any(), params).Return(row, nil).AnyTimes()
+		check.Args(params).Asserts(rbac.ResourceAIGatewayKey, policy.ActionCreate).Returns(row)
+	}))
+	s.Run("ListAIGatewayKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.ListAIGatewayKeysRow{}
+		dbm.EXPECT().ListAIGatewayKeys(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayKey, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("DeleteAIGatewayKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteAIGatewayKey(gomock.Any(), id).Return(database.DeleteAIGatewayKeyRow{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionDelete).Returns(database.DeleteAIGatewayKeyRow{})
 	}))
 }
 

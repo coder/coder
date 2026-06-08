@@ -1,5 +1,6 @@
-# Keep in lockstep with MISE_VERSION in dogfood/coder/ubuntu-*/Dockerfile.base,
-# .github/workflows/dogfood.yaml, and scripts/dogfood/mise-oci-wrapper.sh.
+# Keep in lockstep with .github/actions/setup-mise/action.yml,
+# .github/actions/setup-mise/checksums.toml, flake.nix,
+# dogfood/coder/ubuntu-*/Dockerfile.base, and scripts/dogfood/mise-oci-wrapper.sh.
 min_version = "2026.5.12"
 
 [settings]
@@ -8,7 +9,7 @@ lockfile = true
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.2"
+go = "1.26.4"
 node = "22.19.0"
 pnpm = "10.33.2"
 
@@ -19,8 +20,17 @@ protoc = "23.4"
 protoc-gen-go = "1.30.0"
 
 # Go development tools.
+"go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
+"go:github.com/coder/whichtests" = "ec33bab1ec04cd86beb7a61a069db4463dba63f5"
+# Keep golangci-lint on the Go backend while pinned to v1. The upstream
+# precompiled v1 binary is built with an older Go toolchain and cannot lint
+# this module's Go version. Upgrading to v2 should let us use the native
+# golangci-lint mise/aqua backend and GitHub release binaries.
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "v1.64.8"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
+"go:github.com/slsyy/mtimehash/cmd/mtimehash" = "v1.0.0"
+"go:github.com/tc-hib/go-winres" = "v0.3.3"
 "go:github.com/mikefarah/yq/v4" = "v4.44.3"
 "go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
 "go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
@@ -30,17 +40,18 @@ protoc-gen-go = "1.30.0"
 "go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
+actionlint = "1.7.10"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
 # crane is the registry client `mise oci push` shells out to. Sourced
 # here so it travels with the rest of the mise toolset (one source of
 # truth, deterministic version, no apt drift across CI / wrapper).
 crane = "0.21.6"
-golangci-lint = "1.64.8"
 helm = "3.21.0"
 kubectx = "0.9.4"
-syft = "1.20.0"
+syft = "1.26.1"
 terraform = "1.15.5"
+zizmor = "1.11.0"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood
 # users who run `mise install` here will pull these too; they are
@@ -60,6 +71,9 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
+# action-linkspector without resolving mutable npm metadata at runtime.
+"npm:@puppeteer/browsers" = "2.13.0"
 
 # sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
 # needs CGO_ENABLED=1. Scope it with `install_env` so it only applies

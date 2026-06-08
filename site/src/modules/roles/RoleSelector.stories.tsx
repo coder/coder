@@ -89,3 +89,13 @@ export const OrganizationMemberRoles: Story = {
 		availableRoles: orgMemberRoles,
 	},
 };
+
+export const WithAdditionalImpliedRoles: Story = {
+	args: {
+		availableRoles: orgMemberRoles,
+		additionalImpliedRoles: [
+			assignableRole(MockAgentsAccessRole, true),
+			assignableRole(MockOrganizationAuditorRole, true),
+		],
+	},
+};

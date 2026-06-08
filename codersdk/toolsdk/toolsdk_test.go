@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -1048,9 +1048,6 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("WorkspaceSSHExec is not supported on Windows")
-		}
 		// Setup workspace exactly like main SSH tests
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
@@ -1076,7 +1073,7 @@ func TestTools(t *testing.T) {
 		// Test output trimming
 		result, err = testTool(t, toolsdk.WorkspaceBash, tb, toolsdk.WorkspaceBashArgs{
 			Workspace: workspace.Name,
-			Command:   "echo -e '\\n  test with whitespace  \\n'",
+			Command:   "echo '  test with whitespace  '",
 		})
 		require.NoError(t, err)
 		require.Equal(t, 0, result.ExitCode)
@@ -2576,29 +2573,31 @@ func TestMain(m *testing.M) {
 	var untested []string
 	for _, tool := range toolsdk.All {
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
-			// Test is skipped on Windows
-			if runtime.GOOS == "windows" && tool.Name == "coder_workspace_bash" {
-				continue
-			}
 			untested = append(untested, tool.Name)
 		}
 	}
 
 	if len(untested) > 0 && code == 0 {
-		code = 1
-		println("The following tools were not tested:")
+		_, _ = fmt.Fprintln(os.Stderr, "The following tools were not tested:")
 		for _, tool := range untested {
-			println(" - " + tool)
+			_, _ = fmt.Fprintf(os.Stderr, " - %s\n", tool)
 		}
-		println("Please ensure that all tools are tested using testTool().")
-		println("If you just added a new tool, please add a test for it.")
-		println("NOTE: if you just ran an individual test, this is expected.")
+		_, _ = fmt.Fprintln(os.Stderr, "Please ensure that all tools are tested using testTool().")
+		_, _ = fmt.Fprintln(os.Stderr, "If you just added a new tool, please add a test for it.")
+		// Only fail when the full suite ran. When -run filters to a
+		// subset (e.g. CI flake checks use -run ^TestTools), tools
+		// covered by other top-level functions appear untested.
+		if f := flag.Lookup("test.run"); f == nil || f.Value.String() == "" {
+			code = 1
+		} else {
+			_, _ = fmt.Fprintln(os.Stderr, "NOTE: if you just ran an individual test, this is expected.")
+		}
 	}
 
 	// Check for goroutine leaks. Below is adapted from goleak.VerifyTestMain:
 	if code == 0 {
 		if err := goleak.Find(testutil.GoleakOptions...); err != nil {
-			println("goleak: Errors on successful test run: ", err.Error())
+			_, _ = fmt.Fprintln(os.Stderr, "goleak: Errors on successful test run:", err.Error())
 			code = 1
 		}
 	}

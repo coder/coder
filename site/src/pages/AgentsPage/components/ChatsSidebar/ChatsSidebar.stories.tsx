@@ -61,7 +61,9 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
-	owner_id: "owner-1",
+	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
@@ -70,6 +72,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -181,6 +184,56 @@ export const ChatWithTurnSummary: Story = {
  * holds the previous turn's text. The sidebar replaces it with a live
  * "{model} streaming…" label so the status does not look stuck.
  */
+export const SharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-chat",
+				title: "Shared chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				last_turn_summary: "Original chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(canvas.getByText("Original chat summary")).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Shared by Sharing User"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SharedUnreadChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-unread-chat",
+				title: "Shared unread chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+				last_turn_summary: "Original unread chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(
+			canvas.getByTestId("unread-indicator-shared-unread-chat"),
+		).toBeInTheDocument();
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
@@ -2117,7 +2170,7 @@ export const SettingsUserAgentsNonAdmin: Story = {
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
 		expect(
-			canvas.queryByRole("link", { name: "Manage Agents" }),
+			canvas.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -2192,7 +2245,7 @@ export const SettingsUserAgentsAdmin: Story = {
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
 		expect(
-			canvas.getByRole("link", { name: "Manage Agents" }),
+			canvas.getByRole("link", { name: "Manage agents" }),
 		).toBeInTheDocument();
 	},
 };
@@ -2212,7 +2265,7 @@ export const SettingsAdminAgentsEntryPreserved: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(canvas.getByText("Manage Agents")).toBeInTheDocument();
+		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
 	},
 };
 

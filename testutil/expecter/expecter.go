@@ -85,6 +85,18 @@ func NewAttachedToInvocation(t *testing.T, invocation *serpent.Invocation) *Expe
 	return e
 }
 
+func NewPiped(t *testing.T) (*Expecter, io.Writer) {
+	r, w := io.Pipe()
+	e := New(t, r, "cmd")
+
+	t.Cleanup(func() {
+		// Close writer here at the end of the test to ensure we don't leak goroutines reading from the pipe.
+		_ = w.Close()
+		e.Close("test end")
+	})
+	return e, w
+}
+
 type Expecter struct {
 	t    *testing.T
 	out  *stdbuf
@@ -133,31 +145,11 @@ func (e *Expecter) logClose(name string, c io.Closer) {
 	e.Logf("closed %s: %v", name, err)
 }
 
-// Deprecated: use ExpectMatchContext instead.
-// This uses a background context, so will not respect the test's context.
-func (e *Expecter) ExpectMatch(str string) string {
-	return e.expectMatchContextFunc(str, e.ExpectMatchContext)
-}
-
-func (e *Expecter) ExpectRegexMatch(str string) string {
-	return e.expectMatchContextFunc(str, e.ExpectRegexMatchContext)
-}
-
-func (e *Expecter) expectMatchContextFunc(str string, fn func(ctx context.Context, str string) string) string {
-	e.t.Helper()
-
-	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
-	return fn(timeout, str)
-}
-
-// TODO(mafredri): Rename this to ExpectMatch when refactoring.
-func (e *Expecter) ExpectMatchContext(ctx context.Context, str string) string {
+func (e *Expecter) ExpectMatch(ctx context.Context, str string) string {
 	return e.expectMatcherFunc(ctx, str, strings.Contains)
 }
 
-func (e *Expecter) ExpectRegexMatchContext(ctx context.Context, str string) string {
+func (e *Expecter) ExpectRegexMatch(ctx context.Context, str string) string {
 	return e.expectMatcherFunc(ctx, str, func(src, pattern string) bool {
 		return regexp.MustCompile(pattern).MatchString(src)
 	})
