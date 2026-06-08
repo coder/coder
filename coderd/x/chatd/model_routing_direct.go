@@ -82,7 +82,7 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 	if provider != nil {
 		canonicalType, err := db2sdk.CanonicalAIProviderType(*provider)
 		if err != nil {
-			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			p.logger.Warn(ctx, "parse AI provider settings for direct route", slog.F("provider_id", provider.ID), slog.Error(err))
 			canonicalType = codersdk.AIProviderType(provider.Type)
 		}
 		providerHint = chatprovider.NormalizeProvider(string(canonicalType))

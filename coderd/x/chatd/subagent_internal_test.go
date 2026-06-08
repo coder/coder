@@ -3665,7 +3665,6 @@ func TestEnabledProviderContainsName(t *testing.T) {
 			want:      false,
 		},
 		{
-			// First provider fails canonicalization; second matches canonically.
 			// Verifies the first-pass loop continues on error rather than aborting.
 			name: "first provider fails canonicalization, second matches canonically",
 			providers: []database.AIProvider{

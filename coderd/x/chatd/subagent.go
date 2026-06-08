@@ -165,7 +165,7 @@ func enabledProviderContainsName(
 	for _, provider := range providers {
 		matches, err := aiProviderMatchesCanonicalType(provider, normalizedProviderName)
 		if err != nil {
-			logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			logger.Warn(ctx, "parse AI provider settings during provider name check", slog.F("provider_id", provider.ID), slog.Error(err))
 			continue
 		}
 		if matches {
@@ -521,7 +521,7 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		}
 		canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 		if err != nil {
-			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			p.logger.Warn(ctx, "parse AI provider settings for model config", slog.F("provider_id", provider.ID), slog.Error(err))
 			canonicalType = codersdk.AIProviderType(provider.Type)
 		}
 		providerName := chatprovider.NormalizeProvider(string(canonicalType))

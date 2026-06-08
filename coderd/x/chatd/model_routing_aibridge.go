@@ -294,7 +294,7 @@ func (p *Server) resolveAIGatewayModelRouteForProviderType(
 	}
 	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
-		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		p.logger.Warn(ctx, "parse AI provider settings for AI gateway route", slog.F("provider_id", provider.ID), slog.Error(err))
 		canonicalType = codersdk.AIProviderType(provider.Type)
 	}
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(canonicalType))
@@ -329,7 +329,7 @@ func (p *Server) aiProviderForProviderType(
 		}
 		matches, err := aiProviderMatchesCanonicalType(provider, normalizedProviderType)
 		if err != nil {
-			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			p.logger.Warn(ctx, "parse AI provider settings during provider type lookup", slog.F("provider_id", provider.ID), slog.Error(err))
 			continue
 		}
 		if !matches {

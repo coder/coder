@@ -364,7 +364,7 @@ func TestDirectProviderHintAndProviderForConfigErrorsOnMalformedSettings(t *test
 	_, _, err := server.directProviderHintAndProviderForConfig(ctx, database.ChatModelConfig{
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	})
-	require.Error(t, err)
+	require.ErrorContains(t, err, "canonicalize")
 }
 
 func TestAIProviderConfigFromKeysFallsBackToRawTypeOnMalformedSettings(t *testing.T) {
@@ -372,9 +372,7 @@ func TestAIProviderConfigFromKeysFallsBackToRawTypeOnMalformedSettings(t *testin
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	// Build valid Bedrock settings then corrupt the JSON. If parsing succeeded,
-	// CanonicalAIProviderType would return "bedrock". The fallback must return
-	// the raw provider.Type ("anthropic"), confirming the fallback path fired.
+	// Corrupt valid Bedrock JSON to verify the fallback returns the raw type rather than "bedrock".
 	bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
 		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
 	})

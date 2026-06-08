@@ -8660,7 +8660,7 @@ func (p *Server) aiProviderConfigFromKeys(ctx context.Context, provider database
 	}
 	canonicalType, err := db2sdk.CanonicalAIProviderType(provider)
 	if err != nil {
-		p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+		p.logger.Warn(ctx, "parse AI provider settings for provider config", slog.F("provider_id", provider.ID), slog.Error(err))
 		canonicalType = codersdk.AIProviderType(provider.Type)
 	}
 	return chatprovider.ConfiguredProvider{
@@ -8781,7 +8781,7 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 	for _, provider := range providers {
 		canonicalProviderType, err := db2sdk.CanonicalAIProviderType(provider)
 		if err != nil {
-			p.logger.Warn(ctx, "parse AI provider settings", slog.F("provider_id", provider.ID), slog.Error(err))
+			p.logger.Warn(ctx, "parse AI provider settings during key resolution", slog.F("provider_id", provider.ID), slog.Error(err))
 			continue
 		}
 		providerKeysType := chatprovider.NormalizeProvider(string(canonicalProviderType))

@@ -108,8 +108,8 @@ func SeedAIProvidersFromEnv(
 				if err != nil {
 					return xerrors.Errorf("decode existing settings for %q: %w", existing.Name, err)
 				}
-				existingDType := database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(existing.Type), existingSettings))
-				if existingDType == database.AiProviderTypeBedrock {
+				existingType := database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(existing.Type), existingSettings))
+				if existingType == database.AiProviderTypeBedrock {
 					logger.Warn(sysCtx, "skipping legacy Anthropic env seed because an existing Anthropic-named row contains Bedrock settings",
 						slog.F("name", dp.Name),
 					)
@@ -123,8 +123,8 @@ func SeedAIProvidersFromEnv(
 					if err != nil {
 						return xerrors.Errorf("decode existing settings for %q: %w", candidate.Name, err)
 					}
-					candidateDType := database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(candidate.Type), candidateSettings))
-					if candidateDType == database.AiProviderTypeBedrock {
+					candidateType := database.AIProviderType(codersdk.CanonicalAIProviderType(codersdk.AIProviderType(candidate.Type), candidateSettings))
+					if candidateType == database.AiProviderTypeBedrock {
 						existing = candidate
 						found = true
 					}
@@ -147,7 +147,7 @@ func SeedAIProvidersFromEnv(
 				// includes credentials for comparison.
 				existingKeyRows, err := tx.GetAIProviderKeysByProviderID(sysCtx, existing.ID)
 				if err != nil {
-					return xerrors.Errorf("load existing keys for %q: %w", dp.Name, err)
+					return xerrors.Errorf("load existing keys for %q: %w", existing.Name, err)
 				}
 				existingKeys := make([]string, 0, len(existingKeyRows))
 				for _, k := range existingKeyRows {
