@@ -829,7 +829,7 @@ func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	apiParameters := db2sdk.WorkspaceBuildParameters(parameters)
+		apiParameters := db2sdk.RedactWorkspaceBuildParameters(db2sdk.WorkspaceBuildParameters(parameters))
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
 

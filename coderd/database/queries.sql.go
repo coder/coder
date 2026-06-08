@@ -25411,7 +25411,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type, sensitive FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -25442,6 +25442,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.DisplayOrder,
 			&i.Ephemeral,
 			&i.FormType,
+			&i.Sensitive,
 		); err != nil {
 			return nil, err
 		}
@@ -25476,7 +25477,8 @@ INSERT INTO
         required,
         display_name,
         display_order,
-        ephemeral
+        ephemeral,
+        sensitive
     )
 VALUES
     (
@@ -25497,8 +25499,9 @@ VALUES
         $15,
         $16,
         $17,
-        $18
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type
+        $18,
+        $19
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral, form_type, sensitive
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -25520,6 +25523,7 @@ type InsertTemplateVersionParameterParams struct {
 	DisplayName         string            `db:"display_name" json:"display_name"`
 	DisplayOrder        int32             `db:"display_order" json:"display_order"`
 	Ephemeral           bool              `db:"ephemeral" json:"ephemeral"`
+	Sensitive           bool              `db:"sensitive" json:"sensitive"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -25542,6 +25546,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.DisplayName,
 		arg.DisplayOrder,
 		arg.Ephemeral,
+		arg.Sensitive,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -25563,6 +25568,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.DisplayOrder,
 		&i.Ephemeral,
 		&i.FormType,
+		&i.Sensitive,
 	)
 	return i, err
 }
@@ -33364,6 +33370,7 @@ FROM (
 		AND wb.transition = 'start'
 		AND w.template_id = $2
 		AND tvp.ephemeral = false
+		AND tvp.sensitive = false
 		AND tvp.name = wbp.name
     ORDER BY
         tvp.name, wb.created_at DESC
@@ -33407,7 +33414,7 @@ func (q *sqlQuerier) GetUserWorkspaceBuildParameters(ctx context.Context, arg Ge
 
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
 SELECT
-    workspace_build_id, name, value
+    workspace_build_id, name, value, sensitive, value_key_id
 FROM
     workspace_build_parameters
 WHERE
@@ -33423,7 +33430,13 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	var items []WorkspaceBuildParameter
 	for rows.Next() {
 		var i WorkspaceBuildParameter
-		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+		if err := rows.Scan(
+			&i.WorkspaceBuildID,
+			&i.Name,
+			&i.Value,
+			&i.Sensitive,
+			&i.ValueKeyID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -33439,22 +33452,32 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 
 const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
-    workspace_build_parameters (workspace_build_id, name, value)
+    workspace_build_parameters (workspace_build_id, name, value, sensitive, value_key_id)
 SELECT
     $1 :: uuid AS workspace_build_id,
     unnest($2 :: text[]) AS name,
-    unnest($3 :: text[]) AS value
-RETURNING workspace_build_id, name, value
+    unnest($3 :: text[]) AS value,
+    unnest($4 :: boolean[]) AS sensitive,
+    unnest($5 :: text[]) AS value_key_id
+RETURNING workspace_build_id, name, value, sensitive, value_key_id
 `
 
 type InsertWorkspaceBuildParametersParams struct {
 	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	Name             []string  `db:"name" json:"name"`
 	Value            []string  `db:"value" json:"value"`
+	Sensitive        []bool    `db:"sensitive" json:"sensitive"`
+	ValueKeyID       []string  `db:"value_key_id" json:"value_key_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error {
-	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters, arg.WorkspaceBuildID, pq.Array(arg.Name), pq.Array(arg.Value))
+	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters,
+		arg.WorkspaceBuildID,
+		pq.Array(arg.Name),
+		pq.Array(arg.Value),
+		pq.Array(arg.Sensitive),
+		pq.Array(arg.ValueKeyID),
+	)
 	return err
 }
 

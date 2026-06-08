@@ -2058,6 +2058,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],
@@ -2781,6 +2782,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
       ],
       "order": 0,
       "required": true,
+      "sensitive": true,
       "styling": {
         "disabled": true,
         "label": "string",
@@ -3382,6 +3384,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
       }
     ],
     "required": true,
+    "sensitive": true,
     "type": "string",
     "validation_error": "string",
     "validation_max": 0,
@@ -3420,6 +3423,7 @@ Status Code **200**
 | `»» name`                 | string                                                                           | false    |              |                                                                                                    |
 | `»» value`                | string                                                                           | false    |              |                                                                                                    |
 | `» required`              | boolean                                                                          | false    |              |                                                                                                    |
+| `» sensitive`             | boolean                                                                          | false    |              |                                                                                                    |
 | `» type`                  | string                                                                           | false    |              |                                                                                                    |
 | `» validation_error`      | string                                                                           | false    |              |                                                                                                    |
 | `» validation_max`        | integer                                                                          | false    |              |                                                                                                    |

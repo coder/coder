@@ -641,6 +641,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 [
   {
     "name": "string",
+    "sensitive": true,
     "value": "string"
   }
 ]
@@ -656,11 +657,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `[array item]` | array  | false    |              |             |
-| `» name`       | string | false    |              |             |
-| `» value`      | string | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description                                                                                                                             |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]` | array   | false    |              |                                                                                                                                         |
+| `» name`       | string  | false    |              |                                                                                                                                         |
+| `» sensitive`  | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are not persisted and are redacted when returned by the API. |
+| `» value`      | string  | false    |              |                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1772,6 +1774,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],

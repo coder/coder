@@ -29,6 +29,7 @@ of the template will be used.
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],
@@ -729,6 +730,7 @@ of the template will be used.
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],

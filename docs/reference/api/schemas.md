@@ -5003,6 +5003,7 @@ This is required on creation to enable a user-flow of validating a template work
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],
@@ -5232,6 +5233,7 @@ This is required on creation to enable a user-flow of validating a template work
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],
@@ -5294,6 +5296,7 @@ This is required on creation to enable a user-flow of validating a template work
   "rich_parameter_values": [
     {
       "name": "string",
+      "sensitive": true,
       "value": "string"
     }
   ],
@@ -6968,6 +6971,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "order": 0,
       "required": true,
+      "sensitive": true,
       "styling": {
         "disabled": true,
         "label": "string",
@@ -10189,6 +10193,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   ],
   "order": 0,
   "required": true,
+  "sensitive": true,
   "styling": {
     "disabled": true,
     "label": "string",
@@ -10228,6 +10233,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `options`       | array of [codersdk.PreviewParameterOption](#codersdkpreviewparameteroption)         | false    |              |                                         |
 | `order`         | integer                                                                             | false    |              | legacy_variable_name was removed (= 14) |
 | `required`      | boolean                                                                             | false    |              |                                         |
+| `sensitive`     | boolean                                                                             | false    |              |                                         |
 | `styling`       | [codersdk.PreviewParameterStyling](#codersdkpreviewparameterstyling)                | false    |              |                                         |
 | `type`          | [codersdk.OptionType](#codersdkoptiontype)                                          | false    |              |                                         |
 | `validations`   | array of [codersdk.PreviewParameterValidation](#codersdkpreviewparametervalidation) | false    |              |                                         |
@@ -12834,6 +12840,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     }
   ],
   "required": true,
+  "sensitive": true,
   "type": "string",
   "validation_error": "string",
   "validation_max": 0,
@@ -12858,6 +12865,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `name`                  | string                                                                                      | false    |              |                                                                                                    |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |                                                                                                    |
 | `required`              | boolean                                                                                     | false    |              |                                                                                                    |
+| `sensitive`             | boolean                                                                                     | false    |              |                                                                                                    |
 | `type`                  | string                                                                                      | false    |              |                                                                                                    |
 | `validation_error`      | string                                                                                      | false    |              |                                                                                                    |
 | `validation_max`        | integer                                                                                     | false    |              |                                                                                                    |
@@ -15862,16 +15870,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "name": "string",
+  "sensitive": true,
   "value": "string"
 }
 ```
 
 ### Properties
 
-| Name    | Type   | Required | Restrictions | Description |
-|---------|--------|----------|--------------|-------------|
-| `name`  | string | false    |              |             |
-| `value` | string | false    |              |             |
+| Name        | Type    | Required | Restrictions | Description                                                                                                                             |
+|-------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `name`      | string  | false    |              |                                                                                                                                         |
+| `sensitive` | boolean | false    |              | Sensitive indicates the parameter is sensitive. Sensitive parameter values are not persisted and are redacted when returned by the API. |
+| `value`     | string  | false    |              |                                                                                                                                         |
 
 ## codersdk.WorkspaceBuildTimings
 

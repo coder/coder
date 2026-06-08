@@ -18,7 +18,8 @@ INSERT INTO
         required,
         display_name,
         display_order,
-        ephemeral
+        ephemeral,
+        sensitive
     )
 VALUES
     (
@@ -39,7 +40,8 @@ VALUES
         $15,
         $16,
         $17,
-        $18
+        $18,
+        $19
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

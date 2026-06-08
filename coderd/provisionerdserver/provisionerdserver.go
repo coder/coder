@@ -1784,6 +1784,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				Required:            richParameter.Required,
 				DisplayOrder:        richParameter.Order,
 				Ephemeral:           richParameter.Ephemeral,
+				Sensitive:           richParameter.Sensitive,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert parameter: %w", err)

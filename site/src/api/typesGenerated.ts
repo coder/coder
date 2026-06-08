@@ -6570,6 +6570,7 @@ export interface PreviewParameterData {
 	 */
 	readonly order: number;
 	readonly ephemeral: boolean;
+	readonly sensitive: boolean;
 }
 
 // From codersdk/parameters.go
@@ -8406,6 +8407,7 @@ export interface TemplateVersionParameter {
 	readonly validation_monotonic?: ValidationMonotonicOrder;
 	readonly required: boolean;
 	readonly ephemeral: boolean;
+	readonly sensitive: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -10338,6 +10340,11 @@ export interface WorkspaceBuild {
 export interface WorkspaceBuildParameter {
 	readonly name: string;
 	readonly value: string;
+	/**
+	 * Sensitive indicates the parameter is sensitive. Sensitive parameter
+	 * values are not persisted and are redacted when returned by the API.
+	 */
+	readonly sensitive?: boolean;
 }
 
 // From codersdk/workspacebuilds.go

@@ -1,10 +1,12 @@
 -- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
-    workspace_build_parameters (workspace_build_id, name, value)
+    workspace_build_parameters (workspace_build_id, name, value, sensitive, value_key_id)
 SELECT
     @workspace_build_id :: uuid AS workspace_build_id,
     unnest(@name :: text[]) AS name,
-    unnest(@value :: text[]) AS value
+    unnest(@value :: text[]) AS value,
+    unnest(@sensitive :: boolean[]) AS sensitive,
+    unnest(@value_key_id :: text[]) AS value_key_id
 RETURNING *;
 
 -- name: GetWorkspaceBuildParameters :many
@@ -35,10 +37,10 @@ FROM (
 		AND wb.transition = 'start'
 		AND w.template_id = $2
 		AND tvp.ephemeral = false
+		AND tvp.sensitive = false
 		AND tvp.name = wbp.name
     ORDER BY
         tvp.name, wb.created_at DESC
 ) q1
 ORDER BY created_at DESC, name
 LIMIT 100;
-

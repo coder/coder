@@ -812,6 +812,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			// #nosec G115 - Safe conversion as parameter order value is expected to be within int32 range
 			Order:     int32(param.Order),
 			Ephemeral: param.Ephemeral,
+			// TODO: Sensitive is not yet exposed by terraform-provider-coder.
+			// Once the provider adds a `sensitive` attribute, set Sensitive: param.Sensitive.
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex

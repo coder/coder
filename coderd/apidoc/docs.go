@@ -21849,6 +21849,9 @@ const docTemplate = `{
                 "required": {
                     "type": "boolean"
                 },
+                "sensitive": {
+                    "type": "boolean"
+                },
                 "styling": {
                     "$ref": "#/definitions/codersdk.PreviewParameterStyling"
                 },
@@ -24194,6 +24197,9 @@ const docTemplate = `{
                     }
                 },
                 "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
                     "type": "boolean"
                 },
                 "type": {
@@ -26677,6 +26683,10 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
+                },
+                "sensitive": {
+                    "description": "Sensitive indicates the parameter is sensitive. Sensitive parameter\nvalues are not persisted and are redacted when returned by the API.",
+                    "type": "boolean"
                 },
                 "value": {
                     "type": "string"

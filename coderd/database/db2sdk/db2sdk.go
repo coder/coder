@@ -144,9 +144,24 @@ func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersd
 
 func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.WorkspaceBuildParameter {
 	return codersdk.WorkspaceBuildParameter{
-		Name:  p.Name,
-		Value: p.Value,
+		Name:      p.Name,
+		Value:     p.Value,
+		Sensitive: p.Sensitive,
 	}
+}
+
+// RedactWorkspaceBuildParameters returns a copy of params with the values of
+// sensitive parameters replaced by a redacted placeholder. Use this at API
+// boundaries so sensitive values are never exposed.
+func RedactWorkspaceBuildParameters(params []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	out := make([]codersdk.WorkspaceBuildParameter, len(params))
+	for i, p := range params {
+		if p.Sensitive {
+			p.Value = "*redacted*"
+		}
+		out[i] = p
+	}
+	return out
 }
 
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
@@ -248,6 +263,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
 		Ephemeral:            param.Ephemeral,
+		Sensitive:            param.Sensitive,
 	}, nil
 }
 

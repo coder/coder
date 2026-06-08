@@ -64,6 +64,7 @@ message RichParameter {
   int32 order = 16;
   bool ephemeral = 17;
   ParameterFormType form_type = 18;
+  bool sensitive = 19;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.

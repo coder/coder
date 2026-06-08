@@ -2910,6 +2910,7 @@ CREATE TABLE template_version_parameters (
     display_order integer DEFAULT 0 NOT NULL,
     ephemeral boolean DEFAULT false NOT NULL,
     form_type parameter_form_type DEFAULT ''::parameter_form_type NOT NULL,
+    sensitive boolean DEFAULT false NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -2946,6 +2947,8 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
 COMMENT ON COLUMN template_version_parameters.form_type IS 'Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.';
+
+COMMENT ON COLUMN template_version_parameters.sensitive IS 'Sensitive parameter values are encrypted at rest and redacted when returned by the API.';
 
 CREATE TABLE template_version_preset_parameters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3535,12 +3538,18 @@ CREATE TABLE workspace_app_statuses (
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
     name text NOT NULL,
-    value text NOT NULL
+    value text NOT NULL,
+    sensitive boolean DEFAULT false NOT NULL,
+    value_key_id text
 );
 
 COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
 
 COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
+
+COMMENT ON COLUMN workspace_build_parameters.sensitive IS 'Sensitive parameter values are encrypted at rest and redacted when returned by the API.';
+
+COMMENT ON COLUMN workspace_build_parameters.value_key_id IS 'The ID of the dbcrypt key used to encrypt value. If NULL or empty, value is not encrypted.';
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,

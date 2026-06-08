@@ -551,10 +551,23 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}
 		}
 
+		sensitiveNames, err := b.getSensitiveParameterNames()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get sensitive parameters", err}
+		}
+		sensitive := make([]bool, len(names))
+		// value_key_id is populated by the dbcrypt store wrapper when encryption
+		// is configured. Pass empty strings so the bulk insert array lengths match.
+		valueKeyIDs := make([]string, len(names))
+		for i, name := range names {
+			sensitive[i] = sensitiveNames[name]
+		}
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: workspaceBuildID,
 			Name:             names,
 			Value:            values,
+			Sensitive:        sensitive,
+			ValueKeyID:       valueKeyIDs,
 		})
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
@@ -1009,6 +1022,27 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	}
 	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
 	return *b.templateVersionParameters, nil
+}
+
+// getSensitiveParameterNames returns the set of template version parameter
+// names that are marked sensitive. Sensitive parameter values are encrypted at
+// rest and redacted when returned by the API.
+func (b *Builder) getSensitiveParameterNames() (map[string]bool, error) {
+	tvID, err := b.getTemplateVersionID()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version ID to get sensitive parameters: %w", err)
+	}
+	tvp, err := b.store.GetTemplateVersionParameters(b.ctx, tvID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
+	}
+	sensitive := make(map[string]bool, len(tvp))
+	for _, p := range tvp {
+		if p.Sensitive {
+			sensitive[p.Name] = true
+		}
+	}
+	return sensitive, nil
 }
 
 func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVariable, error) {

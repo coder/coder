@@ -249,6 +249,40 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
+## Sensitive parameters
+
+> [!IMPORTANT]
+> Sensitive parameters require a version of the Coder Terraform provider that
+> supports the `sensitive` attribute on `coder_parameter`. See the provider
+> documentation for availability.
+
+Parameters can be marked as `sensitive` to protect values such as temporary
+credentials or API tokens that are only needed during a workspace build.
+Sensitive parameter values are:
+
+- Encrypted at rest in the database when
+  [database encryption](../../../admin/security/database-encryption.md) is
+  configured.
+- Redacted when returned by the API and shown in the dashboard.
+- Excluded from the parameter values that prefill future workspace builds.
+
+```tf
+data "coder_parameter" "api_token" {
+  name        = "api_token"
+  description = "Temporary token used during workspace setup."
+  type        = "string"
+  mutable     = true
+  sensitive   = true
+  # Combine with ephemeral so the value is not reused on subsequent builds.
+  ephemeral   = true
+}
+```
+
+The provisioner still receives the plaintext value during the build so it can be
+used by your Terraform configuration. Because the value transits the provisioner
+job, sensitive parameters are best paired with `ephemeral = true` and short-lived
+credentials.
+
 ## Validating parameters
 
 Coder supports parameters with multiple validation modes: min, max,

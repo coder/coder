@@ -5619,6 +5619,8 @@ type TemplateVersionParameter struct {
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 	// Specify what form_type should be used to render the parameter in the UI. Unsupported values are rejected.
 	FormType ParameterFormType `db:"form_type" json:"form_type"`
+	// Sensitive parameter values are encrypted at rest and redacted when returned by the API.
+	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
 type TemplateVersionPreset struct {
@@ -6179,6 +6181,10 @@ type WorkspaceBuildParameter struct {
 	Name string `db:"name" json:"name"`
 	// Parameter value
 	Value string `db:"value" json:"value"`
+	// Sensitive parameter values are encrypted at rest and redacted when returned by the API.
+	Sensitive bool `db:"sensitive" json:"sensitive"`
+	// The ID of the dbcrypt key used to encrypt value. If NULL or empty, value is not encrypted.
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 
 type WorkspaceBuildTable struct {

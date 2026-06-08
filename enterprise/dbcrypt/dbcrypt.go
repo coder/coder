@@ -969,6 +969,45 @@ func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGi
 	return key, nil
 }
 
+// InsertWorkspaceBuildParameters encrypts the values of sensitive parameters
+// before they are persisted. The dbcrypt key digest is recorded per row in
+// value_key_id so the value can be decrypted on read.
+func (db *dbCrypt) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+	if len(arg.ValueKeyID) != len(arg.Value) {
+		arg.ValueKeyID = make([]string, len(arg.Value))
+	}
+	if len(arg.Sensitive) == len(arg.Value) {
+		for i := range arg.Value {
+			if !arg.Sensitive[i] {
+				continue
+			}
+			var digest sql.NullString
+			if err := db.encryptField(&arg.Value[i], &digest); err != nil {
+				return err
+			}
+			if digest.Valid {
+				arg.ValueKeyID[i] = digest.String
+			}
+		}
+	}
+	return db.Store.InsertWorkspaceBuildParameters(ctx, arg)
+}
+
+// GetWorkspaceBuildParameters decrypts any encrypted parameter values before
+// returning them so callers (including the provisioner) receive plaintext.
+func (db *dbCrypt) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	params, err := db.Store.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range params {
+		if err := db.decryptField(&params[i].Value, params[i].ValueKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return params, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

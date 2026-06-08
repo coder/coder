@@ -87,6 +87,7 @@ func (p PreviewParameter) TemplateVersionParameter() TemplateVersionParameter {
 		}),
 		Required:  p.Required,
 		Ephemeral: p.Ephemeral,
+		Sensitive: p.Sensitive,
 	}
 
 	if len(p.Validations) > 0 {
@@ -135,6 +136,7 @@ type PreviewParameterData struct {
 	// legacy_variable_name was removed (= 14)
 	Order     int64 `json:"order"`
 	Ephemeral bool  `json:"ephemeral"`
+	Sensitive bool  `json:"sensitive"`
 }
 
 type PreviewParameterStyling struct {
