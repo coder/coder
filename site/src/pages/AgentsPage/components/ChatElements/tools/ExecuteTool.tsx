@@ -16,7 +16,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import type { AgentDisplayState } from "./displayMode";
+import {
+	type AgentDisplayState,
+	resolveAgentDisplayState,
+} from "./displayMode";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
@@ -69,20 +72,24 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		parsedCommands,
 		durationLabel,
 	});
+	const defaultView = resolveAgentDisplayState(
+		shellToolDisplayMode,
+		autoDisplayState,
+	);
 
 	if (!hasCommand) {
 		return null;
 	}
 
 	return (
-		<ToolCall.AgentDisplayModeRoot
+		<ToolCall.Root
+			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError && !isRunning}
 			errorMessage="Command failed"
 			hasContent
-			displayMode={shellToolDisplayMode}
-			autoDisplayState={autoDisplayState}
+			defaultView={defaultView}
 			ariaLabel={(expanded) =>
 				expanded ? "Collapse command" : "Expand command"
 			}
@@ -133,7 +140,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					isError={isError}
 				/>
 			</ToolCall.Content>
-		</ToolCall.AgentDisplayModeRoot>
+		</ToolCall.Root>
 	);
 };
 

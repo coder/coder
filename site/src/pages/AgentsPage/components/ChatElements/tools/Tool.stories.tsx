@@ -804,57 +804,6 @@ export const SubagentAwaitPreferredTitle: Story = {
 	},
 };
 
-export const SubagentRequestMetadata: Story = {
-	args: {
-		name: "spawn_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
-export const SubagentAwaitRequestMetadata: Story = {
-	args: {
-		name: "wait_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
-export const SubagentMessageRequestMetadata: Story = {
-	args: {
-		name: "message_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
 export const SpawnSubagentGeneralRunning: Story = {
 	args: {
 		name: "spawn_agent",
@@ -892,7 +841,6 @@ export const SpawnSubagentGeneralCompleted: Story = {
 			type: "general",
 			title: "Workspace diagnostics",
 			status: "completed",
-			duration_ms: 3200,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -900,7 +848,6 @@ export const SpawnSubagentGeneralCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 3s")).toBeInTheDocument();
 	},
 };
 
@@ -938,7 +885,6 @@ export const SpawnSubagentExploreCompleted: Story = {
 			chat_id: "spawn-explore-child",
 			type: "explore",
 			status: "completed",
-			duration_ms: 4100,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -946,7 +892,6 @@ export const SpawnSubagentExploreCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 4s")).toBeInTheDocument();
 	},
 };
 
@@ -1005,7 +950,6 @@ export const SpawnSubagentComputerUseCompleted: Story = {
 			type: "computer_use",
 			title: "Visual regression check",
 			status: "completed",
-			duration_ms: "12400",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1013,7 +957,6 @@ export const SpawnSubagentComputerUseCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
 	},
 };
 
@@ -2308,14 +2251,12 @@ export const SpawnComputerUseAgentCompleted: Story = {
 			chat_id: "desktop-child-1",
 			title: "Visual regression check",
 			status: "completed",
-			duration_ms: "12400",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Spawned/)).toBeInTheDocument();
 		expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/desktop-child-1",

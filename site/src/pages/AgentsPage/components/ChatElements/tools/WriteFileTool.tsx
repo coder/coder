@@ -40,14 +40,14 @@ export const WriteFileTool: React.FC<{
 	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
 
 	return (
-		<ToolCall.AgentDisplayModeRoot
+		<ToolCall.Root
+			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to write file"}
 			hasContent={hasDiff}
-			displayMode={codeDiffDisplayMode}
-			autoDisplayState={WRITE_FILE_AUTO_DISPLAY_STATE}
+			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="write_file" label={label} />
 			<ToolCall.Content>
@@ -70,6 +70,6 @@ export const WriteFileTool: React.FC<{
 					</ScrollArea>
 				)}
 			</ToolCall.Content>
-		</ToolCall.AgentDisplayModeRoot>
+		</ToolCall.Root>
 	);
 };

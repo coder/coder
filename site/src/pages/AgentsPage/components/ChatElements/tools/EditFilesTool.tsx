@@ -56,14 +56,14 @@ export const EditFilesTool: React.FC<{
 	}
 
 	return (
-		<ToolCall.AgentDisplayModeRoot
+		<ToolCall.Root
+			key={`${codeDiffDisplayMode ?? "auto"}:${EDIT_FILES_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to edit files"}
 			hasContent={hasDiffs}
-			displayMode={codeDiffDisplayMode}
-			autoDisplayState={EDIT_FILES_AUTO_DISPLAY_STATE}
+			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="edit_files" label={label} />
 			<ToolCall.Content>
@@ -91,6 +91,6 @@ export const EditFilesTool: React.FC<{
 					)}
 				</div>
 			</ToolCall.Content>
-		</ToolCall.AgentDisplayModeRoot>
+		</ToolCall.Root>
 	);
 };

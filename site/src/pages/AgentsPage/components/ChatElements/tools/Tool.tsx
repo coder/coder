@@ -489,9 +489,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		streamSubagentStatus = subagentStatusOverrides?.get(chatId) || "";
 	}
 	const subagentStatus = streamSubagentStatus || resultSubagentStatus;
-	const durationMs = rec
-		? asNumber(rec.duration_ms, { parseString: true })
-		: undefined;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
@@ -548,7 +545,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			subagentStatus={subagentStatus}
 			prompt={prompt || undefined}
 			message={subagentMessage || undefined}
-			durationMs={chatId ? durationMs : undefined}
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}

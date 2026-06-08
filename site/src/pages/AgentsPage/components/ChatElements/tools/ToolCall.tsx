@@ -6,7 +6,6 @@ import {
 	useContext,
 	useState,
 } from "react";
-import type { AgentDisplayMode } from "#/api/typesGenerated";
 import {
 	Tooltip,
 	TooltipContent,
@@ -15,14 +14,11 @@ import {
 import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
-import {
-	type AgentDisplayState,
-	isAgentDisplayOpen,
-	resolveAgentDisplayState,
-} from "./displayMode";
 import type { SubagentIconKind } from "./subagentDescriptor";
 import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
+
+export type ToolCallView = "collapsed" | "preview" | "expanded";
 
 type ToolCallAriaLabel = string | ((expanded: boolean) => string);
 
@@ -36,6 +32,7 @@ type ToolCallContextValue = {
 	failed: boolean;
 	onToggle: () => void;
 	status: ToolStatus;
+	view: ToolCallView;
 };
 
 const ToolCallContext = createContext<ToolCallContextValue | null>(null);
@@ -57,18 +54,13 @@ type ToolCallRootProps = {
 	errorMessage?: string;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
+	defaultView?: ToolCallView;
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
+	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
 	className?: string;
-};
-
-type ToolCallAgentDisplayModeRootProps = Omit<
-	ToolCallRootProps,
-	"defaultExpanded"
-> & {
-	displayMode: AgentDisplayMode | undefined;
-	autoDisplayState: AgentDisplayState;
+	view?: ToolCallView;
 };
 
 const Root: FC<ToolCallRootProps> = ({
@@ -78,23 +70,36 @@ const Root: FC<ToolCallRootProps> = ({
 	errorMessage,
 	hasContent = true,
 	defaultExpanded = false,
+	defaultView,
 	expanded: expandedProp,
 	onExpandedChange,
+	onViewChange,
 	ariaLabel,
 	className,
+	view: viewProp,
 }) => {
-	const [uncontrolledExpanded, setUncontrolledExpanded] =
-		useState(defaultExpanded);
-	const expanded = expandedProp ?? uncontrolledExpanded;
+	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
+		defaultView ?? (defaultExpanded ? "expanded" : "collapsed"),
+	);
+	const controlledView =
+		viewProp ??
+		(expandedProp === undefined
+			? undefined
+			: expandedProp
+				? "expanded"
+				: "collapsed");
+	const view = controlledView ?? uncontrolledView;
+	const expanded = view !== "collapsed";
 	const collapsible = hasContent;
 	const failed = isError || status === "error";
 	const active = status === "running" && !failed;
 	const onToggle = () => {
-		const nextExpanded = !expanded;
-		if (expandedProp === undefined) {
-			setUncontrolledExpanded(nextExpanded);
+		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
+		if (controlledView === undefined) {
+			setUncontrolledView(nextView);
 		}
-		onExpandedChange?.(nextExpanded);
+		onViewChange?.(nextView);
+		onExpandedChange?.(nextView !== "collapsed");
 	};
 
 	return (
@@ -109,6 +114,7 @@ const Root: FC<ToolCallRootProps> = ({
 				failed,
 				onToggle,
 				status,
+				view,
 			}}
 		>
 			<div className={className}>{children}</div>
@@ -376,24 +382,8 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 	return <>{children}</>;
 };
 
-const AgentDisplayModeRoot: FC<ToolCallAgentDisplayModeRootProps> = ({
-	displayMode,
-	autoDisplayState,
-	...props
-}) => {
-	const displayState = resolveAgentDisplayState(displayMode, autoDisplayState);
-	return (
-		<Root
-			key={`${displayMode ?? "auto"}:${autoDisplayState}`}
-			{...props}
-			defaultExpanded={isAgentDisplayOpen(displayState)}
-		/>
-	);
-};
-
 export const ToolCall = {
 	Root,
-	AgentDisplayModeRoot,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

@@ -28,7 +28,7 @@ type ProcessOutputToolProps = {
 };
 
 type ProcessOutputToolInnerProps = ProcessOutputToolProps & {
-	autoDisplayState: AgentDisplayState;
+	defaultView: AgentDisplayState;
 	outputInitiallyFullyExpanded: boolean;
 };
 
@@ -43,7 +43,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = (props) => {
 		<ProcessOutputToolInner
 			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			{...props}
-			autoDisplayState={autoDisplayState}
+			defaultView={resolvedDisplayState}
 			outputInitiallyFullyExpanded={isAgentDisplayFullyExpanded(
 				resolvedDisplayState,
 			)}
@@ -57,8 +57,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	exitCode,
 	isError,
 	killedBySignal,
-	shellToolDisplayMode,
-	autoDisplayState,
+	defaultView,
 	outputInitiallyFullyExpanded,
 }) => {
 	const [outputFullyExpanded, setOutputFullyExpanded] = useState(
@@ -80,13 +79,12 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
-		<ToolCall.AgentDisplayModeRoot
+		<ToolCall.Root
 			className="group/proc w-full"
 			status={isRunning ? "running" : isError ? "error" : "completed"}
 			isError={isError && !isRunning}
 			hasContent={hasOutput}
-			displayMode={shellToolDisplayMode}
-			autoDisplayState={autoDisplayState}
+			defaultView={defaultView}
 			ariaLabel={(expanded) =>
 				expanded ? "Collapse process output" : "Expand process output"
 			}
@@ -167,6 +165,6 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 					</button>
 				)}
 			</ToolCall.Content>
-		</ToolCall.AgentDisplayModeRoot>
+		</ToolCall.Root>
 	);
 };

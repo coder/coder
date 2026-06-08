@@ -17,11 +17,7 @@ import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
-import {
-	isSubagentSuccessStatus,
-	shortDurationMs,
-	type ToolStatus,
-} from "./utils";
+import { isSubagentSuccessStatus, type ToolStatus } from "./utils";
 
 const SUBAGENT_VERBS: Record<
 	SubagentAction,
@@ -149,7 +145,6 @@ export const SubagentTool: React.FC<{
 	subagentStatus: string;
 	prompt?: string;
 	message?: string;
-	durationMs?: number;
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
@@ -167,7 +162,6 @@ export const SubagentTool: React.FC<{
 	subagentStatus,
 	prompt,
 	message,
-	durationMs,
 	report,
 	toolStatus,
 	isError,
@@ -183,7 +177,6 @@ export const SubagentTool: React.FC<{
 	const hasMessage = Boolean(message?.trim());
 	const hasReport = Boolean(report?.trim());
 	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
-	const durationLabel = shortDurationMs(durationMs);
 	const agentChatPath = safeBuildAgentChatPath({ chatId });
 
 	return (
@@ -216,11 +209,6 @@ export const SubagentTool: React.FC<{
 							isTimeout,
 						)}
 					</ToolCall.Label>
-					{durationLabel && (
-						<span className="shrink-0 text-xs text-content-secondary">
-							{`Worked for ${durationLabel}`}
-						</span>
-					)}
 					<ToolCall.HeaderChevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
