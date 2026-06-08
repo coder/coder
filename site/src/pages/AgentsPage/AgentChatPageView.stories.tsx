@@ -25,7 +25,6 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	createChatStore,
 	useChatSelector,
@@ -188,6 +187,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		canShareChat: false,
+		canConfigureAgentSetup: true,
+		providerCount: 1,
+		modelCount: 1,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -526,9 +528,9 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -561,9 +563,9 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={1}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -592,9 +594,9 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={1}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -620,9 +622,9 @@ export const MissingProviderSetup: Story = {
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup={false}
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled

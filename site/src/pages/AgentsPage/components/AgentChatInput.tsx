@@ -67,6 +67,7 @@ import {
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
 	isUploadInProgress,
@@ -183,7 +184,9 @@ interface AgentChatInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-	agentSetupNotice?: React.ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -381,9 +384,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const showAgentSetupNotice = canConfigureAgentSetup
+		? providerCount !== undefined &&
+			modelCount !== undefined &&
+			(providerCount === 0 || modelCount === 0)
+		: modelCount !== undefined && modelCount === 0;
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -1044,15 +1054,31 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
-			{agentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
+			{showAgentSetupNotice && (
+				<div className="relative z-0 mb-[-2.5rem]">
+					{canConfigureAgentSetup &&
+					providerCount !== undefined &&
+					modelCount !== undefined ? (
+						<AgentSetupNotice
+							isAdmin
+							providerCount={providerCount}
+							modelCount={modelCount}
+						/>
+					) : (
+						<AgentSetupNotice
+							isAdmin={false}
+							providerCount={0}
+							modelCount={0}
+						/>
+					)}
+				</div>
 			)}
 			<div
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
 					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-					agentSetupNotice && "sm:bg-surface-secondary",
+					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1177,7 +1203,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 									disabled={
-										isDisabled && !agentSetupNotice && !canUseWorkspacePicker
+										isDisabled &&
+										!showAgentSetupNotice &&
+										!canUseWorkspacePicker
 									}
 									aria-label="More options"
 								>
