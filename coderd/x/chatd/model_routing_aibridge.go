@@ -170,11 +170,7 @@ func (p *Server) newAIGatewayModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	providerType, err := db2sdk.CanonicalAIProviderType(route.Provider)
-	if err != nil {
-		return nil, xerrors.Errorf("canonicalize provider type for %q: %w", route.Provider.Name, err)
-	}
-	config := fantasyConfigForAIBridge(providerType)
+	config := fantasyConfigForAIBridge(codersdk.AIProviderType(route.ModelProviderHint))
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
