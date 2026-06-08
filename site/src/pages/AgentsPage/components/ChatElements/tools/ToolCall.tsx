@@ -141,9 +141,7 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
 	if (!collapsible && !alwaysButton) {
 		return (
-			<HeaderRow className={cn("min-w-0 flex-1", className)}>
-				{children}
-			</HeaderRow>
+			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
 		);
 	}
 
@@ -151,7 +149,7 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 flex-1 gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}
@@ -299,6 +297,17 @@ const Actions: FC<{ children: ReactNode; className?: string }> = ({
 	</div>
 );
 
+const HeaderActions: FC<{ children: ReactNode; className?: string }> = ({
+	children,
+	className,
+}) => {
+	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
+};
+
+const HeaderChevron: FC<{ className?: string }> = ({ className }) => (
+	<Chevron className={className} />
+);
+
 const HeaderLayout: FC<{ children: ReactNode; className?: string }> = ({
 	children,
 	className,
@@ -350,7 +359,7 @@ const Header: FC<ToolCallHeaderProps> = ({
 			{secondaryLabel}
 			{preserveDefaultStatusIndicator && <Status />}
 			{trailing}
-			<Chevron />
+			<HeaderChevron />
 		</HeaderButton>
 	);
 };
@@ -392,6 +401,8 @@ export const ToolCall = {
 	Status,
 	Chevron,
 	Actions,
+	HeaderActions,
+	HeaderChevron,
 	HeaderLayout,
 	State,
 	Header,

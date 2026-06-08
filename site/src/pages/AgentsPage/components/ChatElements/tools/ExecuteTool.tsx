@@ -16,7 +16,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { TranscriptRow } from "../TranscriptRow";
 import type { AgentDisplayState } from "./displayMode";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
@@ -64,7 +63,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			: "collapsed";
 	const isRunning = status === "running";
 	const durationLabel = formatShellDurationMs(durationMs);
-	const { commandLabel, durationSuffix } = getShellCommandLine({
+	const commandLabel = getShellCommandLine({
 		command,
 		modelIntent,
 		parsedCommands,
@@ -88,47 +87,45 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 				expanded ? "Collapse command" : "Expand command"
 			}
 		>
-			<ToolCall.Header
-				iconName="execute"
-				label={commandLabel}
-				secondaryLabel={
-					durationSuffix ? (
-						<span className="text-content-secondary">{durationSuffix}</span>
-					) : undefined
-				}
-				headerClassName="col-start-1 row-start-1 min-w-0 font-normal"
-			/>
-			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
-				{isBackgrounded && !isRunning && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span
-								aria-label="Running in background"
-								role="img"
-								className="flex shrink-0 text-content-secondary"
-							>
-								<LayersIcon aria-hidden className="size-3.5 shrink-0" />
-							</span>
-						</TooltipTrigger>
-						<TooltipContent>Running in background</TooltipContent>
-					</Tooltip>
-				)}
-				{killedBySignal && !isRunning && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent>
-							{signalTooltipLabel(killedBySignal)}
-						</TooltipContent>
-					</Tooltip>
-				)}
-				<CopyButton
-					text={command}
-					label="Copy command"
-					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
-				/>
-			</TranscriptRow>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton className="col-start-1 row-start-1 min-w-0 font-normal">
+					<ToolCall.LeadingIcon name="execute" />
+					<ToolCall.Label>{commandLabel}</ToolCall.Label>
+					<ToolCall.Status />
+					<ToolCall.HeaderChevron />
+				</ToolCall.HeaderButton>
+				<ToolCall.HeaderActions>
+					{isBackgrounded && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									aria-label="Running in background"
+									role="img"
+									className="flex shrink-0 text-content-secondary"
+								>
+									<LayersIcon aria-hidden className="size-3.5 shrink-0" />
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>Running in background</TooltipContent>
+						</Tooltip>
+					)}
+					{killedBySignal && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{signalTooltipLabel(killedBySignal)}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					<CopyButton
+						text={command}
+						label="Copy command"
+						className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100 focus-visible:opacity-100"
+					/>
+				</ToolCall.HeaderActions>
+			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
 				<ShellTranscriptBody
 					command={command}
@@ -164,7 +161,7 @@ const getShellCommandLine = ({
 		: `Ran ${commandDisplay}`;
 	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
 
-	return { commandLabel, durationSuffix };
+	return `${commandLabel}${durationSuffix}`;
 };
 
 const ShellTranscriptBody: React.FC<{

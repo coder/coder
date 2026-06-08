@@ -88,8 +88,12 @@ export const ProposePlanTool: React.FC<{
 			{hasDisplayContent ? (
 				<>
 					<Response>{displayContent}</Response>
-					<div className="flex items-center gap-2">
-						<CopyButton text={displayContent} label="Copy plan" />
+					<div className="group/plan-actions flex items-center gap-2">
+						<CopyButton
+							text={displayContent}
+							label="Copy plan"
+							className="opacity-0 transition-opacity group-hover/plan-actions:opacity-100 focus-visible:opacity-100"
+						/>
 						{canImplementPlan && (
 							<Tooltip>
 								<TooltipTrigger asChild>

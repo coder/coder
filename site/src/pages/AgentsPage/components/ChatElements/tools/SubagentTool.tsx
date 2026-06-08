@@ -216,10 +216,15 @@ export const SubagentTool: React.FC<{
 							isTimeout,
 						)}
 					</ToolCall.Label>
-					<ToolCall.Chevron />
+					{durationLabel && (
+						<span className="shrink-0 text-xs text-content-secondary">
+							{`Worked for ${durationLabel}`}
+						</span>
+					)}
+					<ToolCall.HeaderChevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
-					<ToolCall.Actions>
+					<ToolCall.HeaderActions>
 						<Link
 							to={{ pathname: agentChatPath, search: location.search }}
 							className="inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
@@ -227,12 +232,7 @@ export const SubagentTool: React.FC<{
 						>
 							<ExternalLinkIcon className="size-3" />
 						</Link>
-					</ToolCall.Actions>
-				)}
-				{durationLabel && (
-					<span className="shrink-0 text-xs text-content-secondary">
-						{`Worked for ${durationLabel}`}
-					</span>
+					</ToolCall.HeaderActions>
 				)}
 			</ToolCall.HeaderLayout>
 

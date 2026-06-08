@@ -73,10 +73,10 @@ export const CreateWorkspaceTool: React.FC<{
 					<ToolCall.LeadingIcon name="create_workspace" />
 					<ToolCall.Label>{label}</ToolCall.Label>
 					<ToolCall.Status />
-					<ToolCall.Chevron />
+					<ToolCall.HeaderChevron />
 				</ToolCall.HeaderButton>
 				{workspaceLink && !isRunning && (
-					<ToolCall.Actions>
+					<ToolCall.HeaderActions>
 						<Link
 							to={workspaceLink}
 							className="inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
@@ -84,7 +84,7 @@ export const CreateWorkspaceTool: React.FC<{
 						>
 							<ExternalLinkIcon className="size-3" />
 						</Link>
-					</ToolCall.Actions>
+					</ToolCall.HeaderActions>
 				)}
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>

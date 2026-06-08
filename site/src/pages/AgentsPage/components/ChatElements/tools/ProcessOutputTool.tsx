@@ -96,10 +96,10 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 					<ToolCall.LeadingIcon name="process_output" />
 					<ToolCall.Label>Process output</ToolCall.Label>
 					<ToolCall.Status />
-					<ToolCall.Chevron />
+					<ToolCall.HeaderChevron />
 				</ToolCall.HeaderButton>
 				{hasHeaderActions && (
-					<ToolCall.Actions>
+					<ToolCall.HeaderActions>
 						{killedBySignal && !isRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -119,10 +119,10 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							<CopyButton
 								text={output}
 								label="Copy output"
-								className="-my-0.5 size-6 p-0"
+								className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/proc:opacity-100 focus-visible:opacity-100"
 							/>
 						)}
-					</ToolCall.Actions>
+					</ToolCall.HeaderActions>
 				)}
 			</ToolCall.HeaderLayout>
 			<ToolCall.Content>
