@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentchat"
@@ -37,10 +38,10 @@ type API struct {
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, envInfo, updateEnv, workingDir),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir),
 		pathStore: pathStore,
 	}
 }

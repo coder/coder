@@ -832,7 +832,9 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			orientation="both"
 			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
 		</ScrollArea>

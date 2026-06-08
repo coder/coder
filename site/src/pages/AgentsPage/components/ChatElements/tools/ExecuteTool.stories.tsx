@@ -214,3 +214,33 @@ export const ParsedCommandsWithIntent: Story = {
 		],
 	},
 };
+
+export const LongUnbrokenLineOutput: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		command: "cat access-token.txt",
+		transcriptBlocks: [
+			{
+				kind: "output",
+				text: `token:${"A".repeat(400)}:end`,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const viewport = canvasElement.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		await expect(viewport).not.toBeNull();
+		if (viewport) {
+			await expect(viewport.scrollWidth).toBeLessThanOrEqual(
+				viewport.clientWidth + 2,
+			);
+		}
+	},
+};

@@ -906,6 +906,17 @@ func TestSimple(t *testing.T) {
 			expectedClient:    aibridge.ClientCodex,
 		},
 		{
+			name:              config.ProviderOpenAI + "_opencode",
+			fixture:           fixtures.OaiChatSimple,
+			basePath:          "",
+			expectedPath:      "/chat/completions",
+			getResponseIDFunc: getOpenAIResponseID,
+			path:              pathOpenAIChatCompletions,
+			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
+			userAgent:         "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
+			expectedClient:    aibridge.ClientOpenCode,
+		},
+		{
 			name:              config.ProviderAnthropic + "_baseURL_path",
 			fixture:           fixtures.AntSimple,
 			basePath:          "/api",
@@ -1036,6 +1047,16 @@ func TestSessionIDTracking(t *testing.T) {
 			expectedClient: aibridge.ClientZed,
 			header: http.Header{
 				"User-Agent": []string{"Zed/0.219.4+stable.119.abc123 (macos; aarch64)"},
+			},
+		},
+		{
+			name:            "opencode",
+			fixture:         fixtures.AntSimple,
+			expectedClient:  aibridge.ClientOpenCode,
+			expectSessionID: "ses_15a48edefffe7oY0YcIHRv29dD",
+			header: http.Header{
+				"User-Agent":         []string{"opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"},
+				"X-OpenCode-Session": []string{"ses_15a48edefffe7oY0YcIHRv29dD"},
 			},
 		},
 	}
