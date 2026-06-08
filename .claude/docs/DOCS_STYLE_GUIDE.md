@@ -165,6 +165,36 @@ Then ask: "Could you provide a screenshot of the Template Insights page? I've ad
 
 ## Code Examples
 
+### Configuration examples: prefer environment variables
+
+When showing how to configure `coder server` in admin or setup
+documentation, lead with the environment variable form. Production Coder
+deployments are typically run as a system service, container, or Helm
+chart, all of which set configuration through environment variables (for
+systemd, via `/etc/coder.d/coder.env`). Showing the CLI flag form first
+forces operators to mentally translate every example.
+
+Show the equivalent CLI flag only when the example is invoking
+`coder server` directly (for local development or one-off runs), or as a
+supporting note. Point readers at the
+[configuration reference](../../docs/admin/setup/configuration-reference.md)
+for the full mapping between environment variables, flags, and YAML keys.
+
+````markdown
+```shell
+# Preferred for admin/setup docs:
+CODER_DISABLE_TEMPLATE_INSIGHTS=true
+```
+````
+
+CLI flag form, reserved for ad-hoc invocations:
+
+````markdown
+```shell
+coder server --disable-template-insights
+```
+````
+
 ### Command Examples
 
 ````markdown
