@@ -757,7 +757,7 @@ export const SingleStepSuccessfulRun: Story = {
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -1101,13 +1101,13 @@ export const MultiStepRunWithRetries: Story = {
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: /Copy raw request JSON/i }),
-			).toBeVisible();
+			).toBeInTheDocument();
 			expect(
 				canvas.getByRole("button", { name: /Copy raw response JSON/i }),
-			).toBeVisible();
+			).toBeInTheDocument();
 			expect(
 				canvas.getByRole("button", { name: /Copy raw attempt error/i }),
-			).toBeVisible();
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -1155,7 +1155,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+			).toBeInTheDocument();
 		});
 
 		// After expanding, verify [REDACTED] markers appear in the

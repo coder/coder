@@ -118,7 +118,7 @@ export const Running: Story = {
 
 		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
 		expect(
-			canvas.getByTestId("ask-user-question-loading-icon"),
+			canvas.getByRole("img", { name: "Tool call running" }),
 		).toBeInTheDocument();
 		expect(canvas.getAllByRole("radio")).toHaveLength(3);
 	},
@@ -452,6 +452,10 @@ export const ErrorState: Story = {
 				"The planning agent could not deliver follow-up questions.",
 			),
 		).toBeInTheDocument();
-		expect(canvas.getByLabelText("Error")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", {
+				name: "The planning agent could not deliver follow-up questions.",
+			}),
+		).toBeInTheDocument();
 	},
 };
