@@ -7683,8 +7683,8 @@ func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
 	require.Len(t, appsA2, 1)
 	require.Equal(t, appID, appsA2[0].ID)
 
-	// An app whose existing agent belongs to a template-import job resolves to no
-	// workspace, so rebinding it is permitted (it is not a cross-tenant victim).
+	// Set up a template-import agent. It is intentionally not associated with
+	// a workspace build, so it resolves to no workspace.
 	importJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeTemplateVersionImport,
 		OrganizationID: org.ID,
@@ -7722,8 +7722,9 @@ func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
 	_, err = upsertApp(unownedAppID, importAgent.ID, "import-app")
 	require.NoError(t, err)
 
-	// Rebinding the unowned app to workspace A's agent is allowed because the
-	// existing row resolves to a NULL workspace.
+	// An app whose existing agent belongs to a template-import job resolves to
+	// no workspace, so rebinding it is permitted. It is not a cross-tenant
+	// victim.
 	rebound, err := upsertApp(unownedAppID, agentA.ID, "import-app")
 	require.NoError(t, err)
 	require.Equal(t, agentA.ID, rebound.AgentID)

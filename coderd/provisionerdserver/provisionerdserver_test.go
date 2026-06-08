@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
@@ -1504,59 +1505,6 @@ func TestFailJob(t *testing.T) {
 	})
 }
 
-func setupWorkspaceAppRebindVictim(
-	t *testing.T,
-	db database.Store,
-	organizationID uuid.UUID,
-) (appID uuid.UUID, agentID uuid.UUID, slug string) {
-	t.Helper()
-
-	victimUser := dbgen.User(t, db, database.User{})
-	victimTemplate := dbgen.Template(t, db, database.Template{
-		CreatedBy:      victimUser.ID,
-		OrganizationID: organizationID,
-	})
-	victimVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		CreatedBy:      victimUser.ID,
-		OrganizationID: organizationID,
-		TemplateID:     uuid.NullUUID{UUID: victimTemplate.ID, Valid: true},
-	})
-	victimWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID:     victimTemplate.ID,
-		OwnerID:        victimUser.ID,
-		OrganizationID: organizationID,
-	})
-	victimJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		OrganizationID: organizationID,
-		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	})
-	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		JobID:             victimJob.ID,
-		WorkspaceID:       victimWorkspace.ID,
-		TemplateVersionID: victimVersion.ID,
-		InitiatorID:       victimUser.ID,
-		Transition:        database.WorkspaceTransitionStart,
-		Reason:            database.BuildReasonInitiator,
-	})
-	victimResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: victimJob.ID,
-	})
-	victimAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: victimResource.ID,
-	})
-	victimAppID := uuid.New()
-	const victimSlug = "code-server"
-	dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-		ID:      victimAppID,
-		AgentID: victimAgent.ID,
-		Slug:    victimSlug,
-	})
-
-	return victimAppID, victimAgent.ID, victimSlug
-}
-
 func TestCompleteJob(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2404,7 +2352,9 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("WorkspaceBuild_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
 		t.Parallel()
 
-		srv, db, _, pd := setup(t, false, &overrides{})
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
 
 		// Given: a victim workspace whose agent owns an app with a known UUID.
 		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
@@ -2458,30 +2408,41 @@ func TestCompleteJob(t *testing.T) {
 
 		// When: the attacker's build completes with an app that reuses the
 		// victim's app UUID but points at the attacker's (new) agent.
+		attackerAgent := &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "attacker-app",
+			}},
+		}
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: attackerJob.ID.String(),
 			Type: &proto.CompletedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 					State: []byte{},
 					Resources: []*sdkproto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*sdkproto.Agent{{
-							Id:   uuid.NewString(),
-							Name: "dev",
-							Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
-							Apps: []*sdkproto.App{{
-								Id:   victimAppID.String(),
-								Slug: "attacker-app",
-							}},
-						}},
+						Name:   "example",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{attackerAgent},
 					}},
 				},
 			},
 		})
 		// Then: the build is rejected with the cross-tenant rebind error.
 		require.Error(t, err)
-		require.ErrorContains(t, err, "owned by another workspace")
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID:   attackerJob.ID,
+				appID:   victimAppID,
+				slug:    "attacker-app",
+				agentID: attackerAgent.Id,
+			},
+		)
 
 		// And: the victim's app remains bound to the victim agent, unchanged.
 		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
@@ -2543,7 +2504,9 @@ func TestCompleteJob(t *testing.T) {
 
 	t.Run("TemplateDryRun_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
 
 		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
 			t, db, pd.OrganizationID,
@@ -2576,27 +2539,37 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		dryRunAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "dry-run-app",
+			}},
+		}
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: job.ID.String(),
 			Type: &proto.CompletedJob_TemplateDryRun_{
 				TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
 					Resources: []*sdkproto.Resource{{
-						Name: "something",
-						Type: "aws_instance",
-						Agents: []*sdkproto.Agent{{
-							Name: "dev",
-							Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
-							Apps: []*sdkproto.App{{
-								Id:   victimAppID.String(),
-								Slug: "dry-run-app",
-							}},
-						}},
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{dryRunAgent},
 					}},
 				},
 			},
 		})
 		require.Error(t, err)
-		require.ErrorContains(t, err, "owned by another workspace")
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "dry-run-app",
+			},
+		)
 
 		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
 		require.NoError(t, err)
@@ -2608,7 +2581,9 @@ func TestCompleteJob(t *testing.T) {
 
 	t.Run("TemplateImport_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
 		t.Parallel()
-		srv, db, _, pd := setup(t, false, &overrides{})
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
 
 		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
 			t, db, pd.OrganizationID,
@@ -2641,28 +2616,38 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		importAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "import-app",
+			}},
+		}
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: job.ID.String(),
 			Type: &proto.CompletedJob_TemplateImport_{
 				TemplateImport: &proto.CompletedJob_TemplateImport{
 					StartResources: []*sdkproto.Resource{{
-						Name: "something",
-						Type: "aws_instance",
-						Agents: []*sdkproto.Agent{{
-							Name: "dev",
-							Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
-							Apps: []*sdkproto.App{{
-								Id:   victimAppID.String(),
-								Slug: "import-app",
-							}},
-						}},
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{importAgent},
 					}},
 					Plan: []byte("{}"),
 				},
 			},
 		})
 		require.Error(t, err)
-		require.ErrorContains(t, err, "owned by another workspace")
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "import-app",
+			},
+		)
 
 		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
 		require.NoError(t, err)
@@ -3655,6 +3640,59 @@ func TestCompleteJob(t *testing.T) {
 			}
 		})
 	})
+}
+
+func setupWorkspaceAppRebindVictim(
+	t *testing.T,
+	db database.Store,
+	organizationID uuid.UUID,
+) (appID uuid.UUID, agentID uuid.UUID, slug string) {
+	t.Helper()
+
+	victimUser := dbgen.User(t, db, database.User{})
+	victimTemplate := dbgen.Template(t, db, database.Template{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
+	})
+	victimVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
+		TemplateID:     uuid.NullUUID{UUID: victimTemplate.ID, Valid: true},
+	})
+	victimWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     victimTemplate.ID,
+		OwnerID:        victimUser.ID,
+		OrganizationID: organizationID,
+	})
+	victimJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: organizationID,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             victimJob.ID,
+		WorkspaceID:       victimWorkspace.ID,
+		TemplateVersionID: victimVersion.ID,
+		InitiatorID:       victimUser.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+	})
+	victimResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: victimJob.ID,
+	})
+	victimAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: victimResource.ID,
+	})
+	victimAppID := uuid.New()
+	const victimSlug = "code-server"
+	dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+		ID:      victimAppID,
+		AgentID: victimAgent.ID,
+		Slug:    victimSlug,
+	})
+
+	return victimAppID, victimAgent.ID, victimSlug
 }
 
 type mockPrebuildsOrchestrator struct {
@@ -5055,6 +5093,70 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "api key for prebuilds user should be deleted")
 }
 
+type workspaceAppRebindWarning struct {
+	jobID   uuid.UUID
+	appID   uuid.UUID
+	slug    string
+	agentID string
+}
+
+func assertWorkspaceAppRebindWarning(t *testing.T, logSink *recordingSlogSink, want workspaceAppRebindWarning) {
+	t.Helper()
+
+	for _, entry := range logSink.Entries() {
+		if entry.Message != "workspace app rebind rejected by SQL guard" {
+			continue
+		}
+
+		require.Equal(t, slog.LevelWarn, entry.Level)
+		require.Contains(t, entry.File, "coderd/provisionerdserver/provisionerdserver.go")
+		require.NotContains(t, entry.Func, "warnWorkspaceAppRebindRejected")
+		fields := slogFieldsByName(entry.Fields)
+		require.Equal(t, want.jobID.String(), fields["job_id"])
+		require.Equal(t, want.appID.String(), fields["app_id"])
+		require.Equal(t, want.slug, fields["app_slug"])
+		agentID, ok := fields["agent_id"].(string)
+		require.True(t, ok)
+		require.NotEqual(t, uuid.Nil.String(), agentID)
+		if want.agentID != "" {
+			require.Equal(t, want.agentID, agentID)
+		} else {
+			_, err := uuid.Parse(agentID)
+			require.NoError(t, err)
+		}
+		return
+	}
+
+	require.Fail(t, "expected workspace app rebind warning")
+}
+
+type recordingSlogSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *recordingSlogSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+}
+
+func (*recordingSlogSink) Sync() {}
+
+func (s *recordingSlogSink) Entries() []slog.SinkEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]slog.SinkEntry(nil), s.entries...)
+}
+
+func slogFieldsByName(fields []slog.Field) map[string]any {
+	byName := make(map[string]any, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field.Value
+	}
+	return byName
+}
+
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
@@ -5069,6 +5171,7 @@ type overrides struct {
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
+	provisionerdLogger          *slog.Logger
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -5145,6 +5248,10 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	} else {
 		notifEnq = notifications.NewNoopEnqueuer()
 	}
+	provisionerdLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors})
+	if ov.provisionerdLogger != nil {
+		provisionerdLogger = *ov.provisionerdLogger
+	}
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
@@ -5176,7 +5283,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		provisionerdLogger,
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),
 		serverDB,
