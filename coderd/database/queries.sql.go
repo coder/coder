@@ -33458,7 +33458,9 @@ SELECT
     unnest($2 :: text[]) AS name,
     unnest($3 :: text[]) AS value,
     unnest($4 :: boolean[]) AS sensitive,
-    unnest($5 :: text[]) AS value_key_id
+    -- Empty strings become NULL so non-encrypted rows do not violate the
+    -- value_key_id foreign key to dbcrypt_keys.
+    NULLIF(unnest($5 :: text[]), '') AS value_key_id
 RETURNING workspace_build_id, name, value, sensitive, value_key_id
 `
 

@@ -59,7 +59,9 @@ flow via `richParameter.Sensitive`).
 
 - DB: `template_version_parameters.sensitive`,
   `workspace_build_parameters.sensitive`, and
-  `workspace_build_parameters.value_key_id` (migration `000517`).
+  `workspace_build_parameters.value_key_id` with a foreign key to
+  `dbcrypt_keys(active_key_digest)` (migration `000517`), matching the user
+  secrets encryption practice.
 - Proto: `RichParameter.sensitive` (field 19).
 - Persistence: classic import path persists the flag; sensitive build values are
   encrypted via the `dbcrypt` store wrapper and decrypted on read for the
@@ -70,9 +72,6 @@ flow via `richParameter.Sensitive`).
 
 ## 4. Production follow-ups (not in prototype)
 
-- Add a foreign key from `workspace_build_parameters.value_key_id` to
-  `dbcrypt_keys(active_key_digest)` so encryption keys cannot be revoked while
-  still in use. The prototype omits the FK to keep the bulk array insert simple.
 - Frontend: mask sensitive parameter inputs and indicate non-persistence in the
   create/update workspace forms (Storybook coverage).
 - Audit/telemetry review to ensure sensitive values are not captured elsewhere

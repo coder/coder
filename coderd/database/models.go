@@ -6183,7 +6183,7 @@ type WorkspaceBuildParameter struct {
 	Value string `db:"value" json:"value"`
 	// Sensitive parameter values are encrypted at rest and redacted when returned by the API.
 	Sensitive bool `db:"sensitive" json:"sensitive"`
-	// The ID of the dbcrypt key used to encrypt value. If NULL or empty, value is not encrypted.
+	// The ID of the dbcrypt key used to encrypt value. If NULL, value is not encrypted.
 	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
 }
 

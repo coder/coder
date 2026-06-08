@@ -1,3 +1,4 @@
+ALTER TABLE workspace_build_parameters DROP CONSTRAINT workspace_build_parameters_value_key_id_fkey;
 ALTER TABLE workspace_build_parameters DROP COLUMN value_key_id;
 ALTER TABLE workspace_build_parameters DROP COLUMN sensitive;
 ALTER TABLE template_version_parameters DROP COLUMN sensitive;

@@ -6,7 +6,9 @@ SELECT
     unnest(@name :: text[]) AS name,
     unnest(@value :: text[]) AS value,
     unnest(@sensitive :: boolean[]) AS sensitive,
-    unnest(@value_key_id :: text[]) AS value_key_id
+    -- Empty strings become NULL so non-encrypted rows do not violate the
+    -- value_key_id foreign key to dbcrypt_keys.
+    NULLIF(unnest(@value_key_id :: text[]), '') AS value_key_id
 RETURNING *;
 
 -- name: GetWorkspaceBuildParameters :many
