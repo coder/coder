@@ -3,6 +3,7 @@ import {
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LayersIcon,
+	LoaderIcon,
 	OctagonXIcon,
 } from "lucide-react";
 import type React from "react";
@@ -66,7 +67,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			: "collapsed";
 	const isRunning = status === "running";
 	const durationLabel = formatShellDurationMs(durationMs);
-	const commandLabel = getShellCommandLine({
+	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
 		parsedCommands,
@@ -98,8 +99,13 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 				<ToolCall.HeaderButton className="col-start-1 row-start-1 min-w-0 font-normal">
 					<ToolCall.LeadingIcon name="execute" />
 					<ToolCall.Label>{commandLabel}</ToolCall.Label>
+					{durationSuffix && (
+						<span className="shrink-0 text-content-secondary">
+							{durationSuffix}
+						</span>
+					)}
 					<ToolCall.Status />
-					<ToolCall.HeaderChevron />
+					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				<ToolCall.HeaderActions>
 					{isBackgrounded && !isRunning && (
@@ -156,7 +162,7 @@ const getShellCommandLine = ({
 	modelIntent,
 	parsedCommands,
 	durationLabel,
-}: ShellCommandLineInput) => {
+}: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
 		parsedCommands && parsedCommands.length > 0
@@ -166,9 +172,11 @@ const getShellCommandLine = ({
 	const commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
-	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
 
-	return `${commandLabel}${durationSuffix}`;
+	return {
+		commandLabel,
+		durationSuffix: durationLabel ? ` for ${durationLabel}` : "",
+	};
 };
 
 const ShellTranscriptBody: React.FC<{
@@ -285,20 +293,41 @@ export const WaitForExternalAuthTool: React.FC<{
 }) => {
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
-	let statusIcon: React.ReactNode = null;
+	let statusIcon: React.ReactNode = isRunning ? (
+		<LoaderIcon
+			aria-label="Authentication in progress"
+			role="img"
+			className="size-3.5 shrink-0 animate-spin text-content-link motion-reduce:animate-none"
+		/>
+	) : null;
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
+		statusIcon = (
+			<OctagonXIcon
+				aria-label="Authentication failed"
+				role="img"
+				className="size-3.5 shrink-0 text-content-destructive"
+			/>
+		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
 		statusIcon = (
-			<CircleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
+			<CircleAlertIcon
+				aria-label="Authentication timed out"
+				role="img"
+				className="size-3.5 shrink-0 text-content-warning"
+			/>
 		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
 		statusIcon = (
-			<CheckIcon className="size-3.5 shrink-0 text-content-success" />
+			<CheckIcon
+				aria-label="Authentication completed"
+				role="img"
+				className="size-3.5 shrink-0 text-content-success"
+			/>
 		);
 	}
 
@@ -313,11 +342,14 @@ export const WaitForExternalAuthTool: React.FC<{
 			}
 			hasContent={false}
 		>
-			<ToolCall.Header
-				iconName="wait_for_external_auth"
-				label={label}
-				trailing={statusIcon}
-			/>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton className="min-w-0 flex-1 font-normal text-content-secondary">
+					<ToolCall.LeadingIcon>{statusIcon}</ToolCall.LeadingIcon>
+					<ToolCall.Label className="text-content-primary">
+						{label}
+					</ToolCall.Label>
+				</ToolCall.HeaderButton>
+			</ToolCall.HeaderLayout>
 		</ToolCall.Root>
 	);
 };

@@ -661,7 +661,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	// Show the response-waiting indicator when the store has no stream
+	// Show the Thinking indicator when the store has no stream
 	// data yet and the conversation is waiting for an assistant
 	// response. For "running" status we use the existing broad
 	// check (any non-assistant latest message). For "pending" we

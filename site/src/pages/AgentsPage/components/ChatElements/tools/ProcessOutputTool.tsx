@@ -23,6 +23,7 @@ type ProcessOutputToolProps = {
 	isRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
+	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
@@ -56,6 +57,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	isRunning,
 	exitCode,
 	isError,
+	errorMessage,
 	killedBySignal,
 	defaultView,
 	outputInitiallyFullyExpanded,
@@ -83,6 +85,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			className="group/proc w-full"
 			status={isRunning ? "running" : isError ? "error" : "completed"}
 			isError={isError && !isRunning}
+			errorMessage={errorMessage || "Failed to read process output"}
 			hasContent={hasOutput}
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>
@@ -94,7 +97,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 					<ToolCall.LeadingIcon name="process_output" />
 					<ToolCall.Label>Process output</ToolCall.Label>
 					<ToolCall.Status />
-					<ToolCall.HeaderChevron />
+					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{hasHeaderActions && (
 					<ToolCall.HeaderActions>

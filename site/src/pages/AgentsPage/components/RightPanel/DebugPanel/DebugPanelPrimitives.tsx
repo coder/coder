@@ -62,7 +62,7 @@ export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
 	className,
 }) => {
 	return (
-		<div className="group/debug-code relative">
+		<div data-debug-code-block className="group/debug-code relative">
 			<div className="absolute right-2 top-2 z-10">
 				<CopyButton
 					text={code}

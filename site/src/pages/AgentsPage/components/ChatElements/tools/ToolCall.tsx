@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import {
+	type ComponentPropsWithoutRef,
 	createContext,
 	type FC,
 	type ReactNode,
@@ -18,6 +19,14 @@ import type { SubagentIconKind } from "./subagentDescriptor";
 import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
+/**
+ * Shared display states for tool call rows.
+ *
+ * `preview` is an initial or externally controlled display state for
+ * renderers that want content visible without treating the row as fully
+ * expanded. The built-in header toggle only switches between
+ * `collapsed` and `expanded`, so toggle callbacks never emit `preview`.
+ */
 export type ToolCallView = "collapsed" | "preview" | "expanded";
 
 type ToolCallAriaLabel = string | ((expanded: boolean) => string);
@@ -25,7 +34,6 @@ type ToolCallAriaLabel = string | ((expanded: boolean) => string);
 type ToolCallContextValue = {
 	active: boolean;
 	ariaLabel?: ToolCallAriaLabel;
-	className?: string;
 	collapsible: boolean;
 	errorMessage?: string;
 	expanded: boolean;
@@ -47,7 +55,21 @@ const useToolCallContext = () => {
 	return context;
 };
 
-type ToolCallRootProps = {
+/**
+ * Props for {@link ToolCall.Root}.
+ *
+ * The root can be controlled with `view` or `expanded`, or uncontrolled
+ * with `defaultView` and `defaultExpanded`. When both uncontrolled props
+ * are provided, `defaultView` wins because it can represent the more
+ * specific `preview` state.
+ *
+ * `hasContent` controls whether the header behaves like a toggle. When
+ * it is false, the header stays static and content is never shown.
+ *
+ * Standard `div` attributes are forwarded to the wrapper element so
+ * callers can attach semantics such as live region roles.
+ */
+type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	children: ReactNode;
 	status: ToolStatus;
 	isError?: boolean;
@@ -59,10 +81,16 @@ type ToolCallRootProps = {
 	onExpandedChange?: (expanded: boolean) => void;
 	onViewChange?: (view: ToolCallView) => void;
 	ariaLabel?: ToolCallAriaLabel;
-	className?: string;
 	view?: ToolCallView;
 };
 
+/**
+ * Provides shared state for tool-call rows and renders the wrapper div.
+ *
+ * The wrapper tracks the current display state, derives `expanded` from
+ * it, and forwards wrapper attributes like `role` or `aria-live` to the
+ * rendered `div`.
+ */
 const Root: FC<ToolCallRootProps> = ({
 	children,
 	status,
@@ -77,6 +105,7 @@ const Root: FC<ToolCallRootProps> = ({
 	ariaLabel,
 	className,
 	view: viewProp,
+	...divProps
 }) => {
 	const [uncontrolledView, setUncontrolledView] = useState<ToolCallView>(
 		defaultView ?? (defaultExpanded ? "expanded" : "collapsed"),
@@ -107,7 +136,6 @@ const Root: FC<ToolCallRootProps> = ({
 			value={{
 				active,
 				ariaLabel,
-				className,
 				collapsible,
 				errorMessage,
 				expanded,
@@ -117,11 +145,12 @@ const Root: FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div className={className}>{children}</div>
+			<div className={className} {...divProps}>
+				{children}
+			</div>
 		</ToolCallContext.Provider>
 	);
 };
-
 type ToolCallHeaderRowProps = {
 	children: ReactNode;
 	className?: string;
@@ -310,10 +339,6 @@ const HeaderActions: FC<{ children: ReactNode; className?: string }> = ({
 	return <Actions className={cn("ml-auto", className)}>{children}</Actions>;
 };
 
-const HeaderChevron: FC<{ className?: string }> = ({ className }) => (
-	<Chevron className={className} />
-);
-
 const HeaderLayout: FC<{ children: ReactNode; className?: string }> = ({
 	children,
 	className,
@@ -327,6 +352,13 @@ type ToolCallStateProps = {
 	children: (state: ToolCallContextValue) => ReactNode;
 };
 
+/**
+ * Render-prop access to the current tool-call state.
+ *
+ * This exposes the same derived state that the shared primitives use,
+ * including the resolved view, whether the row is expanded, and whether
+ * the row is considered active or failed.
+ */
 const State: FC<ToolCallStateProps> = ({ children }) =>
 	children(useToolCallContext());
 
@@ -338,10 +370,19 @@ type ToolCallHeaderProps = {
 	subagentIconKind?: SubagentIconKind;
 	secondaryLabel?: ReactNode;
 	trailing?: ReactNode;
-	preserveDefaultStatusIndicator?: boolean;
+	showStatus?: boolean;
 	headerClassName?: string;
 };
 
+/**
+ * Convenience header that renders the standard leading icon, label,
+ * optional secondary label, status indicator, trailing content, and
+ * chevron.
+ *
+ * Use this when a tool follows the default header layout. Callers that
+ * need custom emphasis or status colors can compose the lower-level
+ * primitives directly instead.
+ */
 const Header: FC<ToolCallHeaderProps> = ({
 	iconName,
 	label,
@@ -350,7 +391,7 @@ const Header: FC<ToolCallHeaderProps> = ({
 	subagentIconKind,
 	secondaryLabel,
 	trailing,
-	preserveDefaultStatusIndicator = true,
+	showStatus = true,
 	headerClassName,
 }) => {
 	return (
@@ -363,13 +404,12 @@ const Header: FC<ToolCallHeaderProps> = ({
 			/>
 			<Label>{label}</Label>
 			{secondaryLabel}
-			{preserveDefaultStatusIndicator && <Status />}
+			{showStatus && <Status />}
 			{trailing}
-			<HeaderChevron />
+			<Chevron />
 		</HeaderButton>
 	);
 };
-
 type ToolCallContentProps = {
 	children: ReactNode;
 };
@@ -392,7 +432,6 @@ export const ToolCall = {
 	Chevron,
 	Actions,
 	HeaderActions,
-	HeaderChevron,
 	HeaderLayout,
 	State,
 	Header,

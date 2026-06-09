@@ -1,7 +1,7 @@
 import type { LiveStatusModel } from "./liveStatusModel";
 import type { MergedTool, StreamState } from "./types";
 
-const hasReadableStreamBlock = (streamState: StreamState | null): boolean =>
+const hasTextOrThinkingBlock = (streamState: StreamState | null): boolean =>
 	streamState?.blocks.some(
 		(block) => block.type === "response" || block.type === "thinking",
 	) ?? false;
@@ -20,5 +20,5 @@ export const shouldShowGenericThinking = ({
 }): boolean =>
 	liveStatus.phase === "starting" ||
 	(liveStatus.phase === "streaming" &&
-		!hasReadableStreamBlock(streamState) &&
+		!hasTextOrThinkingBlock(streamState) &&
 		!hasRunningTool(streamTools));

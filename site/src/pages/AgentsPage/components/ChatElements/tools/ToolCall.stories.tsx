@@ -89,13 +89,21 @@ export const Collapsible: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.tab();
 		const button = canvas.getByRole("button", { name: "Expand read file" });
+		expect(button).toHaveFocus();
 		expect(button).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("File contents")).not.toBeInTheDocument();
-		await userEvent.click(button);
-		expect(
-			canvas.getByRole("button", { name: "Collapse read file" }),
-		).toHaveAttribute("aria-expanded", "true");
+		await userEvent.keyboard("{Enter}");
+		const expandedButton = canvas.getByRole("button", {
+			name: "Collapse read file",
+		});
+		expect(expandedButton).toHaveAttribute("aria-expanded", "true");
 		expect(canvas.getByText("File contents")).toBeVisible();
+		await userEvent.keyboard(" ");
+		expect(
+			canvas.getByRole("button", { name: "Expand read file" }),
+		).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("File contents")).not.toBeInTheDocument();
 	},
 };

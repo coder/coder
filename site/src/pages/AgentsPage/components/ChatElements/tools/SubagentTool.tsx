@@ -209,7 +209,7 @@ export const SubagentTool: React.FC<{
 							isTimeout,
 						)}
 					</ToolCall.Label>
-					<ToolCall.HeaderChevron />
+					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{agentChatPath && (
 					<ToolCall.HeaderActions>

@@ -454,7 +454,7 @@ export const useChatStore = (
 					// partial output. Other events (status, retry,
 					// queue_update) must NOT flush — status changes
 					// need to be visible before parts so the
-					// response-waiting indicator can render, and retry
+					// Thinking indicator can render, and retry
 					// clears stream state which a flush would
 					// re-populate.
 					if (streamEvent.type === "message" || streamEvent.type === "error") {

@@ -21,14 +21,14 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 
 const LiveActivitySlot: FC<{
 	visible: boolean;
-	overlay: boolean;
-}> = ({ visible, overlay }) => (
+	detached: boolean;
+}> = ({ visible, detached }) => (
 	<div
 		data-testid="live-activity-slot"
 		aria-hidden={!visible}
 		className={cn(
 			"flex items-center gap-2 text-content-secondary",
-			overlay ? "pointer-events-none absolute left-0 top-full mt-2" : "h-6",
+			detached ? "pointer-events-none absolute left-0 top-full mt-2" : "h-6",
 			!visible && "invisible",
 		)}
 	>
@@ -100,7 +100,7 @@ export const StreamingOutput: FC<{
 						)}
 						<LiveActivitySlot
 							visible={showActivity}
-							overlay={hasVisibleFlowContent}
+							detached={hasVisibleFlowContent}
 						/>
 					</div>
 				</MessageContent>

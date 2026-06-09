@@ -556,7 +556,12 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<ToolCall.Root status={status} hasContent={false}>
+					<ToolCall.Root
+						status={status}
+						hasContent={false}
+						role="status"
+						aria-live="polite"
+					>
 						<ToolCall.Header
 							iconName="ask_user_question"
 							label="Asking for clarification..."
@@ -675,7 +680,12 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<ToolCall.Root status={status} hasContent={false}>
+				<ToolCall.Root
+					status={status}
+					hasContent={false}
+					role="status"
+					aria-live="polite"
+				>
 					<ToolCall.Header
 						iconName="ask_user_question"
 						label="Asking for clarification..."

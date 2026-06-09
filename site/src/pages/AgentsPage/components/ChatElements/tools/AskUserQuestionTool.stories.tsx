@@ -115,12 +115,31 @@ export const Running: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const liveRegion = canvas.getByRole("status");
 
+		expect(liveRegion).toHaveAttribute("aria-live", "polite");
 		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
 		expect(
 			canvas.getByRole("img", { name: "Tool call running" }),
 		).toBeInTheDocument();
 		expect(canvas.getAllByRole("radio")).toHaveLength(3);
+	},
+};
+
+export const RunningEmptyQuestions: Story = {
+	args: {
+		status: "running",
+		args: { questions: [] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const liveRegion = canvas.getByRole("status");
+
+		expect(liveRegion).toHaveAttribute("aria-live", "polite");
+		expect(canvas.getByText("Asking for clarification...")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeInTheDocument();
 	},
 };
 

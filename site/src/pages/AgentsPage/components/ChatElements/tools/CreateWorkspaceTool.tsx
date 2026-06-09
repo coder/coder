@@ -73,7 +73,7 @@ export const CreateWorkspaceTool: React.FC<{
 					<ToolCall.LeadingIcon name="create_workspace" />
 					<ToolCall.Label>{label}</ToolCall.Label>
 					<ToolCall.Status />
-					<ToolCall.HeaderChevron />
+					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				{workspaceLink && !isRunning && (
 					<ToolCall.HeaderActions>

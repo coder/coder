@@ -364,7 +364,9 @@ export const ExecuteSuccess: Story = {
 		expect(
 			canvas.queryByRole("img", { name: "Running in background" }),
 		).not.toBeInTheDocument();
-		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
+		const durationSuffix = canvas.getByText("for 47.2s");
+		expect(durationSuffix).toBeVisible();
+		expect(durationSuffix.tagName).toBe("SPAN");
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
 };
@@ -527,6 +529,21 @@ export const ProcessOutputAlwaysExpanded: Story = {
 	},
 };
 
+export const ProcessOutputStringError: Story = {
+	args: {
+		name: "process_output",
+		status: "error",
+		isError: true,
+		result: "permission denied",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "Failed to read process output" }),
+		).toBeVisible();
+	},
+};
+
 export const ExecuteAuthRequired: Story = {
 	args: {
 		result: {
@@ -576,6 +593,9 @@ export const WaitForExternalAuthRunning: Story = {
 		expect(
 			canvas.getByText("Waiting for GitHub authentication..."),
 		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Authentication in progress" }),
+		).toBeVisible();
 	},
 };
 
@@ -2005,6 +2025,38 @@ export const GenericToolFailedNoResult: Story = {
 		expect(
 			canvasElement.querySelector(".lucide-triangle-alert"),
 		).not.toBeNull();
+	},
+};
+
+export const GenericToolStringError: Story = {
+	args: {
+		name: "web_search",
+		status: "error",
+		isError: true,
+		result: "Network unreachable",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "Web search failed" }),
+		).toBeVisible();
+	},
+};
+
+export const GenericMCPToolStringError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		result: "Authentication token expired",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "List issues failed" }),
+		).toBeVisible();
 	},
 };
 

@@ -49,6 +49,7 @@ import {
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
+	humanizeMCPToolName,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -266,6 +267,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
 	return (
 		<ProcessOutputTool
@@ -273,6 +275,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}
+			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
@@ -877,6 +880,17 @@ const GenericToolContent: FC<GenericToolContentProps> = ({
 	);
 };
 
+const getGenericToolErrorMessage = ({
+	name,
+	mcpSlug,
+}: {
+	name: string;
+	mcpSlug?: string;
+}): string => {
+	const displayName = humanizeMCPToolName(mcpSlug ?? "", name);
+	return `${displayName} failed`;
+};
+
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -909,12 +923,16 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	const fallbackErrorMessage = getGenericToolErrorMessage({
+		name,
+		mcpSlug: mcpServer?.slug,
+	});
 
 	return (
 		<ToolCall.Root
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || "Tool call failed"}
+			errorMessage={errorMessage || fallbackErrorMessage}
 			hasContent={hasContent}
 		>
 			<ToolCall.Header
