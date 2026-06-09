@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/tracing"
 )
@@ -30,7 +31,9 @@ const (
 type Pooler interface {
 	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
 	// ReplaceProviders swaps the providers used to construct future
-	// RequestBridge instances and clears the cache.
+	// RequestBridge instances and clears the cache. Disabled providers
+	// must be included; the bridge serves a 503 sentinel on their
+	// routes.
 	ReplaceProviders(providers []aibridge.Provider)
 	Shutdown(ctx context.Context) error
 }
@@ -53,7 +56,8 @@ var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
-	// providers is the live provider set used by new RequestBridge instances.
+	// providers is the live provider set used by new RequestBridge
+	// instances. Includes disabled providers.
 	providers       atomic.Pointer[[]aibridge.Provider]
 	providerVersion atomic.Int64
 	logger          slog.Logger
@@ -143,6 +147,18 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 		return *ptr
 	}
 	return nil
+}
+
+// KeyPools returns the key pools of the current live providers.
+func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
+	providers := p.loadProviders()
+	pools := make([]*keypool.Pool, 0, len(providers))
+	for _, prov := range providers {
+		if pool := prov.KeyPool(); pool != nil {
+			pools = append(pools, pool)
+		}
+	}
+	return pools
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.

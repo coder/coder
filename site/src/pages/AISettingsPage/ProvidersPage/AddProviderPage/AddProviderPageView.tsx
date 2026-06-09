@@ -16,6 +16,9 @@ interface AddProviderPageViewProps {
 	provider: AddableProvider;
 }
 
+const indefiniteArticle = (word: string): string =>
+	/^[aeiou]/i.test(word) ? "an" : "a";
+
 const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 	provider,
 }) => {
@@ -38,7 +41,9 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 						size="lg"
 						src={getProviderIcon(provider.value)}
 					/>
-					<SettingsHeaderTitle>{`Add a ${provider.label} provider`}</SettingsHeaderTitle>
+					<SettingsHeaderTitle>{`Add ${indefiniteArticle(
+						provider.label,
+					)} ${provider.label} provider`}</SettingsHeaderTitle>
 				</div>
 				<p className="text-sm text-content-secondary m-0">
 					Configure connection details and credentials.

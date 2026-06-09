@@ -70,6 +70,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	libicu-dev \
 	libreadline-dev \
 	libssl-dev \
+	libx11-xcb1 \
 	lsb-release \
 	lsof \
 	man \

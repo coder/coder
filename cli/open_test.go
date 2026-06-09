@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestOpenVSCode(t *testing.T) {
@@ -120,9 +120,8 @@ func TestOpenVSCode(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -140,7 +139,7 @@ func TestOpenVSCode(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -246,9 +245,8 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -266,7 +264,7 @@ func TestOpenVSCode_NoAgentDirectory(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -570,10 +568,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 
 			inv, root := clitest.New(t, append([]string{"open", "vscode"}, tt.args...)...)
 			clitest.SetupConfig(t, client, root)
-
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			var stdout *expecter.Expecter
+			stdout, inv.Stdout = expecter.NewPiped(t)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			inv = inv.WithContext(ctx)
@@ -592,7 +588,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			me, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			line := pty.ReadLine(ctx)
+			line := stdout.ReadLine(ctx)
 			u, err := url.ParseRequestURI(line)
 			require.NoError(t, err, "line: %q", line)
 
@@ -640,9 +636,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -671,9 +664,6 @@ func TestOpenApp(t *testing.T) {
 		client, _, _ := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "open", "app", "not-a-workspace", "app1")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
 		w.RequireContains("Resource not found or you do not have access to this resource")
@@ -686,9 +676,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -710,9 +697,6 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--region", "bad-region")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
@@ -734,9 +718,6 @@ func TestOpenApp(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()

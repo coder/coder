@@ -19,8 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -151,13 +151,13 @@ func Test_TaskSend(t *testing.T) {
 		// Use a pty so we can wait for the command to produce build
 		// output, confirming it has entered the initializing code
 		// path before we connect the agent.
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		w := clitest.StartWithWaiter(t, inv)
 
 		// Wait for the command to observe the initializing state and
 		// start watching the workspace build. This ensures the command
 		// has entered the waiting code path.
-		pty.ExpectMatchContext(ctx, "Queued")
+		stdout.ExpectMatch(ctx, "Queued")
 
 		// Connect a new agent so the task can transition to active.
 		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
@@ -203,12 +203,12 @@ func Test_TaskSend(t *testing.T) {
 		// Use a pty so we can wait for the command to produce build
 		// output, confirming it has entered the paused code path and
 		// triggered a resume before we connect the agent.
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		w := clitest.StartWithWaiter(t, inv)
 
 		// Wait for the command to observe the paused state, trigger
 		// a resume, and start watching the workspace build.
-		pty.ExpectMatchContext(ctx, "Queued")
+		stdout.ExpectMatch(ctx, "Queued")
 
 		// Connect a new agent so the task can transition to active.
 		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
@@ -237,7 +237,10 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		// Given: An initializing task (workspace running, no agent
-		// connected).
+		// connected). Close the agent, pause, then resume so the
+		// workspace is started but no agent is connected. The
+		// command enters waitForTaskIdle directly (initializing
+		// path), where we verify it handles an external pause.
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
@@ -245,24 +248,52 @@ func Test_TaskSend(t *testing.T) {
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 		resumeTask(setupCtx, t, setup.userClient, setup.task)
 
+		// Set up mock clock and traps before starting the command.
+		mClock := quartz.NewMock(t)
+		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
+		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
+
 		// When: We attempt to send input to the initializing task.
-		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
+		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv = inv.WithContext(ctx)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		w := clitest.StartWithWaiter(t, inv)
 
 		// Wait for the command to enter the build-watching phase
 		// of waitForTaskIdle.
-		pty.ExpectMatchContext(ctx, "Waiting for task to become idle")
+		stdout.ExpectMatch(ctx, "Waiting for task to become idle")
 
-		// Pause the task while waitForTaskIdle is polling. Since
-		// no agent is connected, the task stays initializing until
-		// we pause it, at which point the status becomes paused.
+		// Wait for ticker creation and release it.
+		tickCall := tickTrap.MustWait(ctx)
+		tickCall.MustRelease(ctx)
+		tickTrap.Close()
+
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees 'initializing' and continues.
+		mClock.Advance(time.Nanosecond).MustWait(ctx)
+		resetCall := resetTrap.MustWait(ctx)
+		resetCall.MustRelease(ctx)
+
+		// Fire the second poll. The goroutine is again frozen at
+		// ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// pause the task. The stop build completes, so the DB has
+		// (stop, succeeded) = 'paused'.
 		pauseTask(ctx, t, setup.userClient, setup.task)
+
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees 'paused'.
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
 
 		// Then: The command should fail because the task was paused.
 		err := w.Wait()
@@ -303,23 +334,31 @@ func Test_TaskSend(t *testing.T) {
 		tickCall.MustRelease(ctx)
 		tickTrap.Close()
 
-		// Fire the immediate first poll (time.Nanosecond initial interval).
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees "working" and continues.
 		mClock.Advance(time.Nanosecond).MustWait(ctx)
-
-		// Wait for Reset (confirms first poll completed and saw "working").
 		resetCall := resetTrap.MustWait(ctx)
 		resetCall.MustRelease(ctx)
-		resetTrap.Close()
 
-		// Transition the app back to idle so waitForTaskIdle proceeds.
+		// Fire the second poll. The goroutine is again frozen
+		// at ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// transition the app to idle.
 		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 			AppSlug: "task-sidebar",
 			State:   codersdk.WorkspaceAppStatusStateIdle,
 			Message: "ready",
 		}))
 
-		// Fire second poll at the regular 5s interval.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees "idle".
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
 
 		// Then: The command should complete successfully.
 		require.NoError(t, w.Wait())

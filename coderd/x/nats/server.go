@@ -1,20 +1,18 @@
 package nats
 
 import (
-	"context"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog/v3"
 )
 
 const readyTimeout = 10 * time.Second
 
 // buildServerOptions constructs the embedded NATS server options. The
-// server runs standalone with a loopback random client listener.
+// server runs with a loopback random client listener and an optional
+// cluster route listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
@@ -36,17 +34,42 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
+	if opts.ClusterAuthToken != "" {
+		sopts.Authorization = opts.ClusterAuthToken
+	}
+
+	if !opts.disableCluster {
+		clusterHost := opts.ClusterHost
+		if clusterHost == "" {
+			clusterHost = natsserver.DEFAULT_HOST
+		}
+		clusterPort := opts.ClusterPort
+		if clusterPort == 0 {
+			clusterPort = defaultClusterPort
+		}
+		routePoolSize := opts.RoutePoolSize
+		if routePoolSize == 0 {
+			routePoolSize = defaultRoutePoolSize
+		}
+
+		sopts.Cluster = natsserver.ClusterOpts{
+			Name:     defaultClusterName,
+			Host:     clusterHost,
+			Port:     clusterPort,
+			PoolSize: routePoolSize,
+		}
+		if opts.ClusterAuthToken != "" {
+			sopts.Cluster.Username = defaultClusterTokenUsername
+			sopts.Cluster.Password = opts.ClusterAuthToken
+		}
+	}
 
 	return sopts, nil
 }
 
-// startEmbeddedServer starts an in-process standalone NATS server.
-func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, error) {
-	sopts, err := buildServerOptions(opts)
-	if err != nil {
-		return nil, err
-	}
-	ns, err := natsserver.NewServer(sopts)
+// startEmbeddedServer starts an in-process NATS server.
+func startEmbeddedServer(opts *natsserver.Options) (*natsserver.Server, error) {
+	ns, err := natsserver.NewServer(opts)
 	if err != nil {
 		return nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
@@ -56,9 +79,6 @@ func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, 
 		ns.WaitForShutdown()
 		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
-	logger.Info(context.Background(), "embedded nats server started",
-		slog.F("client_url", ns.ClientURL()),
-	)
 	return ns, nil
 }
 
@@ -77,6 +97,9 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	connOpts := []natsgo.Option{
 		natsgo.Name(connName),
 	}
+	if opts.ClusterAuthToken != "" {
+		connOpts = append(connOpts, natsgo.Token(opts.ClusterAuthToken))
+	}
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))
 	}
@@ -92,13 +115,13 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	if handlers.errH != nil {
 		connOpts = append(connOpts, natsgo.ErrorHandler(handlers.errH))
 	}
-	url := ns.ClientURL()
+	clientURL := ns.ClientURL()
 	if opts.InProcess {
 		// InProcessServer overrides URL dialing with a net.Pipe; the
-		// url argument is ignored but must still be syntactically valid.
+		// URL argument is ignored but must still be syntactically valid.
 		connOpts = append(connOpts, natsgo.InProcessServer(ns))
 	}
-	nc, err := natsgo.Connect(url, connOpts...)
+	nc, err := natsgo.Connect(clientURL, connOpts...)
 	if err != nil {
 		return nil, xerrors.Errorf("connect client: %w", err)
 	}

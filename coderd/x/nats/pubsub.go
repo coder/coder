@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"sync"
 	"time"
 
@@ -18,6 +19,12 @@ import (
 
 // DefaultMaxPending is the per-client outbound pending byte budget.
 const DefaultMaxPending int64 = 128 << 20
+
+const (
+	defaultClusterName   = "coder"
+	defaultClusterPort   = 6222
+	defaultRoutePoolSize = 3
+)
 
 var errClosed = xerrors.New("nats pubsub closed")
 
@@ -65,6 +72,31 @@ type Options struct {
 	// shared subscription is pinned to one connection by a stable hash
 	// of its subject. Zero or negative means 1.
 	SubscribeConns int
+
+	// ClusterHost is the embedded NATS route listener host. Empty means
+	// all interfaces when cluster mode is enabled.
+	ClusterHost string
+
+	// ClusterPort is the embedded NATS route listener port. Zero means
+	// 6222 when cluster mode is enabled.
+	ClusterPort int
+
+	// ClusterAuthToken is the shared route authentication token for
+	// clustered embedded NATS servers. Empty disables route auth.
+	ClusterAuthToken string
+
+	// PeerFetcher provides the current set of peer route addresses.
+	// RefreshPeers uses it to update the configured cluster routes.
+	PeerFetcher PeerFetcher
+
+	// RoutePoolSize is the NATS route pool size. Zero means the package
+	// default when cluster mode is enabled.
+	RoutePoolSize int
+
+	// disableCluster is intended only for testing. Since we cannot reload a server
+	// with a cluster host/port after initialization, we start all production servers
+	// with clustering enabled.
+	disableCluster bool
 }
 
 // Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.
@@ -82,7 +114,7 @@ type Pubsub struct {
 	logger slog.Logger
 	opts   Options
 
-	ns *natsserver.Server
+	Server *natsserver.Server
 	// publishPool and subscribePool are immutable after construction so
 	// the hot path can index without holding p.mu.
 	publishPool   []*natsgo.Conn
@@ -97,6 +129,14 @@ type Pubsub struct {
 	// cleanup observes the canceled context.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	clusterMu     sync.Mutex
+	clustered     bool
+	serverOpts    *natsserver.Options
+	currentRoutes []*url.URL
+
+	peerFetcher PeerFetcher
+	peerRefresh chan struct{}
 }
 
 // natsSub maps to one underlying *natsgo.Subscription. The first
@@ -154,6 +194,8 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		subscriptions: make(map[string]*natsSub),
 		ctx:           ctx,
 		cancel:        cancel,
+		peerFetcher:   opts.PeerFetcher,
+		peerRefresh:   make(chan struct{}, 1),
 	}
 }
 
@@ -203,13 +245,29 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	ns, err := startEmbeddedServer(logger, opts)
+	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
 	}
 
+	ns, err := startEmbeddedServer(sopts)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info(context.Background(), "embedded nats server started",
+		slog.F("client_url", ns.ClientURL()),
+	)
+
+	if opts.PeerFetcher == nil {
+		opts.PeerFetcher = NopPeerFetcher{}
+	}
+
 	p := newPubsub(ctx, logger, opts)
-	p.ns = ns
+	p.Server = ns
+	p.clustered = !opts.disableCluster
+	p.serverOpts = sopts.Clone()
+	p.currentRoutes = cloneRouteURLs(sopts.Routes)
 	handlers := p.buildConnHandlers()
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
@@ -219,6 +277,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
 		p.cancel()
@@ -229,12 +288,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
+
+	if p.clustered {
+		go p.runPeerRefresh()
+	}
 	go func() {
 		<-p.ctx.Done()
 		_ = p.Close()
 	}()
+
 	return p, nil
 }
 
@@ -629,9 +694,9 @@ func (p *Pubsub) Close() error {
 			}
 		}
 
-		if p.ns != nil {
-			p.ns.Shutdown()
-			p.ns.WaitForShutdown()
+		if p.Server != nil {
+			p.Server.Shutdown()
+			p.Server.WaitForShutdown()
 		}
 	})
 	return nil

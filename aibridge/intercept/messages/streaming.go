@@ -153,6 +153,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	var lastErr error
 	var interceptionErr error
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	isFirst := true
 newStream:
 	for {
@@ -195,6 +200,11 @@ newStream:
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover
@@ -202,6 +212,8 @@ newStream:
 				option.WithMaxRetries(0),
 			)
 		}
+
+		totalKeyAttempts += walker.Attempts()
 
 		stream := i.newStream(streamCtx, svc, streamOpts...)
 
@@ -478,6 +490,11 @@ newStream:
 
 					// Causes a new stream to be run with updated messages.
 					isFirst = false
+					// Commit the SSE stream before the next iteration so a
+					// later IsStreaming check always takes the SSE branch
+					// instead of racing with the Start goroutine.
+					// sync.Once makes this safe.
+					events.InitiateStream(w)
 					continue newStream
 				}
 

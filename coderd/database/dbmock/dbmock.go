@@ -603,6 +603,21 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
+// DeleteAIGatewayKey mocks base method.
+func (m *MockStore) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIGatewayKey", ctx, id)
+	ret0, _ := ret[0].(database.DeleteAIGatewayKeyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAIGatewayKey indicates an expected call of DeleteAIGatewayKey.
+func (mr *MockStoreMockRecorder) DeleteAIGatewayKey(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIGatewayKey", reflect.TypeOf((*MockStore)(nil).DeleteAIGatewayKey), ctx, id)
+}
+
 // DeleteAIProviderByID mocks base method.
 func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1347,6 +1362,21 @@ func (m *MockStore) DeleteTask(ctx context.Context, arg database.DeleteTaskParam
 func (mr *MockStoreMockRecorder) DeleteTask(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTask", reflect.TypeOf((*MockStore)(nil).DeleteTask), ctx, arg)
+}
+
+// DeleteUserAIBudgetOverride mocks base method.
+func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserAIBudgetOverride", ctx, userID)
+	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteUserAIBudgetOverride indicates an expected call of DeleteUserAIBudgetOverride.
+func (mr *MockStoreMockRecorder) DeleteUserAIBudgetOverride(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAIBudgetOverride", reflect.TypeOf((*MockStore)(nil).DeleteUserAIBudgetOverride), ctx, userID)
 }
 
 // DeleteUserAIProviderKey mocks base method.
@@ -3388,6 +3418,21 @@ func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.
 func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
+}
+
+// GetExternalAgentTokensByTemplateID mocks base method.
+func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalAgentTokensByTemplateID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetExternalAgentTokensByTemplateIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalAgentTokensByTemplateID indicates an expected call of GetExternalAgentTokensByTemplateID.
+func (mr *MockStoreMockRecorder) GetExternalAgentTokensByTemplateID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAgentTokensByTemplateID", reflect.TypeOf((*MockStore)(nil).GetExternalAgentTokensByTemplateID), ctx, arg)
 }
 
 // GetExternalAuthLink mocks base method.
@@ -5445,6 +5490,21 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), ctx)
 }
 
+// GetUserAIBudgetOverride mocks base method.
+func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAIBudgetOverride", ctx, userID)
+	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAIBudgetOverride indicates an expected call of GetUserAIBudgetOverride.
+func (mr *MockStoreMockRecorder) GetUserAIBudgetOverride(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAIBudgetOverride", reflect.TypeOf((*MockStore)(nil).GetUserAIBudgetOverride), ctx, userID)
+}
+
 // GetUserAIProviderKeyByProviderID mocks base method.
 func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -6959,6 +7019,21 @@ func (mr *MockStoreMockRecorder) InsertAIBridgeUserPrompt(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeUserPrompt", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeUserPrompt), ctx, arg)
 }
 
+// InsertAIGatewayKey mocks base method.
+func (m *MockStore) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIGatewayKey", ctx, arg)
+	ret0, _ := ret[0].(database.InsertAIGatewayKeyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIGatewayKey indicates an expected call of InsertAIGatewayKey.
+func (mr *MockStoreMockRecorder) InsertAIGatewayKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIGatewayKey", reflect.TypeOf((*MockStore)(nil).InsertAIGatewayKey), ctx, arg)
+}
+
 // InsertAIProvider mocks base method.
 func (m *MockStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
 	m.ctrl.T.Helper()
@@ -7034,19 +7109,19 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), ctx, arg)
 }
 
-// InsertBoundaryLog mocks base method.
-func (m *MockStore) InsertBoundaryLog(ctx context.Context, arg database.InsertBoundaryLogParams) (database.BoundaryLog, error) {
+// InsertBoundaryLogs mocks base method.
+func (m *MockStore) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertBoundaryLog", ctx, arg)
-	ret0, _ := ret[0].(database.BoundaryLog)
+	ret := m.ctrl.Call(m, "InsertBoundaryLogs", ctx, arg)
+	ret0, _ := ret[0].([]database.BoundaryLog)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// InsertBoundaryLog indicates an expected call of InsertBoundaryLog.
-func (mr *MockStoreMockRecorder) InsertBoundaryLog(ctx, arg any) *gomock.Call {
+// InsertBoundaryLogs indicates an expected call of InsertBoundaryLogs.
+func (mr *MockStoreMockRecorder) InsertBoundaryLogs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundaryLog", reflect.TypeOf((*MockStore)(nil).InsertBoundaryLog), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBoundaryLogs", reflect.TypeOf((*MockStore)(nil).InsertBoundaryLogs), ctx, arg)
 }
 
 // InsertBoundarySession mocks base method.
@@ -8247,6 +8322,21 @@ func (m *MockStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context
 func (mr *MockStoreMockRecorder) ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeUserPromptsByInterceptionIDs", reflect.TypeOf((*MockStore)(nil).ListAIBridgeUserPromptsByInterceptionIDs), ctx, interceptionIds)
+}
+
+// ListAIGatewayKeys mocks base method.
+func (m *MockStore) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIGatewayKeys", ctx)
+	ret0, _ := ret[0].([]database.ListAIGatewayKeysRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIGatewayKeys indicates an expected call of ListAIGatewayKeys.
+func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
 // ListAuthorizedAIBridgeClients mocks base method.
@@ -10092,6 +10182,21 @@ func (mr *MockStoreMockRecorder) UpdateUserLink(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLink", reflect.TypeOf((*MockStore)(nil).UpdateUserLink), ctx, arg)
 }
 
+// UpdateUserLinkedID mocks base method.
+func (m *MockStore) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserLinkedID", ctx, arg)
+	ret0, _ := ret[0].(database.UserLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserLinkedID indicates an expected call of UpdateUserLinkedID.
+func (mr *MockStoreMockRecorder) UpdateUserLinkedID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLinkedID", reflect.TypeOf((*MockStore)(nil).UpdateUserLinkedID), ctx, arg)
+}
+
 // UpdateUserLoginType mocks base method.
 func (m *MockStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -11342,6 +11447,21 @@ func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
+}
+
+// UpsertUserAIBudgetOverride mocks base method.
+func (m *MockStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUserAIBudgetOverride", ctx, arg)
+	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertUserAIBudgetOverride indicates an expected call of UpsertUserAIBudgetOverride.
+func (mr *MockStoreMockRecorder) UpsertUserAIBudgetOverride(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserAIBudgetOverride", reflect.TypeOf((*MockStore)(nil).UpsertUserAIBudgetOverride), ctx, arg)
 }
 
 // UpsertUserAIProviderKey mocks base method.

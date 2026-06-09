@@ -299,6 +299,7 @@ export const ExecuteModelIntent: Story = {
 
 export const ExecuteModelIntentRunning: Story = {
 	args: {
+		shellToolDisplayMode: "always_expanded",
 		status: "running",
 		args: {
 			command: executeCommand,
@@ -363,7 +364,9 @@ export const ExecuteSuccess: Story = {
 		expect(
 			canvas.queryByRole("img", { name: "Running in background" }),
 		).not.toBeInTheDocument();
-		expect(canvas.getByText(/for 47\.2s/)).toBeVisible();
+		const durationSuffix = canvas.getByText("for 47.2s");
+		expect(durationSuffix).toBeVisible();
+		expect(durationSuffix.tagName).toBe("SPAN");
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
 };
@@ -526,6 +529,21 @@ export const ProcessOutputAlwaysExpanded: Story = {
 	},
 };
 
+export const ProcessOutputStringError: Story = {
+	args: {
+		name: "process_output",
+		status: "error",
+		isError: true,
+		result: "permission denied",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "Failed to read process output" }),
+		).toBeVisible();
+	},
+};
+
 export const ExecuteAuthRequired: Story = {
 	args: {
 		result: {
@@ -575,6 +593,9 @@ export const WaitForExternalAuthRunning: Story = {
 		expect(
 			canvas.getByText("Waiting for GitHub authentication..."),
 		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Authentication in progress" }),
+		).toBeVisible();
 	},
 };
 
@@ -803,57 +824,6 @@ export const SubagentAwaitPreferredTitle: Story = {
 	},
 };
 
-export const SubagentRequestMetadata: Story = {
-	args: {
-		name: "spawn_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
-export const SubagentAwaitRequestMetadata: Story = {
-	args: {
-		name: "wait_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
-export const SubagentMessageRequestMetadata: Story = {
-	args: {
-		name: "message_agent",
-		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Worked for 2s")).toBeInTheDocument();
-	},
-};
-
 export const SpawnSubagentGeneralRunning: Story = {
 	args: {
 		name: "spawn_agent",
@@ -891,7 +861,6 @@ export const SpawnSubagentGeneralCompleted: Story = {
 			type: "general",
 			title: "Workspace diagnostics",
 			status: "completed",
-			duration_ms: 3200,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -899,7 +868,6 @@ export const SpawnSubagentGeneralCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 3s")).toBeInTheDocument();
 	},
 };
 
@@ -937,7 +905,6 @@ export const SpawnSubagentExploreCompleted: Story = {
 			chat_id: "spawn-explore-child",
 			type: "explore",
 			status: "completed",
-			duration_ms: 4100,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -945,7 +912,6 @@ export const SpawnSubagentExploreCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Explore agent/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 4s")).toBeInTheDocument();
 	},
 };
 
@@ -1004,7 +970,6 @@ export const SpawnSubagentComputerUseCompleted: Story = {
 			type: "computer_use",
 			title: "Visual regression check",
 			status: "completed",
-			duration_ms: "12400",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1012,7 +977,6 @@ export const SpawnSubagentComputerUseCompleted: Story = {
 		expect(
 			canvas.getByRole("button", { name: /Spawned Visual regression check/ }),
 		).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
 	},
 };
 
@@ -2064,6 +2028,120 @@ export const GenericToolFailedNoResult: Story = {
 	},
 };
 
+export const GenericToolStringError: Story = {
+	args: {
+		name: "web_search",
+		status: "error",
+		isError: true,
+		result: "Network unreachable",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "Web search failed" }),
+		).toBeVisible();
+	},
+};
+
+export const GenericMCPToolStringError: Story = {
+	args: {
+		name: "linear__list_issues",
+		status: "error",
+		isError: true,
+		result: "Authentication token expired",
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("img", { name: "List issues failed" }),
+		).toBeVisible();
+	},
+};
+
+const longCodeLine =
+	'export const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };';
+
+const tallWideFileContent = [
+	longCodeLine,
+	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
+].join("\n");
+
+export const ReadFileLongLine: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+		await waitFor(() => {
+			const host = canvasElement.querySelector("diffs-container");
+			const code = host?.shadowRoot?.querySelector("[data-code]");
+			expect(code).toBeInstanceOf(HTMLElement);
+			if (code instanceof HTMLElement) {
+				expect(getComputedStyle(code).overflow).toBe("visible");
+			}
+		});
+	},
+};
+
+export const ReadFileTallAndWide: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: tallWideFileContent },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find(
+			(v) => v.scrollWidth > v.clientWidth && v.scrollHeight > v.clientHeight,
+		);
+		if (!viewport) {
+			throw new Error("Expected a viewport overflowing on both axes.");
+		}
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		expect(viewport.scrollLeft).toBe(0);
+	},
+};
+
+export const GenericToolLongOutput: Story = {
+	args: {
+		name: "some_custom_tool",
+		args: { query: "lookup" },
+		result: { value: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /some_custom_tool/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+	},
+};
+
 export const SubagentWaitTimedOut: Story = {
 	args: {
 		name: "wait_agent",
@@ -2225,14 +2303,12 @@ export const SpawnComputerUseAgentCompleted: Story = {
 			chat_id: "desktop-child-1",
 			title: "Visual regression check",
 			status: "completed",
-			duration_ms: "12400",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Spawned/)).toBeInTheDocument();
 		expect(canvas.getByText(/Visual regression check/)).toBeInTheDocument();
-		expect(canvas.getByText("Worked for 12s")).toBeInTheDocument();
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/desktop-child-1",

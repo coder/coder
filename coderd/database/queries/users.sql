@@ -486,6 +486,18 @@ WHERE
 			name ILIKE concat('%', @name, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+	  WHEN @exact_username :: text != '' THEN
+		  lower(username) = lower(@exact_username)
+	  ELSE true
+	END
+  	-- Filter by exact email
+  	AND CASE
+	  WHEN @exact_email :: text != '' THEN
+		  lower(email) = lower(@exact_email)
+	  ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
@@ -597,21 +609,28 @@ SELECT
 				-- Concatenating the organization id scopes the organization roles.
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
-				organization_members,
+				organization_members
+				JOIN organizations ON organizations.id = organization_members.organization_id,
 				-- All org members get an implied role for their orgs. Most members
 				-- get organization-member, but service accounts will get
 				-- organization-service-account instead. They're largely the same,
 				-- but having them be distinct means we can allow configuring
-				-- service-accounts to have slightly broader permissions–such as
+				-- service-accounts to have slightly broader permissions, such as
 				-- for workspace sharing.
+				--
+				-- organizations.default_org_member_roles is unioned in so changes
+				-- to org defaults propagate to every member on the next request.
 				unnest(
-					array_append(
-						roles,
-						CASE WHEN users.is_service_account THEN
-							'organization-service-account'
-						ELSE
-							'organization-member'
-						END
+					array_cat(
+						array_append(
+							roles,
+							CASE WHEN users.is_service_account THEN
+								'organization-service-account'
+							ELSE
+								'organization-member'
+							END
+						),
+						organizations.default_org_member_roles
 					)
 				) AS org_roles
 			WHERE
@@ -632,7 +651,7 @@ SELECT
 FROM
 	users
 WHERE
-	id = @user_id;
+	users.id = @user_id;
 
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE

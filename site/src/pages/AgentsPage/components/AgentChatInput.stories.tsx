@@ -842,6 +842,76 @@ export const PlanningIndicator: Story = {
 	},
 };
 
+const narrowPlanningContextUsage: AgentContextUsage = {
+	usedTokens: 100_000,
+	contextLimitTokens: 200_000,
+};
+
+const narrowPlanningModelOptions = [
+	{
+		id: "long-model-name",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5-long-name",
+		displayName: "Claude Sonnet 4.5 Extended Thinking",
+	},
+] as const;
+
+export const PlanningIndicatorNarrow: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+		contextUsage: narrowPlanningContextUsage,
+		selectedModel: narrowPlanningModelOptions[0].id,
+		modelOptions: [...narrowPlanningModelOptions],
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		const contextUsageButton = canvas.getByRole("button", {
+			name: /Context usage/,
+		});
+		const planningBadge = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='planning-badge']",
+		);
+		const isVisible = (element: HTMLElement) => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return (
+				style.display !== "none" &&
+				style.visibility !== "hidden" &&
+				rect.width > 0 &&
+				rect.height > 0
+			);
+		};
+
+		await waitFor(() => {
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const contextUsageRect = contextUsageButton.getBoundingClientRect();
+
+			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+
+			if (planningBadge && isVisible(planningBadge)) {
+				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
+					contextUsageRect.left + 1,
+				);
+				return;
+			}
+
+			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
+		});
+	},
+};
+
 export const DisablePlanModeFromBadge: Story = {
 	args: {
 		planModeEnabled: true,
@@ -910,15 +980,16 @@ export const DetailPageWorkspacePicker: Story = {
 			statusLabel: "Workspace running",
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 
 		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
-		expect(
-			canvas.queryByRole("button", {
-				name: "Remove workspace agents-workspace",
-			}),
-		).not.toBeInTheDocument();
+		const removeWorkspaceButton = canvas.getByRole("button", {
+			name: "Remove workspace agents-workspace",
+		});
+		expect(removeWorkspaceButton).toBeVisible();
+		await userEvent.click(removeWorkspaceButton);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
 
 		const moreOptionsButton = canvas.getByRole("button", {
 			name: "More options",
@@ -937,6 +1008,106 @@ export const DetailPageWorkspacePicker: Story = {
 
 			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
 		});
+	},
+};
+
+export const LinkedWorkspaceRemoveWhenInputDisabled: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspaceMenuButton = canvas.getByRole("button", {
+			name: `${MockWorkspace.name} workspace menu`,
+		});
+
+		expect(
+			canvas.queryByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).not.toBeInTheDocument();
+		expect(workspaceMenuButton).toBeVisible();
+		expect(workspaceMenuButton).toBeEnabled();
+		await userEvent.click(workspaceMenuButton);
+		let detachWorkspaceItem: HTMLElement | null = null;
+		await waitFor(() => {
+			const menuId = workspaceMenuButton.getAttribute("aria-controls");
+			if (!menuId) {
+				throw new Error("Expected workspace pill to control a menu.");
+			}
+
+			const menu = canvasElement.ownerDocument.getElementById(menuId);
+			if (!(menu instanceof HTMLElement)) {
+				throw new Error("Expected workspace menu to render.");
+			}
+
+			detachWorkspaceItem = within(menu).getByRole("menuitem", {
+				name: "Detach workspace",
+			});
+			expect(detachWorkspaceItem).toBeVisible();
+		});
+		if (!detachWorkspaceItem) {
+			throw new Error("Expected detach workspace menu item to render.");
+		}
+
+		await userEvent.click(detachWorkspaceItem);
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	},
+};
+
+export const UncheckSelectedWorkspaceFromPicker: Story = {
+	args: {
+		isDisabled: true,
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "chat-detail",
+		workspaceOptions: [
+			{
+				id: MockWorkspace.id,
+				name: MockWorkspace.name,
+				owner_name: MockWorkspace.owner_name,
+				organization_id: MockWorkspace.organization_id,
+			},
+		],
+		selectedWorkspaceId: MockWorkspace.id,
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		const moreOptionsButton = canvas.getByRole("button", {
+			name: "More options",
+		});
+		expect(moreOptionsButton).toBeEnabled();
+		await userEvent.click(moreOptionsButton);
+
+		const attachWorkspaceButton = (
+			await body.findByText("Attach workspace")
+		).closest("button");
+		if (!(attachWorkspaceButton instanceof HTMLButtonElement)) {
+			throw new Error("Expected Attach workspace to be a button.");
+		}
+		expect(attachWorkspaceButton).toBeEnabled();
+		await userEvent.click(attachWorkspaceButton);
+
+		const workspaceMatches = await body.findAllByText(MockWorkspace.name);
+		const selectedWorkspaceOption = workspaceMatches.at(-1);
+		if (!(selectedWorkspaceOption instanceof HTMLElement)) {
+			throw new Error("Expected workspace option to render.");
+		}
+		await userEvent.click(selectedWorkspaceOption);
+
+		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
 	},
 };
 

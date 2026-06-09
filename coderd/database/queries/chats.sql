@@ -481,14 +481,18 @@ SELECT
 FROM
     chats_expanded
 WHERE
-    CASE
-        WHEN @owned_only::boolean THEN chats_expanded.owner_id = @viewer_id::uuid
-        ELSE true
-    END
-    AND CASE
-        WHEN @shared_only::boolean THEN chats_expanded.owner_id != @viewer_id::uuid
-        ELSE true
-    END
+    (
+        (NOT @owned_only::boolean AND NOT @shared_only::boolean)
+        OR (@owned_only::boolean AND chats_expanded.owner_id = @viewer_id::uuid)
+        OR (
+            @shared_only::boolean
+            AND chats_expanded.owner_id != @viewer_id::uuid
+            AND (
+                chats_expanded.user_acl ? (@shared_with_user_id::uuid)::text
+                OR chats_expanded.group_acl ?| @shared_with_group_ids::text[]
+            )
+        )
+    )
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean

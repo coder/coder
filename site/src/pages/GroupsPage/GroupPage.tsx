@@ -18,6 +18,8 @@ import {
 } from "#/api/queries/groups";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
@@ -112,9 +114,20 @@ const GroupPage: FC = () => {
 
 			<div className="flex align-baseline justify-between w-full">
 				<SettingsHeader>
-					<SettingsHeaderTitle>
-						{groupData.display_name || groupData.name || "Unknown Group"}
-					</SettingsHeaderTitle>
+					<AvatarData
+						avatar={
+							<Avatar
+								src={groupData.avatar_url}
+								fallback={groupData.display_name || groupData.name}
+								size="lg"
+							/>
+						}
+						title={
+							<SettingsHeaderTitle>
+								{groupData.display_name || groupData.name || "Unknown Group"}
+							</SettingsHeaderTitle>
+						}
+					/>
 					<SettingsHeaderDescription>
 						Manage members for this group.
 					</SettingsHeaderDescription>

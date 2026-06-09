@@ -3,6 +3,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
 import {
@@ -41,6 +42,19 @@ const baseBedrockFormValues: ProviderFormValues = {
 	smallFastModel: "anthropic.claude-haiku-4-5",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
+	apiKey: "",
+	enabled: true,
+};
+
+const baseCopilotFormValues: ProviderFormValues = {
+	type: "copilot",
+	name: "copilot",
+	displayName: "GitHub Copilot",
+	baseUrl: "https://api.business.githubcopilot.com",
+	model: "",
+	smallFastModel: "",
+	accessKey: "",
+	accessKeySecret: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -126,6 +140,14 @@ describe("isBedrockProvider", () => {
 		expect(isBedrockProvider(MockAIProviderBedrock)).toBe(true);
 	});
 
+	it("recognises a provider with explicit bedrock type", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "bedrock",
+		};
+		expect(isBedrockProvider(provider)).toBe(true);
+	});
+
 	it("rejects an OpenAI provider", () => {
 		expect(isBedrockProvider(MockAIProviderOpenAI)).toBe(false);
 	});
@@ -173,6 +195,10 @@ describe("getProviderDisplayType", () => {
 		expect(getProviderDisplayType(MockAIProviderOpenAI)).toBe("openai");
 	});
 
+	it("returns copilot for a Copilot provider", () => {
+		expect(getProviderDisplayType(MockAIProviderCopilot)).toBe("copilot");
+	});
+
 	it.each([
 		["azure", "https://my-resource.openai.azure.com/openai/v1"],
 		["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
@@ -185,6 +211,15 @@ describe("getProviderDisplayType", () => {
 			base_url: baseUrl,
 		};
 		expect(getProviderDisplayType(provider)).toBe(expected);
+	});
+
+	it("preserves an explicit provider type over host detection", () => {
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			type: "openai-compat",
+			base_url: "https://openrouter.ai/api/v1",
+		};
+		expect(getProviderDisplayType(provider)).toBe("openai-compat");
 	});
 
 	it("falls back to the wire type for an unrecognized base_url", () => {
@@ -256,19 +291,30 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.base_url).toBe("https://api.openai.com");
 		});
 
+		it("preserves the Anthropic provider type", () => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				type: "anthropic",
+				baseUrl: "https://api.anthropic.com",
+			});
+			expect(req.type).toBe("anthropic");
+			expect(req.base_url).toBe("https://api.anthropic.com");
+			expect(req.api_keys).toEqual(["sk-test"]);
+		});
+
 		it.each([
 			["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
 			["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
 			["openai-compat", "https://compat.example.com/v1"],
 			["openrouter", "https://openrouter.ai/api/v1"],
 			["vercel", "https://ai-gateway.vercel.sh/v1"],
-		] as const)("collapses the %s UI type to type=openai on the wire", (type, baseUrl) => {
+		] as const)("preserves the %s provider type", (type, baseUrl) => {
 			const req = providerFormValuesToCreate({
 				...baseOpenAIFormValues,
 				type,
 				baseUrl,
 			});
-			expect(req.type).toBe("openai");
+			expect(req.type).toBe(type);
 			expect(req.base_url).toBe(baseUrl);
 			expect(req.api_keys).toEqual(["sk-test"]);
 		});
@@ -331,6 +377,31 @@ describe("providerFormValuesToCreate", () => {
 				apiKey: "should-be-ignored",
 			});
 			expect(req.api_keys).toBeUndefined();
+		});
+	});
+
+	describe("Copilot", () => {
+		it("maps to a distinct wire type with no api_keys", () => {
+			const req = providerFormValuesToCreate(baseCopilotFormValues);
+			expect(req.type).toBe("copilot");
+			expect(req.base_url).toBe("https://api.business.githubcopilot.com");
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("never sends api_keys even if the field carries a value", () => {
+			const req = providerFormValuesToCreate({
+				...baseCopilotFormValues,
+				apiKey: "should-be-ignored",
+			});
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("omits display_name when blank so the server stores NULL", () => {
+			const req = providerFormValuesToCreate({
+				...baseCopilotFormValues,
+				displayName: "",
+			});
+			expect(req.display_name).toBeUndefined();
 		});
 	});
 });
@@ -460,6 +531,18 @@ describe("providerFormValuesToUpdate", () => {
 			expect(s.access_key_secret).toBeUndefined();
 		});
 	});
+
+	describe("Copilot", () => {
+		it("patches only the base fields and never sends api_keys", () => {
+			const req = providerFormValuesToUpdate(
+				{ ...baseCopilotFormValues, apiKey: "should-be-ignored" },
+				MockAIProviderCopilot,
+			);
+			expect(req.api_keys).toBeUndefined();
+			expect(req.settings).toBeUndefined();
+			expect(req.base_url).toBe("https://api.business.githubcopilot.com");
+		});
+	});
 });
 
 describe("aiProviderToFormValues", () => {
@@ -471,8 +554,45 @@ describe("aiProviderToFormValues", () => {
 		expect(values.apiKey).toBe("");
 	});
 
+	it.each([
+		["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
+		["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
+		["openai-compat", "https://compat.example.com/v1"],
+		["openrouter", "https://openrouter.ai/api/v1"],
+		["vercel", "https://ai-gateway.vercel.sh/v1"],
+	] as const)("seeds %s form values from the provider type", (type, baseUrl) => {
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			type,
+			base_url: baseUrl,
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.type).toBe(type);
+		expect(values.baseUrl).toBe(baseUrl);
+	});
+
+	it("uses the Google preset for a generic provider with the Google host", () => {
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			base_url: "https://generativelanguage.googleapis.com/v1beta/openai/",
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.type).toBe("google");
+	});
+
 	it("seeds Bedrock form values from settings", () => {
 		const values = aiProviderToFormValues(MockAIProviderBedrock);
+		expect(values.type).toBe("bedrock");
+		expect(values.model).toBe("anthropic.claude-opus-4-7");
+		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
+	});
+
+	it("seeds Bedrock form values from an explicit Bedrock provider type", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "bedrock",
+		};
+		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
 		expect(values.model).toBe("anthropic.claude-opus-4-7");
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
@@ -484,6 +604,14 @@ describe("aiProviderToFormValues", () => {
 		const values = aiProviderToFormValues(MockAIProviderBedrock);
 		expect(values.accessKey).toBe("");
 		expect(values.accessKeySecret).toBe("");
+	});
+
+	it("seeds Copilot form values without a credential field", () => {
+		const values = aiProviderToFormValues(MockAIProviderCopilot);
+		expect(values.type).toBe("copilot");
+		expect(values.name).toBe(MockAIProviderCopilot.name);
+		expect(values.baseUrl).toBe(MockAIProviderCopilot.base_url);
+		expect(values.apiKey).toBeUndefined();
 	});
 
 	it("falls back to the slug when display_name is empty", () => {

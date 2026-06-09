@@ -458,6 +458,7 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
+		OwnerID:             takeFirst(seed.OwnerID, uuid.NullUUID{UUID: uuid.New(), Valid: true}),
 		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
 		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
 		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),
@@ -466,20 +467,52 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 	return session
 }
 
-func BoundaryLog(t testing.TB, db database.Store, seed database.BoundaryLog) database.BoundaryLog {
-	log, err := db.InsertBoundaryLog(genCtx, database.InsertBoundaryLogParams{
-		ID:             takeFirst(seed.ID, uuid.New()),
-		SessionID:      seed.SessionID,
-		SequenceNumber: takeFirst(seed.SequenceNumber, 0),
-		CapturedAt:     takeFirst(seed.CapturedAt, dbtime.Now()),
-		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
-		Proto:          takeFirst(seed.Proto, "http"),
-		Method:         takeFirst(seed.Method, "GET"),
-		Detail:         takeFirst(seed.Detail, "https://example.com"),
-		MatchedRule:    seed.MatchedRule,
+func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) []database.BoundaryLog {
+	ids := make([]uuid.UUID, 0, len(seed))
+	sessionID := seed[0].SessionID
+	sequenceNumbers := make([]int32, 0, len(seed))
+	capturedAt := make([]time.Time, 0, len(seed))
+	createdAt := make([]time.Time, 0, len(seed))
+	protos := make([]string, 0, len(seed))
+	method := make([]string, 0, len(seed))
+	detail := make([]string, 0, len(seed))
+	matchedRule := make([]string, 0, len(seed))
+	for _, log := range seed {
+		log = takeFirstBoundaryLog(log)
+		ids = append(ids, log.ID)
+		sequenceNumbers = append(sequenceNumbers, log.SequenceNumber)
+		capturedAt = append(capturedAt, log.CapturedAt)
+		createdAt = append(createdAt, log.CreatedAt)
+		protos = append(protos, log.Proto)
+		method = append(method, log.Method)
+		detail = append(detail, log.Detail)
+		matchedRule = append(matchedRule, log.MatchedRule.String)
+	}
+	logs, err := db.InsertBoundaryLogs(genCtx, database.InsertBoundaryLogsParams{
+		ID:             ids,
+		SessionID:      sessionID,
+		SequenceNumber: sequenceNumbers,
+		CapturedAt:     capturedAt,
+		CreatedAt:      createdAt,
+		Proto:          protos,
+		Method:         method,
+		Detail:         detail,
+		MatchedRule:    matchedRule,
 	})
-	require.NoError(t, err, "insert boundary log")
-	return log
+	require.NoError(t, err, "insert boundary logs")
+	return logs
+}
+
+func takeFirstBoundaryLog(seed database.BoundaryLog) database.BoundaryLog {
+	seed.ID = takeFirst(seed.ID, uuid.New())
+	seed.SessionID = takeFirst(seed.SessionID, uuid.New())
+	seed.SequenceNumber = takeFirst(seed.SequenceNumber, 0)
+	seed.CapturedAt = takeFirst(seed.CapturedAt, dbtime.Now())
+	seed.CreatedAt = takeFirst(seed.CreatedAt, dbtime.Now())
+	seed.Proto = takeFirst(seed.Proto, "http")
+	seed.Method = takeFirst(seed.Method, "GET")
+	seed.Detail = takeFirst(seed.Detail, "https://example.com")
+	return seed
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
@@ -988,11 +1021,12 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 
 func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
 	key, err := db.InsertGitSSHKey(genCtx, database.InsertGitSSHKeyParams{
-		UserID:     takeFirst(orig.UserID, uuid.New()),
-		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
-		PrivateKey: takeFirst(orig.PrivateKey, ""),
-		PublicKey:  takeFirst(orig.PublicKey, ""),
+		UserID:          takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:       takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:       takeFirst(orig.UpdatedAt, dbtime.Now()),
+		PrivateKey:      takeFirst(orig.PrivateKey, ""),
+		PrivateKeyKeyID: takeFirst(orig.PrivateKeyKeyID, sql.NullString{}),
+		PublicKey:       takeFirst(orig.PublicKey, ""),
 	})
 	require.NoError(t, err, "insert ssh key")
 	return key
@@ -1000,13 +1034,14 @@ func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) databas
 
 func Organization(t testing.TB, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
-		ID:          takeFirst(orig.ID, uuid.New()),
-		Name:        takeFirst(orig.Name, testutil.GetRandomName(t)),
-		DisplayName: takeFirst(orig.Name, testutil.GetRandomName(t)),
-		Description: takeFirst(orig.Description, testutil.GetRandomName(t)),
-		Icon:        takeFirst(orig.Icon, ""),
-		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ID:                    takeFirst(orig.ID, uuid.New()),
+		Name:                  takeFirst(orig.Name, testutil.GetRandomName(t)),
+		DisplayName:           takeFirst(orig.Name, testutil.GetRandomName(t)),
+		Description:           takeFirst(orig.Description, testutil.GetRandomName(t)),
+		Icon:                  takeFirst(orig.Icon, ""),
+		CreatedAt:             takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:             takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DefaultOrgMemberRoles: takeFirstSlice(orig.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()),
 	})
 	require.NoError(t, err, "insert organization")
 
@@ -1969,8 +2004,9 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      interception.ID,
-			EndedAt: *endedAt,
+			ID:             interception.ID,
+			EndedAt:        *endedAt,
+			CredentialHint: takeFirst(seed.CredentialHint, ""),
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}
