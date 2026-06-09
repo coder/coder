@@ -1,7 +1,6 @@
 package chatcompletions
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -450,10 +448,10 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 
 			// Mock proxy with a tool the upstream's tool_use
 			// response will reference.
-			proxy := &mockServerProxier{
-				tools: []*mcp.Tool{
+			proxy := &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{
-						Client:     stubToolCaller{},
+						Client:     testutil.StubToolCaller{},
 						ID:         "test_tool",
 						Name:       "test_tool",
 						ServerName: "coder",
@@ -482,42 +480,4 @@ func TestBlockingInterception_AgenticLoopFailover(t *testing.T) {
 			assert.Equal(t, tc.expectedCredentialHint, interceptor.Credential().Hint, "credential hint")
 		})
 	}
-}
-
-// mockServerProxier is a test implementation of mcp.ServerProxier.
-type mockServerProxier struct {
-	tools []*mcp.Tool
-}
-
-func (*mockServerProxier) Init(context.Context) error {
-	return nil
-}
-
-func (*mockServerProxier) Shutdown(context.Context) error {
-	return nil
-}
-
-func (m *mockServerProxier) ListTools() []*mcp.Tool {
-	return m.tools
-}
-
-func (m *mockServerProxier) GetTool(id string) *mcp.Tool {
-	for _, t := range m.tools {
-		if t.ID == id {
-			return t
-		}
-	}
-	return nil
-}
-
-func (*mockServerProxier) CallTool(context.Context, string, any) (*mcplib.CallToolResult, error) {
-	return nil, nil //nolint:nilnil // mock: no-op implementation
-}
-
-// stubToolCaller is a minimal mcp.ToolCaller that returns a fixed
-// text result, so the agentic continuation can proceed.
-type stubToolCaller struct{}
-
-func (stubToolCaller) CallTool(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
-	return mcplib.NewToolResultText("tool result"), nil
 }

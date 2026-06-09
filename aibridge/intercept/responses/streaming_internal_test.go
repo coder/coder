@@ -484,10 +484,10 @@ func TestStreamingResponsesInterceptor_AgenticLoopFailover(t *testing.T) {
 			// Mock proxy with a tool the upstream's function_call
 			// response will reference. The stub caller returns a
 			// fixed text result.
-			proxy := &mockServerProxier{
-				tools: []*mcp.Tool{
+			proxy := &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{
-						Client:     stubToolCaller{},
+						Client:     testutil.StubToolCaller{},
 						ID:         "test_tool",
 						Name:       "test_tool",
 						ServerName: "coder",
