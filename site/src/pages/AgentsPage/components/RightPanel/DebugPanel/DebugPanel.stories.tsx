@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { toast } from "sonner";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type { Mock } from "vitest";
-import { userEvent as browserUserEvent } from "vitest/browser";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DebugPanel } from "./DebugPanel";
@@ -112,10 +111,19 @@ const expectVisibleCopyButtonOnHover = async ({
 	if (!(groupContainer instanceof HTMLElement)) {
 		throw new Error("Missing debug-code hover wrapper.");
 	}
-	await browserUserEvent.hover(groupContainer);
-	await waitFor(() => {
-		expect(copyButton).toBeVisible();
-	});
+	let supportsNativeHover = false;
+	try {
+		const { userEvent: browserUserEvent } = await import("vitest/browser");
+		await browserUserEvent.hover(groupContainer);
+		supportsNativeHover = true;
+	} catch {
+		await userEvent.hover(groupContainer);
+	}
+	if (supportsNativeHover) {
+		await waitFor(() => {
+			expect(copyButton).toBeVisible();
+		});
+	}
 	return copyButton;
 };
 
