@@ -196,6 +196,7 @@ type Options struct {
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	TelemetryReporter                  telemetry.Reporter
+	DynamicParametersIdleTimeout       time.Duration
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 	WorkspaceBuilderMetrics   *wsbuilder.Metrics
@@ -651,6 +652,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			DynamicParametersIdleTimeout:       options.DynamicParametersIdleTimeout,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,

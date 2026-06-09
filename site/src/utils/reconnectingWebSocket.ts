@@ -96,6 +96,29 @@ interface ReconnectingWebSocketOptions<TSocket extends Closable> {
 	 */
 	onDisconnect?: (reconnect: ReconnectSchedule) => void;
 
+	/**
+	 * Decides whether a disconnect should trigger an automatic reconnect.
+	 * Receives the `close` or `error` event. Defaults to always reconnecting.
+	 * Return `false` to "park" the connection instead: no reconnect is
+	 * scheduled and {@link onParked} fires. A parked connection can be resumed
+	 * by `resumeOnVisible` or by calling `reconnect()` on the returned handle.
+	 */
+	shouldReconnect?: (event: Event) => boolean;
+
+	/**
+	 * Called when a disconnect is parked, i.e. {@link shouldReconnect} returned
+	 * false. Fires at most once per socket instance, in place of
+	 * {@link onDisconnect}.
+	 */
+	onParked?: (event: Event) => void;
+
+	/**
+	 * When true, a parked connection reconnects automatically when the document
+	 * becomes visible or the window regains focus. Has no effect while the
+	 * connection is active or a reconnect is already scheduled.
+	 */
+	resumeOnVisible?: boolean;
+
 	/** Base delay in milliseconds. Defaults to {@link RECONNECT_BASE_MS}. */
 	baseMs?: number;
 
@@ -184,6 +207,20 @@ const getReconnectSchedule = ({
 };
 
 /**
+ * Returns true for a clean WebSocket close: the server sent a close frame
+ * with a normal status (`1000`) or going-away (`1001`), or the browser
+ * reported `wasClean`. Useful as a `shouldReconnect` predicate to park a
+ * connection on an expected close (e.g. an idle timeout) instead of
+ * reconnecting in a loop.
+ */
+export function isCleanClose(event: Event): boolean {
+	return (
+		event instanceof CloseEvent &&
+		(event.wasClean || event.code === 1000 || event.code === 1001)
+	);
+}
+
+/**
  * Creates a self-reconnecting WebSocket connection with capped
  * exponential backoff.
  *
@@ -203,15 +240,34 @@ const getReconnectSchedule = ({
  *
  * The reconnect attempt counter resets after a successful `open`.
  *
- * @returns A dispose function that tears down the connection.
+ * @returns A handle with `dispose` (tears down the connection) and
+ * `reconnect` (manually reopens a parked or closed connection).
  */
+export interface ReconnectingWebSocketHandle {
+	/**
+	 * Tears down the connection: closes the active socket, cancels any pending
+	 * reconnection timer, removes resume listeners, and prevents further
+	 * reconnection attempts. Safe to call more than once.
+	 */
+	dispose: () => void;
+	/**
+	 * Reopens the connection immediately. Cancels any pending reconnect timer,
+	 * clears the parked state, and resets the backoff counter. No-op after
+	 * dispose.
+	 */
+	reconnect: () => void;
+}
+
 export function createReconnectingWebSocket<TSocket extends Closable>(
 	options: ReconnectingWebSocketOptions<TSocket>,
-): () => void {
+): ReconnectingWebSocketHandle {
 	const {
 		connect: connectFn,
 		onOpen,
 		onDisconnect,
+		shouldReconnect = () => true,
+		onParked,
+		resumeOnVisible = false,
 		baseMs = RECONNECT_BASE_MS,
 		maxMs = RECONNECT_MAX_MS,
 		factor = RECONNECT_FACTOR,
@@ -220,19 +276,20 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 	} = options;
 
 	let disposed = false;
+	let parked = false;
 	let lastReconnectAttempt = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let activeSocket: TSocket | null = null;
 
-	const scheduleReconnect = (reconnect: ReconnectSchedule) => {
+	const scheduleReconnect = (schedule: ReconnectSchedule) => {
 		if (disposed) {
 			return;
 		}
 		if (reconnectTimer !== null) {
 			clearTimeout(reconnectTimer);
 		}
-		lastReconnectAttempt = reconnect.attempt;
-		reconnectTimer = setTimeout(connect, reconnect.delayMs);
+		lastReconnectAttempt = schedule.attempt;
+		reconnectTimer = setTimeout(connect, schedule.delayMs);
 	};
 
 	function connect() {
@@ -240,6 +297,7 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		if (disposed) {
 			return;
 		}
+		parked = false;
 		if (activeSocket) {
 			activeSocket.close();
 		}
@@ -248,12 +306,12 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		activeSocket = socket;
 
 		const handleOpen = () => {
-			// Connection succeeded — reset backoff.
+			// Connection succeeded, reset backoff.
 			lastReconnectAttempt = 0;
 			onOpen?.(socket);
 		};
 
-		const handleDisconnect = () => {
+		const handleDisconnect = (event: Event) => {
 			// Guard against duplicate calls: browsers fire both "error"
 			// and "close" on a failed WebSocket, so we only process the
 			// first event per socket instance.
@@ -261,7 +319,16 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				return;
 			}
 			activeSocket = null;
-			const reconnect = getReconnectSchedule({
+
+			if (!shouldReconnect(event)) {
+				// Park: leave the connection closed until something resumes it
+				// (resumeOnVisible or a manual reconnect call).
+				parked = true;
+				onParked?.(event);
+				return;
+			}
+
+			const schedule = getReconnectSchedule({
 				attempt: lastReconnectAttempt + 1,
 				baseMs,
 				maxMs,
@@ -269,26 +336,66 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 				jitter,
 				random,
 			});
-			onDisconnect?.(reconnect);
-			scheduleReconnect(reconnect);
+			onDisconnect?.(schedule);
+			scheduleReconnect(schedule);
 		};
 
 		socket.addEventListener("open", handleOpen);
-		socket.addEventListener("error", handleDisconnect);
-		socket.addEventListener("close", handleDisconnect);
+		socket.addEventListener("error", (event) =>
+			handleDisconnect(event as Event),
+		);
+		socket.addEventListener("close", (event) =>
+			handleDisconnect(event as Event),
+		);
+	}
+
+	const reconnect = () => {
+		if (disposed) {
+			return;
+		}
+		if (reconnectTimer !== null) {
+			clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+		}
+		lastReconnectAttempt = 0;
+		connect();
+	};
+
+	// Resume a parked connection when the tab becomes visible or focused.
+	const handleResume = () => {
+		if (disposed || !parked) {
+			return;
+		}
+		if (
+			typeof document !== "undefined" &&
+			document.visibilityState !== "visible"
+		) {
+			return;
+		}
+		reconnect();
+	};
+	const resumeEnabled = resumeOnVisible && typeof window !== "undefined";
+	if (resumeEnabled) {
+		window.addEventListener("focus", handleResume);
+		document.addEventListener("visibilitychange", handleResume);
 	}
 
 	// Kick off the first connection.
 	connect();
 
-	// Return a dispose function that tears everything down.
-	return () => {
+	const dispose = () => {
 		disposed = true;
 		if (reconnectTimer !== null) {
 			clearTimeout(reconnectTimer);
+		}
+		if (resumeEnabled) {
+			window.removeEventListener("focus", handleResume);
+			document.removeEventListener("visibilitychange", handleResume);
 		}
 		if (activeSocket) {
 			activeSocket.close();
 		}
 	};
+
+	return { dispose, reconnect };
 }

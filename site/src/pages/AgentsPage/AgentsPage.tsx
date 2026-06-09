@@ -545,7 +545,7 @@ const AgentsPage: FC = () => {
 		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
-		return createReconnectingWebSocket({
+		const { dispose } = createReconnectingWebSocket({
 			connect() {
 				const ws = watchChats();
 
@@ -650,6 +650,7 @@ const AgentsPage: FC = () => {
 				void invalidateChatListQueries(queryClient);
 			},
 		});
+		return dispose;
 	}, [queryClient]);
 
 	useAgentsPageKeybindings({

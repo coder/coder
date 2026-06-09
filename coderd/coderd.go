@@ -176,6 +176,7 @@ type Options struct {
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
 	ChatdInstructionLookupTimeout  time.Duration
+	DynamicParametersIdleTimeout   time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              azureidentity.Options
@@ -401,6 +402,9 @@ func New(options *Options) *API {
 	}
 	if options.AgentConnectionUpdateFrequency == 0 {
 		options.AgentConnectionUpdateFrequency = 15 * time.Second
+	}
+	if options.DynamicParametersIdleTimeout == 0 {
+		options.DynamicParametersIdleTimeout = dynamicParameterIdleTimeout
 	}
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.

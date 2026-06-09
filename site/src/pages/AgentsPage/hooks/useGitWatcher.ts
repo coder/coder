@@ -86,7 +86,7 @@ export function useGitWatcher({
 
 		const activeChatId = chatId;
 
-		const dispose = createReconnectingWebSocket({
+		const { dispose } = createReconnectingWebSocket({
 			connect() {
 				const socket = watchChatGit(activeChatId);
 				socketRef.current = socket;

@@ -601,7 +601,7 @@ export const useChatStore = (
 				}
 			});
 		};
-		const disposeSocket = createReconnectingWebSocket({
+		const { dispose: disposeSocket } = createReconnectingWebSocket({
 			connect() {
 				// Use the latest known message ID so the server only
 				// sends events the client hasn't seen yet.

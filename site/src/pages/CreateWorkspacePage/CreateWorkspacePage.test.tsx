@@ -82,8 +82,6 @@ describe("CreateWorkspacePage", () => {
 				MockUserOwner.id,
 				expect.objectContaining({
 					onMessage: expect.any(Function),
-					onError: expect.any(Function),
-					onClose: expect.any(Function),
 				}),
 			);
 
@@ -133,7 +131,7 @@ describe("CreateWorkspacePage", () => {
 			vi.useRealTimers();
 		});
 
-		it("handles WebSocket error gracefully", async () => {
+		it("shows error when the WebSocket disconnects unexpectedly", async () => {
 			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
 
 			renderCreateWorkspacePage();
@@ -142,29 +140,8 @@ describe("CreateWorkspacePage", () => {
 				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
 			});
 
-			await act(async () => {
-				mockPublisher.publishError(new Event("Connection failed"));
-			});
-
-			await waitFor(() => {
-				const alert = screen.getByRole("alert");
-				expect(
-					within(alert).getByRole("heading", {
-						name: /connection for dynamic parameters failed/i,
-					}),
-				).toBeInTheDocument();
-			});
-		});
-
-		it("handles WebSocket close event", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
-
-			renderCreateWorkspacePage();
-
-			await waitFor(() => {
-				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
-			});
-
+			// A close without a clean status is treated as an unexpected
+			// disconnect, so the error banner appears while it reconnects.
 			await act(async () => {
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
 			});
@@ -173,10 +150,30 @@ describe("CreateWorkspacePage", () => {
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", {
-						name: /websocket connection.*unexpectedly closed/i,
+						name: /dynamic parameters lost/i,
 					}),
 				).toBeInTheDocument();
 			});
+		});
+
+		it("does not show an error on a clean idle close", async () => {
+			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			// The backend closes idle connections with a normal closure. This
+			// is expected: the connection parks and resumes on focus or the
+			// next edit, so no error banner is shown.
+			await act(async () => {
+				mockPublisher.publishClose(
+					new CloseEvent("close", { code: 1000, wasClean: true }),
+				);
+			});
+
+			expect(
+				screen.queryByRole("heading", { name: /dynamic parameters lost/i }),
+			).not.toBeInTheDocument();
 		});
 
 		it("only parameters from latest response are displayed", async () => {

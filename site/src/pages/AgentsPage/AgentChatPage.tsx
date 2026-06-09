@@ -814,7 +814,7 @@ const AgentChatPage: FC = () => {
 		if (!workspaceId) {
 			return;
 		}
-		return createReconnectingWebSocket({
+		const { dispose } = createReconnectingWebSocket({
 			connect() {
 				const socket = watchWorkspace(workspaceId);
 				socket.addEventListener("message", (event) => {
@@ -864,6 +864,7 @@ const AgentChatPage: FC = () => {
 				});
 			},
 		});
+		return dispose;
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);

@@ -2,9 +2,12 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -24,6 +27,7 @@ import (
 	provProto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -70,6 +74,100 @@ func TestDynamicParametersOwnerSSHPublicKey(t *testing.T) {
 	require.Equal(t, "public_key", preview.Parameters[0].Name)
 	require.True(t, preview.Parameters[0].Value.Valid)
 	require.Equal(t, sshKey.PublicKey, preview.Parameters[0].Value.Value)
+}
+
+// TestDynamicParametersWebsocketIdleTimeout verifies that the dynamic
+// parameters WebSocket closes after the idle timeout with a normal closure
+// status, and that each client message renews the timeout. A mock clock
+// drives the idle timer; the idle timeout is set below the WSWatcher
+// heartbeat interval so advancing past it never triggers a liveness probe.
+func TestDynamicParametersWebsocketIdleTimeout(t *testing.T) {
+	t.Parallel()
+
+	const idleTimeout = 5 * time.Second
+
+	mClock := quartz.NewMock(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:     true,
+		Clock:                        mClock,
+		DynamicParametersIdleTimeout: idleTimeout,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	dynamicParametersTerraformSource, err := os.ReadFile("testdata/parameters/public_key/main.tf")
+	require.NoError(t, err)
+	dynamicParametersTerraformPlan, err := os.ReadFile("testdata/parameters/public_key/plan.json")
+	require.NoError(t, err)
+
+	files := echo.WithExtraFiles(map[string][]byte{
+		"main.tf": dynamicParametersTerraformSource,
+	})
+	files.ProvisionPlan = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Plan: dynamicParametersTerraformPlan,
+			},
+		},
+	}}
+
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, files)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+	_ = coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+	endpoint := fmt.Sprintf("/api/v2/templateversions/%s/dynamic-parameters", version.ID)
+
+	readResponse := func(ctx context.Context, conn *websocket.Conn) codersdk.DynamicParametersResponse {
+		t.Helper()
+		typ, data, err := conn.Read(ctx)
+		require.NoError(t, err)
+		require.Equal(t, websocket.MessageText, typ)
+		var resp codersdk.DynamicParametersResponse
+		require.NoError(t, json.Unmarshal(data, &resp))
+		return resp
+	}
+
+	sendRequest := func(ctx context.Context, conn *websocket.Conn, id int) {
+		t.Helper()
+		// A nil owner ID means "reuse the previous owner", which avoids
+		// needing to re-authorize against another user.
+		data, err := json.Marshal(codersdk.DynamicParametersRequest{
+			ID:      id,
+			OwnerID: uuid.Nil,
+			Inputs:  map[string]string{},
+		})
+		require.NoError(t, err)
+		require.NoError(t, conn.Write(ctx, websocket.MessageText, data))
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	conn, err := templateAdmin.Dial(ctx, endpoint, nil)
+	require.NoError(t, err)
+	defer conn.Close(websocket.StatusGoingAway, "")
+
+	// The initial form state proves the idle timer has been armed.
+	initial := readResponse(ctx, conn)
+	require.EqualValues(t, -1, initial.ID)
+
+	// Advance to just before the deadline twice, sending a message each time.
+	// Each message resets the timer, so the connection survives well past a
+	// single idle window. The total advance stays below the WSWatcher
+	// heartbeat interval (15s) so no liveness probe fires.
+	for id := 1; id <= 2; id++ {
+		mClock.Advance(idleTimeout - time.Second).MustWait(ctx)
+		sendRequest(ctx, conn, id)
+		resp := readResponse(ctx, conn)
+		require.EqualValues(t, id, resp.ID)
+	}
+
+	// Stop sending. With no further messages, the connection closes after the
+	// idle timeout with a normal closure, distinct from an error close so the
+	// client treats it as an expected idle disconnect.
+	mClock.Advance(idleTimeout).MustWait(ctx)
+	_, _, err = conn.Read(ctx)
+	require.Error(t, err)
+	require.Equal(t, websocket.StatusNormalClosure, websocket.CloseStatus(err))
 }
 
 // TestDynamicParametersWithTerraformValues is for testing the websocket flow of

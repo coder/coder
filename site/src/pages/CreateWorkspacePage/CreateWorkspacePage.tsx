@@ -31,6 +31,10 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";
+import {
+	createReconnectingWebSocket,
+	isCleanClose,
+} from "#/utils/reconnectingWebSocket";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -56,6 +60,11 @@ const CreateWorkspacePage: FC = () => {
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
 	const initialParamsSentRef = useRef(false);
+	// Reopens the dynamic-parameters socket after an idle (parked) close.
+	const reconnectWsRef = useRef<(() => void) | null>(null);
+	// The most recent inputs sent to the backend, re-sent on reconnect so the
+	// new connection renders against the user's current form state.
+	const lastSentInputsRef = useRef<Record<string, string> | null>(null);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -160,6 +169,7 @@ const CreateWorkspacePage: FC = () => {
 		formValues: Record<string, string>,
 		ownerId?: string,
 	) => {
+		lastSentInputsRef.current = formValues;
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
 			owner_id: ownerId ?? owner.id,
@@ -168,7 +178,11 @@ const CreateWorkspacePage: FC = () => {
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
+			return;
 		}
+		// The socket is parked after an idle close. Reopen it; the onOpen
+		// handler re-sends the latest inputs once the connection is back.
+		reconnectWsRef.current?.();
 	};
 
 	// On page load, sends all initial parameter values to the websocket
@@ -213,37 +227,56 @@ const CreateWorkspacePage: FC = () => {
 		setLatestResponse(response);
 	});
 
+	// On (re)connect, re-send the latest inputs so the backend renders against
+	// the user's current form state. The first connection is seeded by
+	// sendInitialParameters via onMessage instead.
+	const resendCurrentInputs = useEffectEvent(() => {
+		if (lastSentInputsRef.current) {
+			sendMessage(lastSentInputsRef.current);
+		}
+	});
+
 	// Initialize the WebSocket connection when there is a valid template version ID
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(
-			realizedVersionId,
-			defaultOwner.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const handle = createReconnectingWebSocket({
+			connect() {
+				const socket = API.templateVersionDynamicParameters(
+					realizedVersionId,
+					defaultOwner.id,
+					{ onMessage },
+				);
 
-		ws.current = socket;
+				ws.current = socket;
+				return socket;
+			},
+			// An idle timeout is a clean close: park the connection instead of
+			// reconnecting in a loop, and resume on focus or the next edit.
+			shouldReconnect: (event) => !isCleanClose(event),
+			resumeOnVisible: true,
+			onOpen() {
+				setWsError(null);
+				resendCurrentInputs();
+			},
+			onParked() {
+				// Idle close is expected; surface no error while parked.
+				setWsError(null);
+			},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
+		});
+		reconnectWsRef.current = handle.reconnect;
 
 		return () => {
-			socket.close();
+			reconnectWsRef.current = null;
+			handle.dispose();
 		};
 	}, [realizedVersionId, defaultOwner.id]);
 

@@ -186,14 +186,6 @@ export function mockDynamicParameterWebSocket(
 			mockWebSocket.addEventListener("message", (event) => {
 				callbacks.onMessage(JSON.parse(event.data));
 			});
-			mockWebSocket.addEventListener("error", () => {
-				callbacks.onError(
-					new Error("Connection for dynamic parameters failed."),
-				);
-			});
-			mockWebSocket.addEventListener("close", () => {
-				callbacks.onClose();
-			});
 			mockPublisher.publishOpen(new Event("open"));
 			mockPublisher.publishMessage(
 				new MessageEvent("message", { data: JSON.stringify(message) }),

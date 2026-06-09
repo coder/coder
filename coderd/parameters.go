@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -128,9 +129,25 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// dynamicParameterIdleTimeout is the default idle timeout for the dynamic
+// parameters WebSocket. The connection is closed if no messages are
+// received within this duration. Each client message resets the timer.
+// It can be overridden via Options.DynamicParametersIdleTimeout.
+const dynamicParameterIdleTimeout = 3 * time.Minute
+
 func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render dynamicparameters.Renderer) {
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+
+	// idledOut records whether the connection is being torn down because the
+	// idle timer fired, so we can close with a distinct status code that the
+	// client treats as an expected idle close rather than an error.
+	var idledOut atomic.Bool
+	idleTimer := api.Clock.AfterFunc(api.DynamicParametersIdleTimeout, func() {
+		idledOut.Store(true)
+		cancel()
+	}, "dynamic-parameters-idle")
+	defer idleTimer.Stop()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -171,6 +188,12 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 	for {
 		select {
 		case <-ctx.Done():
+			if idledOut.Load() {
+				// Idle timeout closes normally so the client parks the
+				// connection and reconnects on focus or interaction.
+				stream.Close(websocket.StatusNormalClosure)
+				return
+			}
 			stream.Close(websocket.StatusGoingAway)
 			return
 		case update, ok := <-updates:
@@ -178,6 +201,8 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				// The connection has been closed, so there is no one to write to
 				return
 			}
+
+			idleTimer.Reset(api.DynamicParametersIdleTimeout)
 
 			// Take a nil uuid to mean the previous owner ID.
 			// This just removes the need to constantly send who you are.

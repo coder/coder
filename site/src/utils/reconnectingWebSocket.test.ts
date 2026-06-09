@@ -1,5 +1,6 @@
 import {
 	createReconnectingWebSocket,
+	isCleanClose,
 	type ReconnectSchedule,
 } from "./reconnectingWebSocket";
 
@@ -21,9 +22,9 @@ function createMockSocket() {
 		),
 		close: vi.fn(),
 		/** Fire all handlers registered for the given event type. */
-		emit(event: string) {
+		emit(event: string, payload?: unknown) {
 			for (const handler of listeners[event] ?? []) {
-				handler();
+				handler(payload);
 			}
 		},
 	};
@@ -480,7 +481,7 @@ describe("createReconnectingWebSocket", () => {
 		const socket = createMockSocket();
 		const connect = vi.fn(() => socket);
 
-		const dispose = createReconnectingWebSocket({ connect });
+		const { dispose } = createReconnectingWebSocket({ connect });
 
 		dispose();
 
@@ -500,7 +501,7 @@ describe("createReconnectingWebSocket", () => {
 			return activeSocket;
 		});
 
-		const dispose = createReconnectingWebSocket({ connect });
+		const { dispose } = createReconnectingWebSocket({ connect });
 
 		// Trigger a disconnect so a timer is scheduled.
 		activeSocket.emit("close");
@@ -518,7 +519,7 @@ describe("createReconnectingWebSocket", () => {
 		const socket = createMockSocket();
 		const connect = vi.fn(() => socket);
 
-		const dispose = createReconnectingWebSocket({ connect });
+		const { dispose } = createReconnectingWebSocket({ connect });
 
 		dispose();
 		dispose();
@@ -548,5 +549,90 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(1);
 		vi.advanceTimersByTime(1);
 		expect(connect).toHaveBeenCalledTimes(2);
+	});
+
+	it("parks instead of reconnecting when shouldReconnect returns false", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+		const onParked = vi.fn();
+		const onDisconnect = vi.fn();
+
+		createReconnectingWebSocket({
+			connect,
+			shouldReconnect: () => false,
+			onParked,
+			onDisconnect,
+		});
+		expect(connect).toHaveBeenCalledTimes(1);
+
+		activeSocket.emit("close");
+
+		expect(onParked).toHaveBeenCalledTimes(1);
+		expect(onDisconnect).not.toHaveBeenCalled();
+
+		// A parked connection schedules no reconnect timer.
+		vi.runAllTimers();
+		expect(connect).toHaveBeenCalledTimes(1);
+	});
+
+	it("reconnect() reopens a parked connection", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+
+		const { reconnect } = createReconnectingWebSocket({
+			connect,
+			shouldReconnect: () => false,
+		});
+		activeSocket.emit("close");
+		expect(connect).toHaveBeenCalledTimes(1);
+
+		reconnect();
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
+
+	it("resumeOnVisible reconnects a parked connection on focus and stops after dispose", () => {
+		let activeSocket = createMockSocket();
+		const connect = vi.fn(() => {
+			activeSocket = createMockSocket();
+			return activeSocket;
+		});
+
+		const { dispose } = createReconnectingWebSocket({
+			connect,
+			shouldReconnect: () => false,
+			resumeOnVisible: true,
+		});
+		activeSocket.emit("close");
+		expect(connect).toHaveBeenCalledTimes(1);
+
+		window.dispatchEvent(new Event("focus"));
+		expect(connect).toHaveBeenCalledTimes(2);
+
+		// After dispose the resume listeners are removed.
+		dispose();
+		window.dispatchEvent(new Event("focus"));
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("isCleanClose", () => {
+	it("treats normal and going-away closes as clean", () => {
+		expect(
+			isCleanClose(new CloseEvent("close", { code: 1000, wasClean: true })),
+		).toBe(true);
+		expect(isCleanClose(new CloseEvent("close", { code: 1001 }))).toBe(true);
+	});
+
+	it("treats abnormal closes and non-close events as not clean", () => {
+		expect(
+			isCleanClose(new CloseEvent("close", { code: 1006, wasClean: false })),
+		).toBe(false);
+		expect(isCleanClose(new Event("error"))).toBe(false);
 	});
 });
