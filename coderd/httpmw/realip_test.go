@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
@@ -470,6 +471,95 @@ func TestFilterUntrusted(t *testing.T) {
 			require.Equal(t, test.ExpectedHeader, req.Header, "filtered headers should match")
 		})
 	}
+}
+
+func TestEffectiveHost(t *testing.T) {
+	t.Parallel()
+
+	cidr32 := func(t *testing.T, ip string) *net.IPNet {
+		t.Helper()
+
+		return &net.IPNet{
+			IP:   net.ParseIP(ip),
+			Mask: net.CIDRMask(32, 32),
+		}
+	}
+
+	t.Run("UntrustedPeerFallsBackToReceivedHost", func(t *testing.T) {
+		t.Parallel()
+
+		r := httptest.NewRequest(http.MethodGet, "http://received.test", nil)
+		r.RemoteAddr = "17.18.19.20:1234"
+		r.Header.Set(httpapi.XForwardedHostHeader, "app.test.coder.com")
+
+		require.Equal(t, "received.test", httpmw.EffectiveHost(nil, r))
+	})
+
+	t.Run("TrustedPeerUsesOriginalRemoteAddrForTrust", func(t *testing.T) {
+		t.Parallel()
+
+		config := &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{cidr32(t, "17.18.19.20")},
+			TrustedHeaders: []string{"X-Real-Ip"},
+		}
+
+		r := httptest.NewRequest(http.MethodGet, "http://received.test", nil)
+		r.RemoteAddr = "17.18.19.20:1234"
+		// X-Real-Ip causes ExtractRealIP to rewrite r.RemoteAddr, so
+		// this test can verify trust still uses OriginalRemoteAddr,
+		// the actual socket peer.
+		r.Header.Set("X-Real-Ip", "99.88.77.66")
+		r.Header.Set(httpapi.XForwardedHostHeader, "app.test.coder.com")
+
+		middleware := httpmw.ExtractRealIP(config)
+		next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "99.88.77.66", r.RemoteAddr)
+			require.Equal(t, "app.test.coder.com", httpmw.EffectiveHost(config, r))
+		})
+
+		middleware(next).ServeHTTP(httptest.NewRecorder(), r)
+	})
+
+	t.Run("UntrustedPeerDoesNotHonorForwardedHost", func(t *testing.T) {
+		t.Parallel()
+
+		config := &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{cidr32(t, "99.88.77.66")},
+			TrustedHeaders: []string{"X-Real-Ip"},
+		}
+
+		r := httptest.NewRequest(http.MethodGet, "http://received.test", nil)
+		r.RemoteAddr = "17.18.19.20:1234"
+		r.Header.Set("X-Real-Ip", "99.88.77.66")
+		r.Header.Set(httpapi.XForwardedHostHeader, "app.test.coder.com")
+
+		middleware := httpmw.ExtractRealIP(config)
+		nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "17.18.19.20", r.RemoteAddr)
+			require.Equal(t, "received.test", httpmw.EffectiveHost(config, r))
+		})
+
+		middleware(nextHandler).ServeHTTP(httptest.NewRecorder(), r)
+	})
+
+	t.Run("TrustedPeerWithoutForwardedHostFallsBackToReceivedHost", func(t *testing.T) {
+		t.Parallel()
+
+		config := &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{cidr32(t, "17.18.19.20")},
+			TrustedHeaders: []string{"X-Real-Ip"},
+		}
+
+		r := httptest.NewRequest(http.MethodGet, "http://received.test", nil)
+		r.RemoteAddr = "17.18.19.20:1234"
+
+		middleware := httpmw.ExtractRealIP(config)
+		nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "received.test", httpmw.EffectiveHost(config, r))
+		})
+
+		middleware(nextHandler).ServeHTTP(httptest.NewRecorder(), r)
+	})
 }
 
 // TestApplicationProxy checks headers passed to DevURL services are as expected.
