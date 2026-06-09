@@ -154,6 +154,17 @@ func validateModelConfigAndResolveProvider(
 	return modelConfig, providerName, nil
 }
 
+// enabledProviderContainsName reports whether any provider in the list has
+// a type matching providerName. This is only called on the unlinked model
+// config path (ai_provider_id IS NULL), which applies to legacy rows
+// pre-dating the ai_provider_id column. Linked configs (ai_provider_id IS NOT
+// NULL) return early before reaching this check and are unaffected.
+//
+// The direct Bedrock/Anthropic satisfaction rule (bedrockSatisfiesAnthropicRequest)
+// is intentionally absent here: unlinked configs store a raw provider string
+// that is already stale for legacy Bedrock rows, and fixing that belongs to a
+// separate migration of the chat_model_configs.provider column. Long-term,
+// ai_provider_id should be made NOT NULL, eliminating this path entirely.
 func enabledProviderContainsName(
 	providers []database.AIProvider,
 	providerName string,

@@ -8764,14 +8764,15 @@ func (p *Server) resolveUserProviderAPIKeysAndProviderForProviderType(
 	}
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
+		candidateType := chatprovider.NormalizeProvider(string(provider.Type))
+		if candidateType != normalizedProviderType && !bedrockSatisfiesAnthropicRequest(candidateType, normalizedProviderType) {
 			continue
 		}
 		keys, err := p.resolveUserProviderAPIKeysForProvider(ctx, ownerID, provider)
 		if err != nil {
 			return chatprovider.ProviderAPIKeys{}, nil, err
 		}
-		if userCanUseProviderKeys(keys, normalizedProviderType) {
+		if userCanUseProviderKeys(keys, candidateType) {
 			return keys, &provider, nil
 		}
 	}

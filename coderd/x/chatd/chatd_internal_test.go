@@ -202,6 +202,106 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
 }
 
+func TestResolveUserProviderAPIKeysAndProviderForProviderTypeBedrockSatisfiesAnthropic(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: providerID, Type: database.AiProviderTypeBedrock, Enabled: true},
+	}, nil)
+	// Called by aiProviderConfigFromKeys to load the central key.
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "bedrock-central-key",
+	}}, nil)
+
+	server := &Server{db: db}
+	keys, provider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
+		ctx,
+		ownerID,
+		chattool.ComputerUseProviderAnthropic,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, provider, "Bedrock provider must be returned for an anthropic request")
+	require.Equal(t, providerID, provider.ID)
+	require.Equal(t, database.AiProviderTypeBedrock, provider.Type)
+	require.Equal(t, "bedrock-central-key", keys.APIKey("bedrock"))
+}
+
+func TestAIProviderForProviderTypeBedrockSatisfiesAnthropic(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	providerID := uuid.New()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: providerID, Type: database.AiProviderTypeBedrock, Enabled: true},
+	}, nil)
+
+	server := &Server{db: db}
+	provider, err := server.aiProviderForProviderType(ctx, chattool.ComputerUseProviderAnthropic)
+	require.NoError(t, err)
+	require.Equal(t, providerID, provider.ID)
+	require.Equal(t, database.AiProviderTypeBedrock, provider.Type)
+}
+
+func TestAIProviderForProviderTypeNativeAnthropicUnaffected(t *testing.T) {
+	t.Parallel()
+
+	// When both a native Anthropic provider and a Bedrock provider are
+	// present, GetAIProviders returns rows ORDER BY name ASC. The first
+	// match in that order wins: no explicit type-preference logic exists.
+	// With names "anthropic" and "bedrock", the Anthropic provider sorts
+	// first and is returned for an "anthropic" request.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	anthropicID := uuid.New()
+	bedrockID := uuid.New()
+
+	// Simulate GetAIProviders ORDER BY name ASC: "anthropic" < "bedrock".
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: anthropicID, Type: database.AiProviderTypeAnthropic, Enabled: true},
+		{ID: bedrockID, Type: database.AiProviderTypeBedrock, Enabled: true},
+	}, nil)
+
+	server := &Server{db: db}
+	provider, err := server.aiProviderForProviderType(ctx, chattool.ComputerUseProviderAnthropic)
+	require.NoError(t, err)
+	require.Equal(t, anthropicID, provider.ID, "native Anthropic provider must be returned when it sorts before Bedrock")
+	require.Equal(t, database.AiProviderTypeAnthropic, provider.Type)
+}
+
+func TestResolveDirectModelRouteForProviderTypeBedrockUsesBedrockHint(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
+		{ID: providerID, Type: database.AiProviderTypeBedrock, Enabled: true},
+	}, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
+
+	server := &Server{db: db}
+	route, err := server.resolveDirectModelRouteForProviderType(ctx, ownerID, chattool.ComputerUseProviderAnthropic)
+	require.NoError(t, err)
+
+	hint, err := route.providerHint()
+	require.NoError(t, err)
+	require.Equal(t, "bedrock", hint, "provider hint must be bedrock so the correct fantasy client is selected")
+}
+
 func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
 	t.Parallel()
 

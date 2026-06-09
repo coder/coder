@@ -313,6 +313,15 @@ func (p *Server) gatewayProviderForConfig(
 	return p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
 }
 
+// bedrockSatisfiesAnthropicRequest reports whether a Bedrock provider can
+// service a request for the Anthropic provider type. Bedrock uses the
+// Anthropic-compatible runtime schema, so it is a valid backend for Anthropic
+// computer use requests.
+func bedrockSatisfiesAnthropicRequest(candidateType, requestedType string) bool {
+	return requestedType == string(codersdk.AIProviderTypeAnthropic) &&
+		candidateType == string(codersdk.AIProviderTypeBedrock)
+}
+
 func (p *Server) aiProviderForProviderType(
 	ctx context.Context,
 	providerType string,
@@ -326,7 +335,8 @@ func (p *Server) aiProviderForProviderType(
 		if !provider.Enabled {
 			continue
 		}
-		if chatprovider.NormalizeProvider(string(provider.Type)) != normalizedProviderType {
+		candidateType := chatprovider.NormalizeProvider(string(provider.Type))
+		if candidateType != normalizedProviderType && !bedrockSatisfiesAnthropicRequest(candidateType, normalizedProviderType) {
 			continue
 		}
 		return provider, nil

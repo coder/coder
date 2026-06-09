@@ -6310,6 +6310,7 @@ func setOpenAIProviderBaseURL(
 		}
 		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:            provider.ID,
+			Type:          provider.Type,
 			DisplayName:   provider.DisplayName,
 			Enabled:       provider.Enabled,
 			BaseUrl:       baseURL,

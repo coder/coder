@@ -71,11 +71,19 @@ func (p *Server) resolveDirectModelRouteForProviderType(
 	providerType string,
 ) (resolvedModelRoute, error) {
 	normalizedProviderType := chatprovider.NormalizeProvider(providerType)
-	keys, _, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
+	keys, provider, err := p.resolveUserProviderAPIKeysAndProviderForProviderType(ctx, ownerID, providerType)
 	if err != nil {
 		return resolvedModelRoute{}, err
 	}
-	return newDirectModelRoute(normalizedProviderType, keys), nil
+	// Use the resolved provider's actual type as the hint so the correct
+	// fantasy client is selected. For example, a Bedrock provider satisfying
+	// an Anthropic computer use request must use the Bedrock client, not the
+	// vanilla Anthropic client.
+	providerHint := normalizedProviderType
+	if provider != nil {
+		providerHint = chatprovider.NormalizeProvider(string(provider.Type))
+	}
+	return newDirectModelRoute(providerHint, keys), nil
 }
 
 func (p *Server) directProviderHintAndProviderForConfig(
