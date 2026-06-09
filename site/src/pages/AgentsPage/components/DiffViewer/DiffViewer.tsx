@@ -8,6 +8,8 @@ import type {
 	VirtualFileMetrics,
 } from "@pierre/diffs/react";
 import { CodeView } from "@pierre/diffs/react";
+import type { GitStatusEntry } from "@pierre/trees";
+import { FileTree, useFileTree } from "@pierre/trees/react";
 import {
 	type ComponentProps,
 	type CSSProperties,
@@ -92,6 +94,16 @@ const diffViewerSeparatorCSS = [
 	"}",
 ].join(" ");
 
+const fileTreeStyle = {
+	height: "100%",
+	"--trees-font-family-override": '"Geist Variable", system-ui, sans-serif',
+	"--trees-font-size-override": "13px",
+	"--trees-border-color-override": "hsl(var(--border-default))",
+	"--trees-fg-override": "hsl(var(--content-primary))",
+	"--trees-muted-fg-override": "hsl(var(--content-secondary))",
+	"--trees-selected-bg-override": "hsl(var(--surface-secondary))",
+} satisfies CSSProperties;
+
 function countChangedLines(fileDiff: FileDiffMetadata) {
 	let additions = 0;
 	let deletions = 0;
@@ -100,6 +112,22 @@ function countChangedLines(fileDiff: FileDiffMetadata) {
 		deletions += hunk.deletionLines;
 	}
 	return { additions, deletions };
+}
+
+function gitStatusForFile(
+	fileDiff: FileDiffMetadata,
+): GitStatusEntry["status"] {
+	switch (fileDiff.type) {
+		case "new":
+			return "added";
+		case "deleted":
+			return "deleted";
+		case "rename-pure":
+		case "rename-changed":
+			return "renamed";
+		default:
+			return "modified";
+	}
 }
 
 function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
@@ -139,6 +167,45 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 				</span>
 			)}
 		</div>
+	);
+}
+
+function DiffFileTree({
+	files,
+	onSelectFile,
+}: {
+	files: readonly FileDiffMetadata[];
+	onSelectFile: (fileName: string) => void;
+}) {
+	const paths = files.map((file) => file.name);
+	const gitStatus = files.map((file) => ({
+		path: file.name,
+		status: gitStatusForFile(file),
+	}));
+	const { model } = useFileTree({
+		flattenEmptyDirectories: true,
+		gitStatus,
+		initialExpansion: "open",
+		onSelectionChange: (selectedPaths) => {
+			const selectedPath = selectedPaths.at(-1);
+			if (selectedPath) {
+				onSelectFile(selectedPath);
+			}
+		},
+		paths,
+	});
+
+	useEffect(() => {
+		model.resetPaths(paths);
+		model.setGitStatus(gitStatus);
+	}, [gitStatus, model, paths]);
+
+	return (
+		<FileTree
+			model={model}
+			className="block h-full min-h-0 w-full"
+			style={fileTreeStyle}
+		/>
 	);
 }
 
@@ -323,19 +390,36 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}
 
 	return (
-		<CodeView
-			ref={codeViewRef}
-			items={items}
-			options={options}
-			selectedLines={selectedLines}
-			className="h-full min-h-0 min-w-0 overflow-auto"
-			style={diffViewerStyle}
-			renderCustomHeader={(item) =>
-				item.type === "diff" ? <HeaderContent fileDiff={item.fileDiff} /> : null
-			}
-			renderAnnotation={(annotation) =>
-				"side" in annotation ? renderAnnotation?.(annotation) : null
-			}
-		/>
+		<div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+			<aside className="hidden h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border-default xl:block">
+				<DiffFileTree
+					files={parsedFiles}
+					onSelectFile={(fileName) => {
+						codeViewRef.current?.scrollTo({
+							type: "item",
+							id: fileName,
+							align: "start",
+							behavior: "instant",
+						});
+					}}
+				/>
+			</aside>
+			<CodeView
+				ref={codeViewRef}
+				items={items}
+				options={options}
+				selectedLines={selectedLines}
+				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
+				style={diffViewerStyle}
+				renderCustomHeader={(item) =>
+					item.type === "diff" ? (
+						<HeaderContent fileDiff={item.fileDiff} />
+					) : null
+				}
+				renderAnnotation={(annotation) =>
+					"side" in annotation ? renderAnnotation?.(annotation) : null
+				}
+			/>
+		</div>
 	);
 };
