@@ -6562,6 +6562,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		arg := database.UpdateAIProviderParams{
 			ID:      provider.ID,
+			Type:    provider.Type,
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
 		}
