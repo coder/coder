@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -15,9 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gohugoio/hugo/parser/pageparser"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/frontmatter"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -152,50 +151,29 @@ func parseTemplateExample(projectFS, examplesFS fs.FS, name string) (te *codersd
 		return nil, xerrors.New("missing README.md")
 	}
 
-	frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
+	fm, body, err := frontmatter.Parse(string(readme))
 	if err != nil {
 		return nil, xerrors.Errorf("parse front matter: %w", err)
 	}
 
 	// Make sure validation here is in sync with requirements for
 	// coder/registry.
-	displayName, err := getString(frontMatter.FrontMatter, "display_name")
-	if err != nil {
-		errs = append(errs, err)
+	if fm.DisplayName == "" {
+		errs = append(errs, xerrors.New("front matter does not contain \"display_name\""))
 	}
-
-	description, err := getString(frontMatter.FrontMatter, "description")
-	if err != nil {
-		errs = append(errs, err)
+	if fm.Description == "" {
+		errs = append(errs, xerrors.New("front matter does not contain \"description\""))
 	}
-
-	_, err = getString(frontMatter.FrontMatter, "maintainer_github")
-	if err != nil {
-		errs = append(errs, err)
+	if fm.MaintainerGithub == "" {
+		errs = append(errs, xerrors.New("front matter does not contain \"maintainer_github\""))
 	}
 
 	tags := []string{}
-	tagsRaw, exists := frontMatter.FrontMatter["tags"]
-	if exists {
-		tagsI, valid := tagsRaw.([]interface{})
-		if !valid {
-			errs = append(errs, xerrors.Errorf("tags isn't a slice: type %T", tagsRaw))
-		} else {
-			for _, tagI := range tagsI {
-				tag, valid := tagI.(string)
-				if !valid {
-					errs = append(errs, xerrors.Errorf("tag isn't a string: type %T", tagI))
-					continue
-				}
-				tags = append(tags, tag)
-			}
-		}
-	}
+	tags = append(tags, fm.Tags...)
 
-	var icon string
-	icon, err = getString(frontMatter.FrontMatter, "icon")
-	if err != nil {
-		errs = append(errs, err)
+	icon := fm.Icon
+	if icon == "" {
+		errs = append(errs, xerrors.New("front matter does not contain \"icon\""))
 	} else {
 		cleanPath := filepath.Clean(filepath.Join(examplesDir, name, icon))
 		_, err := fs.Stat(projectFS, cleanPath)
@@ -217,26 +195,14 @@ func parseTemplateExample(projectFS, examplesFS fs.FS, name string) (te *codersd
 
 	return &codersdk.TemplateExample{
 		ID:          exampleID,
-		Name:        displayName,
-		Description: description,
+		Name:        fm.DisplayName,
+		Description: fm.Description,
 		Icon:        "/" + icon, // The FE needs a static path!
 		Tags:        tags,
-		Markdown:    string(frontMatter.Content),
+		Markdown:    body,
 
 		// URL is set by examples/examples.go.
 	}, nil
-}
-
-func getString(m map[string]any, key string) (string, error) {
-	v, ok := m[key]
-	if !ok {
-		return "", xerrors.Errorf("front matter does not contain %q", key)
-	}
-	vv, ok := v.(string)
-	if !ok {
-		return "", xerrors.Errorf("%q isn't a string", key)
-	}
-	return vv, nil
 }
 
 func parseEmbedTag(s string) (string, bool) {
