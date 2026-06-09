@@ -38,11 +38,12 @@ const (
 	// organization weight matters. They are deliberately explicit so the
 	// ranking can be calibrated as ranking-quality signal accrues.
 	//
-	// The score is computed in Go (computeAffinityScore) rather than SQL
-	// because sqlc cannot reliably compile the parameterized decay expression;
-	// see GetTemplateRankingSignalsByOwnerID. Keeping the score and the
-	// confidence thresholds in the same place also avoids Postgres-versus-Go
-	// floating-point differences at confidence boundaries.
+	// The score is computed in Go (computeAffinityScore) rather than SQL because
+	// sqlc type inference is fragile around complex parameterized expressions
+	// unless inputs are explicitly cast and nested selects are kept simple; see
+	// GetTemplateRankingSignalsByOwnerID. Keeping the score and the confidence
+	// thresholds in the same place also avoids Postgres-versus-Go floating-point
+	// differences at confidence boundaries.
 	listTemplatesLookbackDays   = 60
 	listTemplatesHalfLife       = 14 * 24 * time.Hour
 	listTemplatesPersonalWeight = 10.0

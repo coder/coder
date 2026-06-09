@@ -731,9 +731,10 @@ type sqlcQuerier interface {
 	// deleted workspaces the owner used within the lookback window, when the
 	// template was last used, and how many distinct developers in the organization
 	// currently have a non-deleted workspace on it. The affinity score itself is
-	// computed in Go (see listtemplates.go); the parameterized recency-decay math
-	// cannot be expressed through sqlc reliably, so this query returns the exact
-	// raw signals the score is built from. The lookback window is applied with a
+	// computed in Go (see listtemplates.go) because sqlc type inference is fragile
+	// around complex parameterized expressions unless inputs are explicitly cast
+	// and nested selects are kept simple. This query returns the exact raw signals
+	// the score is built from. The lookback window is applied with a
 	// caller-computed cutoff timestamp.
 	GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
