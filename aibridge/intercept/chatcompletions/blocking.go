@@ -284,7 +284,7 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 
 	requestOpts, overrideBody, err := i.chatCompletionRequestOptions(opts)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal request body: %w", err)
+		return nil, xerrors.Errorf("prepare request body: %w", err)
 	}
 	params := i.req.ChatCompletionNewParams
 	if overrideBody {

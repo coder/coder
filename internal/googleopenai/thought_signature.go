@@ -26,7 +26,7 @@ func ShouldPatchOpenAICompatRequest(baseURL string, modelID string) bool {
 
 // ShouldPatchGoogleUpstreamRequest reports whether an AI Bridge upstream
 // OpenAI-compatible request should carry Gemini thought signatures.
-func ShouldPatchGoogleUpstreamRequest(baseURL string, _ string) bool {
+func ShouldPatchGoogleUpstreamRequest(baseURL string) bool {
 	return isDirectGeminiOpenAIEndpoint(baseURL)
 }
 
@@ -122,6 +122,8 @@ func AddThoughtSignaturesToLatestTurn(payload map[string]any) bool {
 		if !ok || len(toolCalls) == 0 {
 			continue
 		}
+		// Every tool call in parallel batches needs a signature,
+		// not just the first one.
 		for _, rawToolCall := range toolCalls {
 			toolCall, ok := rawToolCall.(map[string]any)
 			if !ok {

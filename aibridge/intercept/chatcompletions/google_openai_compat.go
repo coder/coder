@@ -14,7 +14,7 @@ func (i *interceptionBase) chatCompletionRequestBody() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL, i.req.Model) {
+	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) {
 		return body, nil
 	}
 	patched, _, err := googleopenai.PatchThoughtSignatures(body)
@@ -25,7 +25,7 @@ func (i *interceptionBase) chatCompletionRequestBody() ([]byte, error) {
 }
 
 func (i *interceptionBase) chatCompletionRequestOptions(opts []option.RequestOption) ([]option.RequestOption, bool, error) {
-	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL, i.req.Model) {
+	if !googleopenai.ShouldPatchGoogleUpstreamRequest(i.cfg.BaseURL) {
 		return opts, false, nil
 	}
 	body, err := i.chatCompletionRequestBody()

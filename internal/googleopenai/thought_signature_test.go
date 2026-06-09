@@ -63,30 +63,20 @@ func TestShouldPatchGoogleUpstreamRequest(t *testing.T) {
 	tests := []struct {
 		name    string
 		baseURL string
-		modelID string
 		want    bool
 	}{
 		{
 			name:    "gemini api openai endpoint",
 			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-			modelID: "gemini-3.5-flash",
-			want:    true,
-		},
-		{
-			name:    "direct endpoint does not require gemini model name",
-			baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-			modelID: "gpt-4o",
 			want:    true,
 		},
 		{
 			name:    "openai endpoint",
 			baseURL: "https://api.openai.com/v1/",
-			modelID: "gemini-3.5-flash",
 		},
 		{
 			name:    "vertex endpoint not enabled without fixture",
 			baseURL: "https://us-central1-aiplatform.googleapis.com/v1/",
-			modelID: "gemini-3.5-flash",
 		},
 	}
 
@@ -94,7 +84,7 @@ func TestShouldPatchGoogleUpstreamRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, googleopenai.ShouldPatchGoogleUpstreamRequest(tt.baseURL, tt.modelID))
+			require.Equal(t, tt.want, googleopenai.ShouldPatchGoogleUpstreamRequest(tt.baseURL))
 		})
 	}
 }
