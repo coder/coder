@@ -41,13 +41,13 @@ type ModuleManifest struct {
 
 // ModuleVariable represents a variable declaration within a module manifest.
 type ModuleVariable struct {
-	Name        string  `json:"name"`
-	Type        string  `json:"type"`
-	Description string  `json:"description"`
-	Default     *string `json:"default,omitempty"`
-	Required    bool    `json:"required"`
-	Sensitive   bool    `json:"sensitive"`
-	Computed    bool    `json:"computed"`
+	Name        string          `json:"name"`
+	Type        string          `json:"type"`
+	Description string          `json:"description"`
+	Default     json.RawMessage `json:"default,omitempty"`
+	Required    bool            `json:"required"`
+	Sensitive   bool            `json:"sensitive"`
+	Computed    bool            `json:"computed"`
 }
 
 // validVariableTypes maps module.json type strings to their SDK equivalents.

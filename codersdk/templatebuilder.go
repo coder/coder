@@ -1,5 +1,7 @@
 package codersdk
 
+import "encoding/json"
+
 // TemplateBuilderVariableType enumerates the variable types
 // supported by template builder module manifests.
 type TemplateBuilderVariableType string
@@ -14,7 +16,7 @@ type TemplateBuilderModuleVariable struct {
 	Name        string                      `json:"name"`
 	Type        TemplateBuilderVariableType `json:"type"`
 	Description string                      `json:"description"`
-	Default     *string                     `json:"default,omitempty"`
+	Default     json.RawMessage             `json:"default,omitempty"`
 	Required    bool                        `json:"required"`
 	Sensitive   bool                        `json:"sensitive"`
 	Computed    bool                        `json:"computed"`

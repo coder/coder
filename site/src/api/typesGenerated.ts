@@ -8233,7 +8233,7 @@ export interface TemplateBuilderModuleVariable {
 	readonly name: string;
 	readonly type: TemplateBuilderVariableType;
 	readonly description: string;
-	readonly default?: string;
+	readonly default?: Record<string, string>;
 	readonly required: boolean;
 	readonly sensitive: boolean;
 	readonly computed: boolean;

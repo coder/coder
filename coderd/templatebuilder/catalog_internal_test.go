@@ -38,7 +38,7 @@ func TestParseModulesFromFS(t *testing.T) {
 							"name": "port",
 							"type": "number",
 							"description": "Port number.",
-							"default": "8080",
+							"default": 8080,
 							"required": false,
 							"sensitive": false,
 							"computed": false
@@ -92,7 +92,7 @@ func TestParseModulesFromFS(t *testing.T) {
 		// Verify default pointer.
 		require.Nil(t, m.Variables[0].Default)
 		require.NotNil(t, m.Variables[1].Default)
-		require.Equal(t, "8080", *m.Variables[1].Default)
+		require.JSONEq(t, "8080", string(m.Variables[1].Default))
 	})
 
 	t.Run("MultipleModules", func(t *testing.T) {

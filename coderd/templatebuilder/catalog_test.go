@@ -1,6 +1,7 @@
 package templatebuilder_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestLoadModules(t *testing.T) {
 func TestToSDK(t *testing.T) {
 	t.Parallel()
 
-	defaultVal := "8080"
+	defaultVal := json.RawMessage(`8080`)
 	manifest := templatebuilder.ModuleManifest{
 		ID:            "test-mod",
 		DisplayName:   "Test Module",
@@ -58,7 +59,7 @@ func TestToSDK(t *testing.T) {
 				Name:        "port",
 				Type:        "number",
 				Description: "Port to listen on.",
-				Default:     &defaultVal,
+				Default:     defaultVal,
 				Required:    false,
 				Sensitive:   false,
 				Computed:    false,
@@ -108,7 +109,7 @@ func TestToSDK(t *testing.T) {
 		require.Equal(t, codersdk.TemplateBuilderVariableTypeNumber, port.Type)
 		require.Equal(t, "Port to listen on.", port.Description)
 		require.NotNil(t, port.Default)
-		require.Equal(t, "8080", *port.Default)
+		require.JSONEq(t, "8080", string(port.Default))
 		require.False(t, port.Required)
 		require.False(t, port.Sensitive)
 		require.False(t, port.Computed)

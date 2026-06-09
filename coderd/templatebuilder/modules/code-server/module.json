@@ -21,7 +21,7 @@
       "name": "port",
       "type": "number",
       "description": "Port to run code-server on",
-      "default": "13337",
+      "default": 13337,
       "required": false,
       "sensitive": false,
       "computed": false
