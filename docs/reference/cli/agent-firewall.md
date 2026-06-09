@@ -1,12 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# boundary
+# agent-firewall
 
 Network isolation tool for monitoring and restricting HTTP/HTTPS requests
 
 ## Usage
 
 ```console
-coder boundary [flags] [args...]
+coder agent-firewall [flags] [args...]
 ```
 
 ## Description

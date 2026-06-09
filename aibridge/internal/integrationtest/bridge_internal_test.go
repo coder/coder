@@ -3,17 +3,24 @@ package integrationtest
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	oaissestream "github.com/openai/openai-go/v3/packages/ssestream"
@@ -82,7 +89,7 @@ func TestAnthropicMessages(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -132,7 +139,7 @@ func TestAnthropicMessages(t *testing.T) {
 				assert.Equal(t, "read the foo file", promptUsages[0].Prompt)
 
 				// Verify PRM attribution is NOT present on non-Bedrock Anthropic requests.
-				received := upstream.receivedRequests()
+				received := upstream.ReceivedRequests()
 				require.Len(t, received, 1)
 				ua := received[0].Header.Get("User-Agent")
 				assert.NotContains(t, ua, "sdk-ua-app-id",
@@ -141,6 +148,50 @@ func TestAnthropicMessages(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	// When the upstream's first response is an injected tool call with no
+	// text preamble and the next upstream call fails, the response must
+	// remain a well-formed SSE stream. The upstream error is relayed as a
+	// well-formed SSE event.
+	t.Run("streaming injected tool call no preamble with upstream 500", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleInjectedToolNoPreamble)
+		upstream := testutil.NewMockUpstream(ctx, t,
+			testutil.NewFixtureResponse(fix),
+			testutil.NewErrorResponse(http.StatusInternalServerError, ""),
+		)
+
+		mockMCP := setupMCPForTest(t, defaultTracer)
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
+
+		reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		bodyStr := string(body)
+
+		// Once iteration 1 succeeded the response is committed as SSE,
+		// so the iteration-2 error MUST be an SSE event and not a raw JSON body.
+		require.Contains(t, bodyStr, "event: error",
+			"iteration-2 error must be relayed as an SSE event")
+
+		// Tool was invoked despite the iteration-2 failure.
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1,
+			"expected MCP tool to be invoked exactly once")
+
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 }
 
@@ -223,7 +274,7 @@ func TestAnthropicMessagesModelThoughts(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -289,7 +340,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				// We define region here to validate that with Region & BaseURL defined, the latter takes precedence.
 				bedrockCfg := &config.AWSBedrock{
@@ -322,7 +373,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				// Verify that Bedrock-specific model name was used in the request to the mock server
 				// and the interception data.
-				received := upstream.receivedRequests()
+				received := upstream.ReceivedRequests()
 				require.Len(t, received, 1)
 
 				// The Anthropic SDK's Bedrock middleware extracts "model" and "stream"
@@ -420,7 +471,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					t.Cleanup(cancel)
 
 					fix := fixtures.Parse(t, fixtures.AntSimpleBedrock)
-					upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+					upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 					bCfg := &config.AWSBedrock{
 						Region:          "us-west-2",
@@ -448,7 +499,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					_, err = io.ReadAll(resp.Body)
 					require.NoError(t, err)
 
-					received := upstream.receivedRequests()
+					received := upstream.ReceivedRequests()
 					require.Len(t, received, 1)
 					body := received[0].Body
 
@@ -478,6 +529,154 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				})
 			}
 		}
+	})
+
+	// SigV4 signs all headers on the outbound Bedrock request. If any header
+	// is modified in transit (e.g. an egress proxy appending to X-Forwarded-For),
+	// the signature becomes invalid and AWS rejects the request with:
+	//   403: "The request signature we calculated does not match the signature
+	//   you provided."
+	t.Run("SigV4 signed headers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+
+		proxyHeaders := http.Header{
+			"X-Forwarded-For":   {"203.0.113.50, 10.0.0.1"},
+			"X-Forwarded-Host":  {"app.example.com"},
+			"X-Forwarded-Proto": {"https"},
+		}
+
+		// Credentials used for both the Bedrock config and the mock's
+		// signature re-verification.
+		accessKey := "test-access-key"
+		secretKey := "test-secret-key"
+		region := "us-west-2"
+
+		var signatureValid atomic.Bool
+
+		// Mock Bedrock endpoint (simulates AWS). The OnRequest callback
+		// re-signs the received request using only the declared
+		// SignedHeaders and stores whether the signatures match.
+		fixResp := testutil.NewFixtureResponse(fix)
+		fixResp.OnRequest = func(r *http.Request, body []byte) {
+			authHeader := r.Header.Get("Authorization")
+			// Passthrough requests have no SigV4 auth; skip verification.
+			if !strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256") {
+				return
+			}
+			originalSig := extractSigV4Field(authHeader, "Signature=")
+
+			// Rebuild the request the way AWS would: keep only
+			// the declared SignedHeaders.
+			signedHeaders := strings.Split(extractSigV4Field(authHeader, "SignedHeaders="), ";")
+			verifyReq := r.Clone(r.Context())
+			verifyReq.Header.Del("Authorization")
+			for h := range verifyReq.Header {
+				if !slices.Contains(signedHeaders, strings.ToLower(h)) {
+					verifyReq.Header.Del(h)
+				}
+			}
+			// Restore ContentLength: Go's HTTP server parses it
+			// from the request but does not put it in r.Header;
+			// the SigV4 signer reads the struct field.
+			verifyReq.ContentLength = int64(len(body))
+
+			// Re-sign with the same credentials, body hash, and
+			// timestamp. SigV4 derives the signature from all three,
+			// so any difference means a header was altered in transit.
+			signingTime, err := time.Parse("20060102T150405Z", verifyReq.Header.Get("X-Amz-Date"))
+			require.NoError(t, err)
+			bodyHash := sha256.Sum256(body)
+			err = v4signer.NewSigner().SignHTTP(
+				ctx,
+				aws.Credentials{AccessKeyID: accessKey, SecretAccessKey: secretKey},
+				verifyReq, hex.EncodeToString(bodyHash[:]),
+				"bedrock", region, signingTime,
+			)
+			require.NoError(t, err)
+
+			recomputedSig := extractSigV4Field(verifyReq.Header.Get("Authorization"), "Signature=")
+			signatureValid.Store(originalSig == recomputedSig)
+		}
+		mockBedrock := testutil.NewMockUpstream(ctx, t, fixResp)
+		mockBedrock.AllowOverflow = true
+
+		// Simulated egress proxy: modifies X-Forwarded-For and
+		// forwards to mockBedrock, preserving the original Host.
+		mockEgressProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+				r.Header.Set("X-Forwarded-For", xff+", 10.255.0.1")
+			}
+
+			proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, mockBedrock.URL+r.URL.Path, r.Body)
+			require.NoError(t, err)
+			proxyReq.Header = r.Header.Clone()
+			proxyReq.Host = r.Host // preserve signed Host
+
+			resp, err := http.DefaultClient.Do(proxyReq)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			for k, vs := range resp.Header {
+				for _, v := range vs {
+					w.Header().Add(k, v)
+				}
+			}
+			w.WriteHeader(resp.StatusCode)
+			_, _ = io.Copy(w, resp.Body)
+		}))
+		t.Cleanup(mockEgressProxy.Close)
+
+		bCfg := bedrockCfg(mockEgressProxy.URL)
+		bCfg.AccessKey = accessKey
+		bCfg.AccessKeySecret = secretKey
+		bCfg.Region = region
+
+		bridgeServer := newBridgeTestServer(ctx, t, mockEgressProxy.URL,
+			withCustomProvider(provider.NewAnthropic(anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
+		)
+
+		// Sends a bridge request through a mock egress proxy that
+		// mutates X-Forwarded-For, then verifies the SigV4 signature
+		// still matches at the mock Bedrock endpoint.
+		t.Run("bridge SigV4 signature valid", func(t *testing.T) {
+			reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
+			require.NoError(t, err)
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, proxyHeaders)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			_, _ = io.ReadAll(resp.Body)
+
+			assert.True(t, signatureValid.Load(),
+				"SigV4 signature mismatch: a header modified in transit "+
+					"was included in the signed-headers set")
+		})
+
+		// Passthrough routes use httputil.ReverseProxy, which forwards
+		// the request as-is without SigV4 signing, so proxy headers
+		// are safe to include. ReverseProxy sets its own X-Forwarded-*
+		// headers via SetXForwarded. This verifies they arrive upstream.
+		t.Run("passthrough proxy sets own forwarded headers", func(t *testing.T) {
+			resp, err := bridgeServer.makeRequest(t, http.MethodGet, "/anthropic/v1/models", nil, proxyHeaders)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			_, _ = io.ReadAll(resp.Body)
+
+			received := mockBedrock.ReceivedRequests()
+			require.NotEmpty(t, received)
+			last := received[len(received)-1]
+
+			assert.NotEmpty(t, last.Header.Get("X-Forwarded-For"),
+				"passthrough should set X-Forwarded-For via SetXForwarded")
+			assert.NotEmpty(t, last.Header.Get("X-Forwarded-Host"),
+				"passthrough should set X-Forwarded-Host via SetXForwarded")
+			assert.NotEmpty(t, last.Header.Get("X-Forwarded-Proto"),
+				"passthrough should set X-Forwarded-Proto via SetXForwarded")
+		})
 	})
 }
 
@@ -517,7 +716,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, fixtures.OaiChatSingleBuiltinTool)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -595,7 +794,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 				// Setup mock server for multi-turn interaction.
 				// First request → tool call response, second → tool response.
 				fix := fixtures.Parse(t, tc.fixture)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix), newFixtureToolResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix), testutil.NewFixtureToolResponse(fix))
 
 				// Setup MCP proxies with the tool from the fixture
 				mockMCP := setupMCPForTest(t, defaultTracer)
@@ -751,6 +950,17 @@ func TestSimple(t *testing.T) {
 			expectedClient:    aibridge.ClientCodex,
 		},
 		{
+			name:              config.ProviderOpenAI + "_opencode",
+			fixture:           fixtures.OaiChatSimple,
+			basePath:          "",
+			expectedPath:      "/chat/completions",
+			getResponseIDFunc: getOpenAIResponseID,
+			path:              pathOpenAIChatCompletions,
+			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
+			userAgent:         "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
+			expectedClient:    aibridge.ClientOpenCode,
+		},
+		{
 			name:              config.ProviderAnthropic + "_baseURL_path",
 			fixture:           fixtures.AntSimple,
 			basePath:          "/api",
@@ -786,7 +996,7 @@ func TestSimple(t *testing.T) {
 					t.Cleanup(cancel)
 
 					fix := fixtures.Parse(t, tc.fixture)
-					upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+					upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL+tc.basePath)
 
@@ -799,7 +1009,7 @@ func TestSimple(t *testing.T) {
 					require.Equal(t, http.StatusOK, resp.StatusCode)
 
 					// Then: I expect the upstream request to have the correct path.
-					received := upstream.receivedRequests()
+					received := upstream.ReceivedRequests()
 					require.Len(t, received, 1)
 					require.Equal(t, tc.expectedPath, received[0].Path)
 
@@ -883,6 +1093,16 @@ func TestSessionIDTracking(t *testing.T) {
 				"User-Agent": []string{"Zed/0.219.4+stable.119.abc123 (macos; aarch64)"},
 			},
 		},
+		{
+			name:            "opencode",
+			fixture:         fixtures.AntSimple,
+			expectedClient:  aibridge.ClientOpenCode,
+			expectSessionID: "ses_15a48edefffe7oY0YcIHRv29dD",
+			header: http.Header{
+				"User-Agent":         []string{"opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"},
+				"X-OpenCode-Session": []string{"ses_15a48edefffe7oY0YcIHRv29dD"},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -893,7 +1113,7 @@ func TestSessionIDTracking(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withProvider(config.ProviderAnthropic))
 
 			reqBody := fix.Request()
@@ -978,7 +1198,7 @@ func TestFallthrough(t *testing.T) {
 			t.Parallel()
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(t.Context(), t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(t.Context(), t, testutil.NewFixtureResponse(fix))
 			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL+tc.basePath)
 
 			resp, err := bridgeServer.makeRequest(t, http.MethodGet, tc.requestPath, nil)
@@ -989,7 +1209,7 @@ func TestFallthrough(t *testing.T) {
 
 			// Verify upstream received the request at the expected path
 			// with the API key header.
-			received := upstream.receivedRequests()
+			received := upstream.ReceivedRequests()
 			require.Len(t, received, 1)
 			require.Equal(t, tc.expectedUpstreamPath, received[0].Path)
 			require.Contains(t, received[0].Header.Get(tc.expectAuthHeader), apiKey)
@@ -1318,7 +1538,7 @@ func TestErrorHandling(t *testing.T) {
 						// Setup mock server. Error fixtures contain raw HTTP
 						// responses that may cause the bridge to retry.
 						fix := fixtures.Parse(t, tc.fixture)
-						upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+						upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 						bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -1390,7 +1610,7 @@ func TestErrorHandling(t *testing.T) {
 
 				// Setup mock server.
 				fix := fixtures.Parse(t, tc.fixture)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 				upstream.StatusCode = http.StatusInternalServerError
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
@@ -1444,11 +1664,11 @@ func TestStableRequestEncoding(t *testing.T) {
 
 			// Create a mock upstream that serves the same blocking response for each request.
 			count := 10
-			responses := make([]upstreamResponse, count)
+			responses := make([]testutil.UpstreamResponse, count)
 			for i := range count {
-				responses[i] = newFixtureResponse(fix)
+				responses[i] = testutil.NewFixtureResponse(fix)
 			}
-			upstream := newMockUpstream(ctx, t, responses...)
+			upstream := testutil.NewMockUpstream(ctx, t, responses...)
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 				withMCP(mockMCP),
@@ -1463,7 +1683,7 @@ func TestStableRequestEncoding(t *testing.T) {
 			}
 
 			// All upstream request bodies should be identical.
-			received := upstream.receivedRequests()
+			received := upstream.ReceivedRequests()
 			require.Len(t, received, count)
 			reference := string(received[0].Body)
 			for _, r := range received[1:] {
@@ -1711,7 +1931,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			}
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 				withMCP(mockMCP),
@@ -1727,7 +1947,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Verify tool_choice in the upstream request.
-			received := upstream.receivedRequests()
+			received := upstream.ReceivedRequests()
 			require.Len(t, received, 1)
 			var receivedRequest map[string]any
 			require.NoError(t, json.Unmarshal(received[0].Body, &receivedRequest))
@@ -1867,7 +2087,7 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, tc.fixture)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				var opts []bridgeOption
 				if tc.withInjectedTools {
@@ -1892,7 +2112,7 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 				_, err = io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				received := upstream.receivedRequests()
+				received := upstream.ReceivedRequests()
 				require.Len(t, received, 1)
 
 				var upstreamReq map[string]any
@@ -1922,7 +2142,7 @@ func TestThinkingAdaptiveIsPreserved(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// Create a mock server that captures the request body sent upstream.
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -1940,7 +2160,7 @@ func TestThinkingAdaptiveIsPreserved(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify the thinking field was preserved in the upstream request.
-			received := upstream.receivedRequests()
+			received := upstream.ReceivedRequests()
 			require.Len(t, received, 1)
 			assert.Equal(t, "adaptive", gjson.GetBytes(received[0].Body, "thinking.type").Str)
 		})
@@ -1987,7 +2207,7 @@ func TestEnvironmentDoNotLeak(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			// Set environment variables that the SDK would automatically read.
 			// These should NOT leak into upstream requests.
@@ -2003,7 +2223,7 @@ func TestEnvironmentDoNotLeak(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Verify that environment values did not leak.
-			received := upstream.receivedRequests()
+			received := upstream.ReceivedRequests()
 			require.Len(t, received, 1)
 			require.Empty(t, received[0].Header.Get(tc.headerName))
 		})
@@ -2099,7 +2319,7 @@ func TestActorHeaders(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, tc.fixture)
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				metadataKey := "Username"
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
@@ -2121,7 +2341,7 @@ func TestActorHeaders(t *testing.T) {
 				_, err = io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				received := upstream.receivedRequests()
+				received := upstream.ReceivedRequests()
 				require.NotEmpty(t, received)
 				receivedHeaders := received[0].Header
 
@@ -2143,4 +2363,18 @@ func TestActorHeaders(t *testing.T) {
 			})
 		}
 	}
+}
+
+// extractSigV4Field extracts a named field from an AWS SigV4
+// Authorization header value.
+func extractSigV4Field(authHeader, prefix string) string {
+	idx := strings.Index(authHeader, prefix)
+	if idx == -1 {
+		return ""
+	}
+	val := authHeader[idx+len(prefix):]
+	if end := strings.IndexByte(val, ','); end != -1 {
+		val = val[:end]
+	}
+	return strings.TrimSpace(val)
 }

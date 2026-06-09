@@ -1656,9 +1656,9 @@
 							"path": "reference/cli/autoupdate.md"
 						},
 						{
-							"title": "boundary",
+							"title": "agent-firewall",
 							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
-							"path": "reference/cli/boundary.md"
+							"path": "reference/cli/agent-firewall.md"
 						},
 						{
 							"title": "coder",

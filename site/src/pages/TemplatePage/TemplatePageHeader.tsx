@@ -70,7 +70,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	);
 	const navigate = useNavigate();
 	const getLink = useLinks();
-	const queryText = `template:${templateName}`;
+	const queryText = `organization:${organizationName} template:${templateName}`;
 	const workspaceCountQuery = useQuery({
 		...workspaces({ q: queryText }),
 		select: (res) => res.count,

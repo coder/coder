@@ -144,6 +144,7 @@ const expectCodeBlock = async (
 	expect(codeStyles.paddingTop).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe("8px");
 	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
+	expect(codeStyles.overflow).toBe("visible");
 
 	const lineStyles = getComputedStyle(line);
 	expect(lineStyles.paddingLeft).toBe("12px");
@@ -181,6 +182,67 @@ export const SingleLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await expectCodeBlock(canvasElement, /07c3697 feat/);
+	},
+};
+
+const longLineCodeBlockMarkdown = [
+	"```ts",
+	'const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };',
+	"```",
+	"",
+].join("\n");
+
+export const LongLineFencedBlock: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
+		);
+		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
+	},
+};
+
+export const LongLineFencedBlockWheelEdges: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		const dispatchWheel = (deltaY: number) => {
+			const event = new WheelEvent("wheel", {
+				deltaY,
+				bubbles: true,
+				cancelable: true,
+			});
+			viewport.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
+		viewport.scrollLeft = Math.floor(maxLeft / 2);
+		expect(dispatchWheel(200)).toBe(true);
+		viewport.scrollLeft = maxLeft;
+		expect(dispatchWheel(200)).toBe(false);
+		viewport.scrollLeft = 0;
+		expect(dispatchWheel(-200)).toBe(false);
 	},
 };
 

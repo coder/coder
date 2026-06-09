@@ -501,11 +501,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	return (
 		<div>
 			{inputElement}
-			{modelSelectorHelp && (
-				<div className="px-3 pt-1 text-2xs text-content-secondary">
-					{modelSelectorHelp}
-				</div>
-			)}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
 		</div>
 	);
 };
