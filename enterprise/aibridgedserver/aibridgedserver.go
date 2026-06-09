@@ -37,12 +37,13 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey  = xerrors.New("invalid key")
-	ErrUnknownKey  = xerrors.New("unknown key")
-	ErrExpired     = xerrors.New("expired")
-	ErrUnknownUser = xerrors.New("unknown user")
-	ErrDeletedUser = xerrors.New("deleted user")
-	ErrSystemUser  = xerrors.New("system user")
+	ErrInvalidKey   = xerrors.New("invalid key")
+	ErrUnknownKey   = xerrors.New("unknown key")
+	ErrExpired      = xerrors.New("expired")
+	ErrUnknownUser  = xerrors.New("unknown user")
+	ErrDeletedUser  = xerrors.New("deleted user")
+	ErrInactiveUser = xerrors.New("inactive user")
+	ErrSystemUser   = xerrors.New("system user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -399,9 +400,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrUnknownUser
 	}
 
-	// User is not deleted or a system user.
+	// User is active, not deleted, and not a system user.
 	if user.Deleted {
 		return nil, ErrDeletedUser
+	}
+	if user.Status != database.UserStatusActive {
+		return nil, ErrInactiveUser
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
