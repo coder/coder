@@ -11,8 +11,8 @@ USAGE:
   workspace and agent are inferred from the environment if not provided.
 
 OPTIONS:
-  -o, --org string, $CODER_SUPPORT_BUNDLE_ORG
-          Select which organization (uuid or name) to capture provisioner info
+      --org string, $CODER_ORGANIZATION
+          Select which organization (UUID or name) to capture provisioner info
           for. Defaults to the current user's organization.
 
   -O, --output-file string, $CODER_SUPPORT_BUNDLE_OUTPUT_FILE

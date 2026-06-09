@@ -38,15 +38,15 @@ import (
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
 type Bundle struct {
-	Deployment    Deployment       `json:"deployment"`
-	Network       Network          `json:"network"`
-	Workspace     Workspace        `json:"workspace"`
-	Agent         Agent            `json:"agent"`
-	Logs          []string         `json:"logs"`
-	CLILogs       []byte           `json:"cli_logs"`
-	NamedTemplate TemplateDump     `json:"named_template"`
-	Organization  Organization     `json:"organization"`
-	Pprof         Pprof            `json:"pprof"`
+	Deployment    Deployment   `json:"deployment"`
+	Network       Network      `json:"network"`
+	Workspace     Workspace    `json:"workspace"`
+	Agent         Agent        `json:"agent"`
+	Logs          []string     `json:"logs"`
+	CLILogs       []byte       `json:"cli_logs"`
+	NamedTemplate TemplateDump `json:"named_template"`
+	Organization  Organization `json:"organization"`
+	Pprof         Pprof        `json:"pprof"`
 }
 
 type Deployment struct {
@@ -1066,9 +1066,9 @@ func OrganizationInfo(ctx context.Context, client *codersdk.Client, log slog.Log
 	})
 
 	eg.Go(func() error {
-		const cap = 200
+		const provisionerDaemonCap = 200
 		daemons, err := client.OrganizationProvisionerDaemons(ctx, orgID, &codersdk.OrganizationProvisionerDaemonsOptions{
-			Limit: cap,
+			Limit: provisionerDaemonCap,
 		})
 		if err != nil {
 			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
@@ -1079,15 +1079,15 @@ func OrganizationInfo(ctx context.Context, client *codersdk.Client, log slog.Log
 			}
 			return xerrors.Errorf("fetch provisioner daemons: %w", err)
 		}
-		if len(daemons) == cap {
-			log.Warn(ctx, "provisioner daemons list may be truncated", slog.F("limit", cap))
+		if len(daemons) == provisionerDaemonCap {
+			log.Warn(ctx, "provisioner daemons list may be truncated", slog.F("limit", provisionerDaemonCap))
 		}
 		o.ProvisionerDaemons = daemons
 		return nil
 	})
 
 	eg.Go(func() error {
-		const cap = 200
+		const provisionerJobCap = 200
 		// Fetch all non-successful jobs. Derive the status list from the canonical
 		// enum so new statuses are automatically included.
 		statuses := slices.DeleteFunc(
@@ -1097,7 +1097,7 @@ func OrganizationInfo(ctx context.Context, client *codersdk.Client, log slog.Log
 			},
 		)
 		jobs, err := client.OrganizationProvisionerJobs(ctx, orgID, &codersdk.OrganizationProvisionerJobsOptions{
-			Limit:  cap,
+			Limit:  provisionerJobCap,
 			Status: statuses,
 		})
 		if err != nil {
@@ -1109,8 +1109,8 @@ func OrganizationInfo(ctx context.Context, client *codersdk.Client, log slog.Log
 			}
 			return xerrors.Errorf("fetch provisioner jobs: %w", err)
 		}
-		if len(jobs) == cap {
-			log.Warn(ctx, "provisioner jobs list may be truncated", slog.F("limit", cap))
+		if len(jobs) == provisionerJobCap {
+			log.Warn(ctx, "provisioner jobs list may be truncated", slog.F("limit", provisionerJobCap))
 		}
 		o.ProvisionerJobs = jobs
 		return nil
