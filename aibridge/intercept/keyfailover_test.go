@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
@@ -21,7 +22,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -31,6 +35,9 @@ import (
 type interceptorCase struct {
 	// name labels the subtest.
 	name string
+	// provider is the provider name used to build the key pool and to label its
+	// failover metrics.
+	provider string
 	// path is the route the interceptor handles.
 	path string
 	// authHeader is the header the upstream key is carried in. It is also used
@@ -69,6 +76,7 @@ func keyFromHeader(name string, h http.Header) string {
 var interceptorCases = []interceptorCase{
 	{
 		name:       "messages",
+		provider:   config.ProviderAnthropic,
 		path:       "/v1/messages",
 		authHeader: "X-Api-Key",
 		fixture: func(_, agentic bool) []byte {
@@ -101,6 +109,7 @@ var interceptorCases = []interceptorCase{
 	},
 	{
 		name:       "chatcompletions",
+		provider:   config.ProviderOpenAI,
 		path:       "/v1/chat/completions",
 		authHeader: "Authorization",
 		fixture: func(_, agentic bool) []byte {
@@ -133,6 +142,7 @@ var interceptorCases = []interceptorCase{
 	},
 	{
 		name:       "responses",
+		provider:   config.ProviderOpenAI,
 		path:       "/v1/responses",
 		authHeader: "Authorization",
 		fixture: func(streaming, agentic bool) []byte {
@@ -196,6 +206,10 @@ func TestInterception_KeyFailover(t *testing.T) {
 		expectedKeyStates    []keypool.KeyState
 		expectedSeenKeys     []string
 		expectedBodyContains string
+		// Expected key_pool_state_transitions_total counts by reason.
+		expectedTransitions map[string]int
+		// Expected key_pool_exhaustions_total counts by outcome.
+		expectedExhaustions map[string]int
 	}{
 		{
 			// One valid key succeeds on the first attempt.
@@ -213,9 +227,10 @@ func TestInterception_KeyFailover(t *testing.T) {
 			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{errResp(http.StatusTooManyRequests, "5"), s}
 			},
-			expectedStatus:    http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
-			expectedSeenKeys:  []string{k0, k1},
+			expectedStatus:      http.StatusOK,
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
+			expectedSeenKeys:    []string{k0, k1},
+			expectedTransitions: map[string]int{"rate_limited": 1},
 		},
 		{
 			// A 401 marks the key permanent and fails over to the next one.
@@ -224,9 +239,10 @@ func TestInterception_KeyFailover(t *testing.T) {
 			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{errResp(http.StatusUnauthorized, ""), s}
 			},
-			expectedStatus:    http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
-			expectedSeenKeys:  []string{k0, k1},
+			expectedStatus:      http.StatusOK,
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
+			expectedSeenKeys:    []string{k0, k1},
+			expectedTransitions: map[string]int{"unauthorized": 1},
 		},
 		{
 			// A 403 marks the key permanent and fails over to the next one.
@@ -235,9 +251,10 @@ func TestInterception_KeyFailover(t *testing.T) {
 			responses: func(s testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{errResp(http.StatusForbidden, ""), s}
 			},
-			expectedStatus:    http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
-			expectedSeenKeys:  []string{k0, k1},
+			expectedStatus:      http.StatusOK,
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStateValid},
+			expectedSeenKeys:    []string{k0, k1},
+			expectedTransitions: map[string]int{"forbidden": 1},
 		},
 		{
 			// Every key is rate-limited, so the pool is exhausted and the
@@ -259,7 +276,9 @@ func TestInterception_KeyFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
 			},
-			expectedSeenKeys: []string{k0, k1, k2},
+			expectedSeenKeys:    []string{k0, k1, k2},
+			expectedTransitions: map[string]int{"rate_limited": 3},
+			expectedExhaustions: map[string]int{"rate_limited": 1},
 		},
 		{
 			// Every key is unauthorized, so the pool is permanently exhausted.
@@ -271,9 +290,11 @@ func TestInterception_KeyFailover(t *testing.T) {
 					errResp(http.StatusUnauthorized, ""),
 				}
 			},
-			expectedStatus:    http.StatusBadGateway,
-			expectedKeyStates: []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStatePermanent},
-			expectedSeenKeys:  []string{k0, k1},
+			expectedStatus:      http.StatusBadGateway,
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStatePermanent, keypool.KeyStatePermanent},
+			expectedSeenKeys:    []string{k0, k1},
+			expectedTransitions: map[string]int{"unauthorized": 2},
+			expectedExhaustions: map[string]int{"auth_failed": 1},
 		},
 		{
 			// A 500 is not a key-specific failure, so it does not fail over.
@@ -306,10 +327,12 @@ func TestInterception_KeyFailover(t *testing.T) {
 				t.Run(ic.name+"/"+mode+"/"+tc.name, func(t *testing.T) {
 					t.Parallel()
 
+					reg := prometheus.NewRegistry()
+					m := metrics.NewMetrics(reg)
 					var pool *keypool.Pool
 					if len(tc.keys) > 0 {
 						var err error
-						pool, err = keypool.New(tc.keys, quartz.NewMock(t))
+						pool, err = keypool.New(ic.provider, tc.keys, quartz.NewMock(t), m)
 						require.NoError(t, err)
 					}
 
@@ -353,6 +376,38 @@ func TestInterception_KeyFailover(t *testing.T) {
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")
 					}
+
+					// A centralized interception records one failover-attempts
+					// observation, labeled with the provider, summing the keys
+					// tried (one per upstream attempt). BYOK has no pool, so none.
+					if pool != nil {
+						hist := promhelp.HistogramValue(t, reg, "key_pool_failover_attempts",
+							prometheus.Labels{"provider": ic.provider})
+						assert.Equal(t, uint64(1), hist.GetSampleCount())
+						assert.Equal(t, float64(len(tc.expectedSeenKeys)), hist.GetSampleSum())
+					} else {
+						assert.Nil(t, promhelp.MetricValue(t, reg, "key_pool_failover_attempts",
+							prometheus.Labels{"provider": ic.provider}))
+					}
+
+					gathered, err := reg.Gather()
+					require.NoError(t, err)
+					// One transition per marked key, by reason.
+					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+						if want := tc.expectedTransitions[reason]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_state_transitions_total", ic.provider, reason))
+						}
+					}
+					// Exhaustion outcome when no usable key remains.
+					for _, outcome := range []string{"rate_limited", "auth_failed"} {
+						if want := tc.expectedExhaustions[outcome]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_exhaustions_total", outcome, ic.provider))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, ic.provider))
+						}
+					}
 				})
 			}
 		}
@@ -380,6 +435,10 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 		expectedKeyStates    []keypool.KeyState
 		expectedSeenKeys     []string
 		expectedBodyContains string
+		// Expected key_pool_state_transitions_total counts by reason.
+		expectedTransitions map[string]int
+		// Expected key_pool_exhaustions_total counts by outcome.
+		expectedExhaustions map[string]int
 		// expectErr is true when ProcessRequest returns an error because the
 		// pool is exhausted.
 		expectErr bool
@@ -403,9 +462,10 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 			responses: func(toolCall, final testutil.UpstreamResponse) []testutil.UpstreamResponse {
 				return []testutil.UpstreamResponse{toolCall, errResp(http.StatusTooManyRequests, "5"), final}
 			},
-			expectedStatus:    http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
-			expectedSeenKeys:  []string{k0, k0, k1},
+			expectedStatus:      http.StatusOK,
+			expectedKeyStates:   []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateValid},
+			expectedSeenKeys:    []string{k0, k0, k1},
+			expectedTransitions: map[string]int{"rate_limited": 1},
 		},
 		{
 			// The continuation is rate-limited on every key, exhausting the pool.
@@ -423,6 +483,8 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 			expectedBodyContains: "all configured keys are rate-limited",
 			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateTemporary},
 			expectedSeenKeys:     []string{k0, k0, k1},
+			expectedTransitions:  map[string]int{"rate_limited": 2},
+			expectedExhaustions:  map[string]int{"rate_limited": 1},
 			expectErr:            true,
 		},
 	}
@@ -434,7 +496,9 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 				t.Run(ic.name+"/"+mode+"/"+tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					pool, err := keypool.New(tc.keys, quartz.NewMock(t))
+					reg := prometheus.NewRegistry()
+					m := metrics.NewMetrics(reg)
+					pool, err := keypool.New(ic.provider, tc.keys, quartz.NewMock(t), m)
 					require.NoError(t, err)
 
 					fixture := fixtures.Parse(t, ic.fixture(streaming, true))
@@ -486,6 +550,32 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 					}
 					if tc.expectedBodyContains != "" {
 						assert.Contains(t, w.Body.String(), tc.expectedBodyContains, "response body")
+					}
+
+					// One observation per interception, summing keys tried across
+					// all agentic-loop iterations (one per upstream attempt).
+					hist := promhelp.HistogramValue(t, reg, "key_pool_failover_attempts",
+						prometheus.Labels{"provider": ic.provider})
+					assert.Equal(t, uint64(1), hist.GetSampleCount())
+					assert.Equal(t, float64(len(tc.expectedSeenKeys)), hist.GetSampleSum())
+
+					gathered, err := reg.Gather()
+					require.NoError(t, err)
+					// One transition per marked key, by reason.
+					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+						if want := tc.expectedTransitions[reason]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", ic.provider, reason))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_state_transitions_total", ic.provider, reason))
+						}
+					}
+					// Exhaustion outcome when no usable key remains.
+					for _, outcome := range []string{"rate_limited", "auth_failed"} {
+						if want := tc.expectedExhaustions[outcome]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_exhaustions_total", outcome, ic.provider))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, ic.provider))
+						}
 					}
 				})
 			}

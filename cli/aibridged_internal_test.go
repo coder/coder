@@ -36,7 +36,7 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 	if err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
 		return nil, err
 	}
-	providers, _, err := BuildProviders(ctx, db, cfg, logger)
+	providers, _, err := BuildProviders(ctx, db, cfg, logger, nil)
 	return providers, err
 }
 
@@ -325,7 +325,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			Settings: sql.NullString{String: "not-json", Valid: true},
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		require.Len(t, outcomes, 1)
@@ -349,7 +349,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			BaseUrl: "https://example.openai.azure.com/",
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		require.Len(t, outcomes, 1)
@@ -378,7 +378,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			APIKey:     "sk-good",
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		assert.Equal(t, "openai-good", providers[0].Name())
@@ -436,7 +436,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 					p.Enabled = false
 				})
 
-				providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+				providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 				require.NoError(t, err)
 				require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
 				assert.Equal(t, tc.row.Name, providers[0].Name())

@@ -136,7 +136,7 @@ func TestMarkKeyOnError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pool, err := keypool.New([]string{"key-0"}, quartz.NewMock(t))
+			pool, err := keypool.New(config.ProviderOpenAI, []string{"key-0"}, quartz.NewMock(t), nil)
 			require.NoError(t, err)
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)

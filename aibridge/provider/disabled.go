@@ -36,6 +36,7 @@ func (d *DisabledStub) RoutePrefix() string {
 func (*DisabledStub) BridgedRoutes() []string     { return nil }
 func (*DisabledStub) PassthroughRoutes() []string { return nil }
 func (*DisabledStub) AuthHeader() string          { return "" }
+func (*DisabledStub) KeyPool() *keypool.Pool      { return nil }
 func (*DisabledStub) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{}
 }
