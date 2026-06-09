@@ -27,7 +27,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		turns             int64
 		turnStartDelay    time.Duration
 		llmMockURL        string
-		targetFlags       = &workspaceTargetFlags{}
+		targetFlags       = &workspaceTargetFlags{allowEmpty: true}
 		tracingFlags      = &scaletestTracingFlags{}
 		prometheusFlags   = &scaletestPrometheusFlags{}
 		timeoutStrategy   = &timeoutFlags{}
@@ -72,8 +72,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return err
 			}
 
+			if len(workspaces) == 0 {
+				workspaces = append(workspaces, codersdk.Workspace{OrganizationID: me.OrganizationIDs[0]})
+				_, _ = fmt.Fprintln(inv.Stderr, "No scaletest workspaces found; running chats without workspace context.")
+			}
+
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, workspaces[0].OrganizationID, workspaces[0].ID)
+			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, workspaces[0].OrganizationID)
 			if err != nil {
 				return err
 			}
@@ -154,7 +159,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			// Run the chat harness in the background so the CLI can release the
 			// follow-up turns after every runner finishes its initial turn.
 			totalChats := int64(len(workspaces)) * chatsPerWorkspace
-			_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d workspaces...\n", totalChats, len(workspaces))
+			_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d targets...\n", totalChats, len(workspaces))
 			testCtx, testCancel := timeoutStrategy.toContext(ctx)
 			defer testCancel()
 			testDone := make(chan error, 1)

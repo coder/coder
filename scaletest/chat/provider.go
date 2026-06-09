@@ -38,7 +38,7 @@ const (
 
 // EnsureScaletestModelConfig bootstraps the shared AI provider and model
 // config used by chat scaletests.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, organizationID uuid.UUID, workspaceID uuid.UUID) (uuid.UUID, error) {
+func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, organizationID uuid.UUID) (uuid.UUID, error) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
@@ -74,7 +74,7 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 	}
 
 	if providerAction != scaletestAIProviderActionReused {
-		if err := waitForScaletestProviderReload(ctx, expClient, logger, modelConfigID, organizationID, workspaceID); err != nil {
+		if err := waitForScaletestProviderReload(ctx, expClient, logger, modelConfigID, organizationID); err != nil {
 			return uuid.Nil, xerrors.Errorf("wait for mock LLM provider reload: %w", err)
 		}
 	}
@@ -82,14 +82,14 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 	return modelConfigID, nil
 }
 
-func waitForScaletestProviderReload(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID, workspaceID uuid.UUID) error {
+func waitForScaletestProviderReload(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID) error {
 	logger.Info(ctx, "waiting for mock LLM provider reload", slog.F("provider_name", scaletestAIProviderName))
 	waitCtx, cancel := context.WithTimeout(ctx, scaletestAIProviderProbeWait)
 	defer cancel()
 
 	var lastErr error
 	for r := retry.New(scaletestAIProviderProbePeriod, scaletestAIProviderProbePeriod); r.Wait(waitCtx); {
-		if err := runScaletestProviderReloadProbe(waitCtx, client, logger, modelConfigID, organizationID, workspaceID); err != nil {
+		if err := runScaletestProviderReloadProbe(waitCtx, client, logger, modelConfigID, organizationID); err != nil {
 			lastErr = err
 			logger.Debug(ctx, "mock LLM provider probe failed", slog.Error(err))
 			continue
@@ -106,10 +106,9 @@ func waitForScaletestProviderReload(ctx context.Context, client chatClient, logg
 	return xerrors.New("timed out waiting for mock LLM provider reload")
 }
 
-func runScaletestProviderReloadProbe(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID, workspaceID uuid.UUID) error {
+func runScaletestProviderReloadProbe(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID) error {
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: organizationID,
-		WorkspaceID:    &workspaceID,
 		ModelConfigID:  &modelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,

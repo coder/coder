@@ -14,11 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/llmmock"
 	"github.com/coder/coder/v2/testutil"
@@ -36,31 +33,22 @@ func TestScaleTestChat(t *testing.T) {
 		// route to the mock provider, avoiding the need for an aibridged daemon.
 		require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
 	})
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: values,
 	})
-	db := api.Database
-	owner := coderdtest.CreateFirstUser(t, client)
-	workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		Name:           "scaletest-chat-e2e",
-		OrganizationID: owner.OrganizationID,
-		OwnerID:        owner.UserID,
-	}).WithAgent().Do()
+	coderdtest.CreateFirstUser(t, client)
 
-	_ = agenttest.New(t, client.URL, workspaceBuild.AgentToken)
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceBuild.Workspace.ID).WaitFor(coderdtest.AgentsReady)
-
-	firstServer := new(llmmock.Server)
-	require.NoError(t, firstServer.Start(context.Background(), llmmock.Config{
+	server := new(llmmock.Server)
+	require.NoError(t, server.Start(context.Background(), llmmock.Config{
 		Address: "127.0.0.1:0",
 		Logger:  slog.Make(sloghuman.Sink(io.Discard)).Leveled(slog.LevelDebug),
 	}))
 	t.Cleanup(func() {
-		require.NoError(t, firstServer.Stop())
+		require.NoError(t, server.Stop())
 	})
-	firstMockURL := firstServer.APIAddress() + "/v1"
+	mockURL := server.APIAddress() + "/v1"
 
-	firstInv, firstRoot := clitest.New(t,
+	inv, root := clitest.New(t,
 		"exp", "scaletest", "chat",
 		"--chats-per-workspace", "1",
 		"--turns", "1",
@@ -71,22 +59,22 @@ func TestScaleTestChat(t *testing.T) {
 		"--cleanup-job-timeout", "30s",
 		"--scaletest-prometheus-address", "127.0.0.1:0",
 		"--scaletest-prometheus-wait", "0s",
-		"--llm-mock-url", firstMockURL,
+		"--llm-mock-url", mockURL,
 	)
 	//nolint:gocritic // The scaletest chat command requires an admin client.
-	clitest.SetupConfig(t, client, firstRoot)
+	clitest.SetupConfig(t, client, root)
 
-	var firstStderr bytes.Buffer
-	firstInv.Stdout = io.Discard
-	firstInv.Stderr = &firstStderr
+	var stderr bytes.Buffer
+	inv.Stdout = io.Discard
+	inv.Stderr = &stderr
 
-	err := firstInv.WithContext(ctx).Run()
-	require.NoError(t, err, firstStderr.String())
-	require.Contains(t, firstStderr.String(), "Scale test passed: 1/1 runs succeeded")
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err, stderr.String())
+	require.Contains(t, stderr.String(), "Scale test passed: 1/1 runs succeeded")
 
 	provider, err := client.AIProvider(ctx, "coder-scaletest-mock")
 	require.NoError(t, err)
-	require.Equal(t, firstMockURL, provider.BaseURL)
+	require.Equal(t, mockURL, provider.BaseURL)
 
 	expClient := codersdk.NewExperimentalClient(client)
 	configs, err := expClient.ListChatModelConfigs(ctx)
