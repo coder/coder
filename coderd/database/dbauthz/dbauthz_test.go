@@ -6574,6 +6574,14 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().DeleteAIProviderByID(gomock.Any(), provider.ID).Return(nil).AnyTimes()
 		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionDelete).Returns()
 	}))
+	s.Run("BackfillChatModelConfigProvider", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.BackfillChatModelConfigProviderParams{
+			OldProvider: "anthropic",
+			NewProvider: "bedrock",
+		}
+		dbm.EXPECT().BackfillChatModelConfigProvider(gomock.Any(), arg).Return(nil, nil).AnyTimes()
+		check.Args(arg).Asserts()
+	}))
 	s.Run("UpdateEncryptedAIProviderSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		arg := database.UpdateEncryptedAIProviderSettingsParams{

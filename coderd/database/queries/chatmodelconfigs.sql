@@ -144,6 +144,27 @@ WHERE
     provider = @provider::text
     AND deleted = FALSE;
 
+-- name: BackfillChatModelConfigProvider :execresult
+-- Updates stale provider strings on model configs whose linked ai_providers row
+-- has a canonical type that differs from the stored provider string.
+-- old_provider is matched as plain text against chat_model_configs.provider;
+-- new_provider is cast to ai_provider_type for the JOIN against ai_providers.type.
+UPDATE
+    chat_model_configs
+SET
+    provider   = @new_provider::text,
+    updated_at = NOW()
+WHERE
+    provider          = @old_provider::text
+    AND deleted       = FALSE
+    AND ai_provider_id IS NOT NULL
+    AND EXISTS (
+        SELECT 1 FROM ai_providers
+        WHERE  id      = chat_model_configs.ai_provider_id
+          AND  type    = @new_provider::ai_provider_type
+          AND  deleted = FALSE
+    );
+
 -- name: DeleteChatModelConfigsByAIProviderID :exec
 UPDATE
     chat_model_configs

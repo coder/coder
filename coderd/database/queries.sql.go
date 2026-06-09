@@ -5519,6 +5519,37 @@ func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsig
 	return items, nil
 }
 
+const backfillChatModelConfigProvider = `-- name: BackfillChatModelConfigProvider :execresult
+UPDATE
+    chat_model_configs
+SET
+    provider   = $1::text,
+    updated_at = NOW()
+WHERE
+    provider          = $2::text
+    AND deleted       = FALSE
+    AND ai_provider_id IS NOT NULL
+    AND EXISTS (
+        SELECT 1 FROM ai_providers
+        WHERE  id      = chat_model_configs.ai_provider_id
+          AND  type    = $1::ai_provider_type
+          AND  deleted = FALSE
+    )
+`
+
+type BackfillChatModelConfigProviderParams struct {
+	NewProvider string `db:"new_provider" json:"new_provider"`
+	OldProvider string `db:"old_provider" json:"old_provider"`
+}
+
+// Updates stale provider strings on model configs whose linked ai_providers row
+// has a canonical type that differs from the stored provider string.
+// old_provider is matched as plain text against chat_model_configs.provider;
+// new_provider is cast to ai_provider_type for the JOIN against ai_providers.type.
+func (q *sqlQuerier) BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, backfillChatModelConfigProvider, arg.NewProvider, arg.OldProvider)
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs

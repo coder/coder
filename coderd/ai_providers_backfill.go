@@ -10,6 +10,31 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 )
 
+// BackfillChatModelConfigProviderStrings fixes stale provider strings on
+// chat_model_configs rows created when the linked ai_providers row had
+// type=anthropic. After BackfillBedrockProviderType promotes those provider
+// rows to type=bedrock, the stored provider strings remain "anthropic"; the
+// frontend uses the provider field to select icons, so stale strings cause
+// Anthropic styling to appear for Bedrock-backed models.
+//
+// db must be the raw (pre-dbauthz) store. Non-blocking: errors are logged and
+// startup continues. Must run after BackfillBedrockProviderType so provider
+// types are already correct when the JOIN executes.
+func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Store, logger slog.Logger) {
+	result, err := db.BackfillChatModelConfigProvider(ctx, database.BackfillChatModelConfigProviderParams{
+		OldProvider: "anthropic",
+		NewProvider: "bedrock",
+	})
+	if err != nil {
+		logger.Error(ctx, "backfill chat model config provider strings", slog.Error(err))
+		return
+	}
+	n, _ := result.RowsAffected()
+	if n > 0 {
+		logger.Info(ctx, "backfilled chat model config provider strings", slog.F("count", n))
+	}
+}
+
 // BackfillBedrockProviderType promotes legacy ai_providers rows stored as
 // type=anthropic with Bedrock settings to type=bedrock. It must be called
 // after newAPI so that options.Database is dbcrypt-wrapped; encrypted settings
