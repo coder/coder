@@ -39,6 +39,11 @@ func (r *RootCmd) open() *serpent.Command {
 
 const vscodeDesktopName = "VS Code Desktop"
 
+// externalSessionTokenPlaceholder is the literal substring in an external
+// workspace-app URL that the CLI replaces with the user's session token
+// when the app belongs to a trusted (top-level) agent.
+const externalSessionTokenPlaceholder = "$SESSION_TOKEN"
+
 func (r *RootCmd) openVSCode() *serpent.Command {
 	var (
 		generateToken bool
@@ -388,7 +393,16 @@ func (r *RootCmd) openApp() *serpent.Command {
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
 			if foundApp.External {
-				appURL = replacePlaceholderExternalSessionTokenString(client, appURL)
+				// Sub-agent apps are attacker-influenceable through workspace
+				// configuration (e.g. devcontainer.json) and runtime sub-agent
+				// registration. Never substitute the user's session token into
+				// their URLs. Template-defined apps run on a top-level agent
+				// and are admin-authored, so their URLs are trusted.
+				if !agt.ParentID.Valid {
+					appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
+				} else if strings.Contains(appURL, externalSessionTokenPlaceholder) {
+					cliui.Warnf(inv.Stderr, "This app was registered from inside the workspace rather than from the workspace template. For security, the session token will not be substituted into the URL.")
+				}
 			}
 
 			// Check if we're inside a workspace.  Generally, we know
@@ -663,16 +677,4 @@ func buildAppLinkURL(baseURL *url.URL, workspace codersdk.Workspace, agent coder
 		u.Path = "/"
 	}
 	return u.String()
-}
-
-// replacePlaceholderExternalSessionTokenString replaces any $SESSION_TOKEN
-// strings in the URL with the actual session token.
-// This is consistent behavior with the frontend. See: site/src/modules/resources/AppLink/AppLink.tsx
-func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appURL string) string {
-	if !strings.Contains(appURL, "$SESSION_TOKEN") {
-		return appURL
-	}
-
-	// We will just re-use the existing session token we're already using.
-	return strings.ReplaceAll(appURL, "$SESSION_TOKEN", client.SessionToken())
 }
