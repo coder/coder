@@ -69,13 +69,10 @@ var (
 	usageLimitPatterns = []string{
 		"quota",
 		"billing",
-		"insufficient_quota",
 		"payment required",
 	}
-	// These provider error codes identify hard usage exhaustion even
-	// when the provider reports them with HTTP 429. Broad prose such as
-	// quota or billing stays subordinate to 429 so provider rate limits
-	// remain retryable.
+	// Hard usage exhaustion codes that fire at any HTTP status,
+	// including 429.
 	usageLimitAnyStatusPatterns = []string{"insufficient_quota"}
 	configPatterns              = []string{
 		"invalid model",

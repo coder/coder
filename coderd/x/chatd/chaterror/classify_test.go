@@ -931,6 +931,22 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 	}
 }
 
+func TestClassify_UsageLimitMatchesStructuredDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		500,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"check your billing plan"}}`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 500, classified.StatusCode)
+	require.Equal(t, "check your billing plan", classified.Detail)
+}
+
 func TestClassify_InsufficientQuotaBeats429RateLimit(t *testing.T) {
 	t.Parallel()
 
