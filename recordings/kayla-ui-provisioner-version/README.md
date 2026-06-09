@@ -25,6 +25,13 @@ Addresses Kayla's complaint:
 
 ![Demo](recording.gif)
 
+## Still screenshot
+
+A single still of the "Compatible" state (Kayla's case) is also included
+as `screenshot.png` for use in places where animated GIFs are awkward.
+
+![Compatible state still](screenshot.png)
+
 ## Recording note
 
 The desktop session captured for this demo included some unrelated focus

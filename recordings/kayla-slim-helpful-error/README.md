@@ -19,3 +19,10 @@ Addresses Kayla's complaint:
 > keys?? that was kind of annoying to discover"
 
 ![Demo](recording.gif)
+
+## Still screenshot
+
+A terminal still showing just the error output is also included as
+`screenshot.png`.
+
+![Helpful error still](screenshot.png)

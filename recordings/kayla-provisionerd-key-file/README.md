@@ -21,3 +21,10 @@ Addresses Kayla's complaint:
 > sitting in plain text rn which I don't love"
 
 ![Demo](recording.gif)
+
+## Still screenshot
+
+A still of the new `--key-file` flag in `--help` output is also included
+as `screenshot.png`.
+
+![--key-file flag still](screenshot.png)
