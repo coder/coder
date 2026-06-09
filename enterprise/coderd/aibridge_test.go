@@ -3169,7 +3169,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Equal(t, "", deleteDiff["group_id"].New)
 	})
 
-	t.Run("Audit/ReassignsGroup", func(t *testing.T) {
+	t.Run("Audit/UpsertEverything", func(t *testing.T) {
 		t.Parallel()
 
 		// A second upsert that reassigns the attributed group and changes
@@ -3233,6 +3233,60 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Contains(t, updateDiff, "spend_limit")
 		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
 		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+	})
+
+	t.Run("Audit/UpsertSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		// A second upsert that keeps the same group and only changes the
+		// spend limit must produce a diff that contains spend_limit and omits
+		// the unchanged group_name and group_id.
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "spend-only-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// First upsert: create the override attributed to the group.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Second upsert: keep the same group, raise only the spend limit.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one create and one update audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		updateLog := rows[0].AuditLog
+
+		var updateDiff audit.Map
+		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
+		require.Contains(t, updateDiff, "spend_limit")
+		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
+		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+		require.NotContains(t, updateDiff, "group_name")
+		require.NotContains(t, updateDiff, "group_id")
+		require.NotContains(t, updateDiff, "spend_limit_micros")
 	})
 }
 
