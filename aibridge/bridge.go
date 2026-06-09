@@ -352,8 +352,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 // the request body exceeded maxRequestBodyBytes.
 func writeRequestBodyTooLarge(w http.ResponseWriter) {
 	http.Error(w, fmt.Sprintf(
-		"Request body too large. The maximum allowed request body size is %d MiB (%d bytes).",
-		maxRequestBodyBytes>>20, maxRequestBodyBytes,
+		"Request body too large. The maximum allowed request body size is %dMiB.",
+		maxRequestBodyBytes>>20,
 	), http.StatusRequestEntityTooLarge)
 }
 
