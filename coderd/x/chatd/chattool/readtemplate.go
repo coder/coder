@@ -10,7 +10,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
+
+// readTemplateReadmeMaxRunes bounds the full README returned by read_template
+// so one large README cannot dominate a single tool response.
+const readTemplateReadmeMaxRunes = 8192
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
@@ -87,6 +92,16 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			}
 			if desc := strings.TrimSpace(template.Description); desc != "" {
 				templateInfo["description"] = desc
+			}
+			// Best-effort: a missing or unreadable version must not fail
+			// read_template. The full README is bounded so a large document
+			// cannot dominate the response.
+			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
+				if strings.TrimSpace(version.Readme) != "" {
+					templateInfo["readme"] = coderstrings.Truncate(
+						version.Readme, readTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
+					)
+				}
 			}
 
 			paramList := make([]map[string]any, 0, len(params))

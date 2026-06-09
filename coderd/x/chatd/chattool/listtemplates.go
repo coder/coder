@@ -18,7 +18,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-const listTemplatesPageSize = 10
+const (
+	listTemplatesPageSize = 10
+	// ListTemplatesReadmeExcerptMaxRunes bounds the README excerpt surfaced
+	// per template by list_templates. Exported so tests can assert against it.
+	ListTemplatesReadmeExcerptMaxRunes = 1000
+)
 
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
@@ -127,6 +132,15 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				}
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
+				}
+				// The active version README gives the agent routing context
+				// beyond the template description. The per-version fetch is
+				// template-scoped, same as read_template, and best-effort: a
+				// missing or unreadable version must not fail list_templates.
+				if version, vErr := db.GetTemplateVersionByID(ctx, t.ActiveVersionID); vErr == nil {
+					if excerpt := readmeExcerpt(version.Readme); excerpt != "" {
+						item["readme_excerpt"] = excerpt
+					}
 				}
 				if count, ok := ownerCounts[t.ID]; ok && count > 0 {
 					item["active_developers"] = count

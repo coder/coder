@@ -135,6 +135,13 @@ Update your template descriptions to include:
 - Which repository or service it is for, if applicable.
 - What type of work it supports (backend, frontend, data pipeline, etc.).
 
+When 128 characters is not enough, put the most important routing context near
+the top of the template's
+[`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
+The agent sees a bounded README excerpt, roughly the first 1,000 characters with
+frontmatter stripped, when listing templates, and the full README when
+inspecting a template in detail.
+
 **Good examples:**
 
 | Description                                                                                 | Why it works                                 |

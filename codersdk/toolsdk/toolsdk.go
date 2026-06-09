@@ -18,6 +18,7 @@ import (
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -683,6 +684,11 @@ type GetTemplateArgs struct {
 	TemplateID string `json:"template_id"`
 }
 
+// getTemplateReadmeMaxRunes bounds the full README returned by
+// coder_get_template so one large README cannot dominate a single tool
+// response.
+const getTemplateReadmeMaxRunes = 8192
+
 // TemplateDetail extends MinimalTemplate with the active version's
 // rich parameters and presets. Presets are omitted when the template
 // has none, to mirror the chattool read_template response shape.
@@ -690,6 +696,8 @@ type TemplateDetail struct {
 	MinimalTemplate
 	Parameters []codersdk.TemplateVersionParameter `json:"parameters"`
 	Presets    []presetView                        `json:"presets,omitempty"`
+	// Readme is the active version README.
+	Readme string `json:"readme,omitempty"`
 }
 
 // presetView is a tool-local projection of codersdk.Preset with
@@ -781,6 +789,16 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ActiveUserCount: template.ActiveUserCount,
 			},
 			Parameters: parameters,
+		}
+		// Best-effort: a missing or unreadable version must not fail
+		// coder_get_template, which still returns the template, parameters, and
+		// presets.
+		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
+			if strings.TrimSpace(version.Readme) != "" {
+				detail.Readme = coderstrings.Truncate(
+					version.Readme, getTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
+				)
+			}
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
