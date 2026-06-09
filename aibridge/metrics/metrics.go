@@ -152,14 +152,14 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help: "The number of times the key pool was exhausted with no usable key " +
 				"(outcome: rate_limited, auth_failed).",
 		}, []string{"provider", "outcome"}),
-		// Pessimistic cardinality: 2 providers, 6 buckets + 3 extra series (count, sum, +Inf) = up to 18.
+		// Pessimistic cardinality: 2 providers, 7 buckets + 3 extra series (count, sum, +Inf) = up to 20.
 		KeyPoolFailoverAttempts: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "key_pool",
 			Name:      "failover_attempts",
 			Help: "The number of keys attempted before success or exhaustion, " +
 				"per interception for bridged requests and per request for " +
 				"passthrough requests.",
-			Buckets: []float64{1, 2, 3, 5, 10, 25},
+			Buckets: []float64{1, 2, 3, 4, 5, 10, 25},
 		}, []string{"provider"}),
 	}
 }
