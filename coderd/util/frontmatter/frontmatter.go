@@ -6,7 +6,6 @@
 package frontmatter
 
 import (
-	"bufio"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -33,7 +32,9 @@ type Frontmatter struct {
 }
 
 // Parse splits the leading "---" fenced YAML frontmatter from the markdown
-// body and unmarshals it into a Frontmatter. Unknown keys are ignored.
+// body and unmarshals it into a Frontmatter. Unknown keys are ignored. The
+// body is returned verbatim: everything after the closing fence line, with its
+// leading and trailing whitespace preserved.
 //
 // It returns an error when the README is empty, lacks two frontmatter fences,
 // or the frontmatter is not valid YAML. Callers that treat missing frontmatter
@@ -66,45 +67,51 @@ func AgentDescription(readme string) string {
 
 // separate returns the raw YAML frontmatter and the markdown body. Frontmatter
 // lines are preserved verbatim (indentation intact) so nested YAML parses
-// correctly; only the body is trimmed of surrounding whitespace.
+// correctly, and the body is returned verbatim (everything after the closing
+// fence line) to match the example generator's previous output exactly.
 func separate(readme string) (frontmatter string, body string, err error) {
 	if strings.TrimSpace(readme) == "" {
 		return "", "", xerrors.New("readme is empty")
 	}
 
 	const fence = "---"
-	var fm, bd strings.Builder
+	var fm strings.Builder
 	fenceCount := 0
 
-	sc := bufio.NewScanner(strings.NewReader(strings.TrimSpace(readme)))
-	// Readmes can be up to 1 MiB; allow long lines so the body is not split.
-	sc.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
-	for sc.Scan() {
-		// bufio.Scanner strips a trailing carriage return, so CRLF readmes
-		// compare cleanly against the fence and produce LF bodies.
-		line := sc.Text()
-		if fenceCount < 2 && line == fence {
+	for i, n := 0, len(readme); i < n; {
+		// Find the end of the current line, tracking byte offsets so the body
+		// can be returned as a verbatim slice of the original input.
+		line := readme[i:]
+		next := n
+		if j := strings.IndexByte(readme[i:], '\n'); j >= 0 {
+			line = readme[i : i+j]
+			next = i + j + 1
+		}
+		// Strip a trailing carriage return so CRLF readmes compare against the
+		// fence and keep frontmatter YAML clean.
+		trimmed := strings.TrimRight(line, "\r")
+
+		if fenceCount < 2 && trimmed == fence {
 			fenceCount++
+			if fenceCount == 2 {
+				return fm.String(), readme[next:], nil
+			}
+			i = next
 			continue
 		}
-		// If the first non-blank line is not a fence, there is no frontmatter.
 		if fenceCount == 0 {
+			// Tolerate blank lines before the opening fence; any other content
+			// means there is no frontmatter.
+			if strings.TrimSpace(line) == "" {
+				i = next
+				continue
+			}
 			break
 		}
-		if fenceCount >= 2 {
-			_, _ = bd.WriteString(line)
-			_ = bd.WriteByte('\n')
-		} else {
-			_, _ = fm.WriteString(line)
-			_ = fm.WriteByte('\n')
-		}
-	}
-	if err := sc.Err(); err != nil {
-		return "", "", xerrors.Errorf("scan readme: %w", err)
-	}
-	if fenceCount < 2 {
-		return "", "", xerrors.New("readme does not have two frontmatter fences")
+		_, _ = fm.WriteString(trimmed)
+		_ = fm.WriteByte('\n')
+		i = next
 	}
 
-	return fm.String(), strings.TrimSpace(bd.String()), nil
+	return "", "", xerrors.New("readme does not have two frontmatter fences")
 }
