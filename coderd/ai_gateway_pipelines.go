@@ -109,16 +109,80 @@ func insertPipelineMembers(ctx context.Context, tx database.Store, versionID uui
 	return nil
 }
 
+// resolvedGuardrail is a request guardrail membership validated for insertion.
+type resolvedGuardrail struct {
+	guardrailVersionID uuid.UUID
+	hook               database.AIGatewayHook
+	mode               database.AIGatewayGuardrailMode
+	failMode           database.AIGatewayFailMode
+	networkTimeoutMs   int32
+	enabled            bool
+}
+
+// resolvePipelineGuardrails validates each referenced guardrail version exists.
+// Guardrails have no kind and no per-hook cardinality cap (many concurrent
+// guardrails per hook are allowed), so this only checks existence and fills
+// defaults. It returns a codersdk.Response (ok=false) on a client error.
+func resolvePipelineGuardrails(ctx context.Context, db database.Store, reqs []codersdk.AIGatewayPipelineGuardrailRequest) ([]resolvedGuardrail, *codersdk.Response) {
+	out := make([]resolvedGuardrail, 0, len(reqs))
+	for i, req := range reqs {
+		if _, err := db.GetAIGatewayGuardrailVersionByID(ctx, req.GuardrailVersionID); errors.Is(err, sql.ErrNoRows) {
+			return nil, &codersdk.Response{Message: fmt.Sprintf("guardrails[%d]: guardrail version not found", i)}
+		} else if err != nil {
+			return nil, &codersdk.Response{Message: "Internal error resolving guardrail version.", Detail: err.Error()}
+		}
+		timeout := int32(2000)
+		if req.NetworkTimeoutMS != nil {
+			timeout = *req.NetworkTimeoutMS
+		}
+		enabled := true
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+		out = append(out, resolvedGuardrail{
+			guardrailVersionID: req.GuardrailVersionID,
+			hook:               database.AIGatewayHook(req.Hook),
+			mode:               database.AIGatewayGuardrailMode(req.Mode),
+			failMode:           database.AIGatewayFailMode(req.FailMode),
+			networkTimeoutMs:   timeout,
+			enabled:            enabled,
+		})
+	}
+	return out, nil
+}
+
+func insertPipelineGuardrails(ctx context.Context, tx database.Store, versionID uuid.UUID, members []resolvedGuardrail) error {
+	for _, m := range members {
+		if _, err := tx.InsertAIGatewayPipelineVersionGuardrail(ctx, database.InsertAIGatewayPipelineVersionGuardrailParams{
+			ID:                 uuid.New(),
+			PipelineVersionID:  versionID,
+			GuardrailVersionID: m.guardrailVersionID,
+			Hook:               m.hook,
+			Mode:               m.mode,
+			FailMode:           m.failMode,
+			NetworkTimeoutMs:   m.networkTimeoutMs,
+			Enabled:            m.enabled,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (api *API) loadPipelineSDK(ctx context.Context, row database.AIGatewayPipeline) (codersdk.AIGatewayPipeline, error) {
 	if !row.ActiveVersionID.Valid {
-		return db2sdk.AIGatewayPipeline(row, nil, nil), nil
+		return db2sdk.AIGatewayPipeline(row, nil, nil, nil), nil
 	}
 	members, err := api.Database.GetAIGatewayPipelineVersionPolicies(ctx, row.ActiveVersionID.UUID)
 	if err != nil {
 		return codersdk.AIGatewayPipeline{}, err
 	}
+	guardrails, err := api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, row.ActiveVersionID.UUID)
+	if err != nil {
+		return codersdk.AIGatewayPipeline{}, err
+	}
 	ver := database.AIGatewayPipelineVersion{ID: row.ActiveVersionID.UUID, PipelineID: row.ID}
-	return db2sdk.AIGatewayPipeline(row, &ver, members), nil
+	return db2sdk.AIGatewayPipeline(row, &ver, members, guardrails), nil
 }
 
 // @Summary List AI gateway pipelines
@@ -222,6 +286,11 @@ func (api *API) aiGatewayPipelinesCreate(rw http.ResponseWriter, r *http.Request
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
 		return
 	}
+	guardrails, problem := resolvePipelineGuardrails(ctx, api.Database, req.Guardrails)
+	if problem != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
+		return
+	}
 
 	var row database.AIGatewayPipeline
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -244,6 +313,9 @@ func (api *API) aiGatewayPipelinesCreate(rw http.ResponseWriter, r *http.Request
 			return txErr
 		}
 		if txErr = insertPipelineMembers(ctx, tx, ver.ID, members); txErr != nil {
+			return txErr
+		}
+		if txErr = insertPipelineGuardrails(ctx, tx, ver.ID, guardrails); txErr != nil {
 			return txErr
 		}
 		txErr = tx.UpdateAIGatewayPipelineActiveVersion(ctx, database.UpdateAIGatewayPipelineActiveVersionParams{
@@ -318,6 +390,11 @@ func (api *API) aiGatewayPipelineVersionCreate(rw http.ResponseWriter, r *http.R
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
 		return
 	}
+	guardrails, problem := resolvePipelineGuardrails(ctx, api.Database, req.Guardrails)
+	if problem != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
+		return
+	}
 
 	var ver database.AIGatewayPipelineVersion
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -339,6 +416,9 @@ func (api *API) aiGatewayPipelineVersionCreate(rw http.ResponseWriter, r *http.R
 			return err
 		}
 		if err = insertPipelineMembers(ctx, tx, ver.ID, members); err != nil {
+			return err
+		}
+		if err = insertPipelineGuardrails(ctx, tx, ver.ID, guardrails); err != nil {
 			return err
 		}
 		if req.Activate {
@@ -365,7 +445,12 @@ func (api *API) aiGatewayPipelineVersionCreate(rw http.ResponseWriter, r *http.R
 		httpInternal(ctx, rw, api, "load AI gateway pipeline version members", err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.AIGatewayPipelineVersion(ver, members2))
+	guardrails2, err := api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, ver.ID)
+	if err != nil {
+		httpInternal(ctx, rw, api, "load AI gateway pipeline version guardrails", err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.AIGatewayPipelineVersion(ver, members2, guardrails2))
 }
 
 // @Summary Update an AI gateway pipeline

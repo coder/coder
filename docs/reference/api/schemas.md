@@ -1262,6 +1262,93 @@
 |----------------------------|
 | `fail_closed`, `fail_open` |
 
+## codersdk.AIGatewayGuardrail
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "adapter_type": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "config": [
+        0
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+      "has_credential": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                                              | Required | Restrictions | Description |
+|---------------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `active_version_id` | string                                                                            | false    |              |             |
+| `adapter_type`      | string                                                                            | false    |              |             |
+| `created_at`        | string                                                                            | false    |              |             |
+| `display_name`      | string                                                                            | false    |              |             |
+| `enabled`           | boolean                                                                           | false    |              |             |
+| `id`                | string                                                                            | false    |              |             |
+| `name`              | string                                                                            | false    |              |             |
+| `updated_at`        | string                                                                            | false    |              |             |
+| `versions`          | array of [codersdk.AIGatewayGuardrailVersion](#codersdkaigatewayguardrailversion) | false    |              |             |
+
+## codersdk.AIGatewayGuardrailMode
+
+```json
+"advisory"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                |
+|-------------------------|
+| `advisory`, `enforcing` |
+
+## codersdk.AIGatewayGuardrailVersion
+
+```json
+{
+  "config": [
+    0
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "description": "string",
+  "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+  "has_credential": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "version_number": 0
+}
+```
+
+### Properties
+
+| Name             | Type             | Required | Restrictions | Description |
+|------------------|------------------|----------|--------------|-------------|
+| `config`         | array of integer | false    |              |             |
+| `created_at`     | string           | false    |              |             |
+| `created_by`     | string           | false    |              |             |
+| `description`    | string           | false    |              |             |
+| `guardrail_id`   | string           | false    |              |             |
+| `has_credential` | boolean          | false    |              |             |
+| `id`             | string           | false    |              |             |
+| `version_number` | integer          | false    |              |             |
+
 ## codersdk.AIGatewayHook
 
 ```json
@@ -1304,6 +1391,16 @@
 {
   "active_version": {
     "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
     "policies": [
@@ -1337,6 +1434,54 @@
 | `id`                | string                                                                 | false    |              |             |
 | `provider_id`       | string                                                                 | false    |              |             |
 | `updated_at`        | string                                                                 | false    |              |             |
+
+## codersdk.AIGatewayPipelineGuardrail
+
+```json
+{
+  "enabled": true,
+  "fail_mode": "fail_open",
+  "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+  "hook": "pre_auth",
+  "mode": "advisory",
+  "network_timeout_ms": 0
+}
+```
+
+### Properties
+
+| Name                   | Type                                                               | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `enabled`              | boolean                                                            | false    |              |             |
+| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode)           | false    |              |             |
+| `guardrail_version_id` | string                                                             | false    |              |             |
+| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)                   | false    |              |             |
+| `mode`                 | [codersdk.AIGatewayGuardrailMode](#codersdkaigatewayguardrailmode) | false    |              |             |
+| `network_timeout_ms`   | integer                                                            | false    |              |             |
+
+## codersdk.AIGatewayPipelineGuardrailRequest
+
+```json
+{
+  "enabled": true,
+  "fail_mode": "fail_open",
+  "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+  "hook": "pre_auth",
+  "mode": "advisory",
+  "network_timeout_ms": 0
+}
+```
+
+### Properties
+
+| Name                   | Type                                                               | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `enabled`              | boolean                                                            | false    |              |             |
+| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode)           | false    |              |             |
+| `guardrail_version_id` | string                                                             | false    |              |             |
+| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)                   | false    |              |             |
+| `mode`                 | [codersdk.AIGatewayGuardrailMode](#codersdkaigatewayguardrailmode) | false    |              |             |
+| `network_timeout_ms`   | integer                                                            | false    |              |             |
 
 ## codersdk.AIGatewayPipelinePolicy
 
@@ -1385,6 +1530,16 @@
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
   "policies": [
@@ -1402,13 +1557,14 @@
 
 ### Properties
 
-| Name             | Type                                                                          | Required | Restrictions | Description |
-|------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `created_at`     | string                                                                        | false    |              |             |
-| `id`             | string                                                                        | false    |              |             |
-| `pipeline_id`    | string                                                                        | false    |              |             |
-| `policies`       | array of [codersdk.AIGatewayPipelinePolicy](#codersdkaigatewaypipelinepolicy) | false    |              |             |
-| `version_number` | integer                                                                       | false    |              |             |
+| Name             | Type                                                                                | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`     | string                                                                              | false    |              |             |
+| `guardrails`     | array of [codersdk.AIGatewayPipelineGuardrail](#codersdkaigatewaypipelineguardrail) | false    |              |             |
+| `id`             | string                                                                              | false    |              |             |
+| `pipeline_id`    | string                                                                              | false    |              |             |
+| `policies`       | array of [codersdk.AIGatewayPipelinePolicy](#codersdkaigatewaypipelinepolicy)       | false    |              |             |
+| `version_number` | integer                                                                             | false    |              |             |
 
 ## codersdk.AIGatewayPolicy
 
@@ -4656,6 +4812,54 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateAIGatewayGuardrailRequest
+
+```json
+{
+  "adapter_type": "string",
+  "config": [
+    0
+  ],
+  "credential": "string",
+  "description": "string",
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description                                                              |
+|----------------|------------------|----------|--------------|--------------------------------------------------------------------------|
+| `adapter_type` | string           | false    |              |                                                                          |
+| `config`       | array of integer | false    |              |                                                                          |
+| `credential`   | string           | false    |              | Credential is the secret (e.g. an API key) stored encrypted; write-only. |
+| `description`  | string           | false    |              |                                                                          |
+| `display_name` | string           | false    |              |                                                                          |
+| `name`         | string           | false    |              |                                                                          |
+
+## codersdk.CreateAIGatewayGuardrailVersionRequest
+
+```json
+{
+  "activate": true,
+  "config": [
+    0
+  ],
+  "credential": "string",
+  "description": "string"
+}
+```
+
+### Properties
+
+| Name          | Type             | Required | Restrictions | Description                                                      |
+|---------------|------------------|----------|--------------|------------------------------------------------------------------|
+| `activate`    | boolean          | false    |              | Activate sets the new version as the guardrail's active version. |
+| `config`      | array of integer | false    |              |                                                                  |
+| `credential`  | string           | false    |              |                                                                  |
+| `description` | string           | false    |              |                                                                  |
+
 ## codersdk.CreateAIGatewayKeyRequest
 
 ```json
@@ -4697,6 +4901,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "enabled": true,
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "policies": [
     {
       "enabled": true,
@@ -4711,17 +4925,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type                                                                                        | Required | Restrictions | Description |
-|---------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `enabled`     | boolean                                                                                     | false    |              |             |
-| `policies`    | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest) | false    |              |             |
-| `provider_id` | string                                                                                      | false    |              |             |
+| Name          | Type                                                                                              | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `enabled`     | boolean                                                                                           | false    |              |             |
+| `guardrails`  | array of [codersdk.AIGatewayPipelineGuardrailRequest](#codersdkaigatewaypipelineguardrailrequest) | false    |              |             |
+| `policies`    | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest)       | false    |              |             |
+| `provider_id` | string                                                                                            | false    |              |             |
 
 ## codersdk.CreateAIGatewayPipelineVersionRequest
 
 ```json
 {
   "activate": true,
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "policies": [
     {
       "enabled": true,
@@ -4735,10 +4960,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name       | Type                                                                                        | Required | Restrictions | Description |
-|------------|---------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `activate` | boolean                                                                                     | false    |              |             |
-| `policies` | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest) | false    |              |             |
+| Name         | Type                                                                                              | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `activate`   | boolean                                                                                           | false    |              |             |
+| `guardrails` | array of [codersdk.AIGatewayPipelineGuardrailRequest](#codersdkaigatewaypipelineguardrailrequest) | false    |              |             |
+| `policies`   | array of [codersdk.AIGatewayPipelinePolicyRequest](#codersdkaigatewaypipelinepolicyrequest)       | false    |              |             |
 
 ## codersdk.CreateAIGatewayPolicyRequest
 
@@ -11414,9 +11640,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_gateway_pipeline`, `ai_gateway_policy`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_guardrail`, `ai_gateway_key`, `ai_gateway_pipeline`, `ai_gateway_policy`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -13356,6 +13582,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------|---------|----------|--------------|-------------|
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UpdateAIGatewayGuardrailRequest
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "display_name": "string",
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `active_version_id` | string  | false    |              |             |
+| `display_name`      | string  | false    |              |             |
+| `enabled`           | boolean | false    |              |             |
 
 ## codersdk.UpdateAIGatewayPipelineRequest
 

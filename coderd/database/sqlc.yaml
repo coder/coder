@@ -267,6 +267,12 @@ sql:
           ai_gateway_pipeline: AIGatewayPipeline
           ai_gateway_pipeline_version: AIGatewayPipelineVersion
           ai_gateway_pipeline_version_policy: AIGatewayPipelineVersionPolicy
+          ai_gateway_guardrail: AIGatewayGuardrail
+          ai_gateway_guardrail_version: AIGatewayGuardrailVersion
+          ai_gateway_pipeline_version_guardrail: AIGatewayPipelineVersionGuardrail
+          ai_gateway_guardrail_mode: AIGatewayGuardrailMode
+          ai_gateway_guardrail_mode_advisory: AIGatewayGuardrailModeAdvisory
+          ai_gateway_guardrail_mode_enforcing: AIGatewayGuardrailModeEnforcing
           ai_gateway_policy_kind: AIGatewayPolicyKind
           ai_gateway_policy_kind_classify: AIGatewayPolicyKindClassify
           ai_gateway_policy_kind_route: AIGatewayPolicyKindRoute
@@ -283,6 +289,7 @@ sql:
           resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           resource_type_ai_gateway_policy: ResourceTypeAIGatewayPolicy
           resource_type_ai_gateway_pipeline: ResourceTypeAIGatewayPipeline
+          resource_type_ai_gateway_guardrail: ResourceTypeAIGatewayGuardrail
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

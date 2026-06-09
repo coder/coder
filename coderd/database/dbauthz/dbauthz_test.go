@@ -6810,6 +6810,92 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetAIGatewayPipelinePolicyDrift(gomock.Any()).Return(rows, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(rows)
 	}))
+	s.Run("GetAIGatewayGuardrailByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{})
+		dbm.EXPECT().GetAIGatewayGuardrailByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
+		check.Args(g.ID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(g)
+	}))
+	s.Run("GetAIGatewayGuardrailByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{})
+		dbm.EXPECT().GetAIGatewayGuardrailByName(gomock.Any(), g.Name).Return(g, nil).AnyTimes()
+		check.Args(g.Name).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(g)
+	}))
+	s.Run("GetAIGatewayGuardrails", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{})
+		b := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{})
+		dbm.EXPECT().GetAIGatewayGuardrails(gomock.Any(), false).Return([]database.AIGatewayGuardrail{a, b}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayGuardrail{a, b})
+	}))
+	s.Run("InsertAIGatewayGuardrail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayGuardrailParams{ID: uuid.New(), Name: "test-guardrail", AdapterType: "presidio"}
+		g := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{ID: arg.ID, Name: arg.Name})
+		dbm.EXPECT().InsertAIGatewayGuardrail(gomock.Any(), arg).Return(g, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(g)
+	}))
+	s.Run("UpdateAIGatewayGuardrail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.AIGatewayGuardrail{})
+		arg := database.UpdateAIGatewayGuardrailParams{ID: g.ID, Enabled: true}
+		dbm.EXPECT().UpdateAIGatewayGuardrail(gomock.Any(), arg).Return(g, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns(g)
+	}))
+	s.Run("UpdateAIGatewayGuardrailActiveVersion", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateAIGatewayGuardrailActiveVersionParams{ID: uuid.New(), ActiveVersionID: uuid.New()}
+		dbm.EXPECT().UpdateAIGatewayGuardrailActiveVersion(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteAIGatewayGuardrailByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteAIGatewayGuardrailByID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionDelete).Returns()
+	}))
+	s.Run("InsertAIGatewayGuardrailVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayGuardrailVersionParams{ID: uuid.New(), GuardrailID: uuid.New(), VersionNumber: 1, Config: []byte("{}")}
+		v := testutil.Fake(s.T(), faker, database.AIGatewayGuardrailVersion{ID: arg.ID, GuardrailID: arg.GuardrailID})
+		dbm.EXPECT().InsertAIGatewayGuardrailVersion(gomock.Any(), arg).Return(v, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(v)
+	}))
+	s.Run("GetAIGatewayGuardrailVersionByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		v := testutil.Fake(s.T(), faker, database.AIGatewayGuardrailVersion{})
+		dbm.EXPECT().GetAIGatewayGuardrailVersionByID(gomock.Any(), v.ID).Return(v, nil).AnyTimes()
+		check.Args(v.ID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(v)
+	}))
+	s.Run("GetAIGatewayGuardrailVersionsByGuardrailID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		v := testutil.Fake(s.T(), faker, database.AIGatewayGuardrailVersion{})
+		dbm.EXPECT().GetAIGatewayGuardrailVersionsByGuardrailID(gomock.Any(), v.GuardrailID).Return([]database.AIGatewayGuardrailVersion{v}, nil).AnyTimes()
+		check.Args(v.GuardrailID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayGuardrailVersion{v})
+	}))
+	s.Run("InsertAIGatewayPipelineVersionGuardrail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertAIGatewayPipelineVersionGuardrailParams{ID: uuid.New(), PipelineVersionID: uuid.New(), GuardrailVersionID: uuid.New(), Hook: database.AIGatewayHookPreReq, Mode: database.AIGatewayGuardrailModeAdvisory, FailMode: database.AIGatewayFailModeFailClosed}
+		m := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersionGuardrail{ID: arg.ID})
+		dbm.EXPECT().InsertAIGatewayPipelineVersionGuardrail(gomock.Any(), arg).Return(m, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(m)
+	}))
+	s.Run("GetAIGatewayPipelineVersionGuardrails", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		m := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersionGuardrail{})
+		dbm.EXPECT().GetAIGatewayPipelineVersionGuardrails(gomock.Any(), m.PipelineVersionID).Return([]database.AIGatewayPipelineVersionGuardrail{m}, nil).AnyTimes()
+		check.Args(m.PipelineVersionID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipelineVersionGuardrail{m})
+	}))
+	s.Run("GetAIGatewayPipelinesReferencingGuardrail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		p := testutil.Fake(s.T(), faker, database.AIGatewayPipeline{})
+		id := uuid.New()
+		dbm.EXPECT().GetAIGatewayPipelinesReferencingGuardrail(gomock.Any(), id).Return([]database.AIGatewayPipeline{p}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayPipeline{p})
+	}))
+	s.Run("GetActiveAIGatewayPipelineGuardrails", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetActiveAIGatewayPipelineGuardrailsRow{}
+		dbm.EXPECT().GetActiveAIGatewayPipelineGuardrails(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("CountAIGatewayGuardrailVersionsInActivePipelines", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().CountAIGatewayGuardrailVersionsInActivePipelines(gomock.Any(), id).Return(int64(0), nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(int64(0))
+	}))
+	s.Run("GetAIGatewayPipelineGuardrailDrift", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		rows := []database.GetAIGatewayPipelineGuardrailDriftRow{}
+		dbm.EXPECT().GetAIGatewayPipelineGuardrailDrift(gomock.Any()).Return(rows, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns(rows)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

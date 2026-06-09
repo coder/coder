@@ -1,5 +1,373 @@
 # AI Gateway
 
+## List AI gateway guardrails
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/guardrails \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/guardrails`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "adapter_type": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "enabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "versions": [
+      {
+        "config": [
+          0
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+        "description": "string",
+        "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+        "has_credential": true,
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "version_number": 0
+      }
+    ]
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                        |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayGuardrail](schemas.md#codersdkaigatewayguardrail) |
+
+<h3 id="list-ai-gateway-guardrails-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» active_version_id` | string(uuid)      | false    |              |             |
+| `» adapter_type`      | string            | false    |              |             |
+| `» created_at`        | string(date-time) | false    |              |             |
+| `» display_name`      | string            | false    |              |             |
+| `» enabled`           | boolean           | false    |              |             |
+| `» id`                | string(uuid)      | false    |              |             |
+| `» name`              | string            | false    |              |             |
+| `» updated_at`        | string(date-time) | false    |              |             |
+| `» versions`          | array             | false    |              |             |
+| `»» config`           | array             | false    |              |             |
+| `»» created_at`       | string(date-time) | false    |              |             |
+| `»» created_by`       | string(uuid)      | false    |              |             |
+| `»» description`      | string            | false    |              |             |
+| `»» guardrail_id`     | string(uuid)      | false    |              |             |
+| `»» has_credential`   | boolean           | false    |              |             |
+| `»» id`               | string(uuid)      | false    |              |             |
+| `»» version_number`   | integer           | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway guardrail
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/guardrails \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/guardrails`
+
+> Body parameter
+
+```json
+{
+  "adapter_type": "string",
+  "config": [
+    0
+  ],
+  "credential": "string",
+  "description": "string",
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description              |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------------------|
+| `body` | body | [codersdk.CreateAIGatewayGuardrailRequest](schemas.md#codersdkcreateaigatewayguardrailrequest) | true     | Create guardrail request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "adapter_type": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "config": [
+        0
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+      "has_credential": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                               |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayGuardrail](schemas.md#codersdkaigatewayguardrail) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get an AI gateway guardrail
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/guardrails/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/guardrails/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description  |
+|------|------|--------------|----------|--------------|
+| `id` | path | string(uuid) | true     | Guardrail ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "adapter_type": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "config": [
+        0
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+      "has_credential": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayGuardrail](schemas.md#codersdkaigatewayguardrail) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete an AI gateway guardrail
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/aibridge/guardrails/{id} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/aibridge/guardrails/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description  |
+|------|------|--------------|----------|--------------|
+| `id` | path | string(uuid) | true     | Guardrail ID |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update an AI gateway guardrail
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/aibridge/guardrails/{id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/aibridge/guardrails/{id}`
+
+> Body parameter
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "display_name": "string",
+  "enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description              |
+|--------|------|------------------------------------------------------------------------------------------------|----------|--------------------------|
+| `id`   | path | string(uuid)                                                                                   | true     | Guardrail ID             |
+| `body` | body | [codersdk.UpdateAIGatewayGuardrailRequest](schemas.md#codersdkupdateaigatewayguardrailrequest) | true     | Update guardrail request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "adapter_type": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "versions": [
+    {
+      "config": [
+        0
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "description": "string",
+      "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+      "has_credential": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "version_number": 0
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayGuardrail](schemas.md#codersdkaigatewayguardrail) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI gateway guardrail version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/aibridge/guardrails/{id}/versions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/aibridge/guardrails/{id}/versions`
+
+> Body parameter
+
+```json
+{
+  "activate": true,
+  "config": [
+    0
+  ],
+  "credential": "string",
+  "description": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                         | Required | Description            |
+|--------|------|--------------------------------------------------------------------------------------------------------------|----------|------------------------|
+| `id`   | path | string(uuid)                                                                                                 | true     | Guardrail ID           |
+| `body` | body | [codersdk.CreateAIGatewayGuardrailVersionRequest](schemas.md#codersdkcreateaigatewayguardrailversionrequest) | true     | Create version request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "config": [
+    0
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "description": "string",
+  "guardrail_id": "5ea4ad06-0022-46ca-b5a6-3795e32e6aa8",
+  "has_credential": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "version_number": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                             |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.AIGatewayGuardrailVersion](schemas.md#codersdkaigatewayguardrailversion) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI gateway pipelines
 
 ### Code samples
@@ -22,6 +390,16 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
   {
     "active_version": {
       "created_at": "2019-08-24T14:15:22Z",
+      "guardrails": [
+        {
+          "enabled": true,
+          "fail_mode": "fail_open",
+          "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+          "hook": "pre_auth",
+          "mode": "advisory",
+          "network_timeout_ms": 0
+        }
+      ],
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
       "policies": [
@@ -55,26 +433,33 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
 
 Status Code **200**
 
-| Name                    | Type                                                                             | Required | Restrictions | Description                                                                                                                               |
-|-------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`          | array                                                                            | false    |              |                                                                                                                                           |
-| `» active_version`      | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                           |
-| `»» created_at`         | string(date-time)                                                                | false    |              |                                                                                                                                           |
-| `»» id`                 | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» pipeline_id`        | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» policies`           | array                                                                            | false    |              |                                                                                                                                           |
-| `»»» enabled`           | boolean                                                                          | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
-| `»»» fail_mode`         | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
-| `»»» hook`              | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
-| `»»» kind`              | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)           | false    |              |                                                                                                                                           |
-| `»»» policy_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» version_number`     | integer                                                                          | false    |              |                                                                                                                                           |
-| `» active_version_id`   | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» created_at`          | string(date-time)                                                                | false    |              |                                                                                                                                           |
-| `» enabled`             | boolean                                                                          | false    |              |                                                                                                                                           |
-| `» id`                  | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» provider_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» updated_at`          | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| Name                       | Type                                                                             | Required | Restrictions | Description                                                                                                                               |
+|----------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`             | array                                                                            | false    |              |                                                                                                                                           |
+| `» active_version`         | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                           |
+| `»» created_at`            | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| `»» guardrails`            | array                                                                            | false    |              |                                                                                                                                           |
+| `»»» enabled`              | boolean                                                                          | false    |              |                                                                                                                                           |
+| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
+| `»»» guardrail_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
+| `»»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode)     | false    |              |                                                                                                                                           |
+| `»»» network_timeout_ms`   | integer                                                                          | false    |              |                                                                                                                                           |
+| `»» id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» pipeline_id`           | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» policies`              | array                                                                            | false    |              |                                                                                                                                           |
+| `»»» enabled`              | boolean                                                                          | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
+| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
+| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
+| `»»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)           | false    |              |                                                                                                                                           |
+| `»»» policy_version_id`    | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `»» version_number`        | integer                                                                          | false    |              |                                                                                                                                           |
+| `» active_version_id`      | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» created_at`             | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| `» enabled`                | boolean                                                                          | false    |              |                                                                                                                                           |
+| `» id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» provider_id`            | string(uuid)                                                                     | false    |              |                                                                                                                                           |
+| `» updated_at`             | string(date-time)                                                                | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -82,6 +467,7 @@ Status Code **200**
 |-------------|--------------------------------------------|
 | `fail_mode` | `fail_closed`, `fail_open`                 |
 | `hook`      | `pre_auth`, `pre_req`                      |
+| `mode`      | `advisory`, `enforcing`                    |
 | `kind`      | `classify`, `decide`, `route`, `transform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -105,6 +491,16 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
 ```json
 {
   "enabled": true,
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "policies": [
     {
       "enabled": true,
@@ -131,6 +527,16 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
 {
   "active_version": {
     "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
     "policies": [
@@ -188,6 +594,16 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
 {
   "active_version": {
     "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
     "policies": [
@@ -282,6 +698,16 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
 {
   "active_version": {
     "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
     "policies": [
@@ -331,6 +757,16 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
 ```json
 {
   "activate": true,
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "policies": [
     {
       "enabled": true,
@@ -356,6 +792,16 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "guardrails": [
+    {
+      "enabled": true,
+      "fail_mode": "fail_open",
+      "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+      "hook": "pre_auth",
+      "mode": "advisory",
+      "network_timeout_ms": 0
+    }
+  ],
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
   "policies": [

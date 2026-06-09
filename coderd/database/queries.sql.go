@@ -2719,6 +2719,624 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
+const countAIGatewayGuardrailVersionsInActivePipelines = `-- name: CountAIGatewayGuardrailVersionsInActivePipelines :one
+SELECT COUNT(*) FROM ai_gateway_pipeline_version_guardrails m
+JOIN ai_gateway_pipelines pl ON pl.active_version_id = m.pipeline_version_id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+WHERE gver.guardrail_id = $1::uuid AND pl.deleted = FALSE
+`
+
+// Used to block soft-deleting a guardrail whose versions are referenced by an
+// active pipeline version. The operator must first remove it from the pipeline.
+func (q *sqlQuerier) CountAIGatewayGuardrailVersionsInActivePipelines(ctx context.Context, guardrailID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAIGatewayGuardrailVersionsInActivePipelines, guardrailID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteAIGatewayGuardrailByID = `-- name: DeleteAIGatewayGuardrailByID :exec
+UPDATE ai_gateway_guardrails
+SET deleted = TRUE, enabled = FALSE, updated_at = NOW()
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIGatewayGuardrailByID, id)
+	return err
+}
+
+const getAIGatewayGuardrailByID = `-- name: GetAIGatewayGuardrailByID :one
+SELECT id, name, display_name, adapter_type, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_guardrails
+WHERE id = $1::uuid AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) (AIGatewayGuardrail, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayGuardrailByID, id)
+	var i AIGatewayGuardrail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.AdapterType,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayGuardrailByName = `-- name: GetAIGatewayGuardrailByName :one
+SELECT id, name, display_name, adapter_type, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_guardrails
+WHERE name = $1::text AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetAIGatewayGuardrailByName(ctx context.Context, name string) (AIGatewayGuardrail, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayGuardrailByName, name)
+	var i AIGatewayGuardrail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.AdapterType,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIGatewayGuardrailVersionByID = `-- name: GetAIGatewayGuardrailVersionByID :one
+SELECT id, guardrail_id, version_number, config, credential, credential_key_id, description, created_at, created_by FROM ai_gateway_guardrail_versions
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIGatewayGuardrailVersionByID(ctx context.Context, id uuid.UUID) (AIGatewayGuardrailVersion, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayGuardrailVersionByID, id)
+	var i AIGatewayGuardrailVersion
+	err := row.Scan(
+		&i.ID,
+		&i.GuardrailID,
+		&i.VersionNumber,
+		&i.Config,
+		&i.Credential,
+		&i.CredentialKeyID,
+		&i.Description,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getAIGatewayGuardrailVersionsByGuardrailID = `-- name: GetAIGatewayGuardrailVersionsByGuardrailID :many
+SELECT id, guardrail_id, version_number, config, credential, credential_key_id, description, created_at, created_by FROM ai_gateway_guardrail_versions
+WHERE guardrail_id = $1::uuid
+ORDER BY version_number DESC
+`
+
+func (q *sqlQuerier) GetAIGatewayGuardrailVersionsByGuardrailID(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayGuardrailVersion, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayGuardrailVersionsByGuardrailID, guardrailID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayGuardrailVersion
+	for rows.Next() {
+		var i AIGatewayGuardrailVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.GuardrailID,
+			&i.VersionNumber,
+			&i.Config,
+			&i.Credential,
+			&i.CredentialKeyID,
+			&i.Description,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayGuardrails = `-- name: GetAIGatewayGuardrails :many
+SELECT id, name, display_name, adapter_type, active_version_id, enabled, deleted, created_at, updated_at FROM ai_gateway_guardrails
+WHERE
+    ($1::boolean OR NOT deleted)
+ORDER BY name ASC
+`
+
+func (q *sqlQuerier) GetAIGatewayGuardrails(ctx context.Context, includeDeleted bool) ([]AIGatewayGuardrail, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayGuardrails, includeDeleted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayGuardrail
+	for rows.Next() {
+		var i AIGatewayGuardrail
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DisplayName,
+			&i.AdapterType,
+			&i.ActiveVersionID,
+			&i.Enabled,
+			&i.Deleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelineGuardrailDrift = `-- name: GetAIGatewayPipelineGuardrailDrift :many
+SELECT
+    pl.provider_id,
+    pl.id AS pipeline_id,
+    g.id AS guardrail_id,
+    g.name AS guardrail_name,
+    m.guardrail_version_id AS pinned_version_id,
+    g.active_version_id AS current_version_id
+FROM ai_gateway_pipelines pl
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+JOIN ai_gateway_guardrails g ON g.id = gver.guardrail_id
+WHERE pl.deleted = FALSE
+    AND g.deleted = FALSE
+    AND (g.active_version_id IS NULL OR m.guardrail_version_id != g.active_version_id)
+`
+
+type GetAIGatewayPipelineGuardrailDriftRow struct {
+	ProviderID       uuid.UUID     `db:"provider_id" json:"provider_id"`
+	PipelineID       uuid.UUID     `db:"pipeline_id" json:"pipeline_id"`
+	GuardrailID      uuid.UUID     `db:"guardrail_id" json:"guardrail_id"`
+	GuardrailName    string        `db:"guardrail_name" json:"guardrail_name"`
+	PinnedVersionID  uuid.UUID     `db:"pinned_version_id" json:"pinned_version_id"`
+	CurrentVersionID uuid.NullUUID `db:"current_version_id" json:"current_version_id"`
+}
+
+// Guardrail membership rows whose pinned guardrail version is not the
+// guardrail's current active version. Surfaced as a drift metric.
+func (q *sqlQuerier) GetAIGatewayPipelineGuardrailDrift(ctx context.Context) ([]GetAIGatewayPipelineGuardrailDriftRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineGuardrailDrift)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIGatewayPipelineGuardrailDriftRow
+	for rows.Next() {
+		var i GetAIGatewayPipelineGuardrailDriftRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.PipelineID,
+			&i.GuardrailID,
+			&i.GuardrailName,
+			&i.PinnedVersionID,
+			&i.CurrentVersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelineVersionGuardrails = `-- name: GetAIGatewayPipelineVersionGuardrails :many
+SELECT id, pipeline_version_id, guardrail_version_id, hook, mode, fail_mode, network_timeout_ms, enabled FROM ai_gateway_pipeline_version_guardrails
+WHERE pipeline_version_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionGuardrail, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionGuardrails, pipelineVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipelineVersionGuardrail
+	for rows.Next() {
+		var i AIGatewayPipelineVersionGuardrail
+		if err := rows.Scan(
+			&i.ID,
+			&i.PipelineVersionID,
+			&i.GuardrailVersionID,
+			&i.Hook,
+			&i.Mode,
+			&i.FailMode,
+			&i.NetworkTimeoutMs,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelinesReferencingGuardrail = `-- name: GetAIGatewayPipelinesReferencingGuardrail :many
+SELECT DISTINCT pl.id, pl.provider_id, pl.active_version_id, pl.enabled, pl.deleted, pl.created_at, pl.updated_at
+FROM ai_gateway_pipelines pl
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+WHERE pl.deleted = FALSE AND gver.guardrail_id = $1::uuid
+`
+
+// Live pipelines whose active version pins any version of the given guardrail.
+// Used to propagate a newly activated guardrail version into the pipelines that
+// use it (assisted upgrade).
+func (q *sqlQuerier) GetAIGatewayPipelinesReferencingGuardrail(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayPipeline, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelinesReferencingGuardrail, guardrailID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIGatewayPipeline
+	for rows.Next() {
+		var i AIGatewayPipeline
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.ActiveVersionID,
+			&i.Enabled,
+			&i.Deleted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getActiveAIGatewayPipelineGuardrails = `-- name: GetActiveAIGatewayPipelineGuardrails :many
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.mode,
+    m.fail_mode,
+    m.network_timeout_ms,
+    g.id AS guardrail_id,
+    g.name AS guardrail_name,
+    g.adapter_type,
+    gver.id AS guardrail_version_id,
+    gver.config,
+    gver.credential,
+    gver.credential_key_id
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = pl.active_version_id
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+JOIN ai_gateway_guardrails g ON g.id = gver.guardrail_id
+WHERE pl.deleted = FALSE
+    AND pl.enabled = TRUE
+    AND m.enabled = TRUE
+    AND g.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND g.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, g.name
+`
+
+type GetActiveAIGatewayPipelineGuardrailsRow struct {
+	ProviderID            uuid.UUID              `db:"provider_id" json:"provider_id"`
+	ProviderName          string                 `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID              `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32                  `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook          `db:"hook" json:"hook"`
+	Mode                  AIGatewayGuardrailMode `db:"mode" json:"mode"`
+	FailMode              AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs      int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
+	GuardrailID           uuid.UUID              `db:"guardrail_id" json:"guardrail_id"`
+	GuardrailName         string                 `db:"guardrail_name" json:"guardrail_name"`
+	AdapterType           string                 `db:"adapter_type" json:"adapter_type"`
+	GuardrailVersionID    uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Config                json.RawMessage        `db:"config" json:"config"`
+	Credential            string                 `db:"credential" json:"credential"`
+	CredentialKeyID       sql.NullString         `db:"credential_key_id" json:"credential_key_id"`
+}
+
+// The runtime snapshot load for guardrails: every guardrail member of every
+// live, enabled pipeline's active version, joined to its pinned guardrail
+// version. Disabled or soft-deleted guardrails are excluded. credential is
+// decrypted by the dbcrypt layer. Run on the primary to avoid replica lag
+// against the post-commit reload notification.
+func (q *sqlQuerier) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) ([]GetActiveAIGatewayPipelineGuardrailsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveAIGatewayPipelineGuardrails)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetActiveAIGatewayPipelineGuardrailsRow
+	for rows.Next() {
+		var i GetActiveAIGatewayPipelineGuardrailsRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.PipelineID,
+			&i.PipelineVersionID,
+			&i.PipelineVersionNumber,
+			&i.Hook,
+			&i.Mode,
+			&i.FailMode,
+			&i.NetworkTimeoutMs,
+			&i.GuardrailID,
+			&i.GuardrailName,
+			&i.AdapterType,
+			&i.GuardrailVersionID,
+			&i.Config,
+			&i.Credential,
+			&i.CredentialKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAIGatewayGuardrail = `-- name: InsertAIGatewayGuardrail :one
+INSERT INTO ai_gateway_guardrails (
+    id,
+    name,
+    display_name,
+    adapter_type
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::text
+)
+RETURNING id, name, display_name, adapter_type, active_version_id, enabled, deleted, created_at, updated_at
+`
+
+type InsertAIGatewayGuardrailParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	Name        string         `db:"name" json:"name"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	AdapterType string         `db:"adapter_type" json:"adapter_type"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayGuardrail(ctx context.Context, arg InsertAIGatewayGuardrailParams) (AIGatewayGuardrail, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayGuardrail,
+		arg.ID,
+		arg.Name,
+		arg.DisplayName,
+		arg.AdapterType,
+	)
+	var i AIGatewayGuardrail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.AdapterType,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayGuardrailVersion = `-- name: InsertAIGatewayGuardrailVersion :one
+INSERT INTO ai_gateway_guardrail_versions (
+    id,
+    guardrail_id,
+    version_number,
+    config,
+    credential,
+    credential_key_id,
+    description,
+    created_by
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::integer,
+    $4::jsonb,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::uuid
+)
+RETURNING id, guardrail_id, version_number, config, credential, credential_key_id, description, created_at, created_by
+`
+
+type InsertAIGatewayGuardrailVersionParams struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	GuardrailID     uuid.UUID       `db:"guardrail_id" json:"guardrail_id"`
+	VersionNumber   int32           `db:"version_number" json:"version_number"`
+	Config          json.RawMessage `db:"config" json:"config"`
+	Credential      string          `db:"credential" json:"credential"`
+	CredentialKeyID sql.NullString  `db:"credential_key_id" json:"credential_key_id"`
+	Description     sql.NullString  `db:"description" json:"description"`
+	CreatedBy       uuid.NullUUID   `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayGuardrailVersion(ctx context.Context, arg InsertAIGatewayGuardrailVersionParams) (AIGatewayGuardrailVersion, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayGuardrailVersion,
+		arg.ID,
+		arg.GuardrailID,
+		arg.VersionNumber,
+		arg.Config,
+		arg.Credential,
+		arg.CredentialKeyID,
+		arg.Description,
+		arg.CreatedBy,
+	)
+	var i AIGatewayGuardrailVersion
+	err := row.Scan(
+		&i.ID,
+		&i.GuardrailID,
+		&i.VersionNumber,
+		&i.Config,
+		&i.Credential,
+		&i.CredentialKeyID,
+		&i.Description,
+		&i.CreatedAt,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const insertAIGatewayPipelineVersionGuardrail = `-- name: InsertAIGatewayPipelineVersionGuardrail :one
+INSERT INTO ai_gateway_pipeline_version_guardrails (
+    id,
+    pipeline_version_id,
+    guardrail_version_id,
+    hook,
+    mode,
+    fail_mode,
+    network_timeout_ms,
+    enabled
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::ai_gateway_hook,
+    $5::ai_gateway_guardrail_mode,
+    $6::ai_gateway_fail_mode,
+    $7::integer,
+    $8::boolean
+)
+RETURNING id, pipeline_version_id, guardrail_version_id, hook, mode, fail_mode, network_timeout_ms, enabled
+`
+
+type InsertAIGatewayPipelineVersionGuardrailParams struct {
+	ID                 uuid.UUID              `db:"id" json:"id"`
+	PipelineVersionID  uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
+	GuardrailVersionID uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Hook               AIGatewayHook          `db:"hook" json:"hook"`
+	Mode               AIGatewayGuardrailMode `db:"mode" json:"mode"`
+	FailMode           AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs   int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Enabled            bool                   `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context, arg InsertAIGatewayPipelineVersionGuardrailParams) (AIGatewayPipelineVersionGuardrail, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayPipelineVersionGuardrail,
+		arg.ID,
+		arg.PipelineVersionID,
+		arg.GuardrailVersionID,
+		arg.Hook,
+		arg.Mode,
+		arg.FailMode,
+		arg.NetworkTimeoutMs,
+		arg.Enabled,
+	)
+	var i AIGatewayPipelineVersionGuardrail
+	err := row.Scan(
+		&i.ID,
+		&i.PipelineVersionID,
+		&i.GuardrailVersionID,
+		&i.Hook,
+		&i.Mode,
+		&i.FailMode,
+		&i.NetworkTimeoutMs,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const updateAIGatewayGuardrail = `-- name: UpdateAIGatewayGuardrail :one
+UPDATE ai_gateway_guardrails
+SET
+    display_name = $1::text,
+    enabled = $2::boolean,
+    updated_at = NOW()
+WHERE id = $3::uuid AND deleted = FALSE
+RETURNING id, name, display_name, adapter_type, active_version_id, enabled, deleted, created_at, updated_at
+`
+
+type UpdateAIGatewayGuardrailParams struct {
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayGuardrail(ctx context.Context, arg UpdateAIGatewayGuardrailParams) (AIGatewayGuardrail, error) {
+	row := q.db.QueryRowContext(ctx, updateAIGatewayGuardrail, arg.DisplayName, arg.Enabled, arg.ID)
+	var i AIGatewayGuardrail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.AdapterType,
+		&i.ActiveVersionID,
+		&i.Enabled,
+		&i.Deleted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAIGatewayGuardrailActiveVersion = `-- name: UpdateAIGatewayGuardrailActiveVersion :exec
+UPDATE ai_gateway_guardrails
+SET active_version_id = $1::uuid, updated_at = NOW()
+WHERE id = $2::uuid AND deleted = FALSE
+`
+
+type UpdateAIGatewayGuardrailActiveVersionParams struct {
+	ActiveVersionID uuid.UUID `db:"active_version_id" json:"active_version_id"`
+	ID              uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIGatewayGuardrailActiveVersion(ctx context.Context, arg UpdateAIGatewayGuardrailActiveVersionParams) error {
+	_, err := q.db.ExecContext(ctx, updateAIGatewayGuardrailActiveVersion, arg.ActiveVersionID, arg.ID)
+	return err
+}
+
 const countAIGatewayPolicyVersionsInActivePipelines = `-- name: CountAIGatewayPolicyVersionsInActivePipelines :one
 SELECT COUNT(*) FROM ai_gateway_pipeline_version_policies m
 JOIN ai_gateway_pipelines pl ON pl.active_version_id = m.pipeline_version_id
@@ -2748,7 +3366,7 @@ func (q *sqlQuerier) DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UU
 
 const deleteAIGatewayPolicyByID = `-- name: DeleteAIGatewayPolicyByID :exec
 UPDATE ai_gateway_policies
-SET deleted = TRUE, enabled = FALSE, updated_at = NOW()
+SET deleted = TRUE, updated_at = NOW()
 WHERE id = $1::uuid AND deleted = FALSE
 `
 

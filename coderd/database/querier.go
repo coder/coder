@@ -88,6 +88,9 @@ type sqlcQuerier interface {
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
+	// Used to block soft-deleting a guardrail whose versions are referenced by an
+	// active pipeline version. The operator must first remove it from the pipeline.
+	CountAIGatewayGuardrailVersionsInActivePipelines(ctx context.Context, guardrailID uuid.UUID) (int64, error)
 	// Used to block soft-deleting a policy whose versions are referenced by an
 	// active pipeline version. The operator must first remove it from the pipeline.
 	CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error)
@@ -104,6 +107,7 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
+	DeleteAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error)
 	DeleteAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIGatewayPolicyByID(ctx context.Context, id uuid.UUID) error
@@ -262,14 +266,27 @@ type sqlcQuerier interface {
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
+	GetAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) (AIGatewayGuardrail, error)
+	GetAIGatewayGuardrailByName(ctx context.Context, name string) (AIGatewayGuardrail, error)
+	GetAIGatewayGuardrailVersionByID(ctx context.Context, id uuid.UUID) (AIGatewayGuardrailVersion, error)
+	GetAIGatewayGuardrailVersionsByGuardrailID(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayGuardrailVersion, error)
+	GetAIGatewayGuardrails(ctx context.Context, includeDeleted bool) ([]AIGatewayGuardrail, error)
 	GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (AIGatewayPipeline, error)
 	GetAIGatewayPipelineByProviderID(ctx context.Context, providerID uuid.UUID) (AIGatewayPipeline, error)
+	// Guardrail membership rows whose pinned guardrail version is not the
+	// guardrail's current active version. Surfaced as a drift metric.
+	GetAIGatewayPipelineGuardrailDrift(ctx context.Context) ([]GetAIGatewayPipelineGuardrailDriftRow, error)
 	// Membership rows whose pinned policy version is not the policy's current active
 	// version. Surfaced as a drift metric.
 	GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]GetAIGatewayPipelinePolicyDriftRow, error)
+	GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionGuardrail, error)
 	GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionPolicy, error)
 	GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]AIGatewayPipelineVersion, error)
 	GetAIGatewayPipelines(ctx context.Context, arg GetAIGatewayPipelinesParams) ([]AIGatewayPipeline, error)
+	// Live pipelines whose active version pins any version of the given guardrail.
+	// Used to propagate a newly activated guardrail version into the pipelines that
+	// use it (assisted upgrade).
+	GetAIGatewayPipelinesReferencingGuardrail(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayPipeline, error)
 	// Live pipelines whose active version pins any version of the given policy.
 	// Used to propagate a newly activated policy version into the pipelines that
 	// use it (assisted upgrade).
@@ -314,6 +331,12 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
+	// The runtime snapshot load for guardrails: every guardrail member of every
+	// live, enabled pipeline's active version, joined to its pinned guardrail
+	// version. Disabled or soft-deleted guardrails are excluded. credential is
+	// decrypted by the dbcrypt layer. Run on the primary to avoid replica lag
+	// against the post-commit reload notification.
+	GetActiveAIGatewayPipelineGuardrails(ctx context.Context) ([]GetActiveAIGatewayPipelineGuardrailsRow, error)
 	// The runtime snapshot load: every member policy of every live, enabled
 	// pipeline's active version, joined to its pinned policy version. Disabled or
 	// soft-deleted policies are excluded. Ordered by name so decide ordering is
@@ -954,9 +977,12 @@ type sqlcQuerier interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
+	InsertAIGatewayGuardrail(ctx context.Context, arg InsertAIGatewayGuardrailParams) (AIGatewayGuardrail, error)
+	InsertAIGatewayGuardrailVersion(ctx context.Context, arg InsertAIGatewayGuardrailVersionParams) (AIGatewayGuardrailVersion, error)
 	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
 	InsertAIGatewayPipeline(ctx context.Context, arg InsertAIGatewayPipelineParams) (AIGatewayPipeline, error)
 	InsertAIGatewayPipelineVersion(ctx context.Context, arg InsertAIGatewayPipelineVersionParams) (AIGatewayPipelineVersion, error)
+	InsertAIGatewayPipelineVersionGuardrail(ctx context.Context, arg InsertAIGatewayPipelineVersionGuardrailParams) (AIGatewayPipelineVersionGuardrail, error)
 	InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg InsertAIGatewayPipelineVersionPolicyParams) (AIGatewayPipelineVersionPolicy, error)
 	InsertAIGatewayPolicy(ctx context.Context, arg InsertAIGatewayPolicyParams) (AIGatewayPolicy, error)
 	InsertAIGatewayPolicyVersion(ctx context.Context, arg InsertAIGatewayPolicyVersionParams) (AIGatewayPolicyVersion, error)
@@ -1213,6 +1239,8 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
+	UpdateAIGatewayGuardrail(ctx context.Context, arg UpdateAIGatewayGuardrailParams) (AIGatewayGuardrail, error)
+	UpdateAIGatewayGuardrailActiveVersion(ctx context.Context, arg UpdateAIGatewayGuardrailActiveVersionParams) error
 	UpdateAIGatewayPipeline(ctx context.Context, arg UpdateAIGatewayPipelineParams) (AIGatewayPipeline, error)
 	UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg UpdateAIGatewayPipelineActiveVersionParams) error
 	UpdateAIGatewayPolicy(ctx context.Context, arg UpdateAIGatewayPolicyParams) (AIGatewayPolicy, error)

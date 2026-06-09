@@ -969,6 +969,65 @@ func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGi
 	return key, nil
 }
 
+// decryptAIGatewayGuardrailVersion decrypts the credential field of a guardrail
+// version row.
+func (db *dbCrypt) decryptAIGatewayGuardrailVersion(v *database.AIGatewayGuardrailVersion) error {
+	return db.decryptField(&v.Credential, v.CredentialKeyID)
+}
+
+func (db *dbCrypt) InsertAIGatewayGuardrailVersion(ctx context.Context, params database.InsertAIGatewayGuardrailVersionParams) (database.AIGatewayGuardrailVersion, error) {
+	if strings.TrimSpace(params.Credential) == "" {
+		params.CredentialKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.Credential, &params.CredentialKeyID); err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	v, err := db.Store.InsertAIGatewayGuardrailVersion(ctx, params)
+	if err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	if err := db.decryptAIGatewayGuardrailVersion(&v); err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	return v, nil
+}
+
+func (db *dbCrypt) GetAIGatewayGuardrailVersionByID(ctx context.Context, id uuid.UUID) (database.AIGatewayGuardrailVersion, error) {
+	v, err := db.Store.GetAIGatewayGuardrailVersionByID(ctx, id)
+	if err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	if err := db.decryptAIGatewayGuardrailVersion(&v); err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	return v, nil
+}
+
+func (db *dbCrypt) GetAIGatewayGuardrailVersionsByGuardrailID(ctx context.Context, guardrailID uuid.UUID) ([]database.AIGatewayGuardrailVersion, error) {
+	vs, err := db.Store.GetAIGatewayGuardrailVersionsByGuardrailID(ctx, guardrailID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range vs {
+		if err := db.decryptAIGatewayGuardrailVersion(&vs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return vs, nil
+}
+
+func (db *dbCrypt) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) ([]database.GetActiveAIGatewayPipelineGuardrailsRow, error) {
+	rows, err := db.Store.GetActiveAIGatewayPipelineGuardrails(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if err := db.decryptField(&rows[i].Credential, rows[i].CredentialKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

@@ -12,22 +12,46 @@ import (
 
 // AIGatewayPipeline attaches at most one policy pipeline to a provider.
 type AIGatewayPipeline struct {
-	ID              uuid.UUID                  `json:"id" format:"uuid"`
-	ProviderID      uuid.UUID                  `json:"provider_id" format:"uuid"`
-	Enabled         bool                       `json:"enabled"`
-	ActiveVersionID *uuid.UUID                 `json:"active_version_id,omitempty" format:"uuid"`
-	CreatedAt       time.Time                  `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time                  `json:"updated_at" format:"date-time"`
-	ActiveVersion   *AIGatewayPipelineVersion  `json:"active_version,omitempty"`
+	ID              uuid.UUID                 `json:"id" format:"uuid"`
+	ProviderID      uuid.UUID                 `json:"provider_id" format:"uuid"`
+	Enabled         bool                      `json:"enabled"`
+	ActiveVersionID *uuid.UUID                `json:"active_version_id,omitempty" format:"uuid"`
+	CreatedAt       time.Time                 `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                 `json:"updated_at" format:"date-time"`
+	ActiveVersion   *AIGatewayPipelineVersion `json:"active_version,omitempty"`
 }
 
 // AIGatewayPipelineVersion is an immutable composition snapshot.
 type AIGatewayPipelineVersion struct {
-	ID            uuid.UUID                  `json:"id" format:"uuid"`
-	PipelineID    uuid.UUID                  `json:"pipeline_id" format:"uuid"`
-	VersionNumber int32                      `json:"version_number"`
-	CreatedAt     time.Time                  `json:"created_at" format:"date-time"`
-	Policies      []AIGatewayPipelinePolicy  `json:"policies"`
+	ID            uuid.UUID                    `json:"id" format:"uuid"`
+	PipelineID    uuid.UUID                    `json:"pipeline_id" format:"uuid"`
+	VersionNumber int32                        `json:"version_number"`
+	CreatedAt     time.Time                    `json:"created_at" format:"date-time"`
+	Policies      []AIGatewayPipelinePolicy    `json:"policies"`
+	Guardrails    []AIGatewayPipelineGuardrail `json:"guardrails"`
+}
+
+// AIGatewayPipelineGuardrail is one guardrail member of a pipeline version: a
+// pinned guardrail version bound to a hook with a mode and fail mode.
+type AIGatewayPipelineGuardrail struct {
+	GuardrailVersionID uuid.UUID              `json:"guardrail_version_id" format:"uuid"`
+	Hook               AIGatewayHook          `json:"hook"`
+	Mode               AIGatewayGuardrailMode `json:"mode"`
+	FailMode           AIGatewayFailMode      `json:"fail_mode"`
+	NetworkTimeoutMS   int32                  `json:"network_timeout_ms"`
+	Enabled            bool                   `json:"enabled"`
+}
+
+// AIGatewayPipelineGuardrailRequest pins a guardrail version into a pipeline
+// version at a hook. NetworkTimeoutMS defaults to 2000 and Enabled to true when
+// omitted.
+type AIGatewayPipelineGuardrailRequest struct {
+	GuardrailVersionID uuid.UUID              `json:"guardrail_version_id" format:"uuid"`
+	Hook               AIGatewayHook          `json:"hook"`
+	Mode               AIGatewayGuardrailMode `json:"mode"`
+	FailMode           AIGatewayFailMode      `json:"fail_mode"`
+	NetworkTimeoutMS   *int32                 `json:"network_timeout_ms,omitempty"`
+	Enabled            *bool                  `json:"enabled,omitempty"`
 }
 
 // AIGatewayPipelinePolicy is one member of a pipeline version: a pinned policy
@@ -55,9 +79,10 @@ type AIGatewayPipelinePolicyRequest struct {
 // CreateAIGatewayPipelineRequest creates a pipeline for a provider and its
 // first version.
 type CreateAIGatewayPipelineRequest struct {
-	ProviderID uuid.UUID                        `json:"provider_id" format:"uuid"`
-	Enabled    bool                             `json:"enabled"`
-	Policies   []AIGatewayPipelinePolicyRequest `json:"policies"`
+	ProviderID uuid.UUID                           `json:"provider_id" format:"uuid"`
+	Enabled    bool                                `json:"enabled"`
+	Policies   []AIGatewayPipelinePolicyRequest    `json:"policies"`
+	Guardrails []AIGatewayPipelineGuardrailRequest `json:"guardrails,omitempty"`
 }
 
 func (req CreateAIGatewayPipelineRequest) Validate() []ValidationError {
@@ -66,17 +91,20 @@ func (req CreateAIGatewayPipelineRequest) Validate() []ValidationError {
 		v = append(v, ValidationError{Field: "provider_id", Detail: "provider_id is required"})
 	}
 	v = append(v, validateAIGatewayPipelinePolicies(req.Policies)...)
+	v = append(v, validateAIGatewayPipelineGuardrails(req.Guardrails)...)
 	return v
 }
 
 // CreateAIGatewayPipelineVersionRequest mints a new pipeline version.
 type CreateAIGatewayPipelineVersionRequest struct {
-	Policies []AIGatewayPipelinePolicyRequest `json:"policies"`
-	Activate bool                             `json:"activate"`
+	Policies   []AIGatewayPipelinePolicyRequest    `json:"policies"`
+	Guardrails []AIGatewayPipelineGuardrailRequest `json:"guardrails,omitempty"`
+	Activate   bool                                `json:"activate"`
 }
 
 func (req CreateAIGatewayPipelineVersionRequest) Validate() []ValidationError {
-	return validateAIGatewayPipelinePolicies(req.Policies)
+	v := validateAIGatewayPipelinePolicies(req.Policies)
+	return append(v, validateAIGatewayPipelineGuardrails(req.Guardrails)...)
 }
 
 // UpdateAIGatewayPipelineRequest partially updates a pipeline parent.
@@ -106,6 +134,37 @@ func validateAIGatewayPipelinePolicies(policies []AIGatewayPipelinePolicyRequest
 			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].fail_mode", i), Detail: "fail_mode is required"})
 		default:
 			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].fail_mode", i), Detail: fmt.Sprintf("unsupported fail_mode %q", p.FailMode)})
+		}
+	}
+	return v
+}
+
+func validateAIGatewayPipelineGuardrails(guardrails []AIGatewayPipelineGuardrailRequest) []ValidationError {
+	var v []ValidationError
+	for i, g := range guardrails {
+		if g.GuardrailVersionID == uuid.Nil {
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].guardrail_version_id", i), Detail: "guardrail_version_id is required"})
+		}
+		// v1 wires only pre-req guardrails into the runtime.
+		if g.Hook != AIGatewayHookPreReq {
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].hook", i), Detail: fmt.Sprintf("unsupported hook %q (only pre_req is supported)", g.Hook)})
+		}
+		switch g.Mode {
+		case AIGatewayGuardrailModeAdvisory, AIGatewayGuardrailModeEnforcing:
+		case "":
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].mode", i), Detail: "mode is required"})
+		default:
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].mode", i), Detail: fmt.Sprintf("unsupported mode %q", g.Mode)})
+		}
+		switch g.FailMode {
+		case AIGatewayFailModeOpen, AIGatewayFailModeClosed:
+		case "":
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].fail_mode", i), Detail: "fail_mode is required"})
+		default:
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].fail_mode", i), Detail: fmt.Sprintf("unsupported fail_mode %q", g.FailMode)})
+		}
+		if g.NetworkTimeoutMS != nil && *g.NetworkTimeoutMS <= 0 {
+			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].network_timeout_ms", i), Detail: "network_timeout_ms must be positive"})
 		}
 	}
 	return v

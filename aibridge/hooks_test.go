@@ -103,7 +103,7 @@ verdict := "BLOCK" if input.request.model == "blocked"
 	bridge, _, cap := newPolicyBridge(t, pipe)
 
 	resp := policyRequest(t, bridge, `{"model":"blocked"}`)
-	assert.Equal(t, http.StatusForbidden, resp.Code)
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), `request blocked by policy "model-blocker"`)
 	assert.False(t, cap.called, "interceptor must not be created when blocked")
 }
@@ -122,7 +122,7 @@ verdict := "BLOCK" if object.get(input.request.model, "k", "") == ""
 	bridge, _, cap := newPolicyBridge(t, pipe)
 
 	resp := policyRequest(t, bridge, `{"model":"gpt-4o"}`)
-	assert.Equal(t, http.StatusForbidden, resp.Code)
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.False(t, cap.called)
 }
 

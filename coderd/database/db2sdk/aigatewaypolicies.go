@@ -47,7 +47,7 @@ func AIGatewayPolicyVersion(row database.AIGatewayPolicyVersion) codersdk.AIGate
 // AIGatewayPipeline converts a pipeline row and its active version members to
 // the SDK form. activeMembers may be nil when the pipeline has no active
 // version.
-func AIGatewayPipeline(row database.AIGatewayPipeline, activeVersion *database.AIGatewayPipelineVersion, activeMembers []database.AIGatewayPipelineVersionPolicy) codersdk.AIGatewayPipeline {
+func AIGatewayPipeline(row database.AIGatewayPipeline, activeVersion *database.AIGatewayPipelineVersion, activeMembers []database.AIGatewayPipelineVersionPolicy, activeGuardrails []database.AIGatewayPipelineVersionGuardrail) codersdk.AIGatewayPipeline {
 	out := codersdk.AIGatewayPipeline{
 		ID:         row.ID,
 		ProviderID: row.ProviderID,
@@ -60,20 +60,22 @@ func AIGatewayPipeline(row database.AIGatewayPipeline, activeVersion *database.A
 		out.ActiveVersionID = &id
 	}
 	if activeVersion != nil {
-		v := AIGatewayPipelineVersion(*activeVersion, activeMembers)
+		v := AIGatewayPipelineVersion(*activeVersion, activeMembers, activeGuardrails)
 		out.ActiveVersion = &v
 	}
 	return out
 }
 
-// AIGatewayPipelineVersion converts a pipeline version row and its members.
-func AIGatewayPipelineVersion(row database.AIGatewayPipelineVersion, members []database.AIGatewayPipelineVersionPolicy) codersdk.AIGatewayPipelineVersion {
+// AIGatewayPipelineVersion converts a pipeline version row and its policy and
+// guardrail members.
+func AIGatewayPipelineVersion(row database.AIGatewayPipelineVersion, members []database.AIGatewayPipelineVersionPolicy, guardrails []database.AIGatewayPipelineVersionGuardrail) codersdk.AIGatewayPipelineVersion {
 	out := codersdk.AIGatewayPipelineVersion{
 		ID:            row.ID,
 		PipelineID:    row.PipelineID,
 		VersionNumber: row.VersionNumber,
 		CreatedAt:     row.CreatedAt,
 		Policies:      make([]codersdk.AIGatewayPipelinePolicy, 0, len(members)),
+		Guardrails:    make([]codersdk.AIGatewayPipelineGuardrail, 0, len(guardrails)),
 	}
 	for _, m := range members {
 		out.Policies = append(out.Policies, codersdk.AIGatewayPipelinePolicy{
@@ -82,6 +84,16 @@ func AIGatewayPipelineVersion(row database.AIGatewayPipelineVersion, members []d
 			Kind:            codersdk.AIGatewayPolicyKind(m.Kind),
 			FailMode:        codersdk.AIGatewayFailMode(m.FailMode),
 			Enabled:         m.Enabled,
+		})
+	}
+	for _, g := range guardrails {
+		out.Guardrails = append(out.Guardrails, codersdk.AIGatewayPipelineGuardrail{
+			GuardrailVersionID: g.GuardrailVersionID,
+			Hook:               codersdk.AIGatewayHook(g.Hook),
+			Mode:               codersdk.AIGatewayGuardrailMode(g.Mode),
+			FailMode:           codersdk.AIGatewayFailMode(g.FailMode),
+			NetworkTimeoutMS:   g.NetworkTimeoutMs,
+			Enabled:            g.Enabled,
 		})
 	}
 	return out

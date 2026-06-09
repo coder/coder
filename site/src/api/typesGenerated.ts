@@ -312,6 +312,47 @@ export const AIGatewayFailModes: AIGatewayFailMode[] = [
 	"fail_open",
 ];
 
+// From codersdk/aigatewayguardrails.go
+/**
+ * AIGatewayGuardrail is a reusable, versioned networked guardrail.
+ */
+export interface AIGatewayGuardrail {
+	readonly id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly adapter_type: string;
+	readonly active_version_id?: string;
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly versions?: readonly AIGatewayGuardrailVersion[];
+}
+
+// From codersdk/aigatewayguardrails.go
+export type AIGatewayGuardrailMode = "advisory" | "enforcing";
+
+export const AIGatewayGuardrailModes: AIGatewayGuardrailMode[] = [
+	"advisory",
+	"enforcing",
+];
+
+// From codersdk/aigatewayguardrails.go
+/**
+ * AIGatewayGuardrailVersion is an immutable snapshot of a guardrail's adapter
+ * config. The credential is write-only and never serialized back; HasCredential
+ * reports whether a secret is stored.
+ */
+export interface AIGatewayGuardrailVersion {
+	readonly id: string;
+	readonly guardrail_id: string;
+	readonly version_number: number;
+	readonly config: Record<string, string>;
+	readonly has_credential: boolean;
+	readonly description: string;
+	readonly created_at: string;
+	readonly created_by?: string;
+}
+
 // From codersdk/aigatewaypolicies.go
 export type AIGatewayHook = "pre_auth" | "pre_req";
 
@@ -342,6 +383,35 @@ export interface AIGatewayPipeline {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly active_version?: AIGatewayPipelineVersion;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipelineGuardrail is one guardrail member of a pipeline version: a
+ * pinned guardrail version bound to a hook with a mode and fail mode.
+ */
+export interface AIGatewayPipelineGuardrail {
+	readonly guardrail_version_id: string;
+	readonly hook: AIGatewayHook;
+	readonly mode: AIGatewayGuardrailMode;
+	readonly fail_mode: AIGatewayFailMode;
+	readonly network_timeout_ms: number;
+	readonly enabled: boolean;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * AIGatewayPipelineGuardrailRequest pins a guardrail version into a pipeline
+ * version at a hook. NetworkTimeoutMS defaults to 2000 and Enabled to true when
+ * omitted.
+ */
+export interface AIGatewayPipelineGuardrailRequest {
+	readonly guardrail_version_id: string;
+	readonly hook: AIGatewayHook;
+	readonly mode: AIGatewayGuardrailMode;
+	readonly fail_mode: AIGatewayFailMode;
+	readonly network_timeout_ms?: number;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/aigatewaypipelines.go
@@ -384,6 +454,7 @@ export interface AIGatewayPipelineVersion {
 	readonly version_number: number;
 	readonly created_at: string;
 	readonly policies: readonly AIGatewayPipelinePolicy[];
+	readonly guardrails: readonly AIGatewayPipelineGuardrail[];
 }
 
 // From codersdk/aigatewaypolicies.go
@@ -3392,6 +3463,36 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aigatewayguardrails.go
+/**
+ * CreateAIGatewayGuardrailRequest creates a guardrail and its first version.
+ */
+export interface CreateAIGatewayGuardrailRequest {
+	readonly name: string;
+	readonly display_name?: string;
+	readonly adapter_type: string;
+	readonly config: Record<string, string>;
+	/**
+	 * Credential is the secret (e.g. an API key) stored encrypted; write-only.
+	 */
+	readonly credential?: string;
+	readonly description?: string;
+}
+
+// From codersdk/aigatewayguardrails.go
+/**
+ * CreateAIGatewayGuardrailVersionRequest mints a new immutable version.
+ */
+export interface CreateAIGatewayGuardrailVersionRequest {
+	readonly config: Record<string, string>;
+	readonly credential?: string;
+	readonly description?: string;
+	/**
+	 * Activate sets the new version as the guardrail's active version.
+	 */
+	readonly activate: boolean;
+}
+
 // From codersdk/aigatewaykeys.go
 /**
  * CreateAIGatewayKeyRequest requests a new AI Gateway key.
@@ -3422,6 +3523,7 @@ export interface CreateAIGatewayPipelineRequest {
 	readonly provider_id: string;
 	readonly enabled: boolean;
 	readonly policies: readonly AIGatewayPipelinePolicyRequest[];
+	readonly guardrails?: readonly AIGatewayPipelineGuardrailRequest[];
 }
 
 // From codersdk/aigatewaypipelines.go
@@ -3430,6 +3532,7 @@ export interface CreateAIGatewayPipelineRequest {
  */
 export interface CreateAIGatewayPipelineVersionRequest {
 	readonly policies: readonly AIGatewayPipelinePolicyRequest[];
+	readonly guardrails?: readonly AIGatewayPipelineGuardrailRequest[];
 	readonly activate: boolean;
 }
 
@@ -7324,6 +7427,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_gateway_guardrail"
 	| "ai_gateway_key"
 	| "ai_gateway_pipeline"
 	| "ai_gateway_policy"
@@ -7362,6 +7466,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_gateway_guardrail",
 	"ai_gateway_key",
 	"ai_gateway_pipeline",
 	"ai_gateway_policy",
@@ -8715,6 +8820,17 @@ export interface TraceConfig {
 export interface TransitionStats {
 	readonly P50: number | null;
 	readonly P95: number | null;
+}
+
+// From codersdk/aigatewayguardrails.go
+/**
+ * UpdateAIGatewayGuardrailRequest partially updates a guardrail parent. At least
+ * one field must be set.
+ */
+export interface UpdateAIGatewayGuardrailRequest {
+	readonly display_name?: string;
+	readonly enabled?: boolean;
+	readonly active_version_id?: string;
 }
 
 // From codersdk/aigatewaypipelines.go

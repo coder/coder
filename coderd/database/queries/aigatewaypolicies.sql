@@ -43,7 +43,7 @@ WHERE id = @id::uuid AND deleted = FALSE;
 
 -- name: DeleteAIGatewayPolicyByID :exec
 UPDATE ai_gateway_policies
-SET deleted = TRUE, enabled = FALSE, updated_at = NOW()
+SET deleted = TRUE, updated_at = NOW()
 WHERE id = @id::uuid AND deleted = FALSE;
 
 -- name: InsertAIGatewayPolicyVersion :one

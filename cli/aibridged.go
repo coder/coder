@@ -139,6 +139,12 @@ func (r *poolDBReloader) reloadPolicies(ctx context.Context) error {
 		r.metrics.RecordPipelineReloadFailure()
 		return xerrors.Errorf("load ai gateway policy pipelines from database: %w", err)
 	}
+	// Attach the active guardrail snapshot from the database onto the per-provider
+	// hooks. A guardrail load failure keeps policies but logs, mirroring the
+	// best-effort loading elsewhere.
+	if err := aibridged.BuildProviderGuardrails(ctx, r.db, r.logger, hooks); err != nil {
+		r.logger.Warn(ctx, "load ai gateway guardrails", slog.Error(err))
+	}
 	r.pool.ReplacePolicyHooks(hooks)
 	r.metrics.RecordPipelineReloadSuccess(pipelineOutcomes)
 

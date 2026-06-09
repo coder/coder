@@ -1422,6 +1422,225 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/aibridge/guardrails": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI gateway guardrails",
+                "operationId": "list-ai-gateway-guardrails",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayGuardrail"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Create an AI gateway guardrail",
+                "operationId": "create-an-ai-gateway-guardrail",
+                "parameters": [
+                    {
+                        "description": "Create guardrail request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayGuardrailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayGuardrail"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/guardrails/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Get an AI gateway guardrail",
+                "operationId": "get-an-ai-gateway-guardrail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guardrail ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayGuardrail"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Delete an AI gateway guardrail",
+                "operationId": "delete-an-ai-gateway-guardrail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guardrail ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Update an AI gateway guardrail",
+                "operationId": "update-an-ai-gateway-guardrail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guardrail ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update guardrail request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAIGatewayGuardrailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayGuardrail"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/guardrails/{id}/versions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Create an AI gateway guardrail version",
+                "operationId": "create-an-ai-gateway-guardrail-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guardrail ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayGuardrailVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayGuardrailVersion"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/aibridge/interceptions": {
             "get": {
                 "produces": [
@@ -15591,6 +15810,92 @@ const docTemplate = `{
                 "AIGatewayFailModeClosed"
             ]
         },
+        "codersdk.AIGatewayGuardrail": {
+            "type": "object",
+            "properties": {
+                "active_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "adapter_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "versions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewayGuardrailVersion"
+                    }
+                }
+            }
+        },
+        "codersdk.AIGatewayGuardrailMode": {
+            "type": "string",
+            "enum": [
+                "advisory",
+                "enforcing"
+            ],
+            "x-enum-varnames": [
+                "AIGatewayGuardrailModeAdvisory",
+                "AIGatewayGuardrailModeEnforcing"
+            ]
+        },
+        "codersdk.AIGatewayGuardrailVersion": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "guardrail_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "has_credential": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "version_number": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIGatewayHook": {
             "type": "string",
             "enum": [
@@ -15656,6 +15961,54 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewayPipelineGuardrail": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "fail_mode": {
+                    "$ref": "#/definitions/codersdk.AIGatewayFailMode"
+                },
+                "guardrail_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "hook": {
+                    "$ref": "#/definitions/codersdk.AIGatewayHook"
+                },
+                "mode": {
+                    "$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
+                },
+                "network_timeout_ms": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AIGatewayPipelineGuardrailRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "fail_mode": {
+                    "$ref": "#/definitions/codersdk.AIGatewayFailMode"
+                },
+                "guardrail_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "hook": {
+                    "$ref": "#/definitions/codersdk.AIGatewayHook"
+                },
+                "mode": {
+                    "$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
+                },
+                "network_timeout_ms": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIGatewayPipelinePolicy": {
             "type": "object",
             "properties": {
@@ -15702,6 +16055,12 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "guardrails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewayPipelineGuardrail"
+                    }
                 },
                 "id": {
                     "type": "string",
@@ -18357,6 +18716,54 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateAIGatewayGuardrailRequest": {
+            "type": "object",
+            "properties": {
+                "adapter_type": {
+                    "type": "string"
+                },
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "credential": {
+                    "description": "Credential is the secret (e.g. an API key) stored encrypted; write-only.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayGuardrailVersionRequest": {
+            "type": "object",
+            "properties": {
+                "activate": {
+                    "description": "Activate sets the new version as the guardrail's active version.",
+                    "type": "boolean"
+                },
+                "config": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "credential": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateAIGatewayKeyRequest": {
             "type": "object",
             "required": [
@@ -18396,6 +18803,12 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "guardrails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewayPipelineGuardrailRequest"
+                    }
+                },
                 "policies": {
                     "type": "array",
                     "items": {
@@ -18413,6 +18826,12 @@ const docTemplate = `{
             "properties": {
                 "activate": {
                     "type": "boolean"
+                },
+                "guardrails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIGatewayPipelineGuardrailRequest"
+                    }
                 },
                 "policies": {
                     "type": "array",
@@ -23546,6 +23965,7 @@ const docTemplate = `{
                 "ai_gateway_key",
                 "ai_gateway_policy",
                 "ai_gateway_pipeline",
+                "ai_gateway_guardrail",
                 "group_ai_budget",
                 "chat",
                 "user_secret",
@@ -23584,6 +24004,7 @@ const docTemplate = `{
                 "ResourceTypeAIGatewayKey",
                 "ResourceTypeAIGatewayPolicy",
                 "ResourceTypeAIGatewayPipeline",
+                "ResourceTypeAIGatewayGuardrail",
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
@@ -25119,6 +25540,21 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UpdateAIGatewayGuardrailRequest": {
+            "type": "object",
+            "properties": {
+                "active_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },

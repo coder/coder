@@ -487,52 +487,17 @@ func propagatePolicyVersion(ctx context.Context, tx database.Store, policyID, ne
 	if err != nil {
 		return err
 	}
+	remapPolicy := func(pinned uuid.UUID) uuid.UUID {
+		if isThisPolicy[pinned] {
+			return newVersionID
+		}
+		return pinned
+	}
 	for _, pl := range pipelines {
 		if !pl.ActiveVersionID.Valid {
 			continue
 		}
-		members, err := tx.GetAIGatewayPipelineVersionPolicies(ctx, pl.ActiveVersionID.UUID)
-		if err != nil {
-			return err
-		}
-		existing, err := tx.GetAIGatewayPipelineVersionsByPipelineID(ctx, pl.ID)
-		if err != nil {
-			return err
-		}
-		next := int32(1)
-		if len(existing) > 0 {
-			next = existing[0].VersionNumber + 1
-		}
-		newPV, err := tx.InsertAIGatewayPipelineVersion(ctx, database.InsertAIGatewayPipelineVersionParams{
-			ID:            uuid.New(),
-			PipelineID:    pl.ID,
-			VersionNumber: next,
-			CreatedBy:     createdBy,
-		})
-		if err != nil {
-			return err
-		}
-		for _, m := range members {
-			pinned := m.PolicyVersionID
-			if isThisPolicy[pinned] {
-				pinned = newVersionID
-			}
-			if _, err := tx.InsertAIGatewayPipelineVersionPolicy(ctx, database.InsertAIGatewayPipelineVersionPolicyParams{
-				ID:                uuid.New(),
-				PipelineVersionID: newPV.ID,
-				PolicyVersionID:   pinned,
-				Hook:              m.Hook,
-				Kind:              m.Kind,
-				FailMode:          m.FailMode,
-				Enabled:           m.Enabled,
-			}); err != nil {
-				return err
-			}
-		}
-		if err := tx.UpdateAIGatewayPipelineActiveVersion(ctx, database.UpdateAIGatewayPipelineActiveVersionParams{
-			ID:              pl.ID,
-			ActiveVersionID: newPV.ID,
-		}); err != nil {
+		if err := mintPipelineVersionWithMembers(ctx, tx, pl, createdBy, remapPolicy, identityRemap); err != nil {
 			return err
 		}
 	}

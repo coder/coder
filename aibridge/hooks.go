@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/guardrail"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/policy"
@@ -19,6 +20,10 @@ import (
 
 // blockedByPolicyMessage is written to clients whose request a policy denied.
 const blockedByPolicyMessage = "request blocked by policy"
+
+// blockedByGuardrailMessage is written to clients whose request a guardrail
+// rejected. Both policy and guardrail blocks return HTTP 400.
+const blockedByGuardrailMessage = "request blocked by guardrail"
 
 // Hook names used as metric labels.
 const (
@@ -34,6 +39,11 @@ const (
 type ProviderPipelines struct {
 	PreAuth *policy.Pipeline
 	PreReq  *policy.Pipeline
+	// PreReqGuardrails is the networked head-of-hook guardrail stage for the
+	// pre-req hook. It runs before PreReq: it may block the request (HTTP 400),
+	// rewrite the body (masking), or attach annotations that the PreReq policy
+	// pipeline can read. A nil or empty stage is a no-op.
+	PreReqGuardrails *guardrail.Stage
 	// Version is the active pipeline version that produced these pipelines. It
 	// is recorded on policy decisions so an audit can reconstruct exactly which
 	// version evaluated a past request.
@@ -91,6 +101,44 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 		modifications = res.Modifications
 	}
 
+	// Guardrails are the networked head-of-hook stage: they run before the
+	// pre-req policy pipeline so their annotations are visible to it, an
+	// enforcing guardrail's body rewrite is applied before any policy sees the
+	// body, and an enforcing block short-circuits with HTTP 400.
+	if g := ph.PreReqGuardrails; g != nil && !g.Empty() {
+		gres, err := g.Run(ctx, payload.Body(), payload.Model())
+		if err != nil {
+			// An internal error (e.g. applying a body edit) fails closed.
+			logger.Warn(ctx, "evaluate guardrails", slog.F("hook", hookPreReq), slog.Error(err))
+			http.Error(w, blockedByGuardrailMessage, http.StatusBadRequest)
+			return payload, nil, nil, true
+		}
+		// Surface the underlying cause of any guardrail failure (the generic
+		// client message hides it). This is the only place a vendor outage,
+		// wrong endpoint, or timeout is visible.
+		for _, ge := range gres.Errors {
+			logger.Warn(ctx, "guardrail evaluation failed",
+				slog.F("hook", hookPreReq), slog.F("guardrail", ge.Name), slog.Error(ge.Err))
+		}
+		if gres.Block {
+			msg := blockedByGuardrailMessage
+			if gres.BlockedBy != "" {
+				msg = fmt.Sprintf("request blocked by guardrail %q", gres.BlockedBy)
+				if gres.Reason != "" {
+					msg += ": " + gres.Reason
+				}
+			}
+			logger.Debug(ctx, "request blocked by guardrail",
+				slog.F("guardrail", gres.BlockedBy), slog.F("reason", gres.Reason))
+			http.Error(w, msg, http.StatusBadRequest)
+			return payload, nil, nil, true
+		}
+		if gres.Body != nil {
+			payload = payload.WithBody(gres.Body)
+		}
+		annotations = mergeAnnotations(annotations, gres.Annotations)
+	}
+
 	if ph.PreReq != nil {
 		in, err := policy.BuildInput(payload.Body(), identityMap(actor))
 		if err != nil {
@@ -133,7 +181,7 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 		// A pipeline only returns an error on an internal failure (not a
 		// policy verdict); fail closed.
 		logger.Warn(ctx, "evaluate policies", slog.Error(err))
-		http.Error(w, blockedByPolicyMessage, http.StatusForbidden)
+		http.Error(w, blockedByPolicyMessage, http.StatusBadRequest)
 		return policy.Result{}, false
 	}
 	if m != nil {
@@ -145,7 +193,7 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 			msg = fmt.Sprintf("request blocked by policy %q", res.BlockedBy)
 		}
 		logger.Debug(ctx, "request blocked by policy", slog.F("policy", res.BlockedBy))
-		http.Error(w, msg, http.StatusForbidden)
+		http.Error(w, msg, http.StatusBadRequest)
 		return policy.Result{}, false
 	}
 	for name, mod := range res.Modifications {
@@ -157,7 +205,7 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 
 func (policyHooks) fail(w http.ResponseWriter, ctx context.Context, hook, msg string, err error, logger slog.Logger) (intercept.Payload, map[string]any, bool) {
 	logger.Warn(ctx, msg, slog.F("hook", hook), slog.Error(err))
-	http.Error(w, blockedByPolicyMessage, http.StatusForbidden)
+	http.Error(w, blockedByPolicyMessage, http.StatusBadRequest)
 	return intercept.Payload{}, nil, true
 }
 

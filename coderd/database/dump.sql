@@ -15,6 +15,11 @@ CREATE TYPE ai_gateway_fail_mode AS ENUM (
     'fail_closed'
 );
 
+CREATE TYPE ai_gateway_guardrail_mode AS ENUM (
+    'advisory',
+    'enforcing'
+);
+
 CREATE TYPE ai_gateway_hook AS ENUM (
     'pre_auth',
     'pre_req'
@@ -588,7 +593,8 @@ CREATE TYPE resource_type AS ENUM (
     'user_skill',
     'ai_gateway_key',
     'ai_gateway_policy',
-    'ai_gateway_pipeline'
+    'ai_gateway_pipeline',
+    'ai_gateway_guardrail'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1311,6 +1317,35 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE ai_gateway_guardrail_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    guardrail_id uuid NOT NULL,
+    version_number integer NOT NULL,
+    config jsonb NOT NULL,
+    credential text DEFAULT ''::text NOT NULL,
+    credential_key_id text,
+    description text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid
+);
+
+COMMENT ON TABLE ai_gateway_guardrail_versions IS 'Immutable adapter config + dbcrypt-encrypted credential for each guardrail version.';
+
+CREATE TABLE ai_gateway_guardrails (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    display_name text,
+    adapter_type text NOT NULL,
+    active_version_id uuid,
+    enabled boolean DEFAULT true NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_gateway_guardrails_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+COMMENT ON TABLE ai_gateway_guardrails IS 'Reusable, versioned networked guardrails for the AI gateway policy engine.';
+
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1326,6 +1361,19 @@ CREATE TABLE ai_gateway_keys (
 COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
 
 COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
+CREATE TABLE ai_gateway_pipeline_version_guardrails (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    pipeline_version_id uuid NOT NULL,
+    guardrail_version_id uuid NOT NULL,
+    hook ai_gateway_hook NOT NULL,
+    mode ai_gateway_guardrail_mode DEFAULT 'advisory'::ai_gateway_guardrail_mode NOT NULL,
+    fail_mode ai_gateway_fail_mode DEFAULT 'fail_closed'::ai_gateway_fail_mode NOT NULL,
+    network_timeout_ms integer DEFAULT 2000 NOT NULL,
+    enabled boolean DEFAULT true NOT NULL
+);
+
+COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook, in which mode.';
 
 CREATE TABLE ai_gateway_pipeline_version_policies (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3871,8 +3919,26 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_gateway_guardrail_versions
+    ADD CONSTRAINT ai_gateway_guardrail_versions_guardrail_id_id_key UNIQUE (guardrail_id, id);
+
+ALTER TABLE ONLY ai_gateway_guardrail_versions
+    ADD CONSTRAINT ai_gateway_guardrail_versions_guardrail_id_version_number_key UNIQUE (guardrail_id, version_number);
+
+ALTER TABLE ONLY ai_gateway_guardrail_versions
+    ADD CONSTRAINT ai_gateway_guardrail_versions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_guardrails
+    ADD CONSTRAINT ai_gateway_guardrails_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_guardrails
+    ADD CONSTRAINT ai_gateway_pipeline_version_g_pipeline_version_id_guardrail_key UNIQUE (pipeline_version_id, guardrail_version_id, hook);
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_guardrails
+    ADD CONSTRAINT ai_gateway_pipeline_version_guardrails_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_gateway_pipeline_version_policies
     ADD CONSTRAINT ai_gateway_pipeline_version_p_pipeline_version_id_policy_ve_key UNIQUE (pipeline_version_id, policy_version_id, hook);
@@ -4287,6 +4353,8 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX ai_gateway_guardrails_name_unique ON ai_gateway_guardrails USING btree (name) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
@@ -4707,6 +4775,21 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_gateway_guardrail_versions
+    ADD CONSTRAINT ai_gateway_guardrail_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY ai_gateway_guardrail_versions
+    ADD CONSTRAINT ai_gateway_guardrail_versions_guardrail_id_fkey FOREIGN KEY (guardrail_id) REFERENCES ai_gateway_guardrails(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_gateway_guardrails
+    ADD CONSTRAINT ai_gateway_guardrails_active_version_id_fkey FOREIGN KEY (id, active_version_id) REFERENCES ai_gateway_guardrail_versions(guardrail_id, id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_guardrails
+    ADD CONSTRAINT ai_gateway_pipeline_version_guardrail_guardrail_version_id_fkey FOREIGN KEY (guardrail_version_id) REFERENCES ai_gateway_guardrail_versions(id);
+
+ALTER TABLE ONLY ai_gateway_pipeline_version_guardrails
+    ADD CONSTRAINT ai_gateway_pipeline_version_guardrails_pipeline_version_id_fkey FOREIGN KEY (pipeline_version_id) REFERENCES ai_gateway_pipeline_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_gateway_pipeline_version_policies
     ADD CONSTRAINT ai_gateway_pipeline_version_policies_pipeline_version_id_fkey FOREIGN KEY (pipeline_version_id) REFERENCES ai_gateway_pipeline_versions(id) ON DELETE CASCADE;

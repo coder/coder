@@ -74,6 +74,64 @@ func AllAIGatewayFailModeValues() []AIGatewayFailMode {
 	}
 }
 
+type AIGatewayGuardrailMode string
+
+const (
+	AIGatewayGuardrailModeAdvisory  AIGatewayGuardrailMode = "advisory"
+	AIGatewayGuardrailModeEnforcing AIGatewayGuardrailMode = "enforcing"
+)
+
+func (e *AIGatewayGuardrailMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIGatewayGuardrailMode(s)
+	case string:
+		*e = AIGatewayGuardrailMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIGatewayGuardrailMode: %T", src)
+	}
+	return nil
+}
+
+type NullAIGatewayGuardrailMode struct {
+	AIGatewayGuardrailMode AIGatewayGuardrailMode `json:"ai_gateway_guardrail_mode"`
+	Valid                  bool                   `json:"valid"` // Valid is true if AIGatewayGuardrailMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIGatewayGuardrailMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIGatewayGuardrailMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIGatewayGuardrailMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIGatewayGuardrailMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIGatewayGuardrailMode), nil
+}
+
+func (e AIGatewayGuardrailMode) Valid() bool {
+	switch e {
+	case AIGatewayGuardrailModeAdvisory,
+		AIGatewayGuardrailModeEnforcing:
+		return true
+	}
+	return false
+}
+
+func AllAIGatewayGuardrailModeValues() []AIGatewayGuardrailMode {
+	return []AIGatewayGuardrailMode{
+		AIGatewayGuardrailModeAdvisory,
+		AIGatewayGuardrailModeEnforcing,
+	}
+}
+
 type AIGatewayHook string
 
 const (
@@ -3548,6 +3606,7 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeAIGatewayPolicy             ResourceType = "ai_gateway_policy"
 	ResourceTypeAIGatewayPipeline           ResourceType = "ai_gateway_pipeline"
+	ResourceTypeAIGatewayGuardrail          ResourceType = "ai_gateway_guardrail"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3622,7 +3681,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeAIGatewayPolicy,
-		ResourceTypeAIGatewayPipeline:
+		ResourceTypeAIGatewayPipeline,
+		ResourceTypeAIGatewayGuardrail:
 		return true
 	}
 	return false
@@ -3666,6 +3726,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeAIGatewayPolicy,
 		ResourceTypeAIGatewayPipeline,
+		ResourceTypeAIGatewayGuardrail,
 	}
 }
 
@@ -4636,6 +4697,32 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Reusable, versioned networked guardrails for the AI gateway policy engine.
+type AIGatewayGuardrail struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	Name            string         `db:"name" json:"name"`
+	DisplayName     sql.NullString `db:"display_name" json:"display_name"`
+	AdapterType     string         `db:"adapter_type" json:"adapter_type"`
+	ActiveVersionID uuid.NullUUID  `db:"active_version_id" json:"active_version_id"`
+	Enabled         bool           `db:"enabled" json:"enabled"`
+	Deleted         bool           `db:"deleted" json:"deleted"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// Immutable adapter config + dbcrypt-encrypted credential for each guardrail version.
+type AIGatewayGuardrailVersion struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	GuardrailID     uuid.UUID       `db:"guardrail_id" json:"guardrail_id"`
+	VersionNumber   int32           `db:"version_number" json:"version_number"`
+	Config          json.RawMessage `db:"config" json:"config"`
+	Credential      string          `db:"credential" json:"credential"`
+	CredentialKeyID sql.NullString  `db:"credential_key_id" json:"credential_key_id"`
+	Description     sql.NullString  `db:"description" json:"description"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	CreatedBy       uuid.NullUUID   `db:"created_by" json:"created_by"`
+}
+
 // Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
 type AIGatewayKey struct {
 	ID        uuid.UUID `db:"id" json:"id"`
@@ -4665,6 +4752,18 @@ type AIGatewayPipelineVersion struct {
 	VersionNumber int32         `db:"version_number" json:"version_number"`
 	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
 	CreatedBy     uuid.NullUUID `db:"created_by" json:"created_by"`
+}
+
+// Guardrail membership of a pipeline version: which guardrail versions run at which hook, in which mode.
+type AIGatewayPipelineVersionGuardrail struct {
+	ID                 uuid.UUID              `db:"id" json:"id"`
+	PipelineVersionID  uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
+	GuardrailVersionID uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Hook               AIGatewayHook          `db:"hook" json:"hook"`
+	Mode               AIGatewayGuardrailMode `db:"mode" json:"mode"`
+	FailMode           AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs   int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Enabled            bool                   `db:"enabled" json:"enabled"`
 }
 
 // Membership of a pipeline version: which policy versions run at which hook.

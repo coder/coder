@@ -312,6 +312,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			api.AGPL.AIGatewayPipelinesRoutes(r)
 		})
 	})
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge/guardrails", func(r chi.Router) {
+			r.Use(apiKeyMiddleware, api.RequireFeatureMW(codersdk.FeatureAIBridge))
+			api.AGPL.AIGatewayGuardrailsRoutes(r)
+		})
+	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge/keys", func(r chi.Router) {

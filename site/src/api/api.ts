@@ -3186,6 +3186,60 @@ class ApiMethods {
 		);
 	};
 
+	getAIGatewayGuardrails = async (): Promise<TypesGen.AIGatewayGuardrail[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayGuardrail[]>(
+			"/api/v2/aibridge/guardrails",
+		);
+		return response.data;
+	};
+
+	getAIGatewayGuardrail = async (
+		id: string,
+	): Promise<TypesGen.AIGatewayGuardrail> => {
+		const response = await this.axios.get<TypesGen.AIGatewayGuardrail>(
+			`/api/v2/aibridge/guardrails/${encodeURIComponent(id)}`,
+		);
+		return response.data;
+	};
+
+	createAIGatewayGuardrail = async (
+		req: TypesGen.CreateAIGatewayGuardrailRequest,
+	): Promise<TypesGen.AIGatewayGuardrail> => {
+		const response = await this.axios.post<TypesGen.AIGatewayGuardrail>(
+			"/api/v2/aibridge/guardrails",
+			req,
+		);
+		return response.data;
+	};
+
+	createAIGatewayGuardrailVersion = async (
+		id: string,
+		req: TypesGen.CreateAIGatewayGuardrailVersionRequest,
+	): Promise<TypesGen.AIGatewayGuardrailVersion> => {
+		const response = await this.axios.post<TypesGen.AIGatewayGuardrailVersion>(
+			`/api/v2/aibridge/guardrails/${encodeURIComponent(id)}/versions`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIGatewayGuardrail = async (
+		id: string,
+		req: TypesGen.UpdateAIGatewayGuardrailRequest,
+	): Promise<TypesGen.AIGatewayGuardrail> => {
+		const response = await this.axios.patch<TypesGen.AIGatewayGuardrail>(
+			`/api/v2/aibridge/guardrails/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIGatewayGuardrail = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/aibridge/guardrails/${encodeURIComponent(id)}`,
+		);
+	};
+
 	getAIGatewayPipelines = async (): Promise<TypesGen.AIGatewayPipeline[]> => {
 		const response = await this.axios.get<TypesGen.AIGatewayPipeline[]>(
 			"/api/v2/aibridge/pipelines",

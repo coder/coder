@@ -1845,6 +1845,13 @@ func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountA
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prep)
 }
 
+func (q *querier) CountAIGatewayGuardrailVersionsInActivePipelines(ctx context.Context, guardrailID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return 0, err
+	}
+	return q.db.CountAIGatewayGuardrailVersionsInActivePipelines(ctx, guardrailID)
+}
+
 func (q *querier) CountAIGatewayPolicyVersionsInActivePipelines(ctx context.Context, policyID uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
 		return 0, err
@@ -1926,6 +1933,13 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	}
 
 	return q.db.CustomRoles(ctx, arg)
+}
+
+func (q *querier) DeleteAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.DeleteAIGatewayGuardrailByID(ctx, id)
 }
 
 func (q *querier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
@@ -2653,6 +2667,41 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
+func (q *querier) GetAIGatewayGuardrailByID(ctx context.Context, id uuid.UUID) (database.AIGatewayGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrail{}, err
+	}
+	return q.db.GetAIGatewayGuardrailByID(ctx, id)
+}
+
+func (q *querier) GetAIGatewayGuardrailByName(ctx context.Context, name string) (database.AIGatewayGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrail{}, err
+	}
+	return q.db.GetAIGatewayGuardrailByName(ctx, name)
+}
+
+func (q *querier) GetAIGatewayGuardrailVersionByID(ctx context.Context, id uuid.UUID) (database.AIGatewayGuardrailVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	return q.db.GetAIGatewayGuardrailVersionByID(ctx, id)
+}
+
+func (q *querier) GetAIGatewayGuardrailVersionsByGuardrailID(ctx context.Context, guardrailID uuid.UUID) ([]database.AIGatewayGuardrailVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayGuardrailVersionsByGuardrailID(ctx, guardrailID)
+}
+
+func (q *querier) GetAIGatewayGuardrails(ctx context.Context, includeDeleted bool) ([]database.AIGatewayGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayGuardrails(ctx, includeDeleted)
+}
+
 func (q *querier) GetAIGatewayPipelineByID(ctx context.Context, id uuid.UUID) (database.AIGatewayPipeline, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
 		return database.AIGatewayPipeline{}, err
@@ -2667,11 +2716,25 @@ func (q *querier) GetAIGatewayPipelineByProviderID(ctx context.Context, provider
 	return q.db.GetAIGatewayPipelineByProviderID(ctx, providerID)
 }
 
+func (q *querier) GetAIGatewayPipelineGuardrailDrift(ctx context.Context) ([]database.GetAIGatewayPipelineGuardrailDriftRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelineGuardrailDrift(ctx)
+}
+
 func (q *querier) GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]database.GetAIGatewayPipelinePolicyDriftRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
 		return nil, err
 	}
 	return q.db.GetAIGatewayPipelinePolicyDrift(ctx)
+}
+
+func (q *querier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelineVersionGuardrails(ctx, pipelineVersionID)
 }
 
 func (q *querier) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionPolicy, error) {
@@ -2693,6 +2756,13 @@ func (q *querier) GetAIGatewayPipelines(ctx context.Context, arg database.GetAIG
 		return nil, err
 	}
 	return q.db.GetAIGatewayPipelines(ctx, arg)
+}
+
+func (q *querier) GetAIGatewayPipelinesReferencingGuardrail(ctx context.Context, guardrailID uuid.UUID) ([]database.AIGatewayPipeline, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIGatewayPipelinesReferencingGuardrail(ctx, guardrailID)
 }
 
 func (q *querier) GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]database.AIGatewayPipeline, error) {
@@ -2829,6 +2899,13 @@ func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPI
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+}
+
+func (q *querier) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) ([]database.GetActiveAIGatewayPipelineGuardrailsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayPolicy); err != nil {
+		return nil, err
+	}
+	return q.db.GetActiveAIGatewayPipelineGuardrails(ctx)
 }
 
 func (q *querier) GetActiveAIGatewayPipelinePolicies(ctx context.Context) ([]database.GetActiveAIGatewayPipelinePoliciesRow, error) {
@@ -5610,6 +5687,20 @@ func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.Ins
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
 
+func (q *querier) InsertAIGatewayGuardrail(ctx context.Context, arg database.InsertAIGatewayGuardrailParams) (database.AIGatewayGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrail{}, err
+	}
+	return q.db.InsertAIGatewayGuardrail(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayGuardrailVersion(ctx context.Context, arg database.InsertAIGatewayGuardrailVersionParams) (database.AIGatewayGuardrailVersion, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrailVersion{}, err
+	}
+	return q.db.InsertAIGatewayGuardrailVersion(ctx, arg)
+}
+
 func (q *querier) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayKey); err != nil {
 		return database.InsertAIGatewayKeyRow{}, err
@@ -5629,6 +5720,13 @@ func (q *querier) InsertAIGatewayPipelineVersion(ctx context.Context, arg databa
 		return database.AIGatewayPipelineVersion{}, err
 	}
 	return q.db.InsertAIGatewayPipelineVersion(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context, arg database.InsertAIGatewayPipelineVersionGuardrailParams) (database.AIGatewayPipelineVersionGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayPipelineVersionGuardrail{}, err
+	}
+	return q.db.InsertAIGatewayPipelineVersionGuardrail(ctx, arg)
 }
 
 func (q *querier) InsertAIGatewayPipelineVersionPolicy(ctx context.Context, arg database.InsertAIGatewayPipelineVersionPolicyParams) (database.AIGatewayPipelineVersionPolicy, error) {
@@ -6813,6 +6911,20 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
+}
+
+func (q *querier) UpdateAIGatewayGuardrail(ctx context.Context, arg database.UpdateAIGatewayGuardrailParams) (database.AIGatewayGuardrail, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return database.AIGatewayGuardrail{}, err
+	}
+	return q.db.UpdateAIGatewayGuardrail(ctx, arg)
+}
+
+func (q *querier) UpdateAIGatewayGuardrailActiveVersion(ctx context.Context, arg database.UpdateAIGatewayGuardrailActiveVersionParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayPolicy); err != nil {
+		return err
+	}
+	return q.db.UpdateAIGatewayGuardrailActiveVersion(ctx, arg)
 }
 
 func (q *querier) UpdateAIGatewayPipeline(ctx context.Context, arg database.UpdateAIGatewayPipelineParams) (database.AIGatewayPipeline, error) {

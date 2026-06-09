@@ -6,6 +6,7 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAiGatewayGuardrailsNameCheck                 CheckConstraint = "ai_gateway_guardrails_name_check"                    // ai_gateway_guardrails
 	CheckAiGatewayKeysHashedSecretCheck               CheckConstraint = "ai_gateway_keys_hashed_secret_check"                 // ai_gateway_keys
 	CheckAiGatewayKeysNameCheck                       CheckConstraint = "ai_gateway_keys_name_check"                          // ai_gateway_keys
 	CheckAiGatewayKeysSecretPrefixCheck               CheckConstraint = "ai_gateway_keys_secret_prefix_check"                 // ai_gateway_keys

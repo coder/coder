@@ -430,6 +430,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":        ActionIgnore, // Changes; not useful in a diff.
 	},
+	&database.AIGatewayGuardrail{}: {
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"display_name":      ActionTrack,
+		"adapter_type":      ActionTrack,
+		"active_version_id": ActionTrack, // The atomic swap point; the most important audited change.
+		"enabled":           ActionTrack,
+		"deleted":           ActionTrack,
+		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
+		"updated_at":        ActionIgnore, // Changes; not useful in a diff.
+	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,
 		"organization_id":     ActionIgnore, // Never changes.

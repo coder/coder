@@ -10,8 +10,12 @@ import {
 import { useQuery } from "react-query";
 import { aiGatewayPolicy } from "#/api/queries/aiGatewayPolicies";
 import type {
+	AIGatewayGuardrail,
+	AIGatewayGuardrailMode,
 	AIGatewayHook,
 	AIGatewayPipeline,
+	AIGatewayPipelineGuardrail,
+	AIGatewayPipelineGuardrailRequest,
 	AIGatewayPipelinePolicy,
 	AIGatewayPipelinePolicyRequest,
 	AIGatewayPolicy,
@@ -69,10 +73,210 @@ const POLICY_KINDS: AIGatewayPolicyKind[] = [
 
 const HOOKS: AIGatewayHook[] = ["pre_auth", "pre_req"];
 
+const GUARDRAIL_MODES: AIGatewayGuardrailMode[] = ["advisory", "enforcing"];
+
+// GuardrailMemberDraft is the in-form representation of a pipeline guardrail
+// member. Guardrails are always pinned at the pre-req hook in v1.
+interface GuardrailMemberDraft {
+	id: string;
+	guardrailId: string;
+	// pinnedVersionId preserves an existing member's pinned guardrail version
+	// until the picker is changed. Undefined for newly added members.
+	pinnedVersionId?: string;
+	mode: AIGatewayGuardrailMode;
+	failMode: "fail_open" | "fail_closed";
+	networkTimeoutMs: number;
+	enabled: boolean;
+}
+
+// Default per-guardrail network timeout. Presidio in particular lazily loads
+// its NLP model on the first request, so a generous default avoids a cold-start
+// timeout blocking the request when fail_closed.
+const DEFAULT_GUARDRAIL_TIMEOUT_MS = 10000;
+
+// resolveGuardrailMembers maps in-form guardrail drafts to API requests,
+// pinning the selected guardrail's active version (or keeping the existing pin
+// when unchanged).
+function resolveGuardrailMembers(
+	drafts: GuardrailMemberDraft[],
+	activeGuardrails: AIGatewayGuardrail[],
+	versionToGuardrailId: Map<string, string>,
+): AIGatewayPipelineGuardrailRequest[] {
+	const out: AIGatewayPipelineGuardrailRequest[] = [];
+	for (const d of drafts) {
+		const guardrail = activeGuardrails.find((g) => g.id === d.guardrailId);
+		const versionId =
+			d.pinnedVersionId &&
+			versionToGuardrailId.get(d.pinnedVersionId) === d.guardrailId
+				? d.pinnedVersionId
+				: guardrail?.active_version_id;
+		if (!versionId) {
+			continue;
+		}
+		out.push({
+			guardrail_version_id: versionId,
+			hook: "pre_req",
+			mode: d.mode,
+			fail_mode: d.failMode,
+			network_timeout_ms: d.networkTimeoutMs,
+			enabled: d.enabled,
+		});
+	}
+	return out;
+}
+
+// guardrailMembersToRequests maps a pipeline's existing guardrail members back
+// to requests so re-minting a version (e.g. toggling a policy) preserves them.
+function guardrailMembersToRequests(
+	members: readonly AIGatewayPipelineGuardrail[],
+): AIGatewayPipelineGuardrailRequest[] {
+	return members.map((g) => ({
+		guardrail_version_id: g.guardrail_version_id,
+		hook: g.hook,
+		mode: g.mode,
+		fail_mode: g.fail_mode,
+		network_timeout_ms: g.network_timeout_ms,
+		enabled: g.enabled,
+	}));
+}
+
+interface GuardrailMemberEditorProps {
+	members: GuardrailMemberDraft[];
+	guardrails: AIGatewayGuardrail[];
+	onAdd: () => void;
+	onUpdate: (id: string, patch: Partial<GuardrailMemberDraft>) => void;
+	onRemove: (id: string) => void;
+}
+
+// GuardrailMemberEditor is the shared guardrail-attach control used by the
+// create and edit pipeline dialogs. Guardrails always run at the pre-req hook.
+const GuardrailMemberEditor: FC<GuardrailMemberEditorProps> = ({
+	members,
+	guardrails,
+	onAdd,
+	onUpdate,
+	onRemove,
+}) => (
+	<div className="flex flex-col gap-2">
+		<div className="flex items-center justify-between">
+			<Label>Guardrails</Label>
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				onClick={onAdd}
+				disabled={guardrails.length === 0}
+			>
+				Add guardrail
+			</Button>
+		</div>
+		{members.length === 0 && (
+			<span className="text-xs text-content-secondary">
+				No guardrails attached.
+			</span>
+		)}
+		{members.map((member) => (
+			<div
+				key={member.id}
+				className={cn(
+					"flex items-center gap-2",
+					!member.enabled && "opacity-60",
+				)}
+			>
+				<Select
+					value={member.guardrailId}
+					onValueChange={(value) =>
+						onUpdate(member.id, {
+							guardrailId: value,
+							pinnedVersionId: undefined,
+						})
+					}
+				>
+					<SelectTrigger className="flex-1">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{guardrails.map((g) => (
+							<SelectItem key={g.id} value={g.id}>
+								{g.display_name || g.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={member.mode}
+					onValueChange={(value) =>
+						onUpdate(member.id, { mode: value as AIGatewayGuardrailMode })
+					}
+				>
+					<SelectTrigger className="w-32">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{GUARDRAIL_MODES.map((mode) => (
+							<SelectItem key={mode} value={mode}>
+								{mode}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={member.failMode}
+					onValueChange={(value) =>
+						onUpdate(member.id, {
+							failMode: value as GuardrailMemberDraft["failMode"],
+						})
+					}
+				>
+					<SelectTrigger className="w-32">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="fail_closed">fail_closed</SelectItem>
+						<SelectItem value="fail_open">fail_open</SelectItem>
+					</SelectContent>
+				</Select>
+				<Input
+					type="number"
+					min={1}
+					className="w-24"
+					aria-label="Network timeout (ms)"
+					title="Network timeout (ms)"
+					value={member.networkTimeoutMs}
+					onChange={(e) => {
+						const ms = Number(e.target.value);
+						onUpdate(member.id, {
+							networkTimeoutMs: Number.isFinite(ms) && ms > 0 ? ms : 1,
+						});
+					}}
+				/>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="w-20"
+					onClick={() => onUpdate(member.id, { enabled: !member.enabled })}
+				>
+					{member.enabled ? "Disable" : "Enable"}
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={() => onRemove(member.id)}
+				>
+					Remove
+				</Button>
+			</div>
+		))}
+	</div>
+);
+
 interface PoliciesPageViewProps {
 	policies: AIGatewayPolicy[];
 	pipelines: AIGatewayPipeline[];
 	providers: AIProvider[];
+	guardrails: AIGatewayGuardrail[];
 	isLoading: boolean;
 	error: unknown;
 	onCreatePolicy: (
@@ -104,6 +308,7 @@ interface PoliciesPageViewProps {
 	onEditPipeline: (
 		id: string,
 		policies: AIGatewayPipelinePolicyRequest[],
+		guardrails: AIGatewayPipelineGuardrailRequest[],
 		onSuccess: () => void,
 	) => void;
 	isEditingPipeline: boolean;
@@ -115,6 +320,7 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 	policies,
 	pipelines,
 	providers,
+	guardrails,
 	isLoading,
 	error,
 	onCreatePolicy,
@@ -159,6 +365,23 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 		}
 	}
 
+	// Only guardrails with an active version can be attached.
+	const activeGuardrails = guardrails.filter((g) => g.active_version_id);
+	const versionToGuardrailId = new Map<string, string>();
+	const versionToGuardrail = new Map<
+		string,
+		{ guardrail: AIGatewayGuardrail; versionNumber: number }
+	>();
+	for (const g of guardrails) {
+		for (const v of g.versions ?? []) {
+			versionToGuardrailId.set(v.id, g.id);
+			versionToGuardrail.set(v.id, {
+				guardrail: g,
+				versionNumber: v.version_number,
+			});
+		}
+	}
+
 	const togglePipeline = (id: string) =>
 		setExpandedPipelines((prev) => {
 			const next = new Set(prev);
@@ -187,12 +410,49 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 					? !m.enabled
 					: m.enabled,
 		}));
-		onEditPipeline(pipeline.id, next, () => {});
+		// Preserve the pipeline's guardrail members; re-minting a version with
+		// only policies would drop them.
+		onEditPipeline(
+			pipeline.id,
+			next,
+			guardrailMembersToRequests(pipeline.active_version?.guardrails ?? []),
+			() => {},
+		);
+	};
+
+	// Enable/disable a guardrail within a pipeline by re-minting the version
+	// with that member's enabled flag flipped, preserving all other members.
+	const toggleAttachedGuardrail = (
+		pipeline: AIGatewayPipeline,
+		target: AIGatewayPipelineGuardrail,
+	) => {
+		const nextGuardrails = (pipeline.active_version?.guardrails ?? []).map(
+			(m) => ({
+				guardrail_version_id: m.guardrail_version_id,
+				hook: m.hook,
+				mode: m.mode,
+				fail_mode: m.fail_mode,
+				network_timeout_ms: m.network_timeout_ms,
+				enabled:
+					m.guardrail_version_id === target.guardrail_version_id &&
+					m.hook === target.hook
+						? !m.enabled
+						: m.enabled,
+			}),
+		);
+		const keepPolicies = (pipeline.active_version?.policies ?? []).map((m) => ({
+			policy_version_id: m.policy_version_id,
+			hook: m.hook,
+			fail_mode: m.fail_mode,
+			enabled: m.enabled,
+		}));
+		onEditPipeline(pipeline.id, keepPolicies, nextGuardrails, () => {});
 	};
 
 	return (
 		<div className="flex flex-col gap-8">
-			<div>
+			<hr className="order-2 m-0 w-full border-0 border-t border-solid border-border" />
+			<div className="order-3">
 				<SettingsHeader
 					actions={
 						<CreatePolicyDialog
@@ -235,7 +495,7 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 						{isLoading ? (
 							<TableLoader />
 						) : policies.length === 0 ? (
-							<TableEmpty message="No policies configured" />
+							<TableEmpty message="No policies configured" isCompact />
 						) : (
 							policies.map((policy) => (
 								<TableRow key={policy.id}>
@@ -269,7 +529,7 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 				</Table>
 			</div>
 
-			<div>
+			<div className="order-1">
 				<SettingsHeader
 					actions={
 						<CreatePipelineDialog
@@ -278,6 +538,8 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 							providers={providers}
 							policies={policies}
 							pipelines={pipelines}
+							guardrails={activeGuardrails}
+							versionToGuardrailId={versionToGuardrailId}
 							onCreatePipeline={onCreatePipeline}
 							isCreating={isCreatingPipeline}
 							createError={createPipelineError}
@@ -310,10 +572,12 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 						{isLoading ? (
 							<TableLoader />
 						) : pipelines.length === 0 ? (
-							<TableEmpty message="No pipelines configured" />
+							<TableEmpty message="No pipelines configured" isCompact />
 						) : (
 							pipelines.map((pipeline) => {
 								const members = pipeline.active_version?.policies ?? [];
+								const pipelineGuardrails =
+									pipeline.active_version?.guardrails ?? [];
 								const isOpen = expandedPipelines.has(pipeline.id);
 								return (
 									<Fragment key={pipeline.id}>
@@ -439,6 +703,51 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 															})}
 														</div>
 													)}
+													{pipelineGuardrails.length > 0 && (
+														<div className="mt-3 flex flex-col gap-1 border-0 border-t border-solid border-border pt-3">
+															<span className="text-xs font-medium text-content-secondary">
+																Guardrails
+															</span>
+															{pipelineGuardrails.map((g) => {
+																const resolved = versionToGuardrail.get(
+																	g.guardrail_version_id,
+																);
+																return (
+																	<div
+																		key={g.guardrail_version_id}
+																		className="flex items-center justify-between gap-2"
+																	>
+																		<span className="text-sm">
+																			<span className="font-medium">
+																				{resolved?.guardrail.name ??
+																					"unknown guardrail"}
+																			</span>{" "}
+																			<span className="text-content-secondary">
+																				{g.mode} · {g.hook} · {g.fail_mode}
+																				{resolved
+																					? ` · v${resolved.versionNumber}`
+																					: ""}
+																			</span>{" "}
+																			{!g.enabled && (
+																				<Badge size="sm" variant="default">
+																					Disabled
+																				</Badge>
+																			)}
+																		</span>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			onClick={() =>
+																				toggleAttachedGuardrail(pipeline, g)
+																			}
+																		>
+																			{g.enabled ? "Disable" : "Enable"}
+																		</Button>
+																	</div>
+																);
+															})}
+														</div>
+													)}
 												</TableCell>
 											</TableRow>
 										)}
@@ -464,6 +773,8 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 			<EditPipelineDialog
 				pipeline={editingPipeline}
 				policies={policies}
+				guardrails={activeGuardrails}
+				versionToGuardrailId={versionToGuardrailId}
 				onClose={() => setEditingPipeline(null)}
 				onSave={onEditPipeline}
 				isSaving={isEditingPipeline}
@@ -598,6 +909,8 @@ interface CreatePipelineDialogProps {
 	providers: AIProvider[];
 	policies: AIGatewayPolicy[];
 	pipelines: AIGatewayPipeline[];
+	guardrails: AIGatewayGuardrail[];
+	versionToGuardrailId: Map<string, string>;
 	onCreatePipeline: (
 		req: CreateAIGatewayPipelineRequest,
 		onSuccess: () => void,
@@ -612,6 +925,8 @@ const CreatePipelineDialog: FC<CreatePipelineDialogProps> = ({
 	providers,
 	policies,
 	pipelines,
+	guardrails,
+	versionToGuardrailId,
 	onCreatePipeline,
 	isCreating,
 	createError,
@@ -625,6 +940,9 @@ const CreatePipelineDialog: FC<CreatePipelineDialogProps> = ({
 
 	const [provider, setProvider] = useState("");
 	const [members, setMembers] = useState<PipelineMemberDraft[]>([]);
+	const [guardrailMembers, setGuardrailMembers] = useState<
+		GuardrailMemberDraft[]
+	>([]);
 	const nextMemberId = useRef(0);
 
 	const addMember = () => {
@@ -656,6 +974,33 @@ const CreatePipelineDialog: FC<CreatePipelineDialogProps> = ({
 		setMembers((prev) => prev.filter((m) => m.id !== id));
 	};
 
+	const addGuardrail = () => {
+		const first = guardrails[0];
+		if (!first) {
+			return;
+		}
+		nextMemberId.current += 1;
+		setGuardrailMembers((prev) => [
+			...prev,
+			{
+				id: `g${nextMemberId.current}`,
+				guardrailId: first.id,
+				mode: "enforcing",
+				failMode: "fail_closed",
+				networkTimeoutMs: DEFAULT_GUARDRAIL_TIMEOUT_MS,
+				enabled: true,
+			},
+		]);
+	};
+
+	const updateGuardrail = (id: string, patch: Partial<GuardrailMemberDraft>) =>
+		setGuardrailMembers((prev) =>
+			prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+		);
+
+	const removeGuardrail = (id: string) =>
+		setGuardrailMembers((prev) => prev.filter((m) => m.id !== id));
+
 	const submit = (e: FormEvent) => {
 		e.preventDefault();
 		const resolved: AIGatewayPipelinePolicyRequest[] = [];
@@ -672,11 +1017,21 @@ const CreatePipelineDialog: FC<CreatePipelineDialogProps> = ({
 			});
 		}
 		onCreatePipeline(
-			{ provider_id: provider, enabled: true, policies: resolved },
+			{
+				provider_id: provider,
+				enabled: true,
+				policies: resolved,
+				guardrails: resolveGuardrailMembers(
+					guardrailMembers,
+					guardrails,
+					versionToGuardrailId,
+				),
+			},
 			() => {
 				onOpenChange(false);
 				setProvider("");
 				setMembers([]);
+				setGuardrailMembers([]);
 			},
 		);
 	};
@@ -797,6 +1152,14 @@ const CreatePipelineDialog: FC<CreatePipelineDialogProps> = ({
 							</div>
 						))}
 					</div>
+
+					<GuardrailMemberEditor
+						members={guardrailMembers}
+						guardrails={guardrails}
+						onAdd={addGuardrail}
+						onUpdate={updateGuardrail}
+						onRemove={removeGuardrail}
+					/>
 
 					<DialogFooter>
 						<Button
@@ -1026,10 +1389,13 @@ const EditPolicyForm: FC<EditPolicyFormProps> = ({
 interface EditPipelineDialogProps {
 	pipeline: AIGatewayPipeline | null;
 	policies: AIGatewayPolicy[];
+	guardrails: AIGatewayGuardrail[];
+	versionToGuardrailId: Map<string, string>;
 	onClose: () => void;
 	onSave: (
 		id: string,
 		policies: AIGatewayPipelinePolicyRequest[],
+		guardrails: AIGatewayPipelineGuardrailRequest[],
 		onSuccess: () => void,
 	) => void;
 	isSaving: boolean;
@@ -1039,6 +1405,8 @@ interface EditPipelineDialogProps {
 const EditPipelineDialog: FC<EditPipelineDialogProps> = ({
 	pipeline,
 	policies,
+	guardrails,
+	versionToGuardrailId,
 	onClose,
 	onSave,
 	isSaving,
@@ -1059,6 +1427,8 @@ const EditPipelineDialog: FC<EditPipelineDialogProps> = ({
 						key={pipeline.active_version_id ?? pipeline.id}
 						pipeline={pipeline}
 						policies={policies}
+						guardrails={guardrails}
+						versionToGuardrailId={versionToGuardrailId}
 						onClose={onClose}
 						onSave={onSave}
 						isSaving={isSaving}
@@ -1073,10 +1443,13 @@ const EditPipelineDialog: FC<EditPipelineDialogProps> = ({
 interface EditPipelineFormProps {
 	pipeline: AIGatewayPipeline;
 	policies: AIGatewayPolicy[];
+	guardrails: AIGatewayGuardrail[];
+	versionToGuardrailId: Map<string, string>;
 	onClose: () => void;
 	onSave: (
 		id: string,
 		policies: AIGatewayPipelinePolicyRequest[],
+		guardrails: AIGatewayPipelineGuardrailRequest[],
 		onSuccess: () => void,
 	) => void;
 	isSaving: boolean;
@@ -1086,6 +1459,8 @@ interface EditPipelineFormProps {
 const EditPipelineForm: FC<EditPipelineFormProps> = ({
 	pipeline,
 	policies,
+	guardrails,
+	versionToGuardrailId,
 	onClose,
 	onSave,
 	isSaving,
@@ -1117,6 +1492,47 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 			enabled: m.enabled,
 		})),
 	);
+
+	const [guardrailMembers, setGuardrailMembers] = useState<
+		GuardrailMemberDraft[]
+	>(() =>
+		(pipeline.active_version?.guardrails ?? []).map((m) => ({
+			id: `g${makeId()}`,
+			guardrailId: versionToGuardrailId.get(m.guardrail_version_id) ?? "",
+			pinnedVersionId: m.guardrail_version_id,
+			mode: m.mode,
+			failMode: m.fail_mode === "fail_open" ? "fail_open" : "fail_closed",
+			networkTimeoutMs: m.network_timeout_ms,
+			enabled: m.enabled,
+		})),
+	);
+
+	const addGuardrail = () => {
+		const first = guardrails[0];
+		if (!first) {
+			return;
+		}
+		setGuardrailMembers((prev) => [
+			...prev,
+			{
+				id: `g${makeId()}`,
+				guardrailId: first.id,
+				pinnedVersionId: undefined,
+				mode: "enforcing",
+				failMode: "fail_closed",
+				networkTimeoutMs: DEFAULT_GUARDRAIL_TIMEOUT_MS,
+				enabled: true,
+			},
+		]);
+	};
+
+	const updateGuardrail = (id: string, patch: Partial<GuardrailMemberDraft>) =>
+		setGuardrailMembers((prev) =>
+			prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+		);
+
+	const removeGuardrail = (id: string) =>
+		setGuardrailMembers((prev) => prev.filter((m) => m.id !== id));
 
 	const addMember = () => {
 		const first = activePolicies[0];
@@ -1166,7 +1582,16 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 				enabled: m.enabled,
 			});
 		}
-		onSave(pipeline.id, resolved, onClose);
+		onSave(
+			pipeline.id,
+			resolved,
+			resolveGuardrailMembers(
+				guardrailMembers,
+				guardrails,
+				versionToGuardrailId,
+			),
+			onClose,
+		);
 	};
 
 	return (
@@ -1281,6 +1706,14 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 					</div>
 				))}
 			</div>
+
+			<GuardrailMemberEditor
+				members={guardrailMembers}
+				guardrails={guardrails}
+				onAdd={addGuardrail}
+				onUpdate={updateGuardrail}
+				onRemove={removeGuardrail}
+			/>
 
 			<DialogFooter>
 				<Button type="button" variant="outline" onClick={onClose}>
