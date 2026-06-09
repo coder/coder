@@ -136,8 +136,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Total number of requests rejected due to open circuit breaker.",
 		}, []string{"provider", "endpoint", "model"}),
 
-		// Key pool failover metrics. Only anthropic and openai have key
-		// pools, copilot is always BYOK.
+		// Key pool failover metrics.
 
 		// Pessimistic cardinality: 2 providers, 3 reasons = up to 6.
 		KeyPoolStateTransitions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
@@ -153,7 +152,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help: "The number of times the key pool was exhausted with no usable key " +
 				"(outcome: rate_limited, auth_failed).",
 		}, []string{"provider", "outcome"}),
-		// Pessimistic cardinality: 2 providers, 6 buckets + 3 extra series = up to 18.
+		// Pessimistic cardinality: 2 providers, 6 buckets + 3 extra series (count, sum, +Inf) = up to 18.
 		KeyPoolFailoverAttempts: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "key_pool",
 			Name:      "failover_attempts",

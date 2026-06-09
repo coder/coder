@@ -39,20 +39,17 @@ func (c *stateCollector) Collect(ch chan<- prometheus.Metric) {
 			continue
 		}
 
-		var valid, temporary, permanent int
+		counts := map[KeyState]int{
+			KeyStateValid:     0,
+			KeyStateTemporary: 0,
+			KeyStatePermanent: 0,
+		}
 		for _, state := range pool.PoolState() {
-			switch state {
-			case KeyStateValid:
-				valid++
-			case KeyStateTemporary:
-				temporary++
-			case KeyStatePermanent:
-				permanent++
-			}
+			counts[state]++
 		}
 
-		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(valid), pool.providerName, "valid")
-		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(temporary), pool.providerName, "temporary")
-		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(permanent), pool.providerName, "permanent")
+		for _, state := range []KeyState{KeyStateValid, KeyStateTemporary, KeyStatePermanent} {
+			ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, float64(counts[state]), pool.providerName, string(state))
+		}
 	}
 }

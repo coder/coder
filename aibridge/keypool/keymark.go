@@ -29,7 +29,7 @@ func (p *Pool) MarkKeyOnStatus(
 		}
 		if key.MarkTemporary(cooldown) {
 			if p.metrics != nil {
-				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, "rate_limited").Inc()
+				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reasonRateLimited).Inc()
 			}
 			logger.Info(ctx, "key marked temporary",
 				slog.F("provider", p.providerName),
@@ -41,9 +41,9 @@ func (p *Pool) MarkKeyOnStatus(
 	case http.StatusUnauthorized, http.StatusForbidden:
 		if key.MarkPermanent() {
 			if p.metrics != nil {
-				reason := "unauthorized"
+				reason := reasonUnauthorized
 				if statusCode == http.StatusForbidden {
-					reason = "forbidden"
+					reason = reasonForbidden
 				}
 				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reason).Inc()
 			}

@@ -54,22 +54,34 @@ func (e *Error) Error() string {
 }
 
 // KeyState represents the current state of a key in the pool.
-type KeyState int
+type KeyState string
 
 const (
 	// KeyStateValid means the key is available for use.
-	KeyStateValid KeyState = iota
+	KeyStateValid KeyState = "valid"
 	// KeyStateTemporary means the key is temporarily unavailable
 	// (e.g. rate-limited) and will recover after a cooldown.
-	KeyStateTemporary
+	KeyStateTemporary KeyState = "temporary"
 	// KeyStatePermanent means the key is permanently unavailable
 	// (e.g. revoked or unauthorized) until process restart.
-	KeyStatePermanent
+	KeyStatePermanent KeyState = "permanent"
 )
 
 // defaultCooldown is applied when a key is marked temporary
 // with a zero or negative cooldown duration.
 const defaultCooldown = 60 * time.Second
+
+// Metric label values for the key pool failover metrics.
+const (
+	// Reasons for a key_pool_state_transitions_total event.
+	reasonRateLimited  = "rate_limited"
+	reasonUnauthorized = "unauthorized"
+	reasonForbidden    = "forbidden"
+
+	// Outcomes for a key_pool_exhaustions_total event.
+	outcomeRateLimited = "rate_limited"
+	outcomeAuthFailed  = "auth_failed"
+)
 
 // Key holds a key value and its runtime state.
 type Key struct {
@@ -254,9 +266,9 @@ func (p *Pool) recordExhaustion(err *Error) {
 	if p.metrics == nil {
 		return
 	}
-	outcome := "rate_limited"
+	outcome := outcomeRateLimited
 	if err.Kind == ErrorKindPermanent {
-		outcome = "auth_failed"
+		outcome = outcomeAuthFailed
 	}
 	p.metrics.KeyPoolExhaustions.WithLabelValues(p.providerName, outcome).Inc()
 }
