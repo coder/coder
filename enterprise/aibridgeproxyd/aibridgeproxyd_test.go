@@ -1703,6 +1703,37 @@ func TestListenerTLS(t *testing.T) {
 	}
 }
 
+// TestProxy_AIBridgeTLSVerification verifies the proxy refuses to forward
+// MITM'd requests to an aibridge endpoint whose TLS certificate is not trusted.
+func TestProxy_AIBridgeTLSVerification(t *testing.T) {
+	t.Parallel()
+
+	// HTTPS server with a self-signed cert untrusted by the system pool,
+	// standing in for aibridge.
+	aibridgeServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(aibridgeServer.Close)
+
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgeServer.URL),
+		withProviderHosts(aibridgeproxyd.HostAnthropic),
+	)
+
+	client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t), false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		"https://"+aibridgeproxyd.HostAnthropic+"/v1/messages",
+		strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	require.Error(t, err, "proxy must refuse to forward MITM'd requests to an untrusted aibridge cert")
+}
+
 // TestServeCACert validates that a configured certificate file can be served correctly by the API.
 //
 // Note: Tests for certificate file errors (missing file, invalid PEM) are

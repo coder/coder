@@ -289,13 +289,20 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.CertStore = NewCertCache()
 	}
 
-	// Always set secure TLS defaults, overriding goproxy's default.
-	// This ensures secure TLS connections for:
-	// - HTTPS upstream proxy connections
-	// - MITM'd requests if aibridge uses HTTPS
+	// Override goproxy's default transport, which has InsecureSkipVerify: true.
+	// This applies to all proxy.Tr traffic: MITM'd requests forwarded to aibridge,
+	// passthrough requests, and HTTPS upstream proxy connections. Proxy is
+	// intentionally unset so MITM'd requests go directly to aibridge, never
+	// through an upstream proxy or HTTPS_PROXY env var.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
+	}
+	proxy.Tr = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAs,
+		},
 	}
 
 	srv := &Server{
@@ -331,15 +338,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			connectReqHandler = func(req *http.Request) {
 				req.Header.Set("Proxy-Authorization", proxyAuth)
 			}
-		}
-
-		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
-		// not through any upstream proxy.
-		proxy.Tr = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    rootCAs,
-			},
 		}
 
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
