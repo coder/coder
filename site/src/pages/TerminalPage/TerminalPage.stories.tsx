@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -23,6 +24,7 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
+import { isMac } from "#/utils/platform";
 import TerminalPage from "./TerminalPage";
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
@@ -167,6 +169,57 @@ export const Ready: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+};
+
+export const RightClickMenu: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				data: "$ echo hello",
+			},
+		],
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+	play: async ({ canvasElement }) => {
+		// The custom copy/paste menu replaces the browser's native (canvas
+		// image) menu on Windows and Linux. macOS keeps its working native
+		// menu, so the custom menu is intentionally disabled there.
+		if (isMac()) {
+			return;
+		}
+
+		const terminal = await waitFor(() => {
+			const element = canvasElement.querySelector<HTMLElement>(".xterm");
+			if (!element) {
+				throw new Error("terminal has not rendered yet");
+			}
+			return element;
+		});
+
+		// Right-clicking the canvas-rendered terminal would normally surface
+		// the browser's image context menu. The event bubbles to the wrapper,
+		// where the custom menu intercepts it.
+		const rect = terminal.getBoundingClientRect();
+		terminal.dispatchEvent(
+			new MouseEvent("contextmenu", {
+				bubbles: true,
+				cancelable: true,
+				clientX: rect.left + rect.width / 2,
+				clientY: rect.top + rect.height / 2,
+			}),
+		);
+
+		const body = within(document.body);
+		await expect(
+			await body.findByRole("menuitem", { name: "Copy" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("menuitem", { name: "Paste" }),
+		).toBeInTheDocument();
 	},
 };
 

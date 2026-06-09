@@ -199,11 +199,11 @@ describe("TerminalPage", () => {
 		expect(req.data).toBe("\x1b\r");
 	});
 
-	it("suppresses the browser context menu on Windows", async () => {
-		// Pretend we're on Windows. Chromium-based browsers on Windows
-		// surface image actions like "Copy image" when right-clicking on
-		// the canvas-based terminal renderer, so the terminal intercepts
-		// contextmenu and prevents the default browser handling.
+	it("shows a custom copy/paste menu on right-click on non-macOS", async () => {
+		// Chromium-based browsers on Windows and Linux surface image actions
+		// like "Copy image" when right-clicking the canvas-based terminal
+		// renderer. The terminal intercepts contextmenu to suppress that
+		// native menu and shows its own copy/paste menu instead.
 		vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
 
 		createWorkspaceTerminalWebSocket();
@@ -220,10 +220,19 @@ describe("TerminalPage", () => {
 		});
 		terminal?.dispatchEvent(event);
 
+		// The browser's native (canvas image) menu is suppressed.
 		expect(event.defaultPrevented).toBe(true);
+		// The custom menu is shown instead.
+		expect(
+			await screen.findByRole("menuitem", { name: "Copy" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: "Paste" })).toBeInTheDocument();
 	});
 
-	it("does not suppress the browser context menu on non-Windows platforms", async () => {
+	it("keeps the native context menu on macOS", async () => {
+		// macOS renders native context menus that already expose working
+		// copy/paste for the terminal, so the custom menu is disabled there
+		// and the browser's default handling is left untouched.
 		vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
 
 		createWorkspaceTerminalWebSocket();
@@ -241,6 +250,9 @@ describe("TerminalPage", () => {
 		terminal?.dispatchEvent(event);
 
 		expect(event.defaultPrevented).toBe(false);
+		expect(
+			screen.queryByRole("menuitem", { name: "Copy" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows confirmation dialog when command param is present", async () => {

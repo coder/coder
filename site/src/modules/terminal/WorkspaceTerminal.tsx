@@ -15,15 +15,22 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { toast } from "sonner";
 import {
 	ExponentialBackoff,
 	type Websocket,
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
-import { isWindows } from "#/utils/platform";
+import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
 
@@ -95,6 +102,37 @@ export const WorkspaceTerminal = ({
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
+
+	// Track whether the terminal has a selection when the right-click menu
+	// opens, so the Copy item can be disabled when there's nothing to copy.
+	const [hasSelection, setHasSelection] = useState(false);
+	const handleContextMenuOpenChange = (open: boolean) => {
+		if (open) {
+			setHasSelection(Boolean(terminal?.hasSelection()));
+		}
+	};
+	const copyTerminalSelection = () => {
+		const selection = terminal?.getSelection();
+		if (selection) {
+			void copyToClipboard(selection);
+		}
+	};
+	const pasteIntoTerminal = async () => {
+		if (!terminal) {
+			return;
+		}
+		try {
+			const text = await navigator.clipboard.readText();
+			if (text) {
+				terminal.paste(text);
+			}
+		} catch (error) {
+			toast.error("Failed to paste from clipboard");
+			console.error(error);
+		} finally {
+			terminal.focus();
+		}
+	};
 
 	const [hasBeenVisible, setHasBeenVisible] = useState(false);
 	if (isVisible && !hasBeenVisible) {
@@ -194,7 +232,6 @@ export const WorkspaceTerminal = ({
 			}),
 		);
 
-		const isMac = navigator.platform.match("Mac");
 		const copySelection = () => {
 			const selection = nextTerminal.getSelection();
 			if (selection) {
@@ -220,7 +257,7 @@ export const WorkspaceTerminal = ({
 			// By default this usually launches the browser dev tools, but users
 			// expect this keybinding to copy when in the context of the web terminal.
 			if (
-				(isMac ? event.metaKey : event.ctrlKey) &&
+				(isMac() ? event.metaKey : event.ctrlKey) &&
 				event.shiftKey &&
 				event.key === "C"
 			) {
@@ -246,24 +283,6 @@ export const WorkspaceTerminal = ({
 			copySelection();
 		});
 
-		// Chromium-based browsers on Windows show image actions like
-		// "Copy image" or "Save image as" when right-clicking on the
-		// canvas/WebGL renderer because the underlying <canvas> is
-		// treated as an image. xterm.js tries to mitigate this by
-		// repositioning its hidden helper textarea under the cursor on
-		// contextmenu, but that workaround does not reliably retarget
-		// the menu on Windows. Suppress the browser menu on Windows so
-		// the misleading entries never appear; copy still works via
-		// selection (which writes to the clipboard automatically) and
-		// Ctrl+Shift+C, and paste still works via Ctrl+V.
-		const suppressContextMenu = isWindows();
-		const handleContextMenu = (event: MouseEvent) => {
-			event.preventDefault();
-		};
-		if (suppressContextMenu) {
-			mountNode.addEventListener("contextmenu", handleContextMenu);
-		}
-
 		nextTerminal.open(mountNode);
 		refit();
 
@@ -279,9 +298,6 @@ export const WorkspaceTerminal = ({
 		return () => {
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
-			if (suppressContextMenu) {
-				mountNode.removeEventListener("contextmenu", handleContextMenu);
-			}
 			fitAddonRef.current = undefined;
 			nextTerminal.dispose();
 			setTerminal(undefined);
@@ -536,15 +552,35 @@ export const WorkspaceTerminal = ({
 					background-color: hsl(var(--surface-quaternary));
 				}
 			`}</style>
-			<div
-				className={cn(
-					"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-					className,
-				)}
-				ref={terminalWrapperRef}
-				data-terminal-scope={scopeId}
-				data-testid={testId}
-			/>
+			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
+				<ContextMenuTrigger asChild disabled={isMac()}>
+					<div
+						className={cn(
+							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							className,
+						)}
+						ref={terminalWrapperRef}
+						data-terminal-scope={scopeId}
+						data-testid={testId}
+					/>
+				</ContextMenuTrigger>
+				<ContextMenuContent
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						terminal?.focus();
+					}}
+				>
+					<ContextMenuItem
+						disabled={!hasSelection}
+						onSelect={copyTerminalSelection}
+					>
+						Copy
+					</ContextMenuItem>
+					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+						Paste
+					</ContextMenuItem>
+				</ContextMenuContent>
+			</ContextMenu>
 		</>
 	);
 };
