@@ -8,6 +8,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 // BackfillChatModelConfigProviderStrings fixes stale provider strings on
@@ -17,11 +18,13 @@ import (
 // frontend uses the provider field to select icons, so stale strings cause
 // Anthropic styling to appear for Bedrock-backed models.
 //
-// db must be the raw (pre-dbauthz) store. Non-blocking: errors are logged and
-// startup continues. Must run after BackfillBedrockProviderType so provider
-// types are already correct when the JOIN executes.
+// Non-blocking: errors are logged and startup continues. Must run after
+// BackfillBedrockProviderType so provider types are already correct when
+// the JOIN executes.
 func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Store, logger slog.Logger) {
-	result, err := db.BackfillChatModelConfigProvider(ctx, database.BackfillChatModelConfigProviderParams{
+	//nolint:gocritic // Startup-only backfill; no user actor is present.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	result, err := db.BackfillChatModelConfigProvider(sysCtx, database.BackfillChatModelConfigProviderParams{
 		OldProvider: "anthropic",
 		NewProvider: "bedrock",
 	})
@@ -39,9 +42,7 @@ func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Sto
 // type=anthropic with Bedrock settings to type=bedrock. It must be called
 // after newAPI so that options.Database is dbcrypt-wrapped; encrypted settings
 // are decrypted transparently by that wrapper, making the Bedrock discriminator
-// visible for comparison. db must be the raw (pre-dbauthz) store: this
-// function runs during startup with no actor in context, so dbauthz checks
-// would fail.
+// visible for comparison.
 //
 // The function is idempotent: rows already typed as bedrock are skipped.
 // Any error is logged and the startup sequence continues.
@@ -58,7 +59,9 @@ func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Sto
 // acceptable: the provider type cannot be changed via the API, the startup
 // window is short, and a subsequent PATCH corrects any overwritten field.
 func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger slog.Logger) {
-	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
+	//nolint:gocritic // Startup-only backfill; no user actor is present.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	providers, err := db.GetAIProviders(sysCtx, database.GetAIProvidersParams{
 		IncludeDeleted:  false,
 		IncludeDisabled: true,
 	})
@@ -79,7 +82,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 		if settings.Bedrock == nil {
 			continue
 		}
-		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+		_, err = db.UpdateAIProvider(sysCtx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
 			Type:        database.AiProviderTypeBedrock,
 			DisplayName: provider.DisplayName,

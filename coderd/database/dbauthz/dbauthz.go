@@ -1702,8 +1702,9 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 }
 
 func (q *querier) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	// Startup-only backfill; always called on the raw store before
-	// the dbauthz wrapper is applied.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
 	return q.db.BackfillChatModelConfigProvider(ctx, arg)
 }
 
