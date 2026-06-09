@@ -206,6 +206,41 @@ interface AgentChatPageViewProps {
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 }
 
+interface UserTerminalTabContentProps {
+	tab: UserRightPanelTab;
+	chatId: string;
+	workspace: TypesGen.Workspace;
+	workspaceAgent: TypesGen.WorkspaceAgent;
+	activeTabId: string | null;
+	pendingTabId: string | null;
+	isPanelVisible: boolean;
+	onReady: (tabId: string) => void;
+}
+
+const UserTerminalTabContent: FC<UserTerminalTabContentProps> = ({
+	tab,
+	chatId,
+	workspace,
+	workspaceAgent,
+	activeTabId,
+	pendingTabId,
+	isPanelVisible,
+	onReady,
+}) => {
+	const isActive = activeTabId === tab.id;
+	return (
+		<TerminalPanel
+			chatId={chatId}
+			reconnectionToken={tab.reconnectionToken}
+			isHot={isPanelVisible && (isActive || pendingTabId === tab.id)}
+			autoFocus={isPanelVisible && isActive}
+			onReady={() => onReady(tab.id)}
+			workspace={workspace}
+			workspaceAgent={workspaceAgent}
+		/>
+	);
+};
+
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
 	sendShortcut,
@@ -314,9 +349,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	>(() => getPersistedRightPanelTabs(agentId));
 	const [defaultTerminalHidden, setDefaultTerminalHiddenState] =
 		useState<boolean>(() => getPersistedDefaultTerminalHidden(agentId));
-	// A freshly created terminal tab connects off screen while the previous tab
-	// stays visible. Once it signals readiness, or the brief fallback elapses, it
-	// is promoted to the active tab.
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
 
 	const setSidebarTabId = (tabId: string) => {
@@ -388,8 +420,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
-	const renderedUserRightPanelTabs =
-		workspace && workspaceAgent ? userRightPanelTabs : [];
+	const visibleUserTabs = workspace && workspaceAgent ? userRightPanelTabs : [];
 
 	// Single source of truth for available tabs and their order. The list
 	// of tab IDs used by `getEffectiveTabId` is derived from this so a
@@ -398,16 +429,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const builtInSidebarTabConfigs = [
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
-		// Terminal sits after the fixed Git/Debug tabs so it lands at the
-		// end of the tab strip when opened, grouped with any user-created
-		// terminal tabs rather than wedged between Git and Debug.
 		...(workspace && workspaceAgent && !defaultTerminalHidden
 			? [{ id: "terminal", label: "Terminal" }]
 			: []),
 	];
 	const sidebarTabConfigs = [
 		...builtInSidebarTabConfigs,
-		...renderedUserRightPanelTabs.map((tab, index) => {
+		...visibleUserTabs.map((tab, index) => {
 			const terminalNumber = index + (defaultTerminalHidden ? 1 : 2);
 			return {
 				id: tab.id,
@@ -422,9 +450,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		availableDesktopChatId,
 	);
 
-	// A new terminal tab connects off screen as the pending tab. When it signals
-	// readiness, promote it to the active tab. Bail if it is no longer the pending
-	// tab so a late readiness signal cannot yank the user away after they switched.
+	// Ignore late readiness from a tab the user already navigated past.
 	const handleTerminalTabReady = (tabId: string) => {
 		if (pendingTabId !== tabId) {
 			return;
@@ -433,16 +459,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		setSidebarTabId(tabId);
 	};
 
-	// Switching tabs by hand cancels any pending promotion so a still-connecting
-	// terminal does not later steal focus from the tab the user chose.
 	const handleActiveTabChange = (tabId: string) => {
 		setPendingTabId(null);
 		setSidebarTabId(tabId);
 	};
 
-	// Open the panel and let a new terminal tab connect off screen without
-	// switching to it yet. `handleTerminalTabReady` activates it once output
-	// paints, or after a brief fallback if the prompt has not rendered yet.
 	const startPendingTab = (tabId: string) => {
 		onSetShowSidebarPanel(true);
 		setPendingTabId(tabId);
@@ -452,8 +473,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
-		// Restore the built-in Terminal if it was previously closed instead of
-		// creating a numbered terminal while no default Terminal exists.
+		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
 			setDefaultTerminalHiddenState(false);
 			startPendingTab("terminal");
@@ -469,23 +489,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			},
 		]);
 		startPendingTab(tabId);
-	};
-
-	const renderUserTabContent = (tab: UserRightPanelTab): ReactNode => {
-		return workspace && workspaceAgent ? (
-			<TerminalPanel
-				chatId={agentId}
-				reconnectionToken={tab.reconnectionToken}
-				isHot={
-					shouldShowSidebar &&
-					(effectiveSidebarTabId === tab.id || pendingTabId === tab.id)
-				}
-				autoFocus={shouldShowSidebar && effectiveSidebarTabId === tab.id}
-				onReady={() => handleTerminalTabReady(tab.id)}
-				workspace={workspace}
-				workspaceAgent={workspaceAgent}
-			/>
-		) : null;
 	};
 
 	const renderTabContent = (tabId: string): ReactNode => {
@@ -534,17 +537,24 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					/>
 				);
 			default: {
-				const userTab = renderedUserRightPanelTabs.find(
-					(tab) => tab.id === tabId,
-				);
-				return userTab ? renderUserTabContent(userTab) : null;
+				const userTab = visibleUserTabs.find((tab) => tab.id === tabId);
+				return userTab && workspace && workspaceAgent ? (
+					<UserTerminalTabContent
+						tab={userTab}
+						chatId={agentId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+						activeTabId={effectiveSidebarTabId}
+						pendingTabId={pendingTabId}
+						isPanelVisible={shouldShowSidebar}
+						onReady={handleTerminalTabReady}
+					/>
+				) : null;
 			}
 		}
 	};
 
 	const handleCloseTab = (tabId: string) => {
-		// Closing a tab that is still connecting off screen cancels its pending
-		// promotion so it cannot reappear as the active tab after removal.
 		setPendingTabId((currentTabId) =>
 			currentTabId === tabId ? null : currentTabId,
 		);
@@ -555,8 +565,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		const remainingTabIds = visibleTabIds.filter((id) => id !== tabId);
 		const closedTabIndex = visibleTabIds.indexOf(tabId);
 
-		// The built-in Terminal is not a user tab. Closing it persists a hidden
-		// flag so it does not reappear on reload.
 		if (tabId === "terminal") {
 			setDefaultTerminalHiddenState(true);
 		} else {
@@ -578,7 +586,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const sidebarTabs = sidebarTabConfigs.map((tab) => {
 		const isCloseable =
 			tab.id === "terminal" ||
-			renderedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
+			visibleUserTabs.some((userTab) => userTab.id === tab.id);
 		return {
 			id: tab.id,
 			label: tab.label,

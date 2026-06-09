@@ -130,9 +130,7 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
-		// Skip fitting before layout is available. FitAddon derives terminal
-		// dimensions from computed styles, so fitting a zero-size container can
-		// clamp the terminal and PTY to the minimum column count.
+		// Fitting a zero-size container clamps the terminal and PTY to the minimum column count.
 		const mountNode = terminalWrapperRef.current;
 		if (
 			!mountNode ||
@@ -307,9 +305,7 @@ export const WorkspaceTerminal = ({
 		};
 	}, [terminal, isVisible, autoFocus, loading]);
 
-	// Notify once the first output has actually been painted. Consumers use
-	// this to show a freshly mounted terminal only after the prompt is on
-	// screen, avoiding a flash of the empty terminal during connection latency.
+	// Notify after first output paints so consumers can hide connection latency.
 	useEffect(() => {
 		if (!terminal) {
 			return;
@@ -318,11 +314,9 @@ export const WorkspaceTerminal = ({
 		const writeParsed = terminal.onWriteParsed(() => {
 			hasParsedOutput = true;
 		});
-		// onWriteParsed signals that output was parsed into the buffer, but
-		// xterm only draws it on the following render. Waiting for the first
-		// onRender after a parse ensures the pixels are present before the
-		// terminal is revealed. clear()/refresh fire onRender without a parse
-		// and are intentionally ignored.
+		// onWriteParsed fires before xterm paints; gate on the next onRender so
+		// pixels are present before the terminal is revealed. clear()/refresh
+		// fire onRender without a parse and are intentionally ignored.
 		const rendered = terminal.onRender(() => {
 			if (!hasParsedOutput) {
 				return;

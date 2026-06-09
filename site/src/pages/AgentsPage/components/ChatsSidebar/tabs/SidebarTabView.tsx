@@ -391,14 +391,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
 							className={cn(
 								"min-h-0 flex-1",
-								// Inactive panels stay laid out but invisible and stacked over
-								// the active panel, rather than removed with `display: none`.
-								// A canvas terminal keeps its painted pixels and stays
-								// correctly fit while hidden, so switching back is instant;
-								// dropping it from the render tree would repaint from scratch
-								// and flicker blank for a frame. This also lets a freshly
-								// opened terminal connect and paint off screen before the
-								// parent promotes it to the active tab.
+								// Keep inactive panels in the tree but invisible: a canvas xterm
+								// preserves painted pixels while hidden, so switching back is instant.
 								!isActive && "invisible absolute inset-0",
 							)}
 							inert={!isActive}

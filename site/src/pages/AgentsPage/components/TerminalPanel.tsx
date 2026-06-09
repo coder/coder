@@ -15,11 +15,7 @@ import {
 import { WorkspaceTerminalAlerts } from "#/modules/terminal/WorkspaceTerminalAlerts";
 import { openMaybePortForwardedURL } from "#/utils/portForward";
 
-/**
- * Brief readiness delay for a freshly created terminal tab. The parent waits
- * for first output when it arrives quickly, but promotes the tab after this
- * ceiling so a silent connection still becomes reachable promptly.
- */
+/** Promote a freshly created terminal tab after this delay if no output has painted. */
 const READY_FALLBACK_MS = 100;
 
 /** Keeps a recently hidden terminal attached long enough for quick tab toggles. */
@@ -27,21 +23,18 @@ const TERMINAL_IDLE_DETACH_MS = 30_000;
 
 interface TerminalPanelProps {
 	chatId: string;
-	/** Used as the reconnection token so the PTY session survives navigation and page reloads. */
+	/** Persisting this keeps the PTY session attached across reloads. */
 	reconnectionToken?: string;
 	/** Whether this terminal should hold live xterm and WebSocket resources. */
 	isHot?: boolean;
 	/**
-	 * Whether the terminal should grab keyboard focus. Gate this on the tab being
-	 * the active tab, not merely connecting, so a terminal connecting off screen
-	 * does not steal focus and focus moves to it once it is promoted to active.
+	 * Gate on active-tab status, not just connect, so a tab connecting off screen
+	 * does not steal focus from the user.
 	 */
 	autoFocus?: boolean;
 	/**
 	 * Fires once the terminal is ready to be shown: the first output has
-	 * painted, the connection dropped, or a brief fallback timeout elapsed. The
-	 * parent uses this to defer activating a freshly created terminal tab long
-	 * enough to avoid most empty-panel flashes without delaying silent terminals.
+	 * painted, the connection dropped, or a brief fallback timeout elapsed.
 	 */
 	onReady?: () => void;
 	workspace?: TypesGen.Workspace;
@@ -82,11 +75,6 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	}, [isHot, isWarm]);
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
-	// A freshly created terminal tab connects off screen while the previous tab
-	// stays visible. Notify the parent exactly once it is ready or the brief
-	// fallback elapses, avoiding most empty-panel flashes without delaying silent
-	// terminals. The first caller wins: painted output, a dropped connection, or
-	// the fallback timeout.
 	const hasSignaledReadyRef = useRef(false);
 	const signalReady = useEffectEvent(() => {
 		if (hasSignaledReadyRef.current) {

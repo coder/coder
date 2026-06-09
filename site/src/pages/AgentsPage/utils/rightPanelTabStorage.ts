@@ -42,11 +42,6 @@ export function savePersistedRightPanelTabs(
 
 const defaultTerminalHiddenStorageKeyPrefix = "agents.default-terminal-hidden.";
 
-/**
- * Reads whether the user has closed the built-in Terminal tab for this chat.
- * The built-in Terminal is closeable, and closing it persists so it does not
- * reappear on reload.
- */
 export function getPersistedDefaultTerminalHidden(
 	chatID: string | undefined,
 ): boolean {
