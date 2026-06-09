@@ -4,9 +4,9 @@ import (
 	"io"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 )
@@ -16,14 +16,17 @@ type stubConn struct {
 	// closeOnWrite closes the connection on the first write, simulating a
 	// server that closes gracefully in response to Ctrl+C.
 	closeOnWrite bool
-	// ignoreClose prevents reads from unblocking when the connection is
+	// failWrites makes every write return an error, simulating a connection
+	// that can no longer send data.
+	failWrites bool
+	// readIgnoresClose prevents reads from unblocking when the connection is
 	// closed, simulating a misbehaving connection.
-	ignoreClose bool
+	readIgnoresClose bool
 
 	closeOnce sync.Once
 	closedCh  chan struct{}
-	// releaseCh unblocks reads when ignoreClose is set, allowing the test to
-	// clean up the read goroutine.
+	// releaseCh unblocks reads when readIgnoresClose is set, allowing the
+	// test to clean up the read goroutine.
 	releaseCh chan struct{}
 }
 
@@ -35,7 +38,7 @@ func newStubConn() *stubConn {
 }
 
 func (s *stubConn) Read(_ []byte) (int, error) {
-	if s.ignoreClose {
+	if s.readIgnoresClose {
 		<-s.releaseCh
 		return 0, io.EOF
 	}
@@ -44,6 +47,9 @@ func (s *stubConn) Read(_ []byte) (int, error) {
 }
 
 func (s *stubConn) Write(p []byte) (int, error) {
+	if s.failWrites {
+		return 0, xerrors.New("write failed")
+	}
 	if s.closeOnWrite {
 		_ = s.Close()
 	}
@@ -71,11 +77,8 @@ func startDrain(t *testing.T, rc *rptyConn) <-chan struct{} {
 
 func waitDone(t *testing.T, done <-chan struct{}) {
 	t.Helper()
-	select {
-	case <-done:
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("timed out waiting for read goroutine to finish")
-	}
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_ = testutil.TryReceive(ctx, t, done)
 }
 
 func TestRPTYConnClose(t *testing.T) {
@@ -112,16 +115,34 @@ func TestRPTYConnClose(t *testing.T) {
 		waitDone(t, done)
 	})
 
+	t.Run("WriteFails", func(t *testing.T) {
+		t.Parallel()
+
+		// The Ctrl+C write fails. Close force closes the connection to
+		// unblock the read and reports a hard error, not the non-fatal
+		// graceful close timeout.
+		stub := newStubConn()
+		stub.failWrites = true
+		rc := newPTYConn(stub)
+		done := startDrain(t, rc)
+
+		err := rc.Close()
+		require.Error(t, err)
+		require.NotErrorIs(t, err, errRPTYGracefulCloseTimeout)
+		require.ErrorContains(t, err, "write ctrl+c")
+		waitDone(t, done)
+	})
+
 	t.Run("ReadStuckAfterClose", func(t *testing.T) {
 		t.Parallel()
 
 		// The read doesn't unblock even after the connection is force
 		// closed. Close reports an error instead of blocking forever.
 		stub := newStubConn()
-		stub.ignoreClose = true
+		stub.readIgnoresClose = true
 		rc := newPTYConn(stub)
 		rc.closeTimeout = testutil.IntervalFast
-		rc.readWaitTimeout = testutil.IntervalFast
+		rc.forceCloseReadTimeout = testutil.IntervalFast
 		done := startDrain(t, rc)
 		// Unblock the read goroutine at the end of the test.
 		t.Cleanup(func() {

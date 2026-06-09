@@ -70,9 +70,9 @@ type rptyConn struct {
 	// closeTimeout limits how long Close waits for the server to close the
 	// connection after Ctrl+C is sent.
 	closeTimeout time.Duration
-	// readWaitTimeout limits how long Close waits for the read to unblock
-	// after the connection is force closed.
-	readWaitTimeout time.Duration
+	// forceCloseReadTimeout limits how long Close waits for the read to
+	// unblock after the connection is force closed.
+	forceCloseReadTimeout time.Duration
 
 	readOnce sync.Once
 	readErr  chan error
@@ -81,13 +81,16 @@ type rptyConn struct {
 	closed bool
 }
 
+// newPTYConn wraps conn for reconnecting PTY traffic. The caller must keep
+// an active Read loop on the returned conn; Close waits for a read to
+// observe the connection closing and will time out without one.
 func newPTYConn(conn io.ReadWriteCloser) *rptyConn {
 	rc := &rptyConn{
-		conn:            conn,
-		wenc:            json.NewEncoder(conn),
-		closeTimeout:    connCloseTimeout,
-		readWaitTimeout: forceCloseReadTimeout,
-		readErr:         make(chan error, 1),
+		conn:                  conn,
+		wenc:                  json.NewEncoder(conn),
+		closeTimeout:          connCloseTimeout,
+		forceCloseReadTimeout: forceCloseReadTimeout,
+		readErr:               make(chan error, 1),
 	}
 	return rc
 }
@@ -173,11 +176,14 @@ func (c *rptyConn) Close() (err error) {
 
 // forceClose closes the underlying connection and waits for the read to
 // unblock. The read error is caused by the close, so it is expected and
-// discarded.
+// discarded. Returns an error if the read does not unblock within
+// forceCloseReadTimeout, which also bounds a blocking close.
 func (c *rptyConn) forceClose() error {
-	_ = c.conn.Close()
-	t := time.NewTimer(c.readWaitTimeout)
+	// Start the timer before closing so a blocking close cannot extend the
+	// total wait beyond forceCloseReadTimeout.
+	t := time.NewTimer(c.forceCloseReadTimeout)
 	defer t.Stop()
+	_ = c.conn.Close()
 	select {
 	case <-c.readErr:
 		return nil
