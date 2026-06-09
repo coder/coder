@@ -71,6 +71,13 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "OpenCode":
+			return (
+				<ExternalImage
+					src="/icon/opencode.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "Charm Crush":
 			return (
 				<ExternalImage

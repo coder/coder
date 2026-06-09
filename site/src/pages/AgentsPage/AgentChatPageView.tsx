@@ -98,6 +98,7 @@ interface AgentChatPageViewProps {
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
+	isSharedChat: boolean;
 	chatOwner: ChatOwnerInfo | undefined;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -203,6 +204,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	parentChat,
 	persistedError,
 	isArchived,
+	isSharedChat,
 	chatOwner,
 	canShareChat,
 	workspaceAgent,
@@ -226,7 +228,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isInterruptPending,
 	workspaceOptions = [],
 	selectedWorkspaceId = null,
-	onWorkspaceChange = () => {},
+	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
@@ -445,14 +447,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			<DesktopPanelContext value={desktopPanelCtx}>
 				<div
 					className={cn(
-						"relative flex min-h-0 min-w-0 flex-1",
+						"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 						shouldShowSidebar && !visualExpanded && "flex-row",
 					)}
 				>
 					{titleElement}
 					<div
+						data-testid="agents-chat-panel"
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-[var(--agents-chat-panel-min-width,0px)]",
 							visualExpanded && "hidden",
 							shouldShowSidebar && "max-lg:hidden",
 						)}
@@ -479,6 +482,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
+								isSharedChat={isSharedChat}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 								renderChatSharingContent={
@@ -531,7 +535,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						>
 							<div className="px-4">
 								<ChatPageTimeline
-									chatID={agentId}
 									store={store}
 									persistedError={persistedError}
 									onEditUserMessage={
@@ -672,12 +675,12 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1",
+				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 				showRightPanel && "flex-row",
 			)}
 		>
 			{titleElement}
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-[var(--agents-chat-panel-min-width,0px)]">
 				<ChatTopBar
 					panel={{
 						showSidebarPanel: false,

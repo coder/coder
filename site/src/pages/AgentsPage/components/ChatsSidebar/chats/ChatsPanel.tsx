@@ -35,6 +35,7 @@ import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
@@ -157,7 +158,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
-		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length;
+		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.sources.length !==
+			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		sidebarFilters.sources.some(
+			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
+		);
 	const disablePinnedReordering = hasAppliedResultFilters;
 
 	// Local override for pinned order during drag. Applied
@@ -333,6 +339,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
 
@@ -389,7 +396,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				</div>
 				<SettingsNavItem
 					icon={SquarePenIcon}
-					label="New Agent"
+					label="New chat"
 					active={isChatsActive}
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
@@ -519,6 +526,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															<DndContext
 																sensors={sensors}
 																collisionDetection={closestCenter}
+																modifiers={[
+																	// Restrict the drag to the y-axis only
+																	({ transform }) => ({
+																		...transform,
+																		x: 0,
+																	}),
+																]}
 																onDragEnd={handleDragEnd}
 															>
 																<SortableContext

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 
+const stoppedWorkspaceError =
+	"workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it";
+
 describe("toolVisibility", () => {
 	describe("getExecuteRenderData", () => {
 		it("parses execute output and auth metadata from result payloads", () => {
@@ -18,12 +21,48 @@ describe("toolVisibility", () => {
 				),
 			).toEqual({
 				command: "git fetch origin",
-				output: "fetched",
+				transcriptBlocks: [{ kind: "output", text: "fetched" }],
 				durationMs: 47200,
 				isBackgrounded: true,
 				authenticateURL: "https://example.com/auth",
 				providerLabel: "GitHub",
 			});
+		});
+
+		it("normalizes execute error results into transcript blocks", () => {
+			const data = getExecuteRenderData(
+				{ command: "ls -la" },
+				{ error: stoppedWorkspaceError },
+			);
+
+			expect(data.command).toBe("ls -la");
+			expect(data.transcriptBlocks).toEqual([
+				{ kind: "error", text: stoppedWorkspaceError },
+			]);
+			expect(
+				data.transcriptBlocks.map((block) => block.text).join("\n"),
+			).toContain("workspace has no running agent");
+		});
+
+		it("keeps output before error when both fields exist", () => {
+			expect(
+				getExecuteRenderData(
+					{ command: "make build" },
+					{ output: " compiling ", error: " failed " },
+				).transcriptBlocks,
+			).toEqual([
+				{ kind: "output", text: "compiling" },
+				{ kind: "error", text: "failed" },
+			]);
+		});
+
+		it("uses message as an error fallback when error is blank", () => {
+			expect(
+				getExecuteRenderData(
+					{ command: "coder login" },
+					{ error: "  ", message: " auth required " },
+				).transcriptBlocks,
+			).toEqual([{ kind: "error", text: "auth required" }]);
 		});
 	});
 

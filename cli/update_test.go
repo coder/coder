@@ -15,8 +15,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestUpdate(t *testing.T) {
@@ -230,6 +230,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 	t.Run("ImmutableCannotBeCustomized", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -255,7 +256,9 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -270,9 +273,9 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -281,6 +284,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 	t.Run("PromptEphemeralParameters", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -308,7 +312,9 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -322,9 +328,9 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -369,14 +375,15 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Planning workspace")
+		stdout.ExpectMatch(ctx, "Planning workspace")
 		<-doneChan
 
 		// Verify if ephemeral parameter is set
@@ -423,6 +430,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("ValidateString", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -446,28 +454,30 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(stringParameterName)
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("$$")
-		pty.ExpectMatch("does not match")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("ABC")
-		pty.ExpectMatch("does not match")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("abc")
+		stdout.ExpectMatch(ctx, stringParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("$$")
+		stdout.ExpectMatch(ctx, "does not match")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("ABC")
+		stdout.ExpectMatch(ctx, "does not match")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("abc")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateNumber", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -492,28 +502,30 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(numberParameterName)
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("12")
-		pty.ExpectMatch("is more than the maximum")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("notanumber")
-		pty.ExpectMatch("is not a number")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("8")
+		stdout.ExpectMatch(ctx, numberParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("12")
+		stdout.ExpectMatch(ctx, "is more than the maximum")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("notanumber")
+		stdout.ExpectMatch(ctx, "is not a number")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("8")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateBool", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -538,28 +550,30 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(boolParameterName)
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("cat")
-		pty.ExpectMatch("boolean value can be either \"true\" or \"false\"")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("dog")
-		pty.ExpectMatch("boolean value can be either \"true\" or \"false\"")
-		pty.ExpectMatch("> Enter a value: ")
-		pty.WriteLine("false")
+		stdout.ExpectMatch(ctx, boolParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("cat")
+		stdout.ExpectMatch(ctx, "boolean value can be either \"true\" or \"false\"")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("dog")
+		stdout.ExpectMatch(ctx, "boolean value can be either \"true\" or \"false\"")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
+		stdin.WriteLine("false")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("RequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -605,7 +619,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -619,10 +634,10 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)
@@ -677,160 +692,122 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Planning workspace...")
+		stdout.ExpectMatch(ctx, "Planning workspace...")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
-	t.Run("ParameterOptionChanged", func(t *testing.T) {
+	t.Run("ParameterOption", func(t *testing.T) {
 		t.Parallel()
 
-		// Create template and workspace
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		templateParameters := []*proto.RichParameter{
-			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "First option", Description: "This is first option", Value: "1st"},
-				{Name: "Second option", Description: "This is second option", Value: "2nd"},
-				{Name: "Third option", Description: "This is third option", Value: "3rd"},
-			}},
+		testCases := []struct {
+			name               string
+			originalParameters []*proto.RichParameter
+			updatedParameters  []*proto.RichParameter
+		}{
+			{
+				name: "Changed",
+				originalParameters: []*proto.RichParameter{
+					{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+						{Name: "First option", Description: "This is first option", Value: "1st"},
+						{Name: "Second option", Description: "This is second option", Value: "2nd"},
+						{Name: "Third option", Description: "This is third option", Value: "3rd"},
+					}},
+				},
+				updatedParameters: []*proto.RichParameter{
+					// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
+					{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+						{Name: "first_option", Description: "This is first option", Value: "1"},
+						{Name: "second_option", Description: "This is second option", Value: "2"},
+						{Name: "third_option", Description: "This is third option", Value: "3"},
+					}},
+				},
+			},
+			{
+				name: "Disappeared",
+				originalParameters: []*proto.RichParameter{
+					{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+						{Name: "First option", Description: "This is first option", Value: "1st"},
+						{Name: "Second option", Description: "This is second option", Value: "2nd"},
+						{Name: "Third option", Description: "This is third option", Value: "3rd"},
+					}},
+				},
+				// Update template - 2nd option disappeared, 4th option added
+				updatedParameters: []*proto.RichParameter{
+					// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
+					{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
+						{Name: "Third option", Description: "This is third option", Value: "3rd"},
+						{Name: "First option", Description: "This is first option", Value: "1st"},
+						{Name: "Fourth option", Description: "This is fourth option", Value: "4th"},
+					}},
+				},
+			},
 		}
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				logger := testutil.Logger(t)
 
-		// Create new workspace
-		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
-		clitest.SetupConfig(t, member, root)
-		err := inv.Run()
-		require.NoError(t, err)
+				// Create template and workspace
+				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				user := coderdtest.CreateFirstUser(t, client)
+				member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		// Update template
-		updatedTemplateParameters := []*proto.RichParameter{
-			// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
-			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "first_option", Description: "This is first option", Value: "1"},
-				{Name: "second_option", Description: "This is second option", Value: "2"},
-				{Name: "third_option", Description: "This is third option", Value: "3"},
-			}},
+				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.originalParameters))
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+				// Create new workspace
+				inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
+				clitest.SetupConfig(t, member, root)
+				err := inv.Run()
+				require.NoError(t, err)
+
+				// Update template
+				updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.updatedParameters), template.ID)
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
+				err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+					ID: updatedVersion.ID,
+				})
+				require.NoError(t, err)
+
+				// Update the workspace
+				ctx := testutil.Context(t, testutil.WaitLong)
+				inv, root = clitest.New(t, "update", "my-workspace")
+				inv.WithContext(ctx)
+				clitest.SetupConfig(t, member, root)
+				doneChan := make(chan struct{})
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+				go func() {
+					defer close(doneChan)
+					err := inv.Run()
+					assert.NoError(t, err)
+				}()
+
+				matches := []string{
+					// `cliui.Select` will automatically pick the first option
+					"Planning workspace...", "",
+				}
+				for i := 0; i < len(matches); i += 2 {
+					match := matches[i]
+					value := matches[i+1]
+					stdout.ExpectMatch(ctx, match)
+
+					if value != "" {
+						stdin.WriteLine(value)
+					}
+				}
+
+				_ = testutil.TryReceive(ctx, t, doneChan)
+			})
 		}
-
-		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
-		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: updatedVersion.ID,
-		})
-		require.NoError(t, err)
-
-		// Update the workspace
-		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
-		inv.WithContext(ctx)
-		clitest.SetupConfig(t, member, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		matches := []string{
-			// `cliui.Select` will automatically pick the first option
-			"Planning workspace...", "",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-
-			if value != "" {
-				pty.WriteLine(value)
-			}
-		}
-
-		_ = testutil.TryReceive(ctx, t, doneChan)
-	})
-
-	t.Run("ParameterOptionDisappeared", func(t *testing.T) {
-		t.Parallel()
-
-		// Create template and workspace
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-		templateParameters := []*proto.RichParameter{
-			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "First option", Description: "This is first option", Value: "1st"},
-				{Name: "Second option", Description: "This is second option", Value: "2nd"},
-				{Name: "Third option", Description: "This is third option", Value: "3rd"},
-			}},
-		}
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-
-		// Create new workspace
-		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
-		clitest.SetupConfig(t, member, root)
-		ptytest.New(t).Attach(inv)
-		err := inv.Run()
-		require.NoError(t, err)
-
-		// Update template - 2nd option disappeared, 4th option added
-		updatedTemplateParameters := []*proto.RichParameter{
-			// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
-			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "Third option", Description: "This is third option", Value: "3rd"},
-				{Name: "First option", Description: "This is first option", Value: "1st"},
-				{Name: "Fourth option", Description: "This is fourth option", Value: "4th"},
-			}},
-		}
-
-		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
-		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
-			ID: updatedVersion.ID,
-		})
-		require.NoError(t, err)
-
-		// Update the workspace
-		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, root = clitest.New(t, "update", "my-workspace")
-		inv.WithContext(ctx)
-		clitest.SetupConfig(t, member, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		matches := []string{
-			// `cliui.Select` will automatically pick the first option
-			"Planning workspace...", "",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-
-			if value != "" {
-				pty.WriteLine(value)
-			}
-		}
-
-		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionFailsMonotonicValidation", func(t *testing.T) {
@@ -859,7 +836,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Create new workspace
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", numberParameterName, tempVal))
 		clitest.SetupConfig(t, member, root)
-		ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
@@ -870,7 +846,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -886,7 +862,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 		}
 
 		_ = testutil.TryReceive(ctx, t, doneChan)
@@ -895,6 +871,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		// Create template and workspace
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -936,7 +913,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -950,10 +928,10 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 
@@ -963,6 +941,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	t.Run("MutableRequiredParameterExists_ImmutableRequiredParameterAdded", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		// Create template and workspace
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1008,7 +987,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1022,10 +1002,10 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 
@@ -1078,7 +1058,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, "II"))
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		doneChan := make(chan struct{})
 		go func() {
 			defer close(doneChan)
@@ -1086,9 +1067,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("Planning workspace")
+		stdout.ExpectMatch(ctx, "Planning workspace")
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the immutable parameter was set correctly.

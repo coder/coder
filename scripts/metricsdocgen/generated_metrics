@@ -214,6 +214,9 @@ coderd_api_total_user_count{status=""} 0
 # HELP coderd_api_websocket_durations_seconds Websocket duration distribution of requests in seconds.
 # TYPE coderd_api_websocket_durations_seconds histogram
 coderd_api_websocket_durations_seconds{path=""} 0
+# HELP coderd_api_websocket_probes_total WebSocket liveness probe outcomes by route. Compare rate(...{result=\"ok\"}[1m]) against coderd_api_concurrent_websockets to detect unresponsive WebSocket connections.
+# TYPE coderd_api_websocket_probes_total counter
+coderd_api_websocket_probes_total{path="",result=""} 0
 # HELP coderd_api_workspace_latest_build The current number of workspace builds by status for all non-deleted workspaces.
 # TYPE coderd_api_workspace_latest_build gauge
 coderd_api_workspace_latest_build{status=""} 0

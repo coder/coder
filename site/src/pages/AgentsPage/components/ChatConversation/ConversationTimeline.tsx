@@ -49,8 +49,8 @@ import {
 import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -1145,7 +1145,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
-		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
+		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
 		if (parsedMessages.length === 0) {

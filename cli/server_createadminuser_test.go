@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -107,17 +106,19 @@ func TestServerCreateAdminUser(t *testing.T) {
 		org1Name, org1ID := "org1", uuid.New()
 		org2Name, org2ID := "org2", uuid.New()
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        org1ID,
-			Name:      org1Name,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    org1ID,
+			Name:                  org1Name,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        org2ID,
-			Name:      org2Name,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    org2ID,
+			Name:                  org2Name,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 
@@ -132,14 +133,14 @@ func TestServerCreateAdminUser(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Creating user...")
-		stdout.ExpectMatchContext(ctx, "Generating user SSH key...")
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
-		stdout.ExpectMatchContext(ctx, "User created successfully.")
-		stdout.ExpectMatchContext(ctx, username)
-		stdout.ExpectMatchContext(ctx, email)
-		stdout.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatch(ctx, "Creating user...")
+		stdout.ExpectMatch(ctx, "Generating user SSH key...")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
+		stdout.ExpectMatch(ctx, "User created successfully.")
+		stdout.ExpectMatch(ctx, username)
+		stdout.ExpectMatch(ctx, email)
+		stdout.ExpectMatch(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -163,15 +164,13 @@ func TestServerCreateAdminUser(t *testing.T) {
 		inv.Environ.Set("CODER_EMAIL", email)
 		inv.Environ.Set("CODER_PASSWORD", password)
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "User created successfully.")
-		pty.ExpectMatchContext(ctx, username)
-		pty.ExpectMatchContext(ctx, email)
-		pty.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatch(ctx, "User created successfully.")
+		stdout.ExpectMatch(ctx, username)
+		stdout.ExpectMatch(ctx, email)
+		stdout.ExpectMatch(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -200,19 +199,19 @@ func TestServerCreateAdminUser(t *testing.T) {
 
 		clitest.Start(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Username")
+		stdout.ExpectMatch(ctx, "Username")
 		stdin.WriteLine(username)
-		stdout.ExpectMatchContext(ctx, "Email")
+		stdout.ExpectMatch(ctx, "Email")
 		stdin.WriteLine(email)
-		stdout.ExpectMatchContext(ctx, "Password")
+		stdout.ExpectMatch(ctx, "Password")
 		stdin.WriteLine(password)
-		stdout.ExpectMatchContext(ctx, "Confirm password")
+		stdout.ExpectMatch(ctx, "Confirm password")
 		stdin.WriteLine(password)
 
-		stdout.ExpectMatchContext(ctx, "User created successfully.")
-		stdout.ExpectMatchContext(ctx, username)
-		stdout.ExpectMatchContext(ctx, email)
-		stdout.ExpectMatchContext(ctx, "****")
+		stdout.ExpectMatch(ctx, "User created successfully.")
+		stdout.ExpectMatch(ctx, username)
+		stdout.ExpectMatch(ctx, email)
+		stdout.ExpectMatch(ctx, "****")
 
 		verifyUser(t, connectionURL, username, email, password)
 	})

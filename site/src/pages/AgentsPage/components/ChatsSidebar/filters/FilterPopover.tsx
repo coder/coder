@@ -21,11 +21,13 @@ import {
 	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	AGENT_PR_STATUS_ORDER,
+	AGENT_SOURCE_ORDER,
 	type AgentArchiveStatusFilter,
 	type AgentChatStatusFilter,
 	type AgentPRStatusFilter,
 	type AgentSidebarFilters,
 	type AgentSidebarGroupBy,
+	type AgentSourceFilter,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 
@@ -54,6 +56,11 @@ const ARCHIVE_STATUS_LABELS: Record<AgentArchiveStatusFilter, string> = {
 	archived: "Archived",
 };
 
+const SOURCE_LABELS: Record<AgentSourceFilter, string> = {
+	created_by_me: "Created by me",
+	shared_with_me: "Shared with me",
+};
+
 const CHAT_STATUS_OPTIONS: readonly Readonly<{
 	value: AgentChatStatusFilter;
 	label: string;
@@ -68,6 +75,14 @@ const ARCHIVE_OPTIONS: readonly Readonly<{
 }>[] = AGENT_ARCHIVE_STATUS_ORDER.map((status) => ({
 	value: status,
 	label: ARCHIVE_STATUS_LABELS[status],
+}));
+
+const SOURCE_OPTIONS: readonly Readonly<{
+	value: AgentSourceFilter;
+	label: string;
+}>[] = AGENT_SOURCE_ORDER.map((source) => ({
+	value: source,
+	label: SOURCE_LABELS[source],
 }));
 
 const SectionHeading: FC<ComponentProps<"h2">> = ({ className, ...props }) => (
@@ -119,7 +134,8 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 		!haveSameSelections(
 			filters.chatStatuses,
 			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
-		)
+		) ||
+		!haveSameSelections(filters.sources, DEFAULT_AGENT_SIDEBAR_FILTERS.sources)
 	);
 };
 
@@ -154,12 +170,16 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 	const visibleChatStatusOptions = CHAT_STATUS_OPTIONS.filter((option) =>
 		matchesOption("Chat status", option.label),
 	);
+	const visibleSourceOptions = SOURCE_OPTIONS.filter((option) =>
+		matchesOption("Source", option.label),
+	);
 	const visibleArchiveOptions = ARCHIVE_OPTIONS.filter((option) =>
 		matchesOption("Archive status", option.label),
 	);
 	const showFilterOptions =
 		visiblePRStatuses.length > 0 ||
 		visibleChatStatusOptions.length > 0 ||
+		visibleSourceOptions.length > 0 ||
 		visibleArchiveOptions.length > 0;
 
 	const setGroupBy = (value: string) => {
@@ -206,6 +226,20 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 			return;
 		}
 		setStagedFilters({ ...stagedFilters, archiveStatus: value });
+	};
+
+	const setSource = (source: AgentSourceFilter, checked: boolean) => {
+		const nextSources = checked
+			? AGENT_SOURCE_ORDER.filter(
+					(value) => value === source || stagedFilters.sources.includes(value),
+				)
+			: stagedFilters.sources.filter((value) => value !== source);
+
+		if (nextSources.length === 0) {
+			return;
+		}
+
+		setStagedFilters({ ...stagedFilters, sources: nextSources });
 	};
 
 	const applyFilters = () => {
@@ -336,6 +370,37 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 																	option.value,
 																	nextChecked === true,
 																)
+															}
+															className="m-0 my-[3px]"
+														/>
+														<label
+															htmlFor={optionId}
+															className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
+														>
+															{option.label}
+														</label>
+													</OptionRow>
+												);
+											})}
+										</div>
+									</div>
+								)}
+
+								{visibleSourceOptions.length > 0 && (
+									<div className="space-y-1.5">
+										<FilterGroupHeading>Source</FilterGroupHeading>
+										<div className="space-y-2">
+											{visibleSourceOptions.map((option) => {
+												const optionId = `${id}-source-${option.value}`;
+												return (
+													<OptionRow key={option.value}>
+														<Checkbox
+															id={optionId}
+															checked={stagedFilters.sources.includes(
+																option.value,
+															)}
+															onCheckedChange={(nextChecked) =>
+																setSource(option.value, nextChecked === true)
 															}
 															className="m-0 my-[3px]"
 														/>

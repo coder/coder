@@ -59,7 +59,7 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.KeyPool == nil && cfg.Key != "" {
 		// keypool.New only fails on empty or duplicate keys,
 		// neither possible with a single non-empty key.
-		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
 		if err != nil {
 			panic(fmt.Sprintf("openai provider: build single-key pool: %s", err))
 		}
@@ -194,11 +194,14 @@ func (*OpenAI) AuthHeader() string {
 	return "Authorization"
 }
 
+func (p *OpenAI) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
+}
+
 func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{
-		Pool:         p.cfg.KeyPool,
-		ProviderName: p.Name(),
-		Logger:       logger,
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("Authorization") != ""
 		},

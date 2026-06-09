@@ -154,6 +154,7 @@ const AgentsPage: FC = () => {
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays

@@ -328,7 +328,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 
@@ -544,7 +544,7 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, tc.fixture[i])
-				upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 				var opts []bridgeOption
 				if tc.withInjectedTools {
@@ -567,7 +567,7 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 				_, err = io.ReadAll(resp.Body)
 				require.NoError(t, err)
 
-				received := upstream.receivedRequests()
+				received := upstream.ReceivedRequests()
 				require.Len(t, received, 1)
 
 				var upstreamReq map[string]any
@@ -873,7 +873,7 @@ func TestResponsesInjectedTool(t *testing.T) {
 			// Setup mock server for multi-turn interaction.
 			// First request → tool call response, second → tool response.
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix), newFixtureToolResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix), testutil.NewFixtureToolResponse(fix))
 
 			// Setup MCP server proxies (with mock tools).
 			mockMCP := setupMCPForTest(t, defaultTracer)
@@ -1023,7 +1023,7 @@ func TestResponsesModelThoughts(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
 

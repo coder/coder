@@ -181,9 +181,8 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return i.cfg.KeyPool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
 }
 
@@ -437,6 +436,11 @@ func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
 	}
 
 	w.Header().Set("Content-Type", r.responseHeaders.Get("Content-Type"))
+	// Preserve the upstream retry-after header so clients can honor it on
+	// rate-limited or unavailable responses.
+	if retryAfter := r.responseHeaders.Get("Retry-After"); retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
 	w.WriteHeader(r.responseStatus)
 
 	b, err := r.readAll()

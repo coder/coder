@@ -9,9 +9,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Get returns the $SHELL environment variable.
-// Deprecated: use SystemEnvInfo.UserShell instead.
-func Get(username string) (string, error) {
+// get resolves the user's shell via dscl, falling back to $SHELL. It
+// backs SystemEnvInfo.Shell. Callers resolve the shell through an
+// EnvInfoer.
+func get(username string) (string, error) {
 	// This command will output "UserShell: /bin/zsh" if successful, we
 	// can ignore the error since we have fallback behavior.
 	if !filepath.IsLocal(username) {

@@ -867,7 +867,7 @@ func classifyStreamSilenceTimeout(
 		err = errStreamSilenceTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
-		Kind:      codersdk.ChatErrorKindStartupTimeout,
+		Kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 		Provider:  provider,
 		Retryable: true,
 	})

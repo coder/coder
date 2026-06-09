@@ -88,6 +88,11 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
 	}
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
 
@@ -100,7 +105,9 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
 		}
 
-		completion, err = i.newChatCompletion(ctx, svc, opts)
+		var keyAttempts int
+		completion, keyAttempts, err = i.newChatCompletion(ctx, svc, opts)
+		totalKeyAttempts += keyAttempts
 		if err != nil {
 			break
 		}
@@ -267,12 +274,14 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	return nil
 }
 
-// newChatCompletion routes between BYOK (single attempt) and
-// centralized failover.
-func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
+// newChatCompletion routes between BYOK (single attempt) and centralized
+// failover, returning the upstream completion, the number of key attempts
+// made for this call, and any error.
+func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		return i.newChatCompletionWithKey(ctx, svc, opts)
+		completion, err := i.newChatCompletionWithKey(ctx, svc, opts)
+		return completion, 0, err
 	}
 	return i.newChatCompletionWithKeyFailover(ctx, svc, opts)
 }
@@ -285,17 +294,17 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 	return svc.New(ctx, i.req.ChatCompletionNewParams, opts...)
 }
 
-// newChatCompletionWithKeyFailover walks the centralized key
-// pool, trying each key until one succeeds or the pool is
-// exhausted. Keys are marked temporary on 429 and permanent on
-// 401/403. Errors that aren't key-specific don't trigger
-// failover and are returned to the caller.
-func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, error) {
+// newChatCompletionWithKeyFailover walks the centralized key pool, trying each
+// key until one succeeds or the pool is exhausted. Keys are marked temporary
+// on 429 and permanent on 401/403. Errors that aren't key-specific don't
+// trigger failover and are returned to the caller. It returns the upstream
+// completion, the number of key attempts made for this call, and any error.
+func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
 	walker := i.cfg.KeyPool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
-			return nil, keyPoolErr
+			return nil, walker.Attempts(), keyPoolErr
 		}
 		// Record the key in use so the hint reflects the last attempted key.
 		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
@@ -316,6 +325,6 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 		}
 		// Either success (completion, nil) or a non-key error
 		// (nil, err): nothing to retry, return as-is.
-		return completion, err
+		return completion, walker.Attempts(), err
 	}
 }

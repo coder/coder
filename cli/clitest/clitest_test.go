@@ -24,5 +24,5 @@ func TestCli(t *testing.T) {
 	clitest.SetupConfig(t, client, config)
 	stdout := expecter.NewAttachedToInvocation(t, i)
 	clitest.Start(t, i)
-	stdout.ExpectMatchContext(ctx, "coder")
+	stdout.ExpectMatch(ctx, "coder")
 }

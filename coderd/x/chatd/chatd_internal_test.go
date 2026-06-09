@@ -6651,42 +6651,63 @@ func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
 		UserID: user.ID,
 	})
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
-
 	server := &Server{db: db}
+	persistAndAssertSummaryKey := func(
+		summaryCtx context.Context,
+		chatID uuid.UUID,
+		activeAPIKeyID string,
+		wantAPIKeyID string,
+		toolCallID string,
+	) {
+		t.Helper()
 
-	err := server.persistChatContextSummary(
-		ctx,
-		chat.ID,
-		modelConfig.ID,
-		"tool-call-id-1",
-		chatloop.CompactionResult{
-			SystemSummary:    "summarized context",
-			SummaryReport:    "context was summarized",
-			ThresholdPercent: 70,
-			UsagePercent:     85.0,
-			ContextTokens:    8500,
-			ContextLimit:     10000,
-		},
-	)
-	require.NoError(t, err)
+		err := server.persistChatContextSummary(
+			summaryCtx,
+			chatID,
+			modelConfig.ID,
+			activeAPIKeyID,
+			toolCallID,
+			chatloop.CompactionResult{
+				SystemSummary:    "summarized context",
+				SummaryReport:    "context was summarized",
+				ThresholdPercent: 70,
+				UsagePercent:     85.0,
+				ContextTokens:    8500,
+				ContextLimit:     10000,
+			},
+		)
+		require.NoError(t, err)
 
-	msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	require.NoError(t, err)
+		msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+		require.NoError(t, err)
 
-	// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
-	// that selects compressed=true, visibility='model'. Only the user
-	// summary qualifies; the assistant (visibility=user) and tool
-	// result (visibility=both) are excluded by the CTE filter.
-	require.NotEmpty(t, msgs)
+		// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
+		// that selects compressed=true, visibility='model'. Only the user
+		// summary qualifies; the assistant (visibility=user) and tool
+		// result (visibility=both) are excluded by the CTE filter.
+		require.NotEmpty(t, msgs)
 
-	var foundUserSummary bool
-	for _, msg := range msgs {
-		if msg.Role == database.ChatMessageRoleUser {
-			foundUserSummary = true
-			require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
-			require.Equal(t, apiKey.ID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+		var foundUserSummary bool
+		for _, msg := range msgs {
+			if msg.Role == database.ChatMessageRoleUser {
+				foundUserSummary = true
+				require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
+				require.Equal(t, wantAPIKeyID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+			}
 		}
+		require.True(t, foundUserSummary, "expected to find compressed user summary message")
 	}
-	require.True(t, foundUserSummary, "expected to find compressed user summary message")
+
+	persistAndAssertSummaryKey(ctx, chat.ID, apiKey.ID, apiKey.ID, "tool-call-id-1")
+
+	fallbackChat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           user.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	fallbackKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID,
+	})
+	fallbackCtx := aibridge.WithDelegatedAPIKeyID(ctx, fallbackKey.ID)
+	persistAndAssertSummaryKey(fallbackCtx, fallbackChat.ID, "", fallbackKey.ID, "tool-call-id-2")
 }

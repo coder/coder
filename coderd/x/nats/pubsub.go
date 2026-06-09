@@ -81,6 +81,14 @@ type Options struct {
 	// 6222 when cluster mode is enabled.
 	ClusterPort int
 
+	// ClusterAuthToken is the shared route authentication token for
+	// clustered embedded NATS servers. Empty disables route auth.
+	ClusterAuthToken string
+
+	// PeerFetcher provides the current set of peer route addresses.
+	// RefreshPeers uses it to update the configured cluster routes.
+	PeerFetcher PeerFetcher
+
 	// RoutePoolSize is the NATS route pool size. Zero means the package
 	// default when cluster mode is enabled.
 	RoutePoolSize int
@@ -106,7 +114,7 @@ type Pubsub struct {
 	logger slog.Logger
 	opts   Options
 
-	ns *natsserver.Server
+	Server *natsserver.Server
 	// publishPool and subscribePool are immutable after construction so
 	// the hot path can index without holding p.mu.
 	publishPool   []*natsgo.Conn
@@ -126,6 +134,9 @@ type Pubsub struct {
 	clustered     bool
 	serverOpts    *natsserver.Options
 	currentRoutes []*url.URL
+
+	peerFetcher PeerFetcher
+	peerRefresh chan struct{}
 }
 
 // natsSub maps to one underlying *natsgo.Subscription. The first
@@ -183,6 +194,8 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		subscriptions: make(map[string]*natsSub),
 		ctx:           ctx,
 		cancel:        cancel,
+		peerFetcher:   opts.PeerFetcher,
+		peerRefresh:   make(chan struct{}, 1),
 	}
 }
 
@@ -246,8 +259,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		slog.F("client_url", ns.ClientURL()),
 	)
 
+	if opts.PeerFetcher == nil {
+		opts.PeerFetcher = NopPeerFetcher{}
+	}
+
 	p := newPubsub(ctx, logger, opts)
-	p.ns = ns
+	p.Server = ns
 	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
 	p.currentRoutes = cloneRouteURLs(sopts.Routes)
@@ -260,6 +277,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
 		p.cancel()
@@ -270,12 +288,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		ns.WaitForShutdown()
 		return nil, err
 	}
+
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
+
+	if p.clustered {
+		go p.runPeerRefresh()
+	}
 	go func() {
 		<-p.ctx.Done()
 		_ = p.Close()
 	}()
+
 	return p, nil
 }
 
@@ -670,9 +694,9 @@ func (p *Pubsub) Close() error {
 			}
 		}
 
-		if p.ns != nil {
-			p.ns.Shutdown()
-			p.ns.WaitForShutdown()
+		if p.Server != nil {
+			p.Server.Shutdown()
+			p.Server.WaitForShutdown()
 		}
 	})
 	return nil

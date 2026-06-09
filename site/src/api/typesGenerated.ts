@@ -304,6 +304,19 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * AIGatewayKey is a shared secret used by a standalone AI Gateway
+ * to authenticate into coderd.
+ */
+export interface AIGatewayKey {
+	readonly id: string;
+	readonly name: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+	readonly last_used_at?: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -518,6 +531,10 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_gateway_key:*"
+	| "ai_gateway_key:create"
+	| "ai_gateway_key:delete"
+	| "ai_gateway_key:read"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -748,6 +765,10 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_gateway_key:*",
+	"ai_gateway_key:create",
+	"ai_gateway_key:delete",
+	"ai_gateway_key:read",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -1525,6 +1546,10 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	/**
+	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
+	 */
+	readonly shared: boolean;
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
@@ -1971,7 +1996,7 @@ export type ChatErrorKind =
 	| "overloaded"
 	| "provider_disabled"
 	| "rate_limit"
-	| "startup_timeout"
+	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
 
@@ -1983,7 +2008,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"overloaded",
 	"provider_disabled",
 	"rate_limit",
-	"startup_timeout",
+	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
 ];
@@ -2123,6 +2148,14 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+];
+
+// From codersdk/chats.go
+export type ChatListSource = "created_by_me" | "shared_with_me";
+
+export const ChatListSources: ChatListSource[] = [
+	"created_by_me",
+	"shared_with_me",
 ];
 
 // From codersdk/chats.go
@@ -2274,6 +2307,7 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
 	readonly effort?: string;
+	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
 	readonly allowed_domains?: readonly string[];
@@ -3236,12 +3270,34 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyRequest requests a new AI Gateway key.
+ */
+export interface CreateAIGatewayKeyRequest {
+	readonly name: string;
+}
+
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyResponse returns all key information.
+ * Key value is only returned here and cannot be recovered afterwards.
+ */
+export interface CreateAIGatewayKeyResponse {
+	readonly id: string;
+	readonly name: string;
+	readonly key: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
  * provider. Name and Type are required. APIKeys carries the plaintext
- * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
- * via Settings and must omit APIKeys.
+ * keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+ * must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+ * request-time GitHub OAuth tokens).
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -4349,6 +4405,8 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "minimum-implicit-member"
+	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
@@ -4358,6 +4416,8 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"minimum-implicit-member",
+	"nats_pubsub",
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",
@@ -5063,7 +5123,15 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
+	/**
+	 * Query supports raw chat search terms. If Query includes a source: term,
+	 * Source must be empty.
+	 */
 	readonly Query: string;
+	/**
+	 * Source adds a source: term to Query.
+	 */
+	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 }
 
@@ -6053,6 +6121,12 @@ export interface Organization extends MinimalOrganization {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly is_default: boolean;
+	/**
+	 * DefaultOrgMemberRoles are unioned into every member's effective
+	 * roles at request time. Changes propagate to all members on the
+	 * next request.
+	 */
+	readonly default_org_member_roles: readonly string[];
 }
 
 // From codersdk/organizations.go
@@ -6872,6 +6946,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -6923,6 +6998,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
@@ -7079,6 +7155,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_provider_key"
 	| "ai_seat"
@@ -7114,6 +7191,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_provider_key",
 	"ai_seat",
@@ -7286,6 +7364,12 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally these roles would be generated from the rbac/roles.go package.
+ */
+export const RoleOrganizationWorkspaceAccess = "organization-workspace-access";
 
 // From codersdk/rbacroles.go
 /**
@@ -8788,6 +8872,11 @@ export interface UpdateOrganizationRequest {
 	readonly display_name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	/**
+	 * DefaultOrgMemberRoles, when non-nil, replaces the org's default
+	 * member roles.
+	 */
+	readonly default_org_member_roles?: string[];
 }
 
 // From codersdk/users.go

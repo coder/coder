@@ -7,6 +7,9 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
+	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
+	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -187,6 +190,9 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -368,6 +374,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,

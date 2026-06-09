@@ -83,6 +83,10 @@ type Provider interface {
 	// automatic key failover on passthrough routes.
 	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
 
+	// KeyPool returns the provider's key pool for centralized keys, or nil
+	// when the provider is BYOK only.
+	KeyPool() *keypool.Pool
+
 	// CircuitBreakerConfig returns the circuit breaker configuration for the provider.
 	CircuitBreakerConfig() *config.CircuitBreaker
 

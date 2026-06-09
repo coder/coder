@@ -253,7 +253,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'boundary_log:*',
     'boundary_log:create',
     'boundary_log:delete',
-    'boundary_log:read'
+    'boundary_log:read',
+    'ai_gateway_key:*',
+    'ai_gateway_key:create',
+    'ai_gateway_key:delete',
+    'ai_gateway_key:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -564,7 +568,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider',
     'ai_provider_key',
     'group_ai_budget',
-    'user_skill'
+    'user_skill',
+    'ai_gateway_key'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1287,6 +1292,22 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE ai_gateway_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    name text NOT NULL,
+    secret_prefix character varying(11) NOT NULL,
+    hashed_secret bytea NOT NULL,
+    last_used_at timestamp with time zone,
+    CONSTRAINT ai_gateway_keys_hashed_secret_check CHECK ((length(hashed_secret) > 0)),
+    CONSTRAINT ai_gateway_keys_name_check CHECK (((length(name) <= 64) AND (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))),
+    CONSTRAINT ai_gateway_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))
+);
+
+COMMENT ON TABLE ai_gateway_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
+
+COMMENT ON COLUMN ai_gateway_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
     model text NOT NULL,
@@ -1992,8 +2013,11 @@ CREATE TABLE gitsshkeys (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     private_key text NOT NULL,
-    public_key text NOT NULL
+    public_key text NOT NULL,
+    private_key_key_id text
 );
+
+COMMENT ON COLUMN gitsshkeys.private_key_key_id IS 'The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.';
 
 CREATE TABLE group_ai_budgets (
     group_id uuid NOT NULL,
@@ -2351,10 +2375,13 @@ CREATE TABLE organizations (
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL
+    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
+    default_org_member_roles text[] NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
+
+COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -3763,6 +3790,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_gateway_keys
+    ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
@@ -4146,6 +4176,12 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
+
+CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
+
+CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);
 
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
@@ -4670,6 +4706,9 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY gitsshkeys
+    ADD CONSTRAINT gitsshkeys_private_key_key_id_fkey FOREIGN KEY (private_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

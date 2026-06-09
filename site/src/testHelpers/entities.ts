@@ -21,6 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -37,6 +38,7 @@ export const MockOrganization2: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockOrganization3: TypesGen.Organization = {
@@ -49,6 +51,7 @@ export const MockOrganization3: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
@@ -1558,7 +1561,7 @@ export const MockBuilds = [
 
 export const MockWorkspace: TypesGen.Workspace = {
 	id: "test-workspace",
-	name: "Test-Workspace",
+	name: "test-workspace",
 	created_at: "",
 	updated_at: "",
 	template_id: MockTemplate.id,
@@ -5574,8 +5577,22 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
+export const MockAIProviderCopilot: TypesGen.AIProvider = {
+	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
+	type: "copilot",
+	name: "copilot",
+	display_name: "GitHub Copilot",
+	base_url: "https://api.business.githubcopilot.com",
+	enabled: true,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderCopilot,
 ];

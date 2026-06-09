@@ -54,9 +54,9 @@ func TestRestart(t *testing.T) {
 		go func() {
 			done <- inv.WithContext(ctx).Run()
 		}()
-		stdout.ExpectMatchContext(ctx, "Stopping workspace")
-		stdout.ExpectMatchContext(ctx, "Starting workspace")
-		stdout.ExpectMatchContext(ctx, "workspace has been restarted")
+		stdout.ExpectMatch(ctx, "Stopping workspace")
+		stdout.ExpectMatch(ctx, "Starting workspace")
+		stdout.ExpectMatch(ctx, "workspace has been restarted")
 
 		err := <-done
 		require.NoError(t, err, "execute failed")
@@ -103,7 +103,7 @@ func TestRestart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -161,7 +161,7 @@ func TestRestart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -221,7 +221,7 @@ func TestRestart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -279,7 +279,7 @@ func TestRestart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -356,7 +356,7 @@ func TestRestartWithParameters(t *testing.T) {
 		}()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		stdout.ExpectMatchContext(ctx, "workspace has been restarted")
+		stdout.ExpectMatch(ctx, "workspace has been restarted")
 		<-doneChan
 
 		// Verify if immutable parameter is set
@@ -405,9 +405,9 @@ func TestRestartWithParameters(t *testing.T) {
 
 		// We should be prompted for the parameters again.
 		newValue := "xyz"
-		stdout.ExpectMatchContext(ctx, mutableParameterName)
+		stdout.ExpectMatch(ctx, mutableParameterName)
 		stdin.WriteLine(newValue)
-		stdout.ExpectMatchContext(ctx, "workspace has been restarted")
+		stdout.ExpectMatch(ctx, "workspace has been restarted")
 		<-doneChan
 
 		// Verify that the updated values are persisted.

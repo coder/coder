@@ -111,6 +111,112 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
+DELETE FROM ai_gateway_keys WHERE id = $1
+RETURNING id, name, secret_prefix, created_at, last_used_at
+`
+
+type DeleteAIGatewayKeyRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIGatewayKey, id)
+	var i DeleteAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const insertAIGatewayKey = `-- name: InsertAIGatewayKey :one
+INSERT INTO ai_gateway_keys (id, name, secret_prefix, hashed_secret, created_at)
+VALUES ($1, $4, $2, $3, NOW())
+RETURNING id, name, secret_prefix, created_at
+`
+
+type InsertAIGatewayKeyParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name         string    `db:"name" json:"name"`
+}
+
+type InsertAIGatewayKeyRow struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	Name         string    `db:"name" json:"name"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayKey,
+		arg.ID,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.Name,
+	)
+	var i InsertAIGatewayKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
+SELECT id, name, secret_prefix, created_at, last_used_at
+FROM ai_gateway_keys
+ORDER BY created_at ASC
+`
+
+type ListAIGatewayKeysRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIGatewayKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIGatewayKeysRow
+	for rows.Next() {
+		var i ListAIGatewayKeysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SecretPrefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
@@ -7903,7 +8009,7 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $5
+    WHERE id = $7
 )
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.last_injected_context, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name,
@@ -7917,24 +8023,28 @@ SELECT
 FROM
     chats_expanded
 WHERE
-    CASE
-        WHEN $1::boolean THEN chats_expanded.owner_id = $2::uuid
-        ELSE true
-    END
+    (
+        (NOT $1::boolean AND NOT $2::boolean)
+        OR ($1::boolean AND chats_expanded.owner_id = $3::uuid)
+        OR (
+            $2::boolean
+            AND chats_expanded.owner_id != $3::uuid
+            AND (
+                chats_expanded.user_acl ? ($4::uuid)::text
+                OR chats_expanded.group_acl ?| $5::text[]
+            )
+        )
+    )
     AND CASE
-        WHEN $3::boolean THEN chats_expanded.owner_id != $2::uuid
-        ELSE true
-    END
-    AND CASE
-        WHEN $4 :: boolean IS NULL THEN true
-        ELSE chats_expanded.archived = $4 :: boolean
+        WHEN $6 :: boolean IS NULL THEN true
+        ELSE chats_expanded.archived = $6 :: boolean
     END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -7948,7 +8058,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $6::jsonb IS NOT NULL THEN chats_expanded.labels @> $6::jsonb
+        WHEN $8::jsonb IS NOT NULL THEN chats_expanded.labels @> $8::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -7956,13 +8066,13 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $7::text IS NOT NULL THEN EXISTS (
+        WHEN $9::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($7::text)
+              AND LOWER(cds.url) = LOWER($9::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
@@ -7970,11 +8080,11 @@ WHERE
     -- Filter by title substring (case-insensitive). Applied when the
     -- caller provides a non-empty title_query.
     AND CASE
-        WHEN $8 :: text != '' THEN chats_expanded.title ILIKE '%' || $8 || '%'
+        WHEN $10 :: text != '' THEN chats_expanded.title ILIKE '%' || $10 || '%'
         ELSE true
     END
     AND CASE
-        WHEN $9::boolean IS NOT NULL THEN (
+        WHEN $11::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -7982,7 +8092,7 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $9::boolean
+        ) = $11::boolean
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -7991,7 +8101,7 @@ WHERE
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
     AND CASE
-        WHEN COALESCE(array_length($10::text[], 1), 0) > 0 THEN EXISTS (
+        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
@@ -8001,40 +8111,40 @@ WHERE
                         WHEN cds.pull_request_state = 'open' THEN 'open'
                         ELSE cds.pull_request_state
                     END
-                ) = ANY($10::text[])
+                ) = ANY($12::text[])
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $11::int != 0 THEN EXISTS (
+        WHEN $13::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $11
+                AND cds.pr_number = $13
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $12::text != '' THEN EXISTS (
+        WHEN $14::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $12 || '%'
-                    OR cds.url ILIKE '%' || $12 || '%'
+                    cds.git_remote_origin ILIKE '%' || $14 || '%'
+                    OR cds.url ILIKE '%' || $14 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $13::text != '' THEN EXISTS (
+        WHEN $15::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $13 || '%'
+                AND cds.pull_request_title ILIKE '%' || $15 || '%'
         )
         ELSE true
     END
@@ -8054,17 +8164,19 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $14
+OFFSET $16
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($15 :: int, 0), 50)
+    COALESCE(NULLIF($17 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
 	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
-	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
 	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
+	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
@@ -8087,8 +8199,10 @@ type GetChatsRow struct {
 func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnedOnly,
-		arg.ViewerID,
 		arg.SharedOnly,
+		arg.ViewerID,
+		arg.SharedWithUserID,
+		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,
@@ -12466,7 +12580,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 
 const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 FROM
 	gitsshkeys
 WHERE
@@ -12482,6 +12596,7 @@ func (q *sqlQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSH
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -12493,18 +12608,20 @@ INSERT INTO
 		created_at,
 		updated_at,
 		private_key,
+		private_key_key_id,
 		public_key
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING user_id, created_at, updated_at, private_key, public_key
+	($1, $2, $3, $4, $5, $6) RETURNING user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type InsertGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
 }
 
 func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error) {
@@ -12513,6 +12630,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.PrivateKey,
+		arg.PrivateKeyKeyID,
 		arg.PublicKey,
 	)
 	var i GitSSHKey
@@ -12522,6 +12640,7 @@ func (q *sqlQuerier) InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -12532,18 +12651,20 @@ UPDATE
 SET
 	updated_at = $2,
 	private_key = $3,
-	public_key = $4
+	private_key_key_id = $4,
+	public_key = $5
 WHERE
 	user_id = $1
 RETURNING
-	user_id, created_at, updated_at, private_key, public_key
+	user_id, created_at, updated_at, private_key, public_key, private_key_key_id
 `
 
 type UpdateGitSSHKeyParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	PrivateKey string    `db:"private_key" json:"private_key"`
-	PublicKey  string    `db:"public_key" json:"public_key"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	PrivateKey      string         `db:"private_key" json:"private_key"`
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
+	PublicKey       string         `db:"public_key" json:"public_key"`
 }
 
 func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error) {
@@ -12551,6 +12672,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		arg.UserID,
 		arg.UpdatedAt,
 		arg.PrivateKey,
+		arg.PrivateKeyKeyID,
 		arg.PublicKey,
 	)
 	var i GitSSHKey
@@ -12560,6 +12682,7 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 		&i.UpdatedAt,
 		&i.PrivateKey,
 		&i.PublicKey,
+		&i.PrivateKeyKeyID,
 	)
 	return i, err
 }
@@ -18204,7 +18327,7 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 FROM
     organizations
 WHERE
@@ -18227,13 +18350,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 FROM
     organizations
 WHERE
@@ -18254,13 +18378,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 FROM
     organizations
 WHERE
@@ -18290,6 +18415,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
@@ -18360,7 +18486,7 @@ func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organ
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 FROM
     organizations
 WHERE
@@ -18405,6 +18531,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.Icon,
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
+			pq.Array(&i.DefaultOrgMemberRoles),
 		); err != nil {
 			return nil, err
 		}
@@ -18421,7 +18548,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 FROM
     organizations
 WHERE
@@ -18467,6 +18594,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 			&i.Icon,
 			&i.Deleted,
 			&i.ShareableWorkspaceOwners,
+			pq.Array(&i.DefaultOrgMemberRoles),
 		); err != nil {
 			return nil, err
 		}
@@ -18483,20 +18611,21 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
-    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
+    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, $8) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 `
 
 type InsertOrganizationParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Description string    `db:"description" json:"description"`
-	Icon        string    `db:"icon" json:"icon"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID                    uuid.UUID `db:"id" json:"id"`
+	Name                  string    `db:"name" json:"name"`
+	DisplayName           string    `db:"display_name" json:"display_name"`
+	Description           string    `db:"description" json:"description"`
+	Icon                  string    `db:"icon" json:"icon"`
+	CreatedAt             time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	DefaultOrgMemberRoles []string  `db:"default_org_member_roles" json:"default_org_member_roles"`
 }
 
 func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error) {
@@ -18508,6 +18637,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		arg.Icon,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		pq.Array(arg.DefaultOrgMemberRoles),
 	)
 	var i Organization
 	err := row.Scan(
@@ -18521,6 +18651,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
@@ -18533,19 +18664,21 @@ SET
     name = $2,
     display_name = $3,
     description = $4,
-    icon = $5
+    icon = $5,
+    default_org_member_roles = $6
 WHERE
-    id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+    id = $7
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 `
 
 type UpdateOrganizationParams struct {
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Description string    `db:"description" json:"description"`
-	Icon        string    `db:"icon" json:"icon"`
-	ID          uuid.UUID `db:"id" json:"id"`
+	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	Name                  string    `db:"name" json:"name"`
+	DisplayName           string    `db:"display_name" json:"display_name"`
+	Description           string    `db:"description" json:"description"`
+	Icon                  string    `db:"icon" json:"icon"`
+	DefaultOrgMemberRoles []string  `db:"default_org_member_roles" json:"default_org_member_roles"`
+	ID                    uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
@@ -18555,6 +18688,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		arg.DisplayName,
 		arg.Description,
 		arg.Icon,
+		pq.Array(arg.DefaultOrgMemberRoles),
 		arg.ID,
 	)
 	var i Organization
@@ -18569,6 +18703,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
@@ -18601,7 +18736,7 @@ SET
     updated_at = $2
 WHERE
     id = $3
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
 `
 
 type UpdateOrganizationWorkspaceSharingSettingsParams struct {
@@ -18624,6 +18759,7 @@ func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Cont
 		&i.Icon,
 		&i.Deleted,
 		&i.ShareableWorkspaceOwners,
+		pq.Array(&i.DefaultOrgMemberRoles),
 	)
 	return i, err
 }
@@ -27109,6 +27245,41 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	return i, err
 }
 
+const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
+UPDATE
+	user_links
+SET
+	linked_id = $1
+WHERE
+	user_id = $2 AND login_type = $3 AND linked_id = '' RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+`
+
+type UpdateUserLinkedIDParams struct {
+	LinkedID  string    `db:"linked_id" json:"linked_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType LoginType `db:"login_type" json:"login_type"`
+}
+
+// Backfills linked_id for legacy user_links that were created before
+// linked_id tracking was added. Only updates when linked_id is empty
+// to avoid overwriting a valid binding.
+func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.Claims,
+	)
+	return i, err
+}
+
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
     id,
@@ -27748,21 +27919,28 @@ SELECT
 				-- Concatenating the organization id scopes the organization roles.
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
-				organization_members,
+				organization_members
+				JOIN organizations ON organizations.id = organization_members.organization_id,
 				-- All org members get an implied role for their orgs. Most members
 				-- get organization-member, but service accounts will get
 				-- organization-service-account instead. They're largely the same,
 				-- but having them be distinct means we can allow configuring
-				-- service-accounts to have slightly broader permissions–such as
+				-- service-accounts to have slightly broader permissions, such as
 				-- for workspace sharing.
+				--
+				-- organizations.default_org_member_roles is unioned in so changes
+				-- to org defaults propagate to every member on the next request.
 				unnest(
-					array_append(
-						roles,
-						CASE WHEN users.is_service_account THEN
-							'organization-service-account'
-						ELSE
-							'organization-member'
-						END
+					array_cat(
+						array_append(
+							roles,
+							CASE WHEN users.is_service_account THEN
+								'organization-service-account'
+							ELSE
+								'organization-member'
+							END
+						),
+						organizations.default_org_member_roles
 					)
 				) AS org_roles
 			WHERE
@@ -27783,7 +27961,7 @@ SELECT
 FROM
 	users
 WHERE
-	id = $1
+	users.id = $1
 `
 
 type GetAuthorizationUserRolesRow struct {
@@ -30210,6 +30388,102 @@ func (q *sqlQuerier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx conte
 		&i.TaskID,
 	)
 	return i, err
+}
+
+const getExternalAgentTokensByTemplateID = `-- name: GetExternalAgentTokensByTemplateID :many
+SELECT
+	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
+FROM
+	workspaces
+JOIN (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, transition, has_external_agent
+	FROM
+		workspace_builds
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspaces.template_id = $1
+	AND (
+		$2 :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = $2
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL
+`
+
+type GetExternalAgentTokensByTemplateIDParams struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetExternalAgentTokensByTemplateIDRow struct {
+	WorkspaceID   uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName string    `db:"workspace_name" json:"workspace_name"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	AgentName     string    `db:"agent_name" json:"agent_name"`
+	AgentToken    uuid.UUID `db:"agent_token" json:"agent_token"`
+}
+
+// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+// non-deleted external agents on the latest build of every running workspace
+// of the given template. "Running" means the latest build has
+// transition=start and job_status=succeeded (matches the workspace-status
+// definition used by coderd/database/queries/workspaces.sql).
+// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+// "all owners"; any other value restricts results to workspaces owned by
+// that user.
+func (q *sqlQuerier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAgentTokensByTemplateID, arg.TemplateID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExternalAgentTokensByTemplateIDRow
+	for rows.Next() {
+		var i GetExternalAgentTokensByTemplateIDRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.AgentID,
+			&i.AgentName,
+			&i.AgentToken,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAgentAndWorkspaceByID = `-- name: GetWorkspaceAgentAndWorkspaceByID :one

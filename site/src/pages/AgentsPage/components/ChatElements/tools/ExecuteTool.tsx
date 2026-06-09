@@ -27,6 +27,7 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { ToolIcon } from "./ToolIcon";
+import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
@@ -37,7 +38,7 @@ import {
 
 type ExecuteToolProps = {
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
 	durationMs?: number;
@@ -53,8 +54,9 @@ type ExecuteToolInnerProps = ExecuteToolProps & {
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
+	const hasTranscriptBlocks = props.transcriptBlocks.length > 0;
 	const autoDisplayState: AgentDisplayState =
-		props.output.length > 0 ||
+		hasTranscriptBlocks ||
 		props.status === "running" ||
 		props.isBackgrounded ||
 		!!props.killedBySignal
@@ -75,7 +77,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
 
 const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	command,
-	output,
+	transcriptBlocks,
 	status,
 	isError,
 	durationMs,
@@ -127,7 +129,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 							<span
 								aria-label="Command failed"
 								role="img"
-								className="flex shrink-0 text-content-destructive"
+								className="flex shrink-0 text-content-secondary"
 							>
 								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 							</span>
@@ -168,7 +170,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
-					output={output}
+					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 				/>
 			)}
@@ -217,9 +219,9 @@ const ShellCommandLine: React.FC<{
 
 const ShellTranscriptBody: React.FC<{
 	command: string;
-	output: string;
+	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
-}> = ({ command, output, isError }) => {
+}> = ({ command, transcriptBlocks, isError }) => {
 	return (
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
@@ -227,22 +229,25 @@ const ShellTranscriptBody: React.FC<{
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">
-				<pre className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+				<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					<span aria-hidden className="select-none">
 						$
 					</span>{" "}
 					{command}
 				</pre>
-				{output.length > 0 && (
+				{transcriptBlocks.map((block) => (
 					<pre
+						key={block.kind}
 						className={cn(
-							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							isError ? "text-content-destructive" : "text-content-secondary",
+							"m-0 mt-4 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+							block.kind === "error" || isError
+								? "text-content-destructive"
+								: "text-content-secondary",
 						)}
 					>
-						{output}
+						{block.text}
 					</pre>
-				)}
+				))}
 			</div>
 		</ScrollArea>
 	);

@@ -231,12 +231,15 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -245,7 +248,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
@@ -829,7 +832,9 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			orientation="both"
 			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
 		>
 			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
 		</ScrollArea>

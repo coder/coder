@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -243,7 +244,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				)
 			}
 
-			workspace, err := options.CreateFn(ctx, ownerID, createReq)
+			workspace, err := createWorkspaceWithNameRetry(ctx, ownerID, createReq, options.CreateFn)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
@@ -706,6 +707,41 @@ func waitForAgentReady(
 		case <-ticker.C:
 		}
 	}
+}
+
+func createWorkspaceWithNameRetry(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	req codersdk.CreateWorkspaceRequest,
+	createFn CreateWorkspaceFn,
+) (codersdk.Workspace, error) {
+	workspace, err := createFn(ctx, ownerID, req)
+	if err == nil {
+		return workspace, nil
+	}
+	if !isWorkspaceNameConflict(err) {
+		return codersdk.Workspace{}, err
+	}
+
+	req.Name = generatedWorkspaceName(req.Name)
+	return createFn(ctx, ownerID, req)
+}
+
+func isWorkspaceNameConflict(err error) bool {
+	responseErr, ok := httperror.IsResponder(err)
+	if !ok {
+		return false
+	}
+	status, resp := responseErr.Response()
+	if status != http.StatusConflict {
+		return false
+	}
+	for _, validation := range resp.Validations {
+		if validation.Field == "name" {
+			return true
+		}
+	}
+	return false
 }
 
 func generatedWorkspaceName(seed string) string {

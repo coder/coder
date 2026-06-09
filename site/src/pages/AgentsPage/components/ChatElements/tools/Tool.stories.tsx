@@ -2065,6 +2065,88 @@ export const GenericToolFailedNoResult: Story = {
 	},
 };
 
+const longCodeLine =
+	'export const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };';
+
+const tallWideFileContent = [
+	longCodeLine,
+	...Array.from({ length: 40 }, (_, i) => `const line${i} = ${i};`),
+].join("\n");
+
+export const ReadFileLongLine: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+		await waitFor(() => {
+			const host = canvasElement.querySelector("diffs-container");
+			const code = host?.shadowRoot?.querySelector("[data-code]");
+			expect(code).toBeInstanceOf(HTMLElement);
+			if (code instanceof HTMLElement) {
+				expect(getComputedStyle(code).overflow).toBe("visible");
+			}
+		});
+	},
+};
+
+export const ReadFileTallAndWide: Story = {
+	args: {
+		name: "read_file",
+		args: { path: "site/src/config.ts" },
+		result: { content: tallWideFileContent },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Read config.ts/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find(
+			(v) => v.scrollWidth > v.clientWidth && v.scrollHeight > v.clientHeight,
+		);
+		if (!viewport) {
+			throw new Error("Expected a viewport overflowing on both axes.");
+		}
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
+		);
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		expect(viewport.scrollLeft).toBe(0);
+	},
+};
+
+export const GenericToolLongOutput: Story = {
+	args: {
+		name: "some_custom_tool",
+		args: { query: "lookup" },
+		result: { value: longCodeLine },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /some_custom_tool/i }),
+		);
+		await waitFor(() =>
+			expect(getDiffsText(canvasElement)).toContain("apiUrl"),
+		);
+	},
+};
+
 export const SubagentWaitTimedOut: Story = {
 	args: {
 		name: "wait_agent",

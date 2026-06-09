@@ -412,6 +412,11 @@ var (
 					User:        []rbac.Permission{},
 					ByOrgID: map[string]rbac.OrgPermissions{
 						orgID.String(): {
+							Org: rbac.Permissions(map[string][]policy.Action{
+								// SubAgentAPI needs to check metadata of templates
+								// potentially shared via group_acl.
+								rbac.ResourceTemplate.Type: {policy.ActionRead},
+							}),
 							Member: rbac.Permissions(map[string][]policy.Action{
 								rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 							}),
@@ -532,14 +537,9 @@ var (
 					rbac.ResourcePrebuiltWorkspace.Type: {
 						policy.ActionUpdate, policy.ActionDelete,
 					},
-					// Should be able to add the prebuilds system user as a member to any organization that needs prebuilds.
+					// Reads organization membership rows when reconciling the prebuilds user's memberships.
 					rbac.ResourceOrganizationMember.Type: {
 						policy.ActionRead,
-						policy.ActionCreate,
-					},
-					// Needs to be able to assign roles to the system user in order to make it a member of an organization.
-					rbac.ResourceAssignOrgRole.Type: {
-						policy.ActionAssign,
 					},
 					// Needs to be able to read users to determine which organizations the prebuild system user is a member of.
 					rbac.ResourceUser.Type: {
@@ -1602,6 +1602,19 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+// scopedOrgRoleIdentifiers wraps each role name as a RoleIdentifier scoped
+// to orgID. Used to feed rbac.ChangeRoleSet from a stored []string.
+func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdentifier {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]rbac.RoleIdentifier, len(names))
+	for i, name := range names {
+		out[i] = rbac.RoleIdentifier{Name: name, OrganizationID: orgID}
+	}
+	return out
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -1905,6 +1918,13 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	}
 
 	return q.db.CustomRoles(ctx, arg)
+}
+
+func (q *querier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayKey); err != nil {
+		return database.DeleteAIGatewayKeyRow{}, err
+	}
+	return q.db.DeleteAIGatewayKey(ctx, id)
 }
 
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -3448,6 +3468,20 @@ func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MC
 		return nil, err
 	}
 	return q.db.GetEnabledMCPServerConfigs(ctx)
+}
+
+// GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
+// scaletest agentfake path calls this query directly via a connection to the
+// database. There is no production code path that uses this method, and it is
+// deliberately not exposed over HTTP. The query filters for running
+// workspaces only (latest build has transition=start and job_status=succeeded).
+func (q *querier) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
+	// ResourceSystem is used because the query spans multiple workspaces
+	// with no single RBAC object to check.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetExternalAgentTokensByTemplateID(ctx, arg)
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -5507,6 +5541,13 @@ func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.Ins
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
 
+func (q *querier) InsertAIGatewayKey(ctx context.Context, arg database.InsertAIGatewayKeyParams) (database.InsertAIGatewayKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayKey); err != nil {
+		return database.InsertAIGatewayKeyRow{}, err
+	}
+	return q.db.InsertAIGatewayKey(ctx, arg)
+}
+
 func (q *querier) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
@@ -5795,9 +5836,23 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 		return database.OrganizationMember{}, xerrors.Errorf("converting to organization roles: %w", err)
 	}
 
+	// The org's default_org_member_roles are implied at request time by
+	// GetAuthorizationUserRoles. Include them in canAssignRoles so the
+	// caller is required to be authorized to grant the full effective set
+	// (the explicit roles, organization-member, plus the defaults).
+	org, err := q.db.GetOrganizationByID(ctx, arg.OrganizationID)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("get organization: %w", err)
+	}
+	defaultRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, org.DefaultOrgMemberRoles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("convert default member roles: %w", err)
+	}
+
 	// All roles are added roles. Org member is always implied.
 	//nolint:gocritic
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
+	addedRoles = append(addedRoles, defaultRoles...)
 	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -6280,6 +6335,13 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	}
 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
+}
+
+func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatewayKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIGatewayKeys(ctx)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
@@ -7058,9 +7120,23 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		return database.OrganizationMember{}, err
 	}
 
+	// The org's default_org_member_roles are implied at request time by
+	// GetAuthorizationUserRoles. Include them in the implied set so
+	// canAssignRoles validates the caller can grant the full effective set
+	// (the granted roles, organization-member, plus the defaults).
+	org, err := q.db.GetOrganizationByID(ctx, arg.OrgID)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("get organization: %w", err)
+	}
+	defaultRoles, err := q.convertToOrganizationRoles(arg.OrgID, org.DefaultOrgMemberRoles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("convert default member roles: %w", err)
+	}
+
 	// The org member role is always implied.
 	//nolint:gocritic
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
+	impliedTypes = append(impliedTypes, defaultRoles...)
 
 	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)
 	err = q.canAssignRoles(ctx, arg.OrgID, added, removed)
@@ -7101,10 +7177,29 @@ func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.
 }
 
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
-	fetch := func(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
-		return q.db.GetOrganizationByID(ctx, arg.ID)
+	existing, err := q.db.GetOrganizationByID(ctx, arg.ID)
+	if err != nil {
+		return database.Organization{}, err
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, existing); err != nil {
+		return database.Organization{}, err
+	}
+	// Treat a change to default_org_member_roles as assigning the added
+	// roles, and unassigning the removed roles, for every member of the
+	// org. Mirror the InsertOrganizationMember and UpdateMemberRoles
+	// guard so the caller cannot grant roles they could not grant
+	// individually, nor inject a malformed role name that would later
+	// break RoleNameFromString.
+	if !slices.Equal(existing.DefaultOrgMemberRoles, arg.DefaultOrgMemberRoles) {
+		added, removed := rbac.ChangeRoleSet(
+			scopedOrgRoleIdentifiers(existing.DefaultOrgMemberRoles, arg.ID),
+			scopedOrgRoleIdentifiers(arg.DefaultOrgMemberRoles, arg.ID),
+		)
+		if err := q.canAssignRoles(ctx, arg.ID, added, removed); err != nil {
+			return database.Organization{}, err
+		}
+	}
+	return q.db.UpdateOrganization(ctx, arg)
 }
 
 func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
@@ -7594,6 +7689,13 @@ func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLin
 		})
 	}
 	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateUserLink)(ctx, arg)
+}
+
+func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
+		return database.UserLink{}, err
+	}
+	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
 func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {

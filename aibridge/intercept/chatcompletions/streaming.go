@@ -128,6 +128,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		interceptionErr error
 	)
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
 
@@ -176,6 +181,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				option.WithMaxRetries(0),
 			)
 		}
+
+		totalKeyAttempts += walker.Attempts()
 
 		// TODO(ssncferreira): inject actor headers directly in the client-header
 		//   middleware instead of using SDK options.
