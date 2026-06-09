@@ -1,6 +1,7 @@
 package aibudget_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -106,6 +107,24 @@ func TestResolveUserAIBudget(t *testing.T) {
 				alpha := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
 				return user.ID, aibudget.EffectiveBudget{GroupID: alpha, SpendLimitMicros: 10_000_000, Source: aibudget.SourceGroup}, true
+			},
+		},
+		{
+			name:   "TieBrokenByGroupID",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+				user := dbgen.User(t, db, database.User{})
+				// Two groups in different orgs share both name and limit.
+				// Group id breaks the tie, so resolution is deterministic.
+				org1 := dbgen.Organization(t, db, database.Organization{})
+				org2 := dbgen.Organization(t, db, database.Organization{})
+				g1 := budgetedGroup(t, ctx, db, org1.ID, user.ID, "dup", 10_000_000)
+				g2 := budgetedGroup(t, ctx, db, org2.ID, user.ID, "dup", 10_000_000)
+				winner := g1
+				if bytes.Compare(g2[:], g1[:]) < 0 {
+					winner = g2
+				}
+				return user.ID, aibudget.EffectiveBudget{GroupID: winner, SpendLimitMicros: 10_000_000, Source: aibudget.SourceGroup}, true
 			},
 		},
 		{

@@ -73,5 +73,9 @@ JOIN group_members_expanded gme ON gme.group_id = gaib.group_id
 WHERE gme.user_id = @user_id
 ORDER BY
 	gaib.spend_limit_micros DESC, -- highest wins
-	gme.group_name ASC            -- alphabetical tiebreak
+	gme.group_name ASC,           -- alphabetical tiebreak
+	-- Final tiebreak on the group id makes the result deterministic when two
+	-- groups share both name and limit, which is possible across organizations
+	-- (groups are unique on (organization_id, name), not name alone).
+	gaib.group_id ASC
 LIMIT 1;
