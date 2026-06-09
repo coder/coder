@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -13,11 +14,18 @@ import (
 // type=anthropic with Bedrock settings to type=bedrock. It must be called
 // after newAPI so that options.Database is dbcrypt-wrapped; encrypted settings
 // are decrypted transparently by that wrapper, making the Bedrock discriminator
-// visible for comparison.
+// visible for comparison. db must be the raw (pre-dbauthz) store: this
+// function runs during startup with no actor in context, so dbauthz checks
+// would fail.
 //
 // The function is idempotent: rows already typed as bedrock are skipped.
-// Any error is logged and the startup sequence continues; the runtime
-// CanonicalAIProviderType shim in codersdk handles rows not yet promoted.
+// Any error is logged and the startup sequence continues.
+//
+// Trade-off: the function reads all providers then updates them individually.
+// A concurrent PATCH between the read and a write could have non-type field
+// changes (display_name, enabled, etc.) silently overwritten. This is
+// acceptable: the provider type cannot be changed via the API, the startup
+// window is short, and a subsequent PATCH corrects any overwritten field.
 func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger slog.Logger) {
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  false,
@@ -51,6 +59,11 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 			SettingsKeyID: sql.NullString{},
 		})
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				logger.Debug(ctx, "backfill bedrock provider type: provider deleted during backfill",
+					slog.F("provider_id", provider.ID))
+				continue
+			}
 			logger.Error(ctx, "backfill bedrock provider type: update provider",
 				slog.F("provider_id", provider.ID), slog.Error(err))
 		}
