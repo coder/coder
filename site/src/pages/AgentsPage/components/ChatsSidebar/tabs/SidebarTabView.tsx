@@ -18,7 +18,6 @@ import {
 } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
-import { DesktopPanel } from "../../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -48,8 +47,6 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
-	/** Desktop chat ID. Omitted if desktop is not available. */
-	desktopChatId?: string;
 	/**
 	 * The resolved tab ID to render as active (computed by the parent
 	 * with `getEffectiveTabId`). Keeping a single source of truth in the
@@ -159,7 +156,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
-	desktopChatId,
 	effectiveTabId,
 	onActiveTabChange,
 	addTabControl,
@@ -177,19 +173,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		id: t.id,
 		content: t.content,
 	}));
-	if (desktopChatId) {
-		allPanels.push({
-			id: "desktop",
-			content: (
-				<DesktopPanel
-					chatId={desktopChatId}
-					isVisible={effectiveTabId === "desktop"}
-				/>
-			),
-		});
-	}
 
-	if (tabs.length === 0 && !desktopChatId) {
+	if (tabs.length === 0) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
@@ -337,23 +322,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								</div>
 							);
 						})}
-						{desktopChatId && (
-							<Button
-								id={`${tabIdPrefix}-tab-desktop`}
-								role="tab"
-								aria-selected={effectiveTabId === "desktop"}
-								onClick={() => onActiveTabChange("desktop")}
-								variant="outline"
-								size="lg"
-								className={cn(
-									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									effectiveTabId === "desktop" &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-								)}
-							>
-								Desktop
-							</Button>
-						)}
 						{addTabControl}
 					</div>
 					{canScrollRight && (
