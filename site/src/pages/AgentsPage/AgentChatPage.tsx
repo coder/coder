@@ -1506,7 +1506,7 @@ const AgentChatPage: FC = () => {
 		if (!response.queued) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
-			// "Thinking..." indicator appears immediately.
+			// Thinking indicator appears immediately.
 			// The server accepted the message (not queued),
 			// so it will start processing. The WebSocket
 			// status:running event no-ops via the
