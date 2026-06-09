@@ -34,8 +34,7 @@ type EffectiveBudget struct {
 	// SpendLimitMicros is the effective spend limit in micro-units
 	// (1 unit = 1,000,000).
 	SpendLimitMicros int64
-	// Source is SourceUserOverride or SourceGroup.
-	Source LimitSource
+	Source           LimitSource
 }
 
 // ResolveUserAIBudget returns the effective AI budget for userID. The second
