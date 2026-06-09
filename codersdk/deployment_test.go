@@ -345,6 +345,57 @@ func TestValidateSSHConfigOptions(t *testing.T) {
 	}
 }
 
+func TestSSHConfigResponse_Validate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		response codersdk.SSHConfigResponse
+		wantErr  string
+	}{
+		{
+			name: "Valid",
+			response: codersdk.SSHConfigResponse{
+				HostnamePrefix:   "coder.",
+				HostnameSuffix:   "coder",
+				SSHConfigOptions: map[string]string{"HostName": "example.com"},
+			},
+		},
+		{
+			name:     "Empty",
+			response: codersdk.SSHConfigResponse{},
+		},
+		{
+			name:     "PrefixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:  "workspace hostname prefix",
+		},
+		{
+			name:     "SuffixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:  "workspace hostname suffix",
+		},
+		{
+			name:     "OptionUnsafe",
+			response: codersdk.SSHConfigResponse{SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}},
+			wantErr:  `ssh config option "ProxyCommand" is not allowed`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.response.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestSSHConfig_ParseOptions(t *testing.T) {
 	t.Parallel()
 

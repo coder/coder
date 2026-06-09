@@ -195,7 +195,7 @@ func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
 
 	err := inv.Run()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "validate coderd workspace hostname suffix")
+	require.ErrorContains(t, err, "workspace hostname suffix")
 	require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
 }
 
@@ -226,7 +226,7 @@ func TestConfigSSH_RejectsUnsafeServerHostnamePrefix(t *testing.T) {
 
 	err := inv.Run()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "validate coderd workspace hostname prefix")
+	require.ErrorContains(t, err, "workspace hostname prefix")
 	require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
 }
 

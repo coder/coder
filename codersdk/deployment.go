@@ -5304,6 +5304,23 @@ type SSHConfigResponse struct {
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 
+// Validate checks that the deployment-provided SSH configuration is safe to
+// write into a user's local SSH config. Validating here ensures a deployment
+// can never serve config that the client would reject.
+func (r SSHConfigResponse) Validate() error {
+	if r.HostnamePrefix != "" {
+		if err := ValidateWorkspaceHostnamePrefix(r.HostnamePrefix); err != nil {
+			return err
+		}
+	}
+	if r.HostnameSuffix != "" {
+		if err := ValidateWorkspaceHostnameSuffix(r.HostnameSuffix); err != nil {
+			return err
+		}
+	}
+	return ValidateSSHConfigOptions(r.SSHConfigOptions)
+}
+
 // SSHConfiguration returns information about the SSH configuration for the
 // Coder instance.
 func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {

@@ -1838,17 +1838,17 @@ func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
 		{
 			name:    "HostnameSuffixLeadingDot",
 			flag:    "--workspace-hostname-suffix=.coder",
-			wantErr: "validate workspace hostname suffix",
+			wantErr: "workspace hostname suffix",
 		},
 		{
 			name:    "HostnameSuffixNewline",
 			flag:    "--workspace-hostname-suffix=coder\nHost *",
-			wantErr: "validate workspace hostname suffix",
+			wantErr: "workspace hostname suffix",
 		},
 		{
 			name:    "HostnamePrefixNewline",
 			flag:    "--ssh-hostname-prefix=coder.\nHost *",
-			wantErr: "validate ssh hostname prefix",
+			wantErr: "workspace hostname prefix",
 		},
 		{
 			name:    "SSHOptionUnparseable",
@@ -1858,7 +1858,7 @@ func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
 		{
 			name:    "SSHOptionDisallowedKey",
 			flag:    "--ssh-config-options=ProxyCommand=ssh -W %h:%p bastion",
-			wantErr: "validate ssh config options",
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
 		},
 	}
 
