@@ -166,6 +166,17 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "UsageLimitPatternDoesNotBeatConfigWith429",
+			err:  xerrors.New("status 429: invalid model quota"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       codersdk.ChatErrorKindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 429,
+			},
+		},
+		{
 			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
@@ -879,13 +890,6 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 			wantRetry: false,
 		},
 		{
-			name:       "QuotaWith429Status",
-			err:        "status 429: insufficient_quota",
-			wantKind:   codersdk.ChatErrorKindUsageLimit,
-			wantRetry:  false,
-			wantStatus: 429,
-		},
-		{
 			name:      "PureAuthStillWorks",
 			err:       "unauthorized",
 			wantKind:  codersdk.ChatErrorKindAuth,
@@ -923,6 +927,81 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 			if tt.wantProvider != "" {
 				require.Equal(t, tt.wantProvider, classified.Provider)
 			}
+		})
+	}
+}
+
+func TestClassify_InsufficientQuotaBeats429RateLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "StatusText",
+			err:  xerrors.New("status 429: insufficient_quota"),
+		},
+		{
+			name: "StructuredProviderError",
+			err: testProviderError(
+				"upstream failed",
+				429,
+				nil,
+				testProviderResponseDump(`{"error":{"message":"insufficient_quota"}}`),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Equal(t, 429, classified.StatusCode)
+		})
+	}
+}
+
+func TestClassify_UsageLimitPatternsDoNotBeat429(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		wantProvider string
+	}{
+		{
+			name:         "GoogleGeminiQuotaText",
+			err:          xerrors.New("gemini status 429: Resource has been exhausted (e.g. check quota)."),
+			wantProvider: "google",
+		},
+		{
+			name:         "AzureOpenAIQuotaRemaining",
+			err:          xerrors.New("azure openai exceeded token rate limit; quota remaining: 0; status 429"),
+			wantProvider: "azure",
+		},
+		{
+			name: "BillingPlanRateLimit",
+			err:  xerrors.New("status 429: rate limited: upgrade your billing plan for higher rate limits"),
+		},
+		{
+			name: "StructuredProviderQuotaText",
+			err:  testProviderError("Resource has been exhausted (e.g. check quota).", 429, nil),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindRateLimit, classified.Kind)
+			require.True(t, classified.Retryable)
+			require.Equal(t, 429, classified.StatusCode)
+			require.Equal(t, tt.wantProvider, classified.Provider)
 		})
 	}
 }

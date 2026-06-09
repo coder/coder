@@ -72,7 +72,12 @@ var (
 		"insufficient_quota",
 		"payment required",
 	}
-	configPatterns = []string{
+	// These provider error codes identify hard usage exhaustion even
+	// when the provider reports them with HTTP 429. Broad prose such as
+	// quota or billing stays subordinate to 429 so provider rate limits
+	// remain retryable.
+	usageLimitAnyStatusPatterns = []string{"insufficient_quota"}
+	configPatterns              = []string{
 		"invalid model",
 		"model not found",
 		"model_not_found",

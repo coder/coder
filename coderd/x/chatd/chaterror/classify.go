@@ -204,7 +204,9 @@ func Classify(err error) ClassifiedError {
 	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
-	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
+	usageLimitText := lower + "\n" + strings.ToLower(structured.detail)
+	usageLimitMatch := containsAny(usageLimitText, usageLimitAnyStatusPatterns...) ||
+		(statusCode != 429 && containsAny(usageLimitText, usageLimitPatterns...))
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
@@ -226,8 +228,8 @@ func Classify(err error) ClassifiedError {
 	// transient-looking errors like "503 invalid model" fail fast.
 	// Overloaded stays ahead because 529/overloaded is a dedicated
 	// provider saturation signal, not a common transport wrapper.
-	// Usage-limit fires before auth so that quota/billing text wins
-	// over whatever HTTP status code the provider happened to use.
+	// Usage-limit fires before auth so non-429 quota/billing text,
+	// plus explicit usage exhaustion codes, win over auth signals.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
 	// Provider-disabled must precede timeout because disabled providers
