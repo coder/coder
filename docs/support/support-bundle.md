@@ -43,13 +43,13 @@ A brief overview of all files contained in the bundle is provided below:
 | `deployment/experiments.json`           | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.                                 |
 | `deployment/health.json`                | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment. *Requires Owner role.*                  |
 | `logs.txt`                              | Logs from the `codersdk.Client` used to generate the bundle.                                                                      |
-| `organization/organization.json`        | Organization details for the selected organization.                                                                               |
-| `organization/provisioner_daemons.json` | Provisioner daemons registered in the selected organization.                                                                      |
-| `organization/provisioner_jobs.json`    | Non-successful provisioner jobs in the selected organization.                                                                     |
 | `network/connection_info.json`          | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                     |
 | `network/coordinator_debug.html`        | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                |
 | `network/netcheck.json`                 | Results of running `coder netcheck` locally.                                                                                      |
 | `network/tailnet_debug.html`            | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels. *Requires Owner role.*                                  |
+| `organization/organization.json`        | Organization details for the selected organization.                                                                               |
+| `organization/provisioner_daemons.json` | Provisioner daemons registered in the selected organization.                                                                      |
+| `organization/provisioner_jobs.json`    | Non-successful provisioner jobs in the selected organization.                                                                     |
 | `workspace/build_logs.txt`              | Build logs of the selected workspace.                                                                                             |
 | `workspace/workspace.json`              | Details of the selected workspace.                                                                                                |
 | `workspace/parameters.json`             | Build parameters of the selected workspace.                                                                                       |

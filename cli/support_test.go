@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
@@ -72,6 +73,21 @@ func TestSupportBundle(t *testing.T) {
 	t.Cleanup(func() { closer.Close() })
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Register a provisioner daemon and a failed workspace build so the bundle
+	// captures non-empty org data (daemons and non-successful jobs).
+	pd := dbgen.ProvisionerDaemon(t, api.Database, database.ProvisionerDaemon{
+		OrganizationID: owner.OrganizationID,
+	})
+	failedTV := dbfake.TemplateVersion(t, api.Database).Seed(database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+	}).Do()
+	dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        owner.UserID,
+		TemplateID:     failedTV.Template.ID,
+	}).Failed().Do()
 
 	// Set up test fixtures
 	setupCtx := testutil.Context(t, testutil.WaitLong)
@@ -196,6 +212,91 @@ func TestSupportBundle(t *testing.T) {
 		} {
 			require.Contains(t, fileNames, name)
 		}
+	})
+
+	t.Run("OrgFlagByName", func(t *testing.T) {
+		// Verify --org <name> resolves correctly and captures org data.
+		t.Parallel()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		// Resolve the default org name from the API.
+		org, err := client.Organization(testutil.Context(t, testutil.WaitShort), owner.OrganizationID)
+		require.NoError(t, err)
+		inv, root := clitest.New(t, "support", "bundle",
+			"--org", org.Name,
+			"--output-file", path,
+			"--yes",
+		)
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		err = inv.Run()
+		require.NoError(t, err)
+		// Bundle should exist and contain org data.
+		var r *zip.ReadCloser
+		r, err = zip.OpenReader(path)
+		require.NoError(t, err)
+		defer r.Close()
+		fileNames := make(map[string]struct{}, len(r.File))
+		for _, f := range r.File {
+			fileNames[f.Name] = struct{}{}
+		}
+		require.Contains(t, fileNames, "organization/organization.json")
+	})
+
+	t.Run("OrgFlagByUUID", func(t *testing.T) {
+		// Verify --org <uuid> resolves correctly (same code path via OrganizationByName).
+		t.Parallel()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle",
+			"--org", owner.OrganizationID.String(),
+			"--output-file", path,
+			"--yes",
+		)
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.NoError(t, err)
+		r, err := zip.OpenReader(path)
+		require.NoError(t, err)
+		defer r.Close()
+		fileNames := make(map[string]struct{}, len(r.File))
+		for _, f := range r.File {
+			fileNames[f.Name] = struct{}{}
+		}
+		require.Contains(t, fileNames, "organization/organization.json")
+		// Verify the daemon we registered is present.
+		for _, f := range r.File {
+			if f.Name == "organization/provisioner_daemons.json" {
+				var daemons []codersdk.ProvisionerDaemon
+				decodeJSONFromZip(t, f, &daemons)
+				require.NotEmpty(t, daemons, "expected provisioner daemons in bundle")
+				var names []string
+				for _, d := range daemons {
+					names = append(names, d.Name)
+				}
+				require.Contains(t, names, pd.Name, "expected registered daemon in bundle")
+			}
+		}
+	})
+
+	t.Run("OrgFlagInvalidFails", func(t *testing.T) {
+		// Verify --org with a nonexistent value returns a non-zero exit code.
+		t.Parallel()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle",
+			"--org", "nonexistent-org-that-does-not-exist",
+			"--output-file", path,
+			"--yes",
+		)
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		require.Error(t, err, "expected error for nonexistent org")
 	})
 
 	// This ensures that the CLI does not panic when trying to generate a support bundle
@@ -451,11 +552,11 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 		case "organization/provisioner_daemons.json":
 			var v []codersdk.ProvisionerDaemon
 			decodeJSONFromZip(t, f, &v)
-			require.NotNil(t, v, "provisioner daemons should not be nil")
+			require.NotEmpty(t, v, "provisioner daemons should not be empty")
 		case "organization/provisioner_jobs.json":
 			var v []codersdk.ProvisionerJob
 			decodeJSONFromZip(t, f, &v)
-			require.NotNil(t, v, "provisioner jobs should not be nil")
+			require.NotEmpty(t, v, "provisioner jobs should not be empty")
 		default:
 			require.Failf(t, "unexpected file in bundle", f.Name)
 		}

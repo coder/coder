@@ -149,6 +149,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				wsID       uuid.UUID
 				agtID      uuid.UUID
 				templateID uuid.UUID
+				orgID      uuid.UUID
 			)
 
 			if len(inv.Args) == 0 {
@@ -196,6 +197,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 					slog.F("workspace_id", ws.ID),
 				)
 				wsID = ws.ID
+				// If --org was not explicitly provided, infer the org from the workspace.
+				if orgID == uuid.Nil {
+					orgID = ws.OrganizationID
+				}
 				agentName := ""
 				if len(inv.Args) > 1 {
 					agentName = inv.Args[1]
@@ -248,17 +253,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
 			}
 
-			var orgID uuid.UUID
 			if orgFlag != "" {
-				if parsed, err := uuid.Parse(orgFlag); err == nil {
-					orgID = parsed
-				} else {
-					org, err := client.OrganizationByName(inv.Context(), orgFlag)
-					if err != nil {
-						return xerrors.Errorf("resolve organization %q: %w", orgFlag, err)
-					}
-					orgID = org.ID
+				org, err := client.OrganizationByName(inv.Context(), orgFlag)
+				if err != nil {
+					return xerrors.Errorf("resolve organization %q: %w", orgFlag, err)
 				}
+				orgID = org.ID
 			}
 
 			deps := support.Deps{
@@ -325,11 +325,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Value:       serpent.BoolOf(&pprof),
 		},
 		{
-			Flag:          "org",
-			FlagShorthand: "o",
-			Env:           "CODER_SUPPORT_BUNDLE_ORG",
-			Description:   "Select which organization (uuid or name) to capture provisioner info for. Defaults to the current user's organization.",
-			Value:         serpent.StringOf(&orgFlag),
+			Flag:        "org",
+			Env:         "CODER_ORGANIZATION",
+			Description: "Select which organization (UUID or name) to capture provisioner info for. Defaults to the current user's organization.",
+			Value:       serpent.StringOf(&orgFlag),
 		},
 	}
 

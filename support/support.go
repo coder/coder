@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ type Bundle struct {
 	Logs          []string         `json:"logs"`
 	CLILogs       []byte           `json:"cli_logs"`
 	NamedTemplate TemplateDump     `json:"named_template"`
-	Organization  OrganizationInfo `json:"organization"`
+	Organization  Organization     `json:"organization"`
 	Pprof         Pprof            `json:"pprof"`
 }
 
@@ -104,7 +105,7 @@ type TemplateDump struct {
 	TemplateFileBase64 string                   `json:"template_file_base64"`
 }
 
-type OrganizationInfo struct {
+type Organization struct {
 	Organization       codersdk.Organization        `json:"organization"`
 	ProvisionerDaemons []codersdk.ProvisionerDaemon `json:"provisioner_daemons"`
 	ProvisionerJobs    []codersdk.ProvisionerJob    `json:"provisioner_jobs"`
@@ -1039,9 +1040,13 @@ func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error)
 	return true, nil
 }
 
-func OrgInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgID uuid.UUID) OrganizationInfo {
+// OrganizationInfo fetches organization details, provisioner daemons, and
+// non-successful provisioner jobs for the given org. Permission errors (403/401/404)
+// are logged and the corresponding fields are left zero-valued; other errors are
+// logged at error level. The returned struct may be partially populated.
+func OrganizationInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgID uuid.UUID) Organization {
 	var (
-		o  OrganizationInfo
+		o  Organization
 		eg errgroup.Group
 	)
 
@@ -1061,7 +1066,10 @@ func OrgInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgI
 	})
 
 	eg.Go(func() error {
-		daemons, err := client.OrganizationProvisionerDaemons(ctx, orgID, nil)
+		const cap = 200
+		daemons, err := client.OrganizationProvisionerDaemons(ctx, orgID, &codersdk.OrganizationProvisionerDaemonsOptions{
+			Limit: cap,
+		})
 		if err != nil {
 			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
 				log.Warn(ctx, "unable to fetch provisioner daemons",
@@ -1071,20 +1079,26 @@ func OrgInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgI
 			}
 			return xerrors.Errorf("fetch provisioner daemons: %w", err)
 		}
+		if len(daemons) == cap {
+			log.Warn(ctx, "provisioner daemons list may be truncated", slog.F("limit", cap))
+		}
 		o.ProvisionerDaemons = daemons
 		return nil
 	})
 
 	eg.Go(func() error {
-		jobs, err := client.OrganizationProvisionerJobs(ctx, orgID, &codersdk.OrganizationProvisionerJobsOptions{
-			Status: []codersdk.ProvisionerJobStatus{
-				codersdk.ProvisionerJobPending,
-				codersdk.ProvisionerJobRunning,
-				codersdk.ProvisionerJobCanceling,
-				codersdk.ProvisionerJobCanceled,
-				codersdk.ProvisionerJobFailed,
-				codersdk.ProvisionerJobUnknown,
+		const cap = 200
+		// Fetch all non-successful jobs. Derive the status list from the canonical
+		// enum so new statuses are automatically included.
+		statuses := slices.DeleteFunc(
+			codersdk.ProvisionerJobStatusEnums(),
+			func(s codersdk.ProvisionerJobStatus) bool {
+				return s == codersdk.ProvisionerJobSucceeded
 			},
+		)
+		jobs, err := client.OrganizationProvisionerJobs(ctx, orgID, &codersdk.OrganizationProvisionerJobsOptions{
+			Limit:  cap,
+			Status: statuses,
 		})
 		if err != nil {
 			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized || cerr.StatusCode() == http.StatusNotFound) {
@@ -1094,6 +1108,9 @@ func OrgInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, orgI
 				return nil
 			}
 			return xerrors.Errorf("fetch provisioner jobs: %w", err)
+		}
+		if len(jobs) == cap {
+			log.Warn(ctx, "provisioner jobs list may be truncated", slog.F("limit", cap))
 		}
 		o.ProvisionerJobs = jobs
 		return nil
@@ -1218,11 +1235,19 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 				return nil
 			}
 			if len(orgs) > 0 {
+				// Sort for determinism; pick the first org alphabetically.
+				slices.SortFunc(orgs, func(a, b codersdk.Organization) int {
+					return strings.Compare(a.Name, b.Name)
+				})
 				orgID = orgs[0].ID
+				d.Log.Info(ctx, "auto-detected organization for support bundle",
+					slog.F("org_name", orgs[0].Name),
+					slog.F("hint", "use --org to select a different organization"),
+				)
 			}
 		}
 		if orgID != uuid.Nil {
-			b.Organization = OrgInfo(ctx, d.Client, d.Log, orgID)
+			b.Organization = OrganizationInfo(ctx, d.Client, d.Log, orgID)
 		}
 		return nil
 	})

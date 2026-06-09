@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -54,6 +55,22 @@ func TestRun(t *testing.T) {
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
 		ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
+
+		// Register a provisioner daemon so the bundle captures it.
+		pd := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			OrganizationID: admin.OrganizationID,
+		})
+
+		// Create a failed workspace build to exercise the provisioner-jobs path.
+		tv := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: admin.OrganizationID,
+			CreatedBy:      admin.UserID,
+		}).Do()
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: admin.OrganizationID,
+			OwnerID:        admin.UserID,
+			TemplateID:     tv.Template.ID,
+		}).Failed().Do()
 
 		bun, err := support.Run(ctx, &support.Deps{
 			Client:      client,
@@ -102,8 +119,11 @@ func TestRun(t *testing.T) {
 		// Organization info should be auto-detected from user membership.
 		assert.NotEqual(t, uuid.Nil, bun.Organization.Organization.ID, "organization ID should be present")
 		assert.NotEmpty(t, bun.Organization.Organization.Name, "organization name should be present")
-		require.NotNil(t, bun.Organization.ProvisionerDaemons, "provisioner daemons should not be nil")
-		require.NotNil(t, bun.Organization.ProvisionerJobs, "provisioner jobs should not be nil")
+		// The provisioner daemon created above should appear in the bundle.
+		require.NotEmpty(t, bun.Organization.ProvisionerDaemons, "provisioner daemons should not be empty")
+		assert.Equal(t, pd.Name, bun.Organization.ProvisionerDaemons[0].Name, "expected registered provisioner daemon")
+		// The failed workspace build above should appear as a non-successful job.
+		require.NotEmpty(t, bun.Organization.ProvisionerJobs, "provisioner jobs should not be empty")
 
 		// New: deployment health settings should be present
 		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")
