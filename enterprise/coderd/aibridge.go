@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -905,7 +906,10 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	}
 	var oldGroupName string
 	if overrideErr == nil {
-		oldGroup, groupErr := api.Database.GetGroupByID(ctx, oldOverride.GroupID)
+		// This lookup exists only to record the old group's name in the audit
+		// diff. Use a system context so it does not add a read requirement on
+		// the old group that the upsert itself does not impose.
+		oldGroup, groupErr := api.Database.GetGroupByID(dbauthz.AsSystemRestricted(ctx), oldOverride.GroupID) //nolint:gocritic // see above
 		if groupErr != nil {
 			api.Logger.Error(ctx, "fetch old group for user AI budget override audit", slog.Error(groupErr))
 			httpapi.InternalServerError(rw, groupErr)
