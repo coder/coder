@@ -23,7 +23,6 @@ const TERMINAL_IDLE_DETACH_MS = 30_000;
 
 interface TerminalPanelProps {
 	chatId: string;
-	/** Persisting this keeps the PTY session attached across reloads. */
 	reconnectionToken?: string;
 	/** Whether this terminal should hold live xterm and WebSocket resources. */
 	isHot?: boolean;

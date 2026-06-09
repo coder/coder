@@ -1,10 +1,6 @@
 export type UserRightPanelTab = {
 	id: string;
 	kind: "terminal";
-	/**
-	 * PTY reconnect token. Must be a UUID; the backend rejects non-UUIDs.
-	 * Persisting it keeps the session attached across reloads.
-	 */
 	reconnectionToken: string;
 };
 
