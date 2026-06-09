@@ -41,6 +41,7 @@ import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
+import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -413,10 +414,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
-	// Desktop is only available when the workspace + agent are ready;
-	// `SidebarTabView` gates the desktop tab/panel on the same condition,
-	// so resolve tab selection against the same availability to avoid
-	// picking "desktop" when no desktop panel is rendered.
+	// Desktop is only available when the workspace and agent are ready;
+	// include it in the tab list on that same condition to avoid selecting
+	// "desktop" when no desktop panel is rendered.
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
@@ -425,10 +425,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// Single source of truth for available tabs and their order. The list
 	// of tab IDs used by `getEffectiveTabId` is derived from this so a
 	// new tab can never be added to one without the other going out of
-	// sync.
+	// sync. Desktop is ordered before terminals so terminals are rightmost.
 	const builtInSidebarTabConfigs = [
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
 		...(workspace && workspaceAgent && !defaultTerminalHidden
 			? [{ id: "terminal", label: "Terminal" }]
 			: []),
@@ -512,6 +513,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						chatInputRef={editing.chatInputRef}
 					/>
 				);
+			case "desktop":
+				return availableDesktopChatId ? (
+					<DesktopPanel
+						chatId={availableDesktopChatId}
+						isVisible={effectiveSidebarTabId === "desktop"}
+					/>
+				) : null;
 			case "terminal":
 				return workspace && workspaceAgent ? (
 					<TerminalPanel
@@ -558,12 +566,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		setPendingTabId((currentTabId) =>
 			currentTabId === tabId ? null : currentTabId,
 		);
-		const visibleTabIds = [
-			...sidebarTabIds,
-			...(availableDesktopChatId ? ["desktop"] : []),
-		];
-		const remainingTabIds = visibleTabIds.filter((id) => id !== tabId);
-		const closedTabIndex = visibleTabIds.indexOf(tabId);
+		const remainingTabIds = sidebarTabIds.filter((id) => id !== tabId);
+		const closedTabIndex = sidebarTabIds.indexOf(tabId);
 
 		if (tabId === "terminal") {
 			setDefaultTerminalHiddenState(true);
@@ -816,7 +820,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 							chatTitle={chatTitle}
-							desktopChatId={availableDesktopChatId}
 						/>
 					</RightPanel>
 				</div>

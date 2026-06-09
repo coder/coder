@@ -81,7 +81,6 @@ export const EmptyState: Story = {
 export const DesktopHidden: Story = {
 	args: {
 		tabs: [],
-		desktopChatId: undefined,
 	},
 };
 
