@@ -21,6 +21,13 @@ import (
 // The function is idempotent: rows already typed as bedrock are skipped.
 // Any error is logged and the startup sequence continues.
 //
+// Fixing the provider row type is sufficient to restore correct routing.
+// When a chat_model_configs row has a valid ai_provider_id, chatd resolves
+// the provider name from the live provider row's type column, not from the
+// stored provider string in chat_model_configs. Stale "anthropic" strings in
+// linked model config rows are therefore harmless once the provider row is
+// promoted.
+//
 // Trade-off: the function reads all providers then updates them individually.
 // A concurrent PATCH between the read and a write could have non-type field
 // changes (display_name, enabled, etc.) silently overwritten. This is
