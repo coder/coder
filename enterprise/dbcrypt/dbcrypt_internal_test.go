@@ -1195,6 +1195,7 @@ func TestAIProviders(t *testing.T) {
 		const newSettings = `{"_type":"bedrock","_version":1,"region":"us-east-1","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
@@ -1211,6 +1212,7 @@ func TestAIProviders(t *testing.T) {
 		provider := insertProvider(t, crypt, ciphers)
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
