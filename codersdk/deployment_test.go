@@ -213,6 +213,11 @@ func TestParseSSHConfigOption(t *testing.T) {
 			option:  "Proxy\x00Command=value",
 			wantErr: true,
 		},
+		{
+			name:    "MissingSeparator",
+			option:  "JustAKeyNoValue",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -242,6 +247,7 @@ func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
 		{name: "Coder", suffix: "coder"},
 		{name: "Example", suffix: "example"},
 		{name: "Dotted", suffix: "coder.example.com"},
+		{name: "Empty", suffix: ""},
 		{name: "LeadingDot", suffix: ".coder", wantErr: true},
 		{name: "Newline", suffix: "coder\nHost *\n\tProxyCommand evil", wantErr: true},
 		{name: "CarriageReturn", suffix: "coder\r\nHost *", wantErr: true},

@@ -724,10 +724,12 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 }
 
 // isSingleHostPatternToken reports whether s is safe to write as a single SSH
-// host pattern token. Whitespace, newlines, or NUL bytes could break out into
+// host pattern token. Whitespace or control characters could break out into
 // additional SSH config directives.
 func isSingleHostPatternToken(s string) bool {
-	return !strings.ContainsAny(s, "\r\n\x00") && !strings.ContainsFunc(s, unicode.IsSpace)
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	})
 }
 
 // ValidateWorkspaceHostnameSuffix validates a deployment-provided SSH hostname
@@ -738,7 +740,7 @@ func ValidateWorkspaceHostnameSuffix(suffix string) error {
 	// rather than an ordinary string suffix. E.g. "coder" matches "en.coder"
 	// but not "encoder".
 	if strings.HasPrefix(suffix, ".") {
-		return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s", suffix)
+		return xerrors.Errorf("workspace hostname suffix %q must not start with a leading dot", suffix)
 	}
 	if !isSingleHostPatternToken(suffix) {
 		return xerrors.Errorf("workspace hostname suffix %q must not contain whitespace or control characters", suffix)
@@ -760,8 +762,16 @@ func ValidateWorkspaceHostnamePrefix(prefix string) error {
 // ValidateSSHConfigOptions validates deployment SSH settings before they are
 // written to users' local SSH configs.
 func ValidateSSHConfigOptions(options map[string]string) error {
-	for key, value := range options {
-		if err := ValidateSSHConfigOption(key, value); err != nil {
+	// Sort the keys so that, when several options are invalid, the surfaced
+	// error is deterministic across restarts rather than dependent on map
+	// iteration order.
+	keys := make([]string, 0, len(options))
+	for key := range options {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		if err := ValidateSSHConfigOption(key, options[key]); err != nil {
 			return err
 		}
 	}
@@ -772,16 +782,17 @@ func ValidateSSHConfigOptions(options map[string]string) error {
 // written to users' local SSH configs.
 func ValidateSSHConfigOption(key, value string) error {
 	if key == "" {
-		return xerrors.New("ssh config option key is invalid")
+		return xerrors.New("ssh config option key must not be empty")
 	}
 	if strings.ContainsAny(key, "=\r\n\x00") || strings.ContainsFunc(key, unicode.IsSpace) {
 		return xerrors.Errorf("ssh config option key %q is invalid", key)
 	}
 	// These options are rejected because, written into a user's SSH config by a
-	// deployment, they can execute code or alter connection routing on the
-	// client machine. When extending this list, classify the directive against
-	// these categories; the newline and whitespace checks above already prevent
-	// multi-line injection, so only single-line dangerous directives belong here.
+	// deployment, they can execute code, load shared libraries, or override
+	// Coder's managed SSH settings on the client machine. When extending this
+	// list, classify the directive against these categories; the newline and
+	// whitespace checks above already prevent multi-line injection, so only
+	// single-line dangerous directives belong here.
 	switch strings.ToLower(key) {
 	// Structural directives that escape Coder's managed block.
 	case "host", "match", "include",
@@ -789,7 +800,7 @@ func ValidateSSHConfigOption(key, value string) error {
 		"proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand",
 		// Directives that dlopen an attacker-controlled shared library.
 		"pkcs11provider", "securitykeyprovider":
-		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code or alter SSH connection routing on client machines", key)
+		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code, load shared libraries, or override Coder's managed SSH settings on client machines", key)
 	}
 	if strings.ContainsAny(value, "\r\n\x00") {
 		return xerrors.Errorf("ssh config option %q must be a single line", key)
