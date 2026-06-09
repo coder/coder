@@ -120,8 +120,8 @@ const Root: FC<ToolCallRootProps> = ({
 	const view = controlledView ?? uncontrolledView;
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent;
-	const failed = isError || status === "error";
-	const active = status === "running" && !failed;
+	const active = status === "running";
+	const failed = status !== "running" && (isError || status === "error");
 	const onToggle = () => {
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {

@@ -16,7 +16,7 @@ import type { LiveStatusModel } from "./liveStatusModel";
 import { shouldShowGenericThinking } from "./streamingActivity";
 import type { MergedTool, StreamState } from "./types";
 
-const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
+const hasCalloutLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "retrying" || liveStatus.phase === "reconnecting";
 
 const LiveActivitySlot: FC<{
@@ -73,7 +73,7 @@ export const StreamingOutput: FC<{
 		streamTools,
 	});
 	const hasVisibleFlowContent =
-		shouldShowBlocks || hasTransientLiveStatus(liveStatus);
+		shouldShowBlocks || hasCalloutLiveStatus(liveStatus);
 
 	const conversationItemProps = { role: "assistant" as const };
 
@@ -95,7 +95,7 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{hasTransientLiveStatus(liveStatus) && (
+						{hasCalloutLiveStatus(liveStatus) && (
 							<ChatStatusCallout status={liveStatus} />
 						)}
 						<LiveActivitySlot

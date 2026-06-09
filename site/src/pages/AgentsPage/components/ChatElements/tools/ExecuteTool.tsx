@@ -87,7 +87,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
-			isError={isError && !isRunning}
+			isError={isError}
 			errorMessage="Command failed"
 			hasContent
 			defaultView={defaultView}
@@ -98,12 +98,14 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			<ToolCall.HeaderLayout>
 				<ToolCall.HeaderButton className="col-start-1 row-start-1 min-w-0 font-normal">
 					<ToolCall.LeadingIcon name="execute" />
-					<ToolCall.Label>{commandLabel}</ToolCall.Label>
-					{durationSuffix && (
-						<span className="shrink-0 text-content-secondary">
-							{durationSuffix}
-						</span>
-					)}
+					<span className="flex min-w-0 items-baseline">
+						<ToolCall.Label>{commandLabel}</ToolCall.Label>
+						{durationSuffix && (
+							<span className="ml-1 shrink-0 text-content-secondary">
+								{durationSuffix}
+							</span>
+						)}
+					</span>
 					<ToolCall.Status />
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>

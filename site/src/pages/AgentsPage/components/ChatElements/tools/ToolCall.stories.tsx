@@ -70,6 +70,29 @@ export const Failed: Story = {
 	},
 };
 
+export const RunningWithBackendError: Story = {
+	render: () => (
+		<ToolCall.Root
+			status="running"
+			isError
+			errorMessage="Failed to read file"
+			hasContent={false}
+		>
+			<ToolCall.Header iconName="read_file" label="Reading README.md" />
+		</ToolCall.Root>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Reading README.md")).toBeVisible();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("img", { name: "Failed to read file" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const Collapsible: Story = {
 	render: () => (
 		<ToolCall.Root

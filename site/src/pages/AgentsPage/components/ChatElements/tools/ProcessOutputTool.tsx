@@ -84,7 +84,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 		<ToolCall.Root
 			className="group/proc w-full"
 			status={isRunning ? "running" : isError ? "error" : "completed"}
-			isError={isError && !isRunning}
+			isError={isError}
 			errorMessage={errorMessage || "Failed to read process output"}
 			hasContent={hasOutput}
 			defaultView={defaultView}
