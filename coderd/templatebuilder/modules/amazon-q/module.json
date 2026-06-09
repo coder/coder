@@ -1,0 +1,205 @@
+{
+  "id": "amazon-q",
+  "display_name": "Amazon Q",
+  "description": "Run Amazon Q in your workspace to access Amazon's AI coding assistant with MCP integration and task reporting.",
+  "icon": "/icon/amazon-q.svg",
+  "category": "AI Agent",
+  "tags": [
+    "agent",
+    "ai",
+    "aws",
+    "amazon-q",
+    "tasks"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "3.0.1",
+  "variables": [
+    {
+      "name": "agent_config",
+      "type": "string",
+      "description": "Optional Agent configuration JSON for Amazon Q.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "agentapi_chat_based_path",
+      "type": "bool",
+      "description": "Whether to use chat-based path for AgentAPI.Required if CODER_WILDCARD_ACCESS_URL is not defined in coder deployment",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "agentapi_version",
+      "type": "string",
+      "description": "The version of AgentAPI to install.",
+      "default": "v0.10.0",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "ai_prompt",
+      "type": "string",
+      "description": "The initial task prompt to send to Amazon Q.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "amazon_q_version",
+      "type": "string",
+      "description": "The version of Amazon Q to install.",
+      "default": "1.14.1",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "auth_tarball",
+      "type": "string",
+      "description": "Base64 encoded, zstd compressed tarball of a pre-authenticated ~/.local/share/amazon-q directory.",
+      "default": "",
+      "required": false,
+      "sensitive": true,
+      "computed": false
+    },
+    {
+      "name": "cli_app",
+      "type": "bool",
+      "description": "Whether to create a CLI app for Amazon Q",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "cli_app_display_name",
+      "type": "string",
+      "description": "Display name for the CLI app",
+      "default": "AmazonQ CLI",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "coder_mcp_instructions",
+      "type": "string",
+      "description": "Instructions for the Coder MCP server integration. This defines how the agent should report tasks to Coder.",
+      "default": "YOU MUST REPORT ALL TASKS TO CODER.\nWhen reporting tasks you MUST follow these EXACT instructions:\n- IMMEDIATELY report status after receiving ANY user message\n- Be granular If you are investigating with multiple steps report each step to coder.\n\nTask state MUST be one of the following:\n- Use \"state\": \"working\" when actively processing WITHOUT needing additional user input\n- Use \"state\": \"complete\" only when finished with a task\n- Use \"state\": \"failure\" when you need ANY user input lack sufficient details or encounter blockers.\n\nTask summaries MUST:\n- Include specifics about what you're doing\n- Include clear and actionable steps for the user\n- Be less than 160 characters in length\n",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "description": "The icon to use for the app.",
+      "default": "/icon/amazon-q.svg",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_agentapi",
+      "type": "bool",
+      "description": "Whether to install AgentAPI.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_amazon_q",
+      "type": "bool",
+      "description": "Whether to install Amazon Q.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "post_install_script",
+      "type": "string",
+      "description": "Optional script to run after installing Amazon Q.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "pre_install_script",
+      "type": "string",
+      "description": "Optional script to run before installing Amazon Q.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "q_install_url",
+      "type": "string",
+      "description": "Base URL for Amazon Q installation downloads.",
+      "default": "https://desktop-release.q.us-east-1.amazonaws.com",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "report_tasks",
+      "type": "bool",
+      "description": "Whether to enable task reporting to Coder UI via AgentAPI",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "system_prompt",
+      "type": "string",
+      "description": "The system prompt to use for Amazon Q. This should instruct the agent how to do task reporting.",
+      "default": "You are a helpful Coding assistant. Aim to autonomously investigate\nand solve issues the user gives you and test your work, whenever possible.\nAvoid shortcuts like mocking tests. When you get stuck, you can ask the user\nbut opt for autonomy.\n",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "trust_all_tools",
+      "type": "bool",
+      "description": "Whether to trust all tools in Amazon Q.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "web_app_display_name",
+      "type": "string",
+      "description": "Display name for the web app",
+      "default": "AmazonQ",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "workdir",
+      "type": "string",
+      "description": "The folder to run Amazon Q in.",
+      "required": true,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}
