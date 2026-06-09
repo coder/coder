@@ -53,7 +53,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 		name    string
 		policy  codersdk.AIBudgetPolicy
 		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want aibudget.EffectiveBudget, wantOK bool)
-		wantErr bool
+		wantErr string
 	}{
 		{
 			name:   "OverrideWins",
@@ -176,7 +176,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				user := dbgen.User(t, db, database.User{})
 				return user.ID, aibudget.EffectiveBudget{}, false
 			},
-			wantErr: true,
+			wantErr: "unsupported AI budget policy",
 		},
 	}
 
@@ -189,8 +189,8 @@ func TestResolveUserAIBudget(t *testing.T) {
 
 			userID, want, wantOK := tt.setup(t, ctx, db)
 			got, ok, err := aibudget.ResolveUserAIBudget(ctx, db, userID, tt.policy)
-			if tt.wantErr {
-				require.Error(t, err)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			require.NoError(t, err)
