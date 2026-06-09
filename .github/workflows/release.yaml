@@ -910,8 +910,13 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Setup mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install root node_modules
+        run: ./scripts/pnpm_install.sh
 
       - name: Update release calendar
         run: ./scripts/update-release-calendar.sh

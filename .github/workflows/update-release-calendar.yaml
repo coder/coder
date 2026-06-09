@@ -1,0 +1,71 @@
+name: Update release calendar
+
+# Runs on every stable release tag (v2.X.Y, no -rc or -dev suffix) and
+# opens a PR against main to keep docs/install/releases/index.md current.
+# It can also be triggered manually to regenerate the calendar without a
+# tag push (e.g. after a hotfix or ESR designation change).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+# One run per tag; cancel any stale duplicate for the same ref.
+concurrency:
+  group: update-release-calendar-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  update-calendar:
+    name: Update release calendar
+    # Skip RC and dev pre-release tags (e.g. v2.34.0-rc.1).
+    if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-dev') }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Always update the default branch, not the tagged commit, so the
+          # PR targets main and the calendar reflects the current repo state.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Setup mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install root node_modules
+        run: ./scripts/pnpm_install.sh
+
+      - name: Update release calendar
+        run: ./scripts/update-release-calendar.sh
+
+      - name: Create docs update PR
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update release calendar for ${{ github.ref_name }}"
+          title: "docs: update release calendar for ${{ github.ref_name }}"
+          body: |
+            Automated release calendar update for `${{ github.ref_name }}`.
+
+            Triggered by: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          branch: docs/release-calendar-${{ github.ref_name }}
+          base: ${{ github.event.repository.default_branch }}
+          delete-branch: true
