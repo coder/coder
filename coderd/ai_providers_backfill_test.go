@@ -242,9 +242,10 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		})
 
 		t.Run("SkipsModelConfigWithDeletedProvider", func(t *testing.T) {
-			// A model config whose linked provider is soft-deleted and still
-			// type=anthropic must not be updated: the deleted provider was never
-			// promoted by BackfillBedrockProviderType.
+			// Verifies the EXISTS subquery excludes soft-deleted providers.
+			// The model config provider string must stay "anthropic" because
+			// the linked provider is deleted and therefore excluded by the
+			// AND deleted = FALSE condition in the query.
 			deletedProvider := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AiProviderTypeBedrock,
 				Settings: bedrockSettings,
@@ -263,25 +264,31 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		})
 
 		t.Run("SkipsDeletedModelConfig", func(t *testing.T) {
+			// The SQL query guards on deleted = FALSE, so soft-deleted model
+			// configs are not updated. There is no query that returns
+			// soft-deleted configs, so we cannot directly read the provider
+			// column on the deleted row. Instead we record the count of
+			// visible configs before and after to confirm the backfill does
+			// not resurrect the deleted row.
 			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AiProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
-			deletedConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 				Provider:     "anthropic",
 				AIProviderID: uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
 			})
-			require.NoError(t, db.DeleteChatModelConfigByID(ctx, deletedConfig.ID))
+
+			before, err := db.GetChatModelConfigs(ctx)
+			require.NoError(t, err)
+			// Soft-delete the config after recording the count.
+			require.NoError(t, db.DeleteChatModelConfigByID(ctx, before[len(before)-1].ID))
 
 			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
 
-			// Soft-deleted configs are not returned by GetChatModelConfigByID;
-			// verify directly via GetChatModelConfigs with deleted included.
-			configs, err := db.GetChatModelConfigs(ctx)
+			after, err := db.GetChatModelConfigs(ctx)
 			require.NoError(t, err)
-			for _, c := range configs {
-				require.NotEqual(t, deletedConfig.ID, c.ID, "deleted config must not appear in non-deleted list")
-			}
+			require.Equal(t, len(before)-1, len(after), "deleted config must not reappear after backfill")
 		})
 	})
 
