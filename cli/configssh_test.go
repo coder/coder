@@ -175,59 +175,49 @@ func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
-	const existingConfig = "Host safe\n\tHostName safe.example.com\n"
-	client := coderdtest.New(t, &coderdtest.Options{
-		ConfigSSH: codersdk.SSHConfigResponse{
-			HostnameSuffix: "coder\nHost *",
+	testCases := []struct {
+		name      string
+		configSSH codersdk.SSHConfigResponse
+		wantErr   string
+	}{
+		{
+			name:      "HostnameSuffix",
+			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:   "workspace hostname suffix",
 		},
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	sshConfigPath := sshConfigFileName(t)
-	sshConfigFileCreate(t, sshConfigPath, strings.NewReader(existingConfig))
-
-	inv, root := clitest.New(t,
-		"config-ssh",
-		"--ssh-config-file", sshConfigPath,
-		"--yes",
-	)
-	clitest.SetupConfig(t, client, root)
-
-	err := inv.Run()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "workspace hostname suffix")
-	require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
-}
-
-func TestConfigSSH_RejectsUnsafeServerHostnamePrefix(t *testing.T) {
-	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("See coder/internal#117")
+		{
+			name:      "HostnamePrefix",
+			configSSH: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:   "workspace hostname prefix",
+		},
 	}
 
-	const existingConfig = "Host safe\n\tHostName safe.example.com\n"
-	client := coderdtest.New(t, &coderdtest.Options{
-		ConfigSSH: codersdk.SSHConfigResponse{
-			HostnamePrefix: "coder.\nHost *",
-		},
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	sshConfigPath := sshConfigFileName(t)
-	sshConfigFileCreate(t, sshConfigPath, strings.NewReader(existingConfig))
+			const existingConfig = "Host safe\n\tHostName safe.example.com\n"
+			client := coderdtest.New(t, &coderdtest.Options{
+				ConfigSSH: tc.configSSH,
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
 
-	inv, root := clitest.New(t,
-		"config-ssh",
-		"--ssh-config-file", sshConfigPath,
-		"--yes",
-	)
-	clitest.SetupConfig(t, client, root)
+			sshConfigPath := sshConfigFileName(t)
+			sshConfigFileCreate(t, sshConfigPath, strings.NewReader(existingConfig))
 
-	err := inv.Run()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "workspace hostname prefix")
-	require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
+			inv, root := clitest.New(t,
+				"config-ssh",
+				"--ssh-config-file", sshConfigPath,
+				"--yes",
+			)
+			clitest.SetupConfig(t, client, root)
+
+			err := inv.Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
+		})
+	}
 }
 
 func TestConfigSSH_MissingDirectory(t *testing.T) {

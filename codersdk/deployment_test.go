@@ -248,6 +248,7 @@ func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
 		{name: "Space", suffix: "coder Host *", wantErr: true},
 		{name: "Tab", suffix: "coder\t*", wantErr: true},
 		{name: "NUL", suffix: "coder\x00", wantErr: true},
+		{name: "NonBreakingSpace", suffix: "coder\u00A0suffix", wantErr: true},
 	}
 
 	for _, tt := range testCases {
@@ -281,6 +282,7 @@ func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
 		{name: "Space", prefix: "coder. Host *", wantErr: true},
 		{name: "Tab", prefix: "coder.\t*", wantErr: true},
 		{name: "NUL", prefix: "coder.\x00", wantErr: true},
+		{name: "NonBreakingSpace", prefix: "coder.\u00A0x", wantErr: true},
 	}
 
 	for _, tt := range testCases {
@@ -326,6 +328,9 @@ func TestValidateSSHConfigOptions(t *testing.T) {
 		{name: "PermitLocalCommand", options: map[string]string{"PermitLocalCommand": "yes"}, wantErr: true},
 		{name: "RemoteCommand", options: map[string]string{"RemoteCommand": "some-command"}, wantErr: true},
 		{name: "KnownHostsCommand", options: map[string]string{"KnownHostsCommand": "echo key"}, wantErr: true},
+		{name: "PKCS11Provider", options: map[string]string{"PKCS11Provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "PKCS11ProviderCaseInsensitive", options: map[string]string{"pkcs11provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "SecurityKeyProvider", options: map[string]string{"SecurityKeyProvider": "/tmp/evil.so"}, wantErr: true},
 		{name: "NewlineInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *\nProxyCommand evil"}, wantErr: true},
 		{name: "CarriageReturnInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\r\nHost *"}, wantErr: true},
 		{name: "NULInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\x00suffix"}, wantErr: true},

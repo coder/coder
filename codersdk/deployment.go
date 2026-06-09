@@ -710,7 +710,7 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 // ParseSSHConfigOption parses a single ssh config option into its key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 	if strings.ContainsAny(opt, "\r\n\x00") {
-		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("config-ssh option %q must not contain newline or NUL characters", opt)
 	}
 
 	// An equal sign or whitespace is the separator between the key and value.
@@ -718,26 +718,30 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("config-ssh option %q is missing a key/value separator ('=' or ' ')", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
 }
 
 // isSingleHostPatternToken reports whether s is safe to write as a single SSH
-// host pattern token, i.e. it contains no whitespace, newlines, or NUL bytes
-// that could break out into additional SSH config directives.
+// host pattern token. Whitespace, newlines, or NUL bytes could break out into
+// additional SSH config directives.
 func isSingleHostPatternToken(s string) bool {
-	return !strings.ContainsAny(s, "\r\n\x00") && strings.IndexFunc(s, unicode.IsSpace) == -1
+	return !strings.ContainsAny(s, "\r\n\x00") && !strings.ContainsFunc(s, unicode.IsSpace)
 }
 
 // ValidateWorkspaceHostnameSuffix validates a deployment-provided SSH hostname
 // suffix before it is made available to clients.
 func ValidateWorkspaceHostnameSuffix(suffix string) error {
+	// The suffix is implicitly prefixed with a dot when matching, so a leading
+	// dot is a config error: it forces the suffix to be a separate DNS label
+	// rather than an ordinary string suffix. E.g. "coder" matches "en.coder"
+	// but not "encoder".
 	if strings.HasPrefix(suffix, ".") {
 		return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s", suffix)
 	}
 	if !isSingleHostPatternToken(suffix) {
-		return xerrors.New("workspace hostname suffix must be a single SSH host pattern token")
+		return xerrors.Errorf("workspace hostname suffix %q must not contain whitespace or control characters", suffix)
 	}
 	return nil
 }
@@ -748,7 +752,7 @@ func ValidateWorkspaceHostnameSuffix(suffix string) error {
 // the single-token requirement is enforced.
 func ValidateWorkspaceHostnamePrefix(prefix string) error {
 	if !isSingleHostPatternToken(prefix) {
-		return xerrors.New("workspace hostname prefix must be a single SSH host pattern token")
+		return xerrors.Errorf("workspace hostname prefix %q must not contain whitespace or control characters", prefix)
 	}
 	return nil
 }
@@ -770,12 +774,22 @@ func ValidateSSHConfigOption(key, value string) error {
 	if key == "" {
 		return xerrors.New("ssh config option key is invalid")
 	}
-	if strings.ContainsAny(key, "=\r\n\x00") || strings.IndexFunc(key, unicode.IsSpace) != -1 {
+	if strings.ContainsAny(key, "=\r\n\x00") || strings.ContainsFunc(key, unicode.IsSpace) {
 		return xerrors.Errorf("ssh config option key %q is invalid", key)
 	}
+	// These options are rejected because, written into a user's SSH config by a
+	// deployment, they can execute code or alter connection routing on the
+	// client machine. When extending this list, classify the directive against
+	// these categories; the newline and whitespace checks above already prevent
+	// multi-line injection, so only single-line dangerous directives belong here.
 	switch strings.ToLower(key) {
-	case "host", "match", "include", "proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand":
-		return xerrors.Errorf("ssh config option %q is not allowed", key)
+	// Structural directives that escape Coder's managed block.
+	case "host", "match", "include",
+		// Directives that run an attacker-supplied command string.
+		"proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand",
+		// Directives that dlopen an attacker-controlled shared library.
+		"pkcs11provider", "securitykeyprovider":
+		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code or alter SSH connection routing on client machines", key)
 	}
 	if strings.ContainsAny(value, "\r\n\x00") {
 		return xerrors.Errorf("ssh config option %q must be a single line", key)

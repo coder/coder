@@ -308,50 +308,58 @@ func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name   string
-		coderd codersdk.SSHConfigResponse
+		name    string
+		coderd  codersdk.SSHConfigResponse
+		wantErr string
 	}{
 		{
 			name: "HostnameSuffix",
 			coderd: codersdk.SSHConfigResponse{
 				HostnameSuffix: "coder\nHost *",
 			},
-		},
-		{
-			name: "HostnameSuffixWithUserOverride",
-			coderd: codersdk.SSHConfigResponse{
-				HostnameSuffix: "coder\nHost *",
-			},
+			wantErr: "workspace hostname suffix",
 		},
 		{
 			name: "HostnamePrefix",
 			coderd: codersdk.SSHConfigResponse{
 				HostnamePrefix: "coder.\nHost *",
 			},
+			wantErr: "workspace hostname prefix",
 		},
 		{
 			name: "ProxyCommand",
 			coderd: codersdk.SSHConfigResponse{
 				SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"},
 			},
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
 		},
 		{
 			name: "PermitLocalCommand",
 			coderd: codersdk.SSHConfigResponse{
 				SSHConfigOptions: map[string]string{"PermitLocalCommand": "yes"},
 			},
+			wantErr: `ssh config option "PermitLocalCommand" is not allowed`,
 		},
 		{
 			name: "KnownHostsCommand",
 			coderd: codersdk.SSHConfigResponse{
 				SSHConfigOptions: map[string]string{"KnownHostsCommand": "echo key"},
 			},
+			wantErr: `ssh config option "KnownHostsCommand" is not allowed`,
+		},
+		{
+			name: "PKCS11Provider",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PKCS11Provider": "/tmp/evil.so"},
+			},
+			wantErr: `ssh config option "PKCS11Provider" is not allowed`,
 		},
 		{
 			name: "NewlineInValue",
 			coderd: codersdk.SSHConfigResponse{
 				SSHConfigOptions: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *"},
 			},
+			wantErr: `ssh config option "UserKnownHostsFile" must be a single line`,
 		},
 	}
 
@@ -359,15 +367,26 @@ func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			user := sshConfigOptions{}
-			if tt.name == "HostnameSuffixWithUserOverride" {
-				user.hostnameSuffix = "local"
-			}
-
-			_, err := mergeSSHOptions(user, tt.coderd, t.TempDir(), "/tmp/coder")
-			require.Error(t, err)
+			_, err := mergeSSHOptions(sshConfigOptions{}, tt.coderd, t.TempDir(), "/tmp/coder")
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
+}
+
+func Test_mergeSSHOptions_UserOptionsOverrideServerConfig(t *testing.T) {
+	t.Parallel()
+
+	user := sshConfigOptions{
+		userHostPrefix: "dev.",
+		hostnameSuffix: "local",
+	}
+	got, err := mergeSSHOptions(user, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "dev.", got.userHostPrefix)
+	require.Equal(t, "local", got.hostnameSuffix)
 }
 
 func Test_mergeSSHOptions_AllowsSafeServerConfig(t *testing.T) {

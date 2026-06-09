@@ -1823,10 +1823,9 @@ func TestServer(t *testing.T) {
 	})
 }
 
-// TestServer_InvalidSSHDeploymentConfig verifies that the server refuses to
-// start when its SSH config flags would produce unsafe entries in users'
-// local SSH configs. The validation runs before any database connection, so
-// these invocations fail fast.
+// TestServer_InvalidSSHDeploymentConfig checks that unsafe SSH config flags are
+// rejected at startup, before any database connection, so these invocations
+// fail fast.
 func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
 	t.Parallel()
 
