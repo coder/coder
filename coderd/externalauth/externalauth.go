@@ -390,9 +390,9 @@ validate:
 
 // refreshTokenWithRetry exchanges the refresh token for a new access token,
 // retrying with exponential backoff on transient failures. Permanent
-// failures (as classified by isFailedRefresh) and the no-op case where no
-// refresh token is set bypass the retry loop so a doomed refresh is not
-// repeatedly attempted.
+// failures (as classified by isFailedRefresh), the no-op case where no
+// refresh token is set, and a negative RefreshRetryTimeout all bypass the
+// retry loop so a doomed or unwanted refresh is not repeatedly attempted.
 func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth2.Token) (*oauth2.Token, error) {
 	// Without a refresh token the oauth2 library short-circuits with
 	// "token expired and refresh token is not set". No retry can recover
@@ -401,11 +401,8 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		return c.TokenSource(ctx, existingToken).Token()
 	}
 
-	// A negative RefreshRetryTimeout disables retries: exactly one refresh
-	// attempt is made. A near-zero timeout cannot deterministically prevent
-	// a retry because on platforms with coarse clocks (notably Windows) the
-	// deadline may not register as expired until after the first attempt
-	// completes, allowing an extra zero-delay retry.
+	// A near-zero positive timeout is nondeterministic on coarse-clock
+	// platforms, so a negative value explicitly disables retries.
 	if c.RefreshRetryTimeout < 0 {
 		return c.TokenSource(ctx, existingToken).Token()
 	}

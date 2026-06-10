@@ -183,11 +183,9 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
-				// A negative timeout disables transient-error retries so the
-				// assertion below (1 IDP call per RefreshToken) holds. A tiny
-				// positive timeout is not deterministic: on coarse-clock
-				// platforms (Windows) the deadline may not register as expired
-				// after the first attempt, letting a zero-delay retry through.
+				// Negative timeout disables retries (1 IDP call per RefreshToken).
+				// A tiny positive timeout is unreliable on coarse-clock platforms
+				// (Windows).
 				cfg.RefreshRetryTimeout = -1
 			},
 		})
