@@ -56,6 +56,23 @@ workspace and agent names, command outcomes, connection state, request routes,
 timing, and error details. It does not intentionally collect source code,
 terminal contents, tokens, or credentials.
 
+### Tracked activity
+
+The exact events vary by extension version. They focus on support and debugging
+signals such as:
+
+- extension activation and deployment initialization
+- authentication, token refresh, logout, credential storage, and deployment
+  recovery
+- command execution and diagnostic workflows, such as telemetry export, support
+  bundles, ping, and speed tests
+- workspace selection, open, dev container handoff, start, and update prompts
+- CLI binary resolution, download, verification, and configuration
+- remote setup phases from workspace lookup through SSH handoff
+- workspace and agent state transitions
+- connection lifecycle, reconnects, SSH process health, and network samples
+- HTTP request rollups by normalized route, status class, and latency
+
 ### Storage and retention
 
 The extension stores telemetry as JSON Lines files in its VS Code global storage
