@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -14,12 +15,12 @@ import (
 )
 
 // TestAIProvidersChangedPubsub asserts that the CRUD handlers publish
-// on AIProvidersChangedChannel for the operations that affect the
-// runtime provider set. Subscribers (aibridged, aibridgeproxyd) depend
-// on these notifications to trigger their pool reload.
+// notifications for the operations that affect the runtime provider set.
+// Subscribers (aibridged, aibridgeproxyd, chatd) depend on these
+// notifications to refresh their provider state.
 //
-// The handlers publish best-effort and the payload is empty, so we
-// assert "at least one event per mutation" via a counter.
+// The handlers publish best-effort, so we assert "at least one event per
+// mutation" via counters.
 func TestAIProvidersChangedPubsub(t *testing.T) {
 	t.Parallel()
 
@@ -27,12 +28,27 @@ func TestAIProvidersChangedPubsub(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	var count atomic.Int64
-	unsubscribe, err := api.Pubsub.Subscribe(coderpubsub.AIProvidersChangedChannel, func(_ context.Context, _ []byte) {
-		count.Add(1)
+	var providerChangedCount atomic.Int64
+	unsubscribeProviderChanged, err := api.Pubsub.Subscribe(coderpubsub.AIProvidersChangedChannel, func(_ context.Context, _ []byte) {
+		providerChangedCount.Add(1)
 	})
 	require.NoError(t, err)
-	t.Cleanup(unsubscribe)
+	t.Cleanup(unsubscribeProviderChanged)
+
+	var chatConfigProviderCount atomic.Int64
+	var chatConfigUnexpectedCount atomic.Int64
+	unsubscribeChatConfig, err := api.Pubsub.SubscribeWithErr(
+		coderpubsub.ChatConfigEventChannel,
+		coderpubsub.HandleChatConfigEvent(func(_ context.Context, event coderpubsub.ChatConfigEvent, err error) {
+			if err != nil || event.Kind != coderpubsub.ChatConfigEventProviders || event.EntityID != uuid.Nil {
+				chatConfigUnexpectedCount.Add(1)
+				return
+			}
+			chatConfigProviderCount.Add(1)
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(unsubscribeChatConfig)
 
 	// Create.
 	req := codersdk.CreateAIProviderRequest{
@@ -45,7 +61,10 @@ func TestAIProvidersChangedPubsub(t *testing.T) {
 	//nolint:gocritic // Owner role is the audience for this endpoint.
 	created, err := client.CreateAIProvider(ctx, req)
 	require.NoError(t, err)
-	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 1 }, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return providerChangedCount.Load() >= 1 && chatConfigProviderCount.Load() >= 1
+	}, testutil.IntervalFast)
+	require.Zero(t, chatConfigUnexpectedCount.Load())
 
 	// Update.
 	newKey := "k2"
@@ -53,10 +72,16 @@ func TestAIProvidersChangedPubsub(t *testing.T) {
 		APIKeys: &[]codersdk.AIProviderKeyMutation{{APIKey: &newKey}},
 	})
 	require.NoError(t, err)
-	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 2 }, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return providerChangedCount.Load() >= 2 && chatConfigProviderCount.Load() >= 2
+	}, testutil.IntervalFast)
+	require.Zero(t, chatConfigUnexpectedCount.Load())
 
 	// Delete.
 	err = client.DeleteAIProvider(ctx, created.ID.String())
 	require.NoError(t, err)
-	testutil.Eventually(ctx, t, func(_ context.Context) bool { return count.Load() >= 3 }, testutil.IntervalFast)
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return providerChangedCount.Load() >= 3 && chatConfigProviderCount.Load() >= 3
+	}, testutil.IntervalFast)
+	require.Zero(t, chatConfigUnexpectedCount.Load())
 }

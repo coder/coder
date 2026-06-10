@@ -237,6 +237,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
 	api.publishAIProvidersChanged(ctx)
+	publishChatConfigEvent(api.Logger, api.Pubsub, coderpubsub.ChatConfigEventProviders, uuid.Nil)
 
 	sdk, err := db2sdk.AIProvider(row, keys)
 	if err != nil {
@@ -416,6 +417,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
 	api.publishAIProvidersChanged(ctx)
+	publishChatConfigEvent(api.Logger, api.Pubsub, coderpubsub.ChatConfigEventProviders, uuid.Nil)
 
 	sdk, err := db2sdk.AIProvider(updated, keys)
 	if err != nil {
@@ -470,6 +472,7 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	api.publishAIProvidersChanged(ctx)
+	publishChatConfigEvent(api.Logger, api.Pubsub, coderpubsub.ChatConfigEventProviders, uuid.Nil)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
