@@ -311,7 +311,7 @@ Consult the tool's documentation for specific instructions.
 Download the certificate:
 
 ```shell
-curl -o coder-aibridge-proxy-ca.pem \
+curl -o coder-ai-gateway-proxy-ca.pem \
   -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
   https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
 ```
@@ -322,7 +322,7 @@ When [TLS is enabled](#proxy-tls-configuration) on the proxy, AI tools must trus
 Combine both certificates into a single PEM file:
 
 ```shell
-cat coder-aibridge-proxy-ca.pem listener.crt > combined-ca.pem
+cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 ```
 
 Use this combined file for any of the environment variables listed below.
@@ -342,10 +342,10 @@ Set the environment variables associated with the AI tool's runtime.
 If you're unsure which runtime the tool uses, or if you use multiple AI tools, the simplest approach is to set all of them:
 
 ```shell
-export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
-export REQUESTS_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
-export CURL_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
+export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
+export REQUESTS_CA_BUNDLE="/path/to/coder-ai-gateway-proxy-ca.pem"
+export CURL_CA_BUNDLE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 #### System trust store
@@ -356,7 +356,7 @@ This makes the certificate trusted by all applications on the system.
 On Linux:
 
 ```shell
-sudo cp coder-aibridge-proxy-ca.pem /usr/local/share/ca-certificates/
+sudo cp coder-ai-gateway-proxy-ca.pem /usr/local/share/ca-certificates/
 sudo update-ca-certificates
 ```
 

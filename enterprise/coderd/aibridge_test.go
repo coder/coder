@@ -3087,6 +3087,231 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+
+	t.Run("Audit/CreatesAndDeletes", func(t *testing.T) {
+		t.Parallel()
+
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "override-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Upsert (create-or-update) emits an AuditActionWrite entry.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Delete emits an AuditActionDelete entry against the same resource.
+		require.NoError(t, adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID))
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		upsertLog := rows[1].AuditLog
+		deleteLog := rows[0].AuditLog
+
+		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
+		require.Equal(t, targetUser.ID, upsertLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, upsertLog.ResourceType)
+		require.Equal(t, targetUser.Username, upsertLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
+
+		var upsertDiff audit.Map
+		require.NoError(t, json.Unmarshal(upsertLog.Diff, &upsertDiff))
+		require.Contains(t, upsertDiff, "spend_limit")
+		require.Equal(t, "$0.00", upsertDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", upsertDiff["spend_limit"].New)
+		require.Contains(t, upsertDiff, "group_name")
+		require.Equal(t, "", upsertDiff["group_name"].Old)
+		require.Equal(t, group.Name, upsertDiff["group_name"].New)
+		require.Contains(t, upsertDiff, "group_id")
+		require.Equal(t, "", upsertDiff["group_id"].Old)
+		require.Equal(t, group.ID.String(), upsertDiff["group_id"].New)
+		// Fields marked ActionIgnore must not appear in the diff.
+		require.NotContains(t, upsertDiff, "user_id")
+		require.NotContains(t, upsertDiff, "username")
+		require.NotContains(t, upsertDiff, "spend_limit_micros")
+		require.NotContains(t, upsertDiff, "created_at")
+		require.NotContains(t, upsertDiff, "updated_at")
+
+		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
+		require.Equal(t, targetUser.ID, deleteLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, deleteLog.ResourceType)
+		require.Equal(t, targetUser.Username, deleteLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
+
+		var deleteDiff audit.Map
+		require.NoError(t, json.Unmarshal(deleteLog.Diff, &deleteDiff))
+		require.Contains(t, deleteDiff, "spend_limit")
+		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
+		require.Equal(t, "", deleteDiff["spend_limit"].New)
+		require.Contains(t, deleteDiff, "group_name")
+		require.Equal(t, group.Name, deleteDiff["group_name"].Old)
+		require.Equal(t, "", deleteDiff["group_name"].New)
+		require.Contains(t, deleteDiff, "group_id")
+		require.Equal(t, group.ID.String(), deleteDiff["group_id"].Old)
+		require.Equal(t, "", deleteDiff["group_id"].New)
+	})
+
+	t.Run("Audit/DeleteAbsentEmitsNoEntry", func(t *testing.T) {
+		t.Parallel()
+
+		// Deleting an override that does not exist must not emit an audit log entry.
+		db, adminClient, _, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Empty(t, rows, "no audit entry expected when delete returns 404")
+	})
+
+	t.Run("Audit/UpsertEverything", func(t *testing.T) {
+		t.Parallel()
+
+		// A second upsert that reassigns the attributed group and changes
+		// the spend limit must record the prior state as the audit
+		// before-state.
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		groupA, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "reassign-audit-a",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupA.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		groupB, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "reassign-audit-b",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupB.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// First upsert: create the override attributed to groupA.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupA.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Second upsert: reassign to groupB and raise the spend limit.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one create and one update audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		updateLog := rows[0].AuditLog
+
+		var updateDiff audit.Map
+		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
+		require.Contains(t, updateDiff, "group_name")
+		require.Equal(t, groupA.Name, updateDiff["group_name"].Old)
+		require.Equal(t, groupB.Name, updateDiff["group_name"].New)
+		require.Contains(t, updateDiff, "group_id")
+		require.Equal(t, groupA.ID.String(), updateDiff["group_id"].Old)
+		require.Equal(t, groupB.ID.String(), updateDiff["group_id"].New)
+		require.Contains(t, updateDiff, "spend_limit")
+		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
+		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+	})
+
+	t.Run("Audit/UpsertSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		// A second upsert that keeps the same group and only changes the
+		// spend limit must produce a diff that contains spend_limit and omits
+		// the unchanged group_name and group_id.
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "spend-only-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// First upsert: create the override attributed to the group.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Second upsert: keep the same group, raise only the spend limit.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one create and one update audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		updateLog := rows[0].AuditLog
+
+		var updateDiff audit.Map
+		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
+		require.Contains(t, updateDiff, "spend_limit")
+		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
+		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+		require.NotContains(t, updateDiff, "group_name")
+		require.NotContains(t, updateDiff, "group_id")
+		require.NotContains(t, updateDiff, "spend_limit_micros")
+	})
 }
 
 // TestUserAIBudgetOverrideRoleAccess verifies the authz matrix for the roles
@@ -3310,6 +3535,41 @@ func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, 
 	})
 	require.NoError(t, err)
 	return adminClient, targetUser, g
+}
+
+// setupUserAIBudgetOverrideAuditTest builds a deployment wired with the
+// enterprise auditor (the mock auditor does not compute diffs) so audit
+// entries can be read straight from the audit_logs table.
+func setupUserAIBudgetOverrideAuditTest(t *testing.T) (database.Store, *codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.User) {
+	t.Helper()
+
+	db, ps := dbtestutil.NewDB(t)
+	auditor := entaudit.NewAuditor(
+		db,
+		entaudit.DefaultFilter,
+		backends.NewPostgres(db, true),
+	)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		AuditLogging: true,
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+			Database:         db,
+			Pubsub:           ps,
+			Auditor:          auditor,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+				codersdk.FeatureAuditLog:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	return db, adminClient, owner, targetUser
 }
 
 // setupGroupAIBudgetTest returns an Admin client along with a newly created group inside it.
