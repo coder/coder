@@ -107,6 +107,45 @@ Additional semantics:
 - Multiple `rule` blocks and multiple `coder_script_order` data sources
   merge into a single dependency graph per agent.
 
+### Multiple rules
+
+Each `rule` block adds edges to the same dependency graph, so chains,
+fan-out, and fan-in are declared with one rule per constraint:
+
+```tf
+data "coder_script_order" "startup" {
+  # Chain: prep, then clone, then install.
+  rule {
+    run   = "coder_script.clone"
+    after = ["coder_script.prep"]
+  }
+
+  rule {
+    run   = "coder_script.install"
+    after = ["coder_script.clone"]
+  }
+
+  # Fan-in: the IDE waits for two scripts that run in parallel.
+  rule {
+    run   = "coder_script.start_ide"
+    after = ["coder_script.install", "coder_script.dotfiles"]
+  }
+
+  # The report runs once the launcher is terminal, even when an
+  # earlier failure skipped the rest of the chain.
+  rule {
+    run      = "coder_script.report"
+    after    = ["coder_script.start_ide"]
+    requires = "completion"
+  }
+}
+```
+
+Scripts that no rule references keep starting immediately, in parallel
+with the ordered ones. The same graph can also be split across several
+`coder_script_order` data sources, for example one per module, and the
+results merge per agent.
+
 ## Validation
 
 Template builds fail with a descriptive error when:
