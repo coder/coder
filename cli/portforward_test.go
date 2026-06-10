@@ -172,7 +172,7 @@ func TestPortForward(t *testing.T) {
 				t.Logf("command complete; err=%s", err.Error())
 				errC <- err
 			}()
-			stdout.ExpectMatchContext(ctx, "Ready!")
+			stdout.ExpectMatch(ctx, "Ready!")
 
 			// Open two connections simultaneously and test them out of
 			// sync.
@@ -223,7 +223,7 @@ func TestPortForward(t *testing.T) {
 			go func() {
 				errC <- inv.WithContext(ctx).Run()
 			}()
-			stdout.ExpectMatchContext(ctx, "Ready!")
+			stdout.ExpectMatch(ctx, "Ready!")
 
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
@@ -281,7 +281,7 @@ func TestPortForward(t *testing.T) {
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		stdout.ExpectMatchContext(ctx, "Ready!")
+		stdout.ExpectMatch(ctx, "Ready!")
 
 		// Open connections to all items in the "dial" array.
 		var (
@@ -349,7 +349,7 @@ func TestPortForward(t *testing.T) {
 			t.Logf("command complete; err=%s", err.Error())
 			errC <- err
 		}()
-		stdout.ExpectMatchContext(ctx, "Ready!")
+		stdout.ExpectMatch(ctx, "Ready!")
 
 		// Test IPv4 still works
 		dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)

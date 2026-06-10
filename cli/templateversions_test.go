@@ -40,9 +40,9 @@ func TestTemplateVersions(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		stdout.ExpectMatchContext(ctx, version.Name)
-		stdout.ExpectMatchContext(ctx, version.CreatedBy.Username)
-		stdout.ExpectMatchContext(ctx, "Active")
+		stdout.ExpectMatch(ctx, version.Name)
+		stdout.ExpectMatch(ctx, version.CreatedBy.Username)
+		stdout.ExpectMatch(ctx, "Active")
 	})
 
 	t.Run("ListVersionsJSON", func(t *testing.T) {

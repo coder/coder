@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, source:\u003ccreated_by_me\\|shared_with_me\u003e, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1465,6 +1465,100 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/keys": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List AI Gateway keys",
+                "operationId": "list-ai-gateway-keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayKey"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create AI Gateway key",
+                "operationId": "create-ai-gateway-key",
+                "parameters": [
+                    {
+                        "description": "Create AI Gateway key request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/keys/{key}": {
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete AI Gateway key",
+                "operationId": "delete-ai-gateway-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Key ID",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -15048,6 +15142,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIGatewayKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIProvider": {
             "type": "object",
             "properties": {
@@ -16405,6 +16522,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shared": {
+                    "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
+                    "type": "boolean"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
@@ -16606,7 +16727,7 @@ const docTemplate = `{
                 "overloaded",
                 "rate_limit",
                 "timeout",
-                "startup_timeout",
+                "stream_silence_timeout",
                 "auth",
                 "config",
                 "usage_limit",
@@ -16618,7 +16739,7 @@ const docTemplate = `{
                 "ChatErrorKindOverloaded",
                 "ChatErrorKindRateLimit",
                 "ChatErrorKindTimeout",
-                "ChatErrorKindStartupTimeout",
+                "ChatErrorKindStreamSilenceTimeout",
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
@@ -17579,6 +17700,39 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -19101,12 +19255,16 @@ const docTemplate = `{
                 "workspace-usage",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-build-updates"
+                "workspace-build-updates",
+                "nats_pubsub",
+                "minimum-implicit-member"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -19119,7 +19277,9 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
-                "Enables publishing workspace build updates to the all builds pubsub channel."
+                "Enables publishing workspace build updates to the all builds pubsub channel.",
+                "Enables embedded NATS pubsub.",
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19128,7 +19288,9 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceBuildUpdates"
+                "ExperimentWorkspaceBuildUpdates",
+                "ExperimentNATSPubsub",
+                "ExperimentMinimumImplicitMember"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -20909,6 +21071,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles are unioned into every member's effective\nroles at request time. Changes propagate to all members on the\nnext request.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -22653,6 +22822,7 @@ const docTemplate = `{
                 "ai_provider_key",
                 "ai_gateway_key",
                 "group_ai_budget",
+                "user_ai_budget_override",
                 "chat",
                 "user_secret",
                 "user_skill"
@@ -22689,6 +22859,7 @@ const docTemplate = `{
                 "ResourceTypeAIProviderKey",
                 "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
+                "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill"
@@ -24364,6 +24535,13 @@ const docTemplate = `{
         "codersdk.UpdateOrganizationRequest": {
             "type": "object",
             "properties": {
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles, when non-nil, replaces the org's default\nmember roles.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },

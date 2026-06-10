@@ -3366,6 +3366,7 @@ const (
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
+	ResourceTypeUserAiBudgetOverride        ResourceType = "user_ai_budget_override"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3438,7 +3439,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
-		ResourceTypeAIGatewayKey:
+		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride:
 		return true
 	}
 	return false
@@ -3480,6 +3482,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride,
 	}
 }
 
@@ -5202,6 +5205,8 @@ type Organization struct {
 	Deleted     bool      `db:"deleted" json:"deleted"`
 	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
+	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
+	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
 }
 
 type OrganizationMember struct {

@@ -74,7 +74,7 @@ const RequestLogsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
+			<title>{pageTitle("Request Logs", "AI Gateway")}</title>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}

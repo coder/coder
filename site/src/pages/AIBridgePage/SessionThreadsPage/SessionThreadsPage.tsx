@@ -35,7 +35,7 @@ const SessionThreadsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Session Threads", "AI Bridge")}</title>
+			<title>{pageTitle("Session Threads", "AI Gateway")}</title>
 
 			<SessionThreadsPageView
 				session={firstPage}

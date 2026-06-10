@@ -685,7 +685,7 @@ func TestExpMcpReporter(t *testing.T) {
 			assert.Error(t, err)
 		}()
 
-		stderr.ExpectMatchContext(ctx, "Failed to connect to agent socket")
+		stderr.ExpectMatch(ctx, "Failed to connect to agent socket")
 		cancel()
 		<-cmdDone
 	})

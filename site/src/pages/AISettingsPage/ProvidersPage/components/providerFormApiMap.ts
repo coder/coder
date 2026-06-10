@@ -44,12 +44,11 @@ type SettingsWire = AIProviderSettings &
 		_version?: number;
 	};
 
-// Bedrock providers carry an Anthropic wire type plus a
-// `settings._type === "bedrock"` discriminator. `settings` is non-null in
-// the generated type but Go serializes zero settings as JSON `null`, so we
-// null-check before reading the discriminator.
+// Bedrock providers are identified by the settings discriminator. The
+// generated type marks settings as non-null, but Go serializes zero settings
+// as JSON `null`.
 export const isBedrockProvider = (provider: AIProvider): boolean => {
-	if (provider.type !== "anthropic") {
+	if (provider.type !== "anthropic" && provider.type !== "bedrock") {
 		return false;
 	}
 	const s = provider.settings as SettingsWire | null;
@@ -73,9 +72,9 @@ const parseProviderHost = (url: string): string => {
 	}
 };
 
-// UI types we recover from a saved provider's base_url because the wire
-// `type` collapses them to `openai`. Matches the bare domain or any
-// subdomain (Azure ships per-resource subdomains).
+// Preset types can be recovered from a saved generic OpenAI provider's
+// base_url. Matches the bare domain or any subdomain. Azure assigns
+// per-resource subdomains such as my-resource.openai.azure.com.
 const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 	["openai.azure.com", "azure"],
 	["generativelanguage.googleapis.com", "google"],
@@ -86,20 +85,18 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-// Wire `type` collapses azure/google/openrouter/vercel to `openai`, so
-// we recover the original choice from the saved host. Bedrock comes
-// through the settings discriminator. Unknown hosts fall back to wire.
+// Determines which UI provider type to show for a saved provider. Bedrock is
+// detected via settings. Explicit stored types are authoritative. Generic
+// `openai` rows fall back to host inference from known preset endpoints;
+// unrecognized hosts stay as `openai`.
 export const getProviderDisplayType = (
 	provider: AIProvider,
 ): AIProviderType => {
 	if (isBedrockProvider(provider)) {
 		return "bedrock";
 	}
-	if (provider.type === "anthropic") {
-		return "anthropic";
-	}
-	if (provider.type === "copilot") {
-		return "copilot";
+	if (provider.type !== "openai") {
+		return provider.type;
 	}
 	const host = parseProviderHost(provider.base_url ?? "");
 	const match = displayTypeHosts.find(([h]) => matchesHost(host, h));
@@ -162,12 +159,8 @@ export const providerFormValuesToCreate = (
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
-	// Wire only accepts `openai` and `anthropic`; the other UI types are
-	// presets that collapse to `openai`.
-	const wireType: AIProvider["type"] =
-		values.type === "anthropic" ? "anthropic" : "openai";
 	return {
-		type: wireType,
+		type: values.type,
 		...base,
 		...(apiKey ? { api_keys: [apiKey] } : {}),
 	};
@@ -259,10 +252,8 @@ export const aiProviderToFormValues = (
 		};
 	}
 
-	// Wire `type` is otherwise only `openai` or `anthropic`; the dropdown's
-	// richer labels apply only on create.
 	return {
-		type: provider.type === "anthropic" ? "anthropic" : "openai",
+		type: getProviderDisplayType(provider),
 		name: provider.name,
 		displayName,
 		baseUrl: provider.base_url,

@@ -241,7 +241,7 @@ func TestServer(t *testing.T) {
 		}()
 		matchCh1 := make(chan string, 1)
 		go func() {
-			matchCh1 <- stdout.ExpectMatchContext(ctx, "Using an ephemeral deployment directory")
+			matchCh1 <- stdout.ExpectMatch(ctx, "Using an ephemeral deployment directory")
 		}()
 		select {
 		case err := <-errCh:
@@ -260,7 +260,7 @@ func TestServer(t *testing.T) {
 		matchCh2 := make(chan string, 1)
 		go func() {
 			// The "View the Web UI" log is a decent indicator that the server was successfully started.
-			matchCh2 <- stdout.ExpectMatchContext(ctx, "View the Web UI")
+			matchCh2 <- stdout.ExpectMatch(ctx, "View the Web UI")
 		}()
 		select {
 		case err := <-errCh:
@@ -282,7 +282,7 @@ func TestServer(t *testing.T) {
 		err := root.Run()
 		require.NoError(t, err)
 
-		stdout.ExpectMatchContext(ctx, "psql")
+		stdout.ExpectMatch(ctx, "psql")
 	})
 	t.Run("BuiltinPostgresURLRaw", func(t *testing.T) {
 		t.Parallel()
@@ -522,9 +522,9 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
-		stdout.ExpectMatchContext(ctx, "this may cause unexpected problems when creating workspaces")
-		stdout.ExpectMatchContext(ctx, "View the Web UI:")
-		stdout.ExpectMatchContext(ctx, "http://localhost:3000/")
+		stdout.ExpectMatch(ctx, "this may cause unexpected problems when creating workspaces")
+		stdout.ExpectMatch(ctx, "View the Web UI:")
+		stdout.ExpectMatch(ctx, "http://localhost:3000/")
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
@@ -549,9 +549,9 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
-		stdout.ExpectMatchContext(ctx, "this may cause unexpected problems when creating workspaces")
-		stdout.ExpectMatchContext(ctx, "View the Web UI:")
-		stdout.ExpectMatchContext(ctx, "https://foobarbaz.mydomain")
+		stdout.ExpectMatch(ctx, "this may cause unexpected problems when creating workspaces")
+		stdout.ExpectMatch(ctx, "View the Web UI:")
+		stdout.ExpectMatch(ctx, "https://foobarbaz.mydomain")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -572,8 +572,8 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
-		stdout.ExpectMatchContext(ctx, "View the Web UI:")
-		stdout.ExpectMatchContext(ctx, "https://google.com")
+		stdout.ExpectMatch(ctx, "View the Web UI:")
+		stdout.ExpectMatch(ctx, "https://google.com")
 	})
 
 	t.Run("NoSchemeAccessURL", func(t *testing.T) {
@@ -820,12 +820,12 @@ func TestServer(t *testing.T) {
 
 		// We can't use waitAccessURL as it will only return the HTTP URL.
 		const httpLinePrefix = "Started HTTP listener at"
-		stdout.ExpectMatchContext(ctx, httpLinePrefix)
+		stdout.ExpectMatch(ctx, httpLinePrefix)
 		httpLine := stdout.ReadLine(ctx)
 		httpAddr := strings.TrimSpace(strings.TrimPrefix(httpLine, httpLinePrefix))
 		require.NotEmpty(t, httpAddr)
 		const tlsLinePrefix = "Started TLS/HTTPS listener at "
-		stdout.ExpectMatchContext(ctx, tlsLinePrefix)
+		stdout.ExpectMatch(ctx, tlsLinePrefix)
 		tlsLine := stdout.ReadLine(ctx)
 		tlsAddr := strings.TrimSpace(strings.TrimPrefix(tlsLine, tlsLinePrefix))
 		require.NotEmpty(t, tlsAddr)
@@ -963,14 +963,14 @@ func TestServer(t *testing.T) {
 				// We can't use waitAccessURL as it will only return the HTTP URL.
 				if c.httpListener {
 					const httpLinePrefix = "Started HTTP listener at"
-					stdout.ExpectMatchContext(ctx, httpLinePrefix)
+					stdout.ExpectMatch(ctx, httpLinePrefix)
 					httpLine := stdout.ReadLine(ctx)
 					httpAddr = strings.TrimSpace(strings.TrimPrefix(httpLine, httpLinePrefix))
 					require.NotEmpty(t, httpAddr)
 				}
 				if c.tlsListener {
 					const tlsLinePrefix = "Started TLS/HTTPS listener at"
-					stdout.ExpectMatchContext(ctx, tlsLinePrefix)
+					stdout.ExpectMatch(ctx, tlsLinePrefix)
 					tlsLine := stdout.ReadLine(ctx)
 					tlsAddr = strings.TrimSpace(strings.TrimPrefix(tlsLine, tlsLinePrefix))
 					require.NotEmpty(t, tlsAddr)
@@ -1054,8 +1054,8 @@ func TestServer(t *testing.T) {
 		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
 		startIgnoringPostgresQueryCancel(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Started HTTP listener")
-		stdout.ExpectMatchContext(ctx, "http://0.0.0.0:")
+		stdout.ExpectMatch(ctx, "Started HTTP listener")
+		stdout.ExpectMatch(ctx, "http://0.0.0.0:")
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
@@ -1074,8 +1074,8 @@ func TestServer(t *testing.T) {
 		// our initial interactions with PostgreSQL are complete. So, ignore errors of that type for this test.
 		startIgnoringPostgresQueryCancel(t, inv)
 
-		stdout.ExpectMatchContext(ctx, "Started HTTP listener at")
-		stdout.ExpectMatchContext(ctx, "http://[::]:")
+		stdout.ExpectMatch(ctx, "Started HTTP listener at")
+		stdout.ExpectMatch(ctx, "http://[::]:")
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {
@@ -1133,7 +1133,7 @@ func TestServer(t *testing.T) {
 			stdout := expecter.NewAttachedToInvocation(t, inv)
 			clitest.Start(t, inv.WithContext(ctx))
 
-			stdout.ExpectMatchContext(ctx, "is deprecated")
+			stdout.ExpectMatch(ctx, "is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "http", accessURL.Scheme)
@@ -1161,7 +1161,7 @@ func TestServer(t *testing.T) {
 			stdout := expecter.NewAttachedToInvocation(t, root)
 			clitest.Start(t, root.WithContext(ctx))
 
-			stdout.ExpectMatchContext(ctx, "is deprecated")
+			stdout.ExpectMatch(ctx, "is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "https", accessURL.Scheme)
@@ -1263,7 +1263,7 @@ func TestServer(t *testing.T) {
 
 			// Wait until we see the prometheus address in the logs.
 			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
-			lineMatch := stdout.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			lineMatch := stdout.ExpectRegexMatch(ctx, addrMatchExpr)
 			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -1324,7 +1324,7 @@ func TestServer(t *testing.T) {
 
 			// Wait until we see the prometheus address in the logs.
 			addrMatchExpr := `http server listening\s+addr=(\S+)\s+name=prometheus`
-			lineMatch := stdout.ExpectRegexMatchContext(ctx, addrMatchExpr)
+			lineMatch := stdout.ExpectRegexMatch(ctx, addrMatchExpr)
 			promAddr := regexp.MustCompile(addrMatchExpr).FindStringSubmatch(lineMatch)[1]
 
 			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -2020,7 +2020,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
-		_ = stdout.ExpectMatchContext(ctx, "Started HTTP listener at")
+		_ = stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
 		loggingWaitFile(t, fi, testutil.WaitSuperLong)
 	})
@@ -2057,7 +2057,7 @@ func TestServer_Logging_NoParallel(t *testing.T) {
 
 		// Wait for server to listen on HTTP, this is a good
 		// starting point for expecting logs.
-		_ = stdout.ExpectMatchContext(ctx, "Started HTTP listener at")
+		_ = stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
 		loggingWaitFile(t, fi1, testutil.WaitSuperLong)
 		loggingWaitFile(t, fi2, testutil.WaitSuperLong)
@@ -2259,7 +2259,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	// It's fair to assume `stopFunc` isn't nil here, because the server
 	// has started and access URL is propagated.
 	stopFunc()
-	stdout.ExpectMatchContext(ctx, "waiting for provisioner jobs to complete")
+	stdout.ExpectMatch(ctx, "waiting for provisioner jobs to complete")
 	err := <-serverErr
 	require.NoError(t, err)
 }
@@ -2503,10 +2503,10 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		}()
 
 		if opts.waitForSnapshot {
-			stdout.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
+			stdout.ExpectMatch(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
 		}
 		if opts.waitForTelemetryDisabledCheck {
-			stdout.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
+			stdout.ExpectMatch(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
 		}
 		return errChan, cancelFunc
 	}

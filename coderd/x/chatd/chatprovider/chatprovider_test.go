@@ -29,6 +29,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestProviderBaseURLHostname(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
+		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
+		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
+		{name: "Empty", baseURL: "", want: ""},
+		{name: "Invalid", baseURL: "://", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.ProviderBaseURLHostname(tt.baseURL))
+		})
+	}
+}
+
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
 
@@ -347,6 +369,77 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasyanthropic.ThinkingDisplay
+	}{
+		{
+			name:  "Summarized",
+			input: ptr.Ref(" SUMMARIZED "),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+		},
+		{
+			name:  "Omitted",
+			input: ptr.Ref("omitted"),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: ptr.Ref("summary"),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.AnthropicThinkingDisplayFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(nil, &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+		},
+	})
+
+	require.NotNil(t, providerOptions)
+	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, anthropicOptions.ThinkingDisplay)
+	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
+}
+
+func TestMergeMissingProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	options := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+	}
+	defaults := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref("summarized"),
+		},
+	}
+
+	chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+	require.NotNil(t, options.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *options.Anthropic.ThinkingDisplay)
 }
 
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
@@ -1308,10 +1401,11 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 // path that lets a user-uploaded PDF actually reach Claude/Bedrock: a
 // fantasy.FilePart with MediaType "application/pdf" must be serialized as an
 // Anthropic "document" content block with a base64 source carrying the PDF
-// bytes. Older fantasy versions silently dropped PDF FileParts in the
-// Anthropic provider, so the user message ended up empty and the model never
-// saw the document. See coder/fantasy#37 (cherry-pick of upstream
-// charmbracelet/fantasy#197). The Generate call would fail outright on the
+// bytes and a sanitized filename as the document title. Older fantasy versions
+// silently dropped PDF FileParts in the Anthropic provider, so the user
+// message ended up empty and the model never saw the document. The underlying
+// PDF block support came from coder/fantasy#37, a cherry-pick of upstream
+// charmbracelet/fantasy#197. The Generate call would fail outright on the
 // regressed code path because the dropped FilePart leaves the request with
 // zero messages.
 func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
@@ -1330,6 +1424,7 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 
 		var blocks []struct {
 			Type   string `json:"type"`
+			Title  string `json:"title"`
 			Source struct {
 				Type      string `json:"type"`
 				MediaType string `json:"media_type"`
@@ -1346,6 +1441,11 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 			}
 			assert.Equal(t, "base64", block.Source.Type, "PDF document block must use a base64 source")
 			assert.Equal(t, wantData, block.Source.Data, "PDF bytes must round-trip base64 unchanged")
+			assert.Equal(t,
+				"quarterly report v1 pdf",
+				block.Title,
+				"PDF filename must reach Anthropic as a sanitized document title",
+			)
 			if block.Source.MediaType != "" {
 				assert.Equal(t, "application/pdf", block.Source.MediaType)
 			}
@@ -1369,7 +1469,11 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 			{
 				Role: fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{
-					fantasy.FilePart{Data: pdfData, MediaType: "application/pdf"},
+					fantasy.FilePart{
+						Filename:  "quarterly_report.v1.pdf",
+						Data:      pdfData,
+						MediaType: "application/pdf",
+					},
 				},
 			},
 		},
@@ -1546,6 +1650,34 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			providerHint: fantasyopenaicompat.Name,
 			wantProvider: fantasyopenaicompat.Name,
 			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "OpenRouterHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenrouter.Name,
+			wantProvider: fantasyopenrouter.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAICompatHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenaicompat.Name,
+			wantProvider: fantasyopenaicompat.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintStripsCanonicalPrefix",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintPreservesUnknownSlashNamespace",
+			modelName:    "meta-llama/llama-3-70b",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyopenai.Name,
+			wantModel:    "meta-llama/llama-3-70b",
 		},
 		{
 			name:         "AnthropicHintStripsCanonicalPrefix",

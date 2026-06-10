@@ -148,7 +148,7 @@ func TestStart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -202,7 +202,7 @@ func TestStart(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "workspace has been started")
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify if ephemeral parameter is set
@@ -256,7 +256,7 @@ func TestStartWithParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "workspace has been started")
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify if immutable parameter is set
@@ -309,9 +309,9 @@ func TestStartWithParameters(t *testing.T) {
 		}()
 
 		newValue := "xyz"
-		stdout.ExpectMatchContext(ctx, mutableParameterName)
+		stdout.ExpectMatch(ctx, mutableParameterName)
 		stdin.WriteLine(newValue)
-		stdout.ExpectMatchContext(ctx, "workspace has been started")
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify that the updated values are persisted.
@@ -371,7 +371,7 @@ func TestStartUseParameterDefaults(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 
 	// Verify the new parameter was resolved to its default.
@@ -451,7 +451,7 @@ func TestStartAutoUpdate(t *testing.T) {
 				assert.NoError(t, err)
 			}()
 
-			stdout.ExpectMatchContext(ctx, stringParameterName)
+			stdout.ExpectMatch(ctx, stringParameterName)
 			stdin.WriteLine(stringParameterValue)
 			<-doneChan
 
@@ -483,7 +483,7 @@ func TestStart_AlreadyRunning(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "workspace is already running")
+	stdout.ExpectMatch(ctx, "workspace is already running")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
 
@@ -512,10 +512,10 @@ func TestStart_Starting(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "workspace is already starting")
+	stdout.ExpectMatch(ctx, "workspace is already starting")
 
 	_ = dbfake.JobComplete(t, store, r.Build.JobID).Pubsub(ps).Do()
-	stdout.ExpectMatchContext(ctx, "workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
@@ -549,7 +549,7 @@ func TestStart_NoWait(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "workspace has been started in no-wait mode")
+	stdout.ExpectMatch(ctx, "workspace has been started in no-wait mode")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
 
@@ -582,7 +582,7 @@ func TestStart_WithReason(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	stdout.ExpectMatchContext(ctx, "workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 
 	workspace = coderdtest.MustWorkspace(t, member, workspace.ID)
@@ -635,8 +635,8 @@ func TestStart_FailedStartCleansUp(t *testing.T) {
 	}()
 
 	// The CLI should detect the failed start and clean up first.
-	stdout.ExpectMatchContext(ctx, "Cleaning up before retrying")
-	stdout.ExpectMatchContext(ctx, "workspace has been started")
+	stdout.ExpectMatch(ctx, "Cleaning up before retrying")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }

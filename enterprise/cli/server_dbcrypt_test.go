@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -72,11 +71,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyA)),
 		"--yes",
 	)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
@@ -95,11 +91,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--old-keys", base64.StdEncoding.EncodeToString([]byte(keyA)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher B.
 	for _, usr := range users {
@@ -137,11 +130,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--keys", base64.StdEncoding.EncodeToString([]byte(keyB)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that both keys have been revoked.
 	keys, err = db.GetDBCryptKeys(ctx)
@@ -167,12 +157,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyC)),
 		"--yes",
 	)
-
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher C.
 	for _, usr := range users {
@@ -186,11 +172,8 @@ func TestServerDBCrypt(t *testing.T) {
 		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyC)),
 		"--yes",
 	)
-	pty = ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
-	require.NoError(t, pty.Close())
 
 	// Assert that no user links remain.
 	for _, usr := range users {

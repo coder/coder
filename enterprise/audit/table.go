@@ -18,24 +18,25 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":              {codersdk.AuditActionCreate},
-	"Template":               {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion":        {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":         {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":                 {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"License":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"Task":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AiSeatState":            {codersdk.AuditActionCreate},
-	"AIProvider":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AIProviderKey":          {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AIGatewayKey":           {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AuditableGroupAiBudget": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Chat":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
-	"UserSecret":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"UserSkill":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"GitSSHKey":                     {codersdk.AuditActionCreate},
+	"Template":                      {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":                {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"Task":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AiSeatState":                   {codersdk.AuditActionCreate},
+	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AuditableGroupAiBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableUserAiBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -232,6 +233,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
+	&database.AuditableUserAiBudgetOverride{}: {
+		"user_id":            ActionIgnore, // Username is already included in the title.
+		"username":           ActionIgnore, // Username is already included in the title.
+		"group_id":           ActionTrack,
+		"group_name":         ActionTrack,
+		"spend_limit_micros": ActionIgnore,
+		"spend_limit":        ActionTrack,  // Track spend_limit, the human-readable version.
+		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
+		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
+	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
@@ -341,6 +352,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_name":               ActionTrack,
 		"icon":                       ActionTrack,
 		"shareable_workspace_owners": ActionTrack,
+		"default_org_member_roles":   ActionTrack,
 	},
 	&database.NotificationTemplate{}: {
 		"id":                 ActionIgnore,

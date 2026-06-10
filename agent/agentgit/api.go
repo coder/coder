@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -20,6 +21,7 @@ type API struct {
 	logger    slog.Logger
 	opts      []Option
 	pathStore *PathStore
+	wsWatcher *httpapi.WSWatcher
 }
 
 // NewAPI creates a new git watch API.
@@ -28,6 +30,7 @@ func NewAPI(logger slog.Logger, pathStore *PathStore, opts ...Option) *API {
 		logger:    logger,
 		pathStore: pathStore,
 		opts:      opts,
+		wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 	}
 }
 
@@ -82,9 +85,7 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
-
+	ctx = a.wsWatcher.Watch(ctx, logger, conn)
 	handler := NewHandler(logger, a.opts...)
 
 	// Scan returns nil only when no roots are subscribed; once any

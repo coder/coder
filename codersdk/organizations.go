@@ -55,6 +55,10 @@ type Organization struct {
 	CreatedAt           time.Time `table:"created at" json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt           time.Time `table:"updated at" json:"updated_at" validate:"required" format:"date-time"`
 	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
+	// DefaultOrgMemberRoles are unioned into every member's effective
+	// roles at request time. Changes propagate to all members on the
+	// next request.
+	DefaultOrgMemberRoles []string `table:"default org member roles" json:"default_org_member_roles"`
 }
 
 func (o Organization) HumanName() string {
@@ -113,6 +117,9 @@ type UpdateOrganizationRequest struct {
 	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
+	// DefaultOrgMemberRoles, when non-nil, replaces the org's default
+	// member roles.
+	DefaultOrgMemberRoles *[]string `json:"default_org_member_roles,omitempty"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.

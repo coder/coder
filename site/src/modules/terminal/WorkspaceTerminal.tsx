@@ -50,6 +50,7 @@ type WorkspaceTerminalProps = {
 	containerUser?: string;
 	onStatusChange?: (status: ConnectionStatus) => void;
 	onError?: (error: Error) => void;
+	onContentReady?: () => void;
 	reconnectionToken: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
@@ -80,6 +81,7 @@ export const WorkspaceTerminal = ({
 	containerUser,
 	onStatusChange,
 	onError,
+	onContentReady,
 	reconnectionToken,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
@@ -99,6 +101,9 @@ export const WorkspaceTerminal = ({
 	});
 	const handleStatusChange = useEffectEvent((status: ConnectionStatus) => {
 		onStatusChange?.(status);
+	});
+	const handleContentReady = useEffectEvent(() => {
+		onContentReady?.();
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
@@ -134,11 +139,6 @@ export const WorkspaceTerminal = ({
 		}
 	};
 
-	const [hasBeenVisible, setHasBeenVisible] = useState(false);
-	if (isVisible && !hasBeenVisible) {
-		setHasBeenVisible(true);
-	}
-
 	const reportTerminalError = useEffectEvent((error: Error) => {
 		console.error(error);
 		onError?.(error);
@@ -169,6 +169,16 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
+		// Fitting a zero-size container clamps the terminal and PTY to the minimum column count.
+		const mountNode = terminalWrapperRef.current;
+		if (
+			!mountNode ||
+			mountNode.clientWidth === 0 ||
+			mountNode.clientHeight === 0
+		) {
+			return;
+		}
+
 		// We have to fit twice here. It's unknown why, but the
 		// first fit will overflow slightly in some scenarios.
 		// Applying a second fit resolves this.
@@ -190,7 +200,7 @@ export const WorkspaceTerminal = ({
 	);
 
 	useEffect(() => {
-		if (!hasBeenVisible) {
+		if (!isVisible) {
 			return;
 		}
 
@@ -303,7 +313,7 @@ export const WorkspaceTerminal = ({
 			setTerminal(undefined);
 		};
 	}, [
-		hasBeenVisible,
+		isVisible,
 		copyToClipboard,
 		refit,
 		renderer,
@@ -333,8 +343,34 @@ export const WorkspaceTerminal = ({
 		};
 	}, [terminal, isVisible, autoFocus, loading]);
 
+	// Notify after first output paints so consumers can hide connection latency.
 	useEffect(() => {
-		if (!terminal || !hasBeenVisible) {
+		if (!terminal) {
+			return;
+		}
+		let hasParsedOutput = false;
+		const writeParsed = terminal.onWriteParsed(() => {
+			hasParsedOutput = true;
+		});
+		// onWriteParsed fires before xterm paints; gate on the next onRender so
+		// pixels are present before the terminal is revealed. clear()/refresh
+		// fire onRender without a parse and are intentionally ignored.
+		const rendered = terminal.onRender(() => {
+			if (!hasParsedOutput) {
+				return;
+			}
+			writeParsed.dispose();
+			rendered.dispose();
+			handleContentReady();
+		});
+		return () => {
+			writeParsed.dispose();
+			rendered.dispose();
+		};
+	}, [terminal]);
+
+	useEffect(() => {
+		if (!terminal || !isVisible) {
 			return;
 		}
 
@@ -507,7 +543,7 @@ export const WorkspaceTerminal = ({
 			websocketRef.current = undefined;
 		};
 	}, [
-		hasBeenVisible,
+		isVisible,
 		agentId,
 		baseUrl,
 		containerName,

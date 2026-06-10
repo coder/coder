@@ -273,7 +273,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -328,7 +328,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -383,7 +383,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Planning workspace")
+		stdout.ExpectMatch(ctx, "Planning workspace")
 		<-doneChan
 
 		// Verify if ephemeral parameter is set
@@ -462,14 +462,14 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, stringParameterName)
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, stringParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("$$")
-		stdout.ExpectMatchContext(ctx, "does not match")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "does not match")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("ABC")
-		stdout.ExpectMatchContext(ctx, "does not match")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "does not match")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("abc")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
@@ -510,14 +510,14 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, numberParameterName)
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, numberParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("12")
-		stdout.ExpectMatchContext(ctx, "is more than the maximum")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "is more than the maximum")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("notanumber")
-		stdout.ExpectMatchContext(ctx, "is not a number")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "is not a number")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("8")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
@@ -558,14 +558,14 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, boolParameterName)
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, boolParameterName)
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("cat")
-		stdout.ExpectMatchContext(ctx, "boolean value can be either \"true\" or \"false\"")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "boolean value can be either \"true\" or \"false\"")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("dog")
-		stdout.ExpectMatchContext(ctx, "boolean value can be either \"true\" or \"false\"")
-		stdout.ExpectMatchContext(ctx, "> Enter a value: ")
+		stdout.ExpectMatch(ctx, "boolean value can be either \"true\" or \"false\"")
+		stdout.ExpectMatch(ctx, "> Enter a value: ")
 		stdin.WriteLine("false")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
@@ -634,7 +634,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -699,7 +699,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Planning workspace...")
+		stdout.ExpectMatch(ctx, "Planning workspace...")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 	})
 
@@ -798,7 +798,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				for i := 0; i < len(matches); i += 2 {
 					match := matches[i]
 					value := matches[i+1]
-					stdout.ExpectMatchContext(ctx, match)
+					stdout.ExpectMatch(ctx, match)
 
 					if value != "" {
 						stdin.WriteLine(value)
@@ -862,7 +862,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 		}
 
 		_ = testutil.TryReceive(ctx, t, doneChan)
@@ -928,7 +928,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -1002,7 +1002,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
 				stdin.WriteLine(value)
@@ -1067,7 +1067,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "Planning workspace")
+		stdout.ExpectMatch(ctx, "Planning workspace")
 
 		_ = testutil.TryReceive(ctx, t, doneChan)
 

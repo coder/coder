@@ -138,6 +138,15 @@ export const PullRequestAndWorkingChanges: Story = {
 			diff: sampleDiff,
 		});
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The branch row exposes a button that copies the PR head
+		// branch name. The aria-label embeds the branch so a single
+		// query is enough to assert both presence and target.
+		await expect(
+			canvas.getByLabelText("Copy branch name: feat/add-mcp-config"),
+		).toBeVisible();
+	},
 };
 
 /** Draft PR with head/base branches. */

@@ -43,6 +43,7 @@ var (
 	ErrExpired       = xerrors.New("expired")
 	ErrUnknownUser   = xerrors.New("unknown user")
 	ErrDeletedUser   = xerrors.New("deleted user")
+	ErrInactiveUser  = xerrors.New("inactive user")
 	ErrSystemUser    = xerrors.New("system user")
 	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
 
@@ -623,9 +624,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrUnknownUser
 	}
 
-	// User is not deleted or a system user.
+	// User is active, not deleted, and not a system user.
 	if user.Deleted {
 		return nil, ErrDeletedUser
+	}
+	if user.Status != database.UserStatusActive {
+		return nil, ErrInactiveUser
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser

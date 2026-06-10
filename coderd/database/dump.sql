@@ -569,7 +569,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider_key',
     'group_ai_budget',
     'user_skill',
-    'ai_gateway_key'
+    'ai_gateway_key',
+    'user_ai_budget_override'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2375,10 +2376,13 @@ CREATE TABLE organizations (
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL
+    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
+    default_org_member_roles text[] NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
+
+COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,

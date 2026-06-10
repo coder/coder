@@ -335,7 +335,7 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 	t.Parallel()
 
-	pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+	pool, err := keypool.New(config.ProviderOpenAI, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
 	p := NewOpenAI(config.OpenAI{KeyPool: pool})
@@ -343,7 +343,6 @@ func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 	cfg := p.KeyFailoverConfig(slog.Make())
 
 	assert.Same(t, pool, cfg.Pool, "Pool must be wired from the provider config")
-	assert.Equal(t, config.ProviderOpenAI, cfg.ProviderName, "ProviderName must match the provider name")
 	require.NotNil(t, cfg.IsBYOK)
 	require.NotNil(t, cfg.InjectAuthKey)
 	require.NotNil(t, cfg.BuildKeyPoolResponse)
