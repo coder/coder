@@ -1052,12 +1052,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			); err != nil {
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
-			// Promote legacy type=anthropic rows that carry Bedrock settings.
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
-			// Fix stale provider strings on model configs after provider types are corrected.
-			// Both backfills share aibridgeInitCtx; if the first times out the second
-			// will be skipped and retried on the next startup.
+			// Must run after BackfillBedrockProviderType; shares aibridgeInitCtx so
+			// a timeout on the first backfill will skip this one until next startup.
+
 			coderd.BackfillChatModelConfigProviderStrings(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
