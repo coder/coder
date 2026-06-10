@@ -29,6 +29,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 		logger.Error(ctx, "backfill bedrock provider type: list providers", slog.Error(err))
 		return
 	}
+	var promoted int
 	for _, provider := range providers {
 		if provider.Type != database.AiProviderTypeAnthropic {
 			continue
@@ -58,9 +59,14 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 					slog.F("provider_id", provider.ID))
 				continue
 			}
-			logger.Error(ctx, "backfill bedrock provider type: update provider",
+			logger.Error(ctx, "backfill bedrock provider type: provider update failed and will re-attempt on next server startup",
 				slog.F("provider_id", provider.ID), slog.Error(err))
+			continue
 		}
+		promoted++
+	}
+	if promoted > 0 {
+		logger.Info(ctx, "backfilled bedrock provider types", slog.F("count", promoted))
 	}
 }
 
