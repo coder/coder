@@ -40,15 +40,11 @@ var (
 	defaultSaltSize = 16
 
 	// The simulated hash is used when comparing against an empty stored hash
-	// (e.g. nonexistent or SSO users). It hashes a random value generated at
-	// startup, so no attacker-supplied password can ever match it. It exists
+	// (e.g. nonexistent or SSO users). It hashes a random value generated on
+	// first use, so no attacker-supplied password can ever match it. It exists
 	// purely to keep failed comparisons constant-time.
 	simulatedHash = lazy.New(func() string {
-		pw := make([]byte, 32)
-		if _, err := rand.Read(pw); err != nil {
-			panic(err)
-		}
-		h, err := Hash(base64Encoding.EncodeToString(pw))
+		h, err := Hash(rand.Text())
 		if err != nil {
 			panic(err)
 		}

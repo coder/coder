@@ -234,6 +234,8 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
+	// "hunter2" was the input of the previous hardcoded simulated hash, which
+	// an empty stored hash wrongly matched; this is a regression test.
 	t.Run("NonexistentUser401", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
