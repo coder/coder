@@ -18,6 +18,7 @@ import {
 	type ReactNode,
 	useEffect,
 	useRef,
+	useState,
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
@@ -52,6 +53,11 @@ export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
+
+// Minimum width (px) of the diff container at which the file tree sidebar is
+// shown alongside the diff. Below this the diff takes the full width unless the
+// viewer is explicitly expanded.
+const FILE_TREE_THRESHOLD = 1000;
 
 const diffViewerStyle = {
 	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
@@ -99,9 +105,17 @@ const fileTreeStyle = {
 	"--trees-font-family-override": '"Geist Variable", system-ui, sans-serif',
 	"--trees-font-size-override": "13px",
 	"--trees-border-color-override": "hsl(var(--border-default))",
+	"--trees-bg-override": "hsl(var(--surface-primary))",
 	"--trees-fg-override": "hsl(var(--content-primary))",
 	"--trees-muted-fg-override": "hsl(var(--content-secondary))",
 	"--trees-selected-bg-override": "hsl(var(--surface-secondary))",
+	"--trees-padding-inline-override": "0px",
+	"--trees-item-margin-x-override": "0px",
+	"--trees-border-radius-override": "0px",
+	"--trees-git-added-color-override": "hsl(var(--git-added))",
+	"--trees-git-deleted-color-override": "hsl(var(--git-deleted))",
+	"--trees-git-modified-color-override": "hsl(var(--git-modified))",
+	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
 } satisfies CSSProperties;
 
 function countChangedLines(fileDiff: FileDiffMetadata) {
@@ -113,6 +127,17 @@ function countChangedLines(fileDiff: FileDiffMetadata) {
 	}
 	return { additions, deletions };
 }
+
+// The library forces classic, space-reserving scrollbars via
+// scrollbar-gutter: stable, leaving a permanent empty strip on the right.
+// Restore the default gutter so the scrollbar overlays content while scrolling
+// instead of reserving width, and keep it slim when it does appear.
+const fileTreeUnsafeCSS = [
+	"[data-file-tree-virtualized-scroll='true'] {",
+	"  scrollbar-gutter: auto !important;",
+	"  scrollbar-width: thin;",
+	"}",
+].join(" ");
 
 function gitStatusForFile(
 	fileDiff: FileDiffMetadata,
@@ -183,9 +208,11 @@ function DiffFileTree({
 		status: gitStatusForFile(file),
 	}));
 	const { model } = useFileTree({
-		flattenEmptyDirectories: true,
+		density: "compact",
+		flattenEmptyDirectories: false,
 		gitStatus,
 		initialExpansion: "open",
+		unsafeCSS: fileTreeUnsafeCSS,
 		onSelectionChange: (selectedPaths) => {
 			const selectedPath = selectedPaths.at(-1);
 			if (selectedPath) {
@@ -294,6 +321,7 @@ function DiffViewerSkeleton() {
 
 export const DiffViewer: FC<DiffViewerProps> = ({
 	parsedFiles,
+	isExpanded,
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
@@ -310,6 +338,20 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string>>(null);
 	const isDark = theme.palette.mode === "dark";
+
+	// Measure the diff container so the file tree only appears when there is
+	// enough horizontal room, rather than keying off the viewport width.
+	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+	const [containerWidth, setContainerWidth] = useState(0);
+	useEffect(() => {
+		if (!containerEl) return;
+		setContainerWidth(containerEl.getBoundingClientRect().width);
+		const observer = new ResizeObserver(([entry]) => {
+			setContainerWidth(entry.contentRect.width);
+		});
+		observer.observe(containerEl);
+		return () => observer.disconnect();
+	}, [containerEl]);
 
 	const options: ComponentProps<typeof CodeView<string>>["options"] = {
 		diffStyle,
@@ -389,21 +431,29 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		return <div>{emptyMessage}</div>;
 	}
 
+	const showTree =
+		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) && items.length > 0;
+
 	return (
-		<div className="flex h-full min-h-0 min-w-0 overflow-hidden">
-			<aside className="hidden h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border-default xl:block">
-				<DiffFileTree
-					files={parsedFiles}
-					onSelectFile={(fileName) => {
-						codeViewRef.current?.scrollTo({
-							type: "item",
-							id: fileName,
-							align: "start",
-							behavior: "instant",
-						});
-					}}
-				/>
-			</aside>
+		<div
+			ref={setContainerEl}
+			className="flex h-full min-h-0 min-w-0 overflow-hidden"
+		>
+			{showTree && (
+				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border-default">
+					<DiffFileTree
+						files={parsedFiles}
+						onSelectFile={(fileName) => {
+							codeViewRef.current?.scrollTo({
+								type: "item",
+								id: fileName,
+								align: "start",
+								behavior: "instant",
+							});
+						}}
+					/>
+				</aside>
+			)}
 			<CodeView
 				ref={codeViewRef}
 				items={items}
