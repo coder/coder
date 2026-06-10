@@ -157,6 +157,8 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 			clipboard: mockClipboard,
 		}));
 
+		vi.stubGlobal("isSecureContext", isSecure);
+
 		vi.spyOn(console, "error").mockImplementation((errorValue, ...rest) => {
 			const canIgnore =
 				errorValue instanceof Error &&
@@ -172,6 +174,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		vi.runAllTimers();
 		vi.useRealTimers();
 		vi.resetAllMocks();
+		vi.unstubAllGlobals();
 		global.document.execCommand = originalExecCommand;
 
 		// Still have to reset the mock clipboard state because the same mock values
@@ -308,16 +311,26 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(readText).toEqual(textToCopy);
 	});
 
-	it("Falls back to the last copied value when reading from the clipboard fails", async () => {
+	it("Surfaces read failures in secure contexts and falls back to the cached value otherwise", async () => {
 		const textToCopy = "otters";
 		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 
-		// Simulating a failure makes the native readText reject, exercising the
-		// cached fallback path that keeps paste working in insecure contexts.
-		setSimulateFailure(true);
-		const readText = await act(() => result.current.readFromClipboard());
-		expect(readText).toEqual(textToCopy);
+		if (isSecure) {
+			// A failed or denied read must surface instead of silently pasting a
+			// stale cached selection.
+			setSimulateFailure(true);
+			await expect(
+				act(async () => {
+					await result.current.readFromClipboard();
+				}),
+			).rejects.toThrow();
+		} else {
+			// Insecure contexts cannot read the system clipboard, so paste falls
+			// back to the last value copied within Coder.
+			const readText = await act(() => result.current.readFromClipboard());
+			expect(readText).toEqual(textToCopy);
+		}
 	});
 
 	it("Returns an empty string when nothing has been copied yet", async () => {

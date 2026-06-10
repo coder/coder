@@ -94,13 +94,15 @@ export const useClipboard = (
 	);
 
 	const readFromClipboard = useCallback(async (): Promise<string> => {
-		if (typeof navigator.clipboard?.readText === "function") {
-			try {
-				return await navigator.clipboard.readText();
-			} catch {
-				// The Clipboard API exists but rejected (e.g. denied permission or
-				// an insecure context). Fall back to the cached value below.
-			}
+		// Insecure (HTTP) contexts and older browsers cannot read the system
+		// clipboard, so fall back to the last value copied within Coder. In a
+		// secure context, surface read failures (such as a denied permission)
+		// instead of silently pasting a stale cached selection.
+		if (
+			window.isSecureContext &&
+			typeof navigator.clipboard?.readText === "function"
+		) {
+			return await navigator.clipboard.readText();
 		}
 
 		return lastCopiedTextRef.current;
