@@ -1366,6 +1366,42 @@ export const MCPToolFigmaIcon: Story = {
 	},
 };
 
+// Notion advertises its MCP icon as a "block" logo: a coloured backdrop
+// with the glyph overlaid in the same SVG. The default monochrome filter
+// path would collapse that into a featureless square, so ToolIcon must
+// route composite block logos through the natural-colour badge branch.
+export const MCPToolNotionIcon: Story = {
+	args: {
+		name: "notion__fetch",
+		status: "completed",
+		result: { ok: true },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "notion",
+				display_name: "Notion",
+				icon_url: "https://www.notion.com/images/notion-logo-block-main.svg",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const icon = await canvas.findByAltText("notion__fetch icon");
+		expect(icon).toBeInTheDocument();
+		expect(icon.getAttribute("src") ?? "").toContain(
+			"notion-logo-block-main.svg",
+		);
+		// Composite block logos must not get the silhouette filter.
+		expect(icon.className).not.toMatch(/brightness-0/);
+		expect(icon.className).not.toMatch(/dark:invert/);
+		// They render inside a rounded badge frame for the coloured backdrop.
+		const frame = icon.parentElement;
+		expect(frame).not.toBeNull();
+		expect(frame?.className ?? "").toMatch(/rounded-sm/);
+	},
+};
+
 export const MCPToolNoServer: Story = {
 	args: {
 		name: "some_custom_tool",

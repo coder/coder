@@ -27,6 +27,19 @@ import {
 	type SubagentIconKind,
 } from "./subagentDescriptor";
 
+// Some MCP servers advertise composite "block" brand logos that
+// layer a colored backdrop and an overlaid glyph in the same SVG
+// (e.g. Notion's `notion-logo-block-*.svg`). A `brightness-0`
+// silhouette filter collapses both layers into a featureless square,
+// so those URLs render in their natural colors inside a small badge
+// frame instead. Extend the pattern when other vendors are found to
+// ship block-style logos via their MCP advertisement.
+const COMPOSITE_BLOCK_LOGO_RE = /notion-logo-block/i;
+
+function isCompositeBlockBrandLogo(url: string): boolean {
+	return COMPOSITE_BLOCK_LOGO_RE.test(url);
+}
+
 export const ToolIcon: React.FC<{
 	name: string;
 	isError: boolean;
@@ -49,8 +62,29 @@ export const ToolIcon: React.FC<{
 	// style. brightness-0 forces every pixel to black, then in dark
 	// mode we invert to white and tune opacity to approximate
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
+	//
+	// Exception: composite "block" brand logos (e.g. Notion) ship a
+	// coloured backdrop with an overlaid glyph in the same SVG. A
+	// silhouette filter would collapse both layers into a featureless
+	// square, so those render in their natural colours inside a small
+	// rounded badge frame.
 	if (iconUrl && !imgError) {
-		const img = (
+		const img = isCompositeBlockBrandLogo(iconUrl) ? (
+			<div
+				className={cn(
+					"flex size-4 shrink-0 items-center justify-center",
+					"overflow-hidden rounded-sm",
+					isRunning && "grayscale",
+				)}
+			>
+				<ExternalImage
+					src={iconUrl}
+					alt={`${name} icon`}
+					className="block size-4 object-contain"
+					onError={() => setImgError(true)}
+				/>
+			</div>
+		) : (
 			<div className="size-4 shrink-0 overflow-hidden">
 				<ExternalImage
 					src={iconUrl}
