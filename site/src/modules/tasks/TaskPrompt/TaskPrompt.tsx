@@ -438,10 +438,8 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 }) => {
 	const {
 		startPollingExternalAuth,
-		isPollingExternalAuth,
 		externalAuthPollingState,
 	} = useExternalAuth(versionId);
-	const shouldRetry = externalAuthPollingState === "abandoned";
 
 	return missedExternalAuth.map((auth) => {
 		return (
@@ -449,29 +447,29 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 				<Button
 					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
-					disabled={isPollingExternalAuth || auth.authenticated}
+					disabled={externalAuthPollingState[auth.id] === "polling" || auth.authenticated}
 					onClick={() => {
 						window.open(
 							auth.authenticate_url,
 							"_blank",
 							"width=900,height=600",
 						);
-						startPollingExternalAuth();
+						startPollingExternalAuth(auth.id);
 					}}
 				>
-					<Spinner loading={isPollingExternalAuth}>
+					<Spinner loading={externalAuthPollingState[auth.id] === "polling"}>
 						<ExternalImage src={auth.display_icon} />
 					</Spinner>
 					Connect to {auth.display_name}
 				</Button>
 
-				{shouldRetry && !auth.authenticated && (
+				{externalAuthPollingState[auth.id] === "abandoned" && !auth.authenticated && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								variant="outline"
 								size="icon"
-								onClick={startPollingExternalAuth}
+								onClick={() => startPollingExternalAuth(auth.id)}
 							>
 								<RedoIcon />
 								<span className="sr-only">Refresh external auth</span>
