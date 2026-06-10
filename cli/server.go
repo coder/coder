@@ -2904,11 +2904,22 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // external auth providers. A prefix is provided to support the legacy
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
-	// The index numbers must be in-order.
-	slices.Sort(environ)
+	parsed := serpent.ParseEnviron(environ, prefix)
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	// A lexicographic sort would order PROVIDER_10 between PROVIDER_1 and
+	// PROVIDER_2 and trip the "provider num skipped" check below.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range serpent.ParseEnviron(environ, prefix) {
+	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
