@@ -1258,8 +1258,12 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 
 	// assert an audit log has been created for workspace stopping
 	numLogs++ // add an audit log for workspace_build stop
-	require.Len(t, auditor.AuditLogs(), numLogs)
-	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[numLogs-1].Action)
+	// Audit logs are written asynchronously to build completion, so poll
+	// until the expected log appears.
+	require.Eventually(t, func() bool {
+		logs := auditor.AuditLogs()
+		return len(logs) == numLogs && logs[numLogs-1].Action == database.AuditActionStop
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
