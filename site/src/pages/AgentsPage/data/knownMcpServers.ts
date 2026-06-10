@@ -80,7 +80,7 @@ const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 	{
 		displayName: "Figma",
 		slug: "figma",
-		iconUrl: "/icon/figma-monochrome.svg",
+		iconUrl: "/icon/figma-black.svg",
 		hostPatterns: [/^mcp\.figma\.com$/i, /^api\.figma\.com$/i],
 	},
 	{
@@ -108,7 +108,7 @@ const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 	{
 		displayName: "Grafana",
 		slug: "grafana",
-		iconUrl: "/icon/grafana.svg",
+		iconUrl: "/icon/grafana-labs.svg",
 		hostPatterns: [/^mcp\.grafana\.com$/i, /^([a-z0-9-]+\.)?grafana\.net$/i],
 	},
 	{
