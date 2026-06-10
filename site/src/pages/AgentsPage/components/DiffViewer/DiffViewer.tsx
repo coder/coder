@@ -8,7 +8,7 @@ import type {
 	VirtualFileMetrics,
 } from "@pierre/diffs/react";
 import { CodeView } from "@pierre/diffs/react";
-import type { GitStatusEntry } from "@pierre/trees";
+import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
 import {
 	type ComponentProps,
@@ -96,30 +96,56 @@ const fileTreeStyle = {
 	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
 } satisfies CSSProperties;
 
-// Orders diff entries to match the sidebar tree's leaf order so scrolling
-// moves monotonically down the tree. Reproduces @pierre/trees'
-// defaultChildrenComparator across full paths: at each segment a directory
-// (a path with deeper segments) sorts before a file, dot-prefixed names sort
-// first, then case-insensitive localeCompare breaks the tie.
-function compareTreePaths(a: string, b: string): number {
+// Single ordering rule shared by the sidebar tree and the flat diff list so
+// the two cannot drift apart if @pierre/trees changes its own default sort.
+// Directories sort before files, dot-prefixed names first, then
+// case-insensitive locale order.
+function compareTreeSiblings(
+	aName: string,
+	aIsDirectory: boolean,
+	bName: string,
+	bIsDirectory: boolean,
+): number {
+	if (aIsDirectory !== bIsDirectory) {
+		return aIsDirectory ? -1 : 1;
+	}
+	const aIsDot = aName.charCodeAt(0) === 46;
+	const bIsDot = bName.charCodeAt(0) === 46;
+	if (aIsDot !== bIsDot) {
+		return aIsDot ? -1 : 1;
+	}
+	return aName.toLowerCase().localeCompare(bName.toLowerCase());
+}
+
+// Passed to useFileTree so the sidebar uses compareTreeSiblings rather than
+// the library's undocumented defaultChildrenComparator.
+const treeSortComparator: FileTreeSortComparator = (left, right) =>
+	compareTreeSiblings(
+		left.basename,
+		left.isDirectory,
+		right.basename,
+		right.isDirectory,
+	);
+
+// Orders the flat diff list to the sidebar tree's leaf order so scrolling
+// moves monotonically down the tree. Walks segments applying
+// compareTreeSiblings, treating any non-final segment as a directory, so it
+// stays consistent with treeSortComparator by construction. Exported for unit
+// tests that pin the shared ordering.
+export function compareTreePaths(a: string, b: string): number {
 	const aSegments = a.split("/");
 	const bSegments = b.split("/");
 	const length = Math.min(aSegments.length, bSegments.length);
 	for (let i = 0; i < length; i++) {
-		const aSegment = aSegments[i];
-		const bSegment = bSegments[i];
-		const aIsFile = i === aSegments.length - 1;
-		const bIsFile = i === bSegments.length - 1;
-		if (aIsFile !== bIsFile) {
-			return aIsFile ? 1 : -1;
-		}
-		if (aSegment !== bSegment) {
-			const aIsDot = aSegment.charCodeAt(0) === 46;
-			const bIsDot = bSegment.charCodeAt(0) === 46;
-			if (aIsDot !== bIsDot) {
-				return aIsDot ? -1 : 1;
-			}
-			return aSegment.toLowerCase().localeCompare(bSegment.toLowerCase());
+		const aIsDirectory = i < aSegments.length - 1;
+		const bIsDirectory = i < bSegments.length - 1;
+		if (aSegments[i] !== bSegments[i] || aIsDirectory !== bIsDirectory) {
+			return compareTreeSiblings(
+				aSegments[i],
+				aIsDirectory,
+				bSegments[i],
+				bIsDirectory,
+			);
 		}
 	}
 	return aSegments.length - bSegments.length;
@@ -219,6 +245,7 @@ function DiffFileTree({
 		flattenEmptyDirectories: false,
 		gitStatus,
 		initialExpansion: "open",
+		sort: treeSortComparator,
 		unsafeCSS: fileTreeUnsafeCSS,
 		onSelectionChange: (selectedPaths) => {
 			const selectedPath = selectedPaths.at(-1) ?? null;

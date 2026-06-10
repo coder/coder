@@ -1271,9 +1271,7 @@ export const MCPToolCompleted: Story = {
 		await userEvent.click(toggle);
 		expect(canvas.getByText("Input")).toBeVisible();
 		expect(canvas.getByText("Output")).toBeVisible();
-		await waitFor(() => {
-			expect(canvasElement.querySelectorAll("diffs-container")).toHaveLength(2);
-		});
+		await expectDiffText(canvasElement, "Fix auth flow");
 	},
 };
 
