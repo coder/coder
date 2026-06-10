@@ -264,25 +264,20 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		})
 
 		t.Run("SkipsDeletedModelConfig", func(t *testing.T) {
-			// The SQL query guards on deleted = FALSE, so soft-deleted model
-			// configs are not updated. There is no query that returns
-			// soft-deleted configs, so we cannot directly read the provider
-			// column on the deleted row. Instead we record the count of
-			// visible configs before and after to confirm the backfill does
-			// not resurrect the deleted row.
+			// The SQL query guards on deleted = FALSE. Capture the config ID
+			// before deletion so we delete the right row regardless of ordering.
 			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AiProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
-			_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 				Provider:     "anthropic",
 				AIProviderID: uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
 			})
 
 			before, err := db.GetChatModelConfigs(ctx)
 			require.NoError(t, err)
-			// Soft-delete the config after recording the count.
-			require.NoError(t, db.DeleteChatModelConfigByID(ctx, before[len(before)-1].ID))
+			require.NoError(t, db.DeleteChatModelConfigByID(ctx, cfg.ID))
 
 			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
 
