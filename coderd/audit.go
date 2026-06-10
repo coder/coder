@@ -620,6 +620,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 			return ""
 		}
 		return fmt.Sprintf("/organizations/%s/groups/%s", org.Name, group.Name)
+	case database.ResourceTypeUserAiBudgetOverride:
+		// TODO: point at the user's AI budget override management page
+		// once it ships. Until then, the audit row links nowhere.
+		return ""
 	default:
 		return ""
 	}
