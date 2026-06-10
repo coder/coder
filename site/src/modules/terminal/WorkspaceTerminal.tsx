@@ -136,6 +136,8 @@ export const WorkspaceTerminal = ({
 			terminal.focus();
 		}
 	};
+	const canPasteFromClipboard =
+		typeof navigator.clipboard?.readText === "function";
 
 	const reportTerminalError = useEffectEvent((error: Error) => {
 		console.error(error);
@@ -610,9 +612,11 @@ export const WorkspaceTerminal = ({
 					>
 						Copy
 					</ContextMenuItem>
-					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
-						Paste
-					</ContextMenuItem>
+					{canPasteFromClipboard && (
+						<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+							Paste
+						</ContextMenuItem>
+					)}
 				</ContextMenuContent>
 			</ContextMenu>
 		</>
