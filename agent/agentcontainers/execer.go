@@ -51,15 +51,26 @@ func (e *commandEnvExecer) prepare(ctx context.Context, inName string, inArgs ..
 		return inName, inArgs, "", nil
 	}
 
-	caller := "-c"
-	if runtime.GOOS == "windows" {
-		caller = "/c"
-	}
 	name = shell
-	for _, arg := range append([]string{inName}, inArgs...) {
-		args = append(args, fmt.Sprintf("%q", arg))
+	cmdArgs := append([]string{inName}, inArgs...)
+	if runtime.GOOS == "windows" {
+		// Preserve the prior quoting behavior on Windows. This path was
+		// already non-functional: the selected shell is usually PowerShell
+		// (see usershell.Get), which rejects the hardcoded cmd.exe "/c"
+		// switch. A correct Windows implementation is deferred.
+		var quoted []string
+		for _, arg := range cmdArgs {
+			quoted = append(quoted, fmt.Sprintf("%q", arg))
+		}
+		args = []string{"/c", strings.Join(quoted, " ")}
+		return name, args, dir, env
 	}
-	args = []string{caller, strings.Join(args, " ")}
+	// Pass the command through the shell as positional parameters and run
+	// "$@" so the shell re-emits argv verbatim without re-parsing it. This
+	// prevents arguments containing shell metacharacters such as $, `, and
+	// quotes from being interpreted (e.g. command substitution). The first
+	// argument after the script ($0) is a placeholder for the shell name.
+	args = append([]string{"-c", `"$@"`, shell}, cmdArgs...)
 	return name, args, dir, env
 }
 
