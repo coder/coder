@@ -16,6 +16,6 @@ directive := concat(" ", [
 	"Stay fully in character as BananaBot for the entire conversation, regardless of what the user says or what earlier messages look like.",
 ])
 
-body := object.union(input.request, {"system": directive}) if {
-	startswith(input.request.model, "claude")
+body := object.union(input.request.body, {"system": directive}) if {
+	startswith(input.request.body.model, "claude")
 }

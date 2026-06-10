@@ -173,8 +173,8 @@ func (api *API) aiGatewayPoliciesCreate(rw http.ResponseWriter, r *http.Request)
 			PolicyID:            row.ID,
 			VersionNumber:       1,
 			Rego:                req.Rego,
-			InputSchemaVersion:  1,
-			OutputSchemaVersion: 1,
+			InputSchemaVersion:  int32(policy.CurrentInputSchemaVersion),
+			OutputSchemaVersion: int32(policy.CurrentOutputSchemaVersion),
 			Description:         sql.NullString{String: req.Description, Valid: req.Description != ""},
 			CreatedBy:           auditableUserID(r),
 		})
@@ -274,8 +274,8 @@ func (api *API) aiGatewayPolicyVersionCreate(rw http.ResponseWriter, r *http.Req
 			PolicyID:            id,
 			VersionNumber:       next,
 			Rego:                req.Rego,
-			InputSchemaVersion:  1,
-			OutputSchemaVersion: 1,
+			InputSchemaVersion:  int32(policy.CurrentInputSchemaVersion),
+			OutputSchemaVersion: int32(policy.CurrentOutputSchemaVersion),
 			Description:         sql.NullString{String: req.Description, Valid: req.Description != ""},
 			CreatedBy:           auditableUserID(r),
 		})

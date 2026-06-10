@@ -250,7 +250,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// call before releasing it. A nil gate (no pre-tool pipeline) is a
 		// no-op. The gate captures the post-pre-req body and accumulated
 		// classifications.
-		if gate := hooks.toolGate(p.Name(), payload.Body(), actor, classifications, m, logger); gate != nil {
+		if gate := hooks.toolGate(p.Name(), headerMap(r.Header, remoteIP(r)), r.Method, r.URL.Path, payload.Body(), actor, classifications, m, logger); gate != nil {
 			ctx = intercept.WithToolGate(ctx, gate)
 			r = r.WithContext(ctx)
 		}

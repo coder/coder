@@ -9,12 +9,12 @@ import (
 )
 
 // benchDecidePolicy mirrors the prototype decision policy: it reads
-// input.request.model and BLOCKs "haiku" models.
+// input.request.body.model and BLOCKs "haiku" models.
 const benchDecidePolicy = `
 default verdict := "ALLOW"
 
 verdict := "BLOCK" if {
-	model := lower(object.get(input.request, "model", ""))
+	model := lower(object.get(input.request.body, "model", ""))
 	contains(model, "haiku")
 }
 `
@@ -22,7 +22,7 @@ verdict := "BLOCK" if {
 // benchClassifyPolicy attaches a single annotation, to exercise pipeline
 // threading cost.
 const benchClassifyPolicy = `
-annotations := {"is_haiku": contains(lower(object.get(input.request, "model", "")), "haiku")}
+annotations := {"is_haiku": contains(lower(object.get(input.request.body, "model", "")), "haiku")}
 `
 
 // requestBody builds a body resembling an Anthropic /v1/messages payload with
@@ -59,7 +59,7 @@ func BenchmarkBuildInput(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(len(tc.body)))
 			for b.Loop() {
-				if _, err := policy.BuildInput(tc.body, nil); err != nil {
+				if _, err := (policy.PreReqEnvelope{Request: tc.body}).Build(); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -77,7 +77,7 @@ func BenchmarkDecideEvaluate(b *testing.B) {
 	}
 	ctx := b.Context()
 	for _, tc := range benchBodies {
-		in, err := policy.BuildInput(tc.body, nil)
+		in, err := policy.PreReqEnvelope{Request: tc.body}.Build()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func BenchmarkPipelineEvaluate(b *testing.B) {
 	}
 	ctx := b.Context()
 	for _, tc := range benchBodies {
-		in, err := policy.BuildInput(tc.body, nil)
+		in, err := policy.PreReqEnvelope{Request: tc.body}.Build()
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -96,7 +96,7 @@ func TestBridgePolicy_Block(t *testing.T) {
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
 		Decide: []*policy.Decide{mustDecide(t, "model-blocker", `
 default verdict := "ALLOW"
-verdict := "BLOCK" if input.request.model == "blocked"
+verdict := "BLOCK" if input.request.body.model == "blocked"
 `)},
 	})
 	require.NoError(t, err)
@@ -111,11 +111,11 @@ verdict := "BLOCK" if input.request.model == "blocked"
 func TestBridgePolicy_FailClosed(t *testing.T) {
 	t.Parallel()
 
-	// object.get on a string (input.request.model) is a builtin type error.
+	// object.get on a string (input.request.body.model) is a builtin type error.
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
 		Decide: []*policy.Decide{mustDecide(t, "type-error", `
 default verdict := "ALLOW"
-verdict := "BLOCK" if object.get(input.request.model, "k", "") == ""
+verdict := "BLOCK" if object.get(input.request.body.model, "k", "") == ""
 `)},
 	})
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestBridgePolicy_Route(t *testing.T) {
 	t.Parallel()
 
 	route, err := policy.NewRoute("model-router", `
-model := "routed-model" if input.request.model == "original"
+model := "routed-model" if input.request.body.model == "original"
 `)
 	require.NoError(t, err)
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{Route: route})
@@ -158,7 +158,7 @@ func TestBridgePolicy_Transform(t *testing.T) {
 
 	tr, err := policy.NewTransform("max-tokens-clamp", `
 ceiling := 8192
-body := object.union(input.request, {"max_tokens": ceiling}) if object.get(input.request, "max_tokens", 0) > ceiling
+body := object.union(input.request.body, {"max_tokens": ceiling}) if object.get(input.request.body, "max_tokens", 0) > ceiling
 `)
 	require.NoError(t, err)
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{Transform: []*policy.Transform{tr}})

@@ -20,12 +20,12 @@ func TestValidate(t *testing.T) {
 		{
 			name:   "decide with default verdict",
 			kind:   policy.KindDecide,
-			module: "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if input.request.model == \"x\"",
+			module: "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if input.request.body.model == \"x\"",
 		},
 		{
 			name:    "decide missing default fails open",
 			kind:    policy.KindDecide,
-			module:  "verdict := \"BLOCK\" if input.request.model == \"x\"",
+			module:  "verdict := \"BLOCK\" if input.request.body.model == \"x\"",
 			wantErr: true,
 		},
 		{
@@ -48,12 +48,12 @@ func TestValidate(t *testing.T) {
 		{
 			name:   "route defines model",
 			kind:   policy.KindRoute,
-			module: "model := \"gpt-4o-mini\" if input.request.model == \"gpt-4o\"",
+			module: "model := \"gpt-4o-mini\" if input.request.body.model == \"gpt-4o\"",
 		},
 		{
 			name:   "transform defines body",
 			kind:   policy.KindTransform,
-			module: "body := object.union(input.request, {\"max_tokens\": 100})",
+			module: "body := object.union(input.request.body, {\"max_tokens\": 100})",
 		},
 		{
 			name:    "invalid rego",

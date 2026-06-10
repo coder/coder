@@ -9,9 +9,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/policy"
 )
 
-func buildToolInput(t *testing.T, call policy.ToolCall, body string, identity map[string]any) policy.Input {
+func buildToolInput(t *testing.T, call policy.ToolCall, body string, identity policy.Identity) policy.Input {
 	t.Helper()
-	in, err := policy.BuildToolInput(call, []byte(body), identity)
+	in, err := policy.PreToolEnvelope{ToolCall: call, Request: []byte(body), Identity: identity}.
+		Build()
 	require.NoError(t, err)
 	return in
 }
@@ -37,7 +38,7 @@ verdict := "BLOCK" if {
 		Name:      "bash",
 		Arguments: json.RawMessage(`{"command":"rm -rf /"}`),
 		Index:     0,
-	}, `{"model":"claude"}`, nil))
+	}, `{"model":"claude"}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictBlock, res.Verdict)
 	require.Equal(t, "block-bash", res.BlockedBy)
@@ -48,7 +49,7 @@ verdict := "BLOCK" if {
 		Name:      "read_file",
 		Arguments: json.RawMessage(`{"command":"rm -rf /"}`),
 		Index:     1,
-	}, `{"model":"claude"}`, nil))
+	}, `{"model":"claude"}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictAllow, res.Verdict)
 }
@@ -59,19 +60,19 @@ func TestBuildToolInput_IndexAndIdentityVisible(t *testing.T) {
 	decide, err := policy.NewDecide("gate", `
 default verdict := "ALLOW"
 verdict := "LOG" if input.tool_call.index >= 2
-verdict := "BLOCK" if input.identity.metadata.role == "contractor"
+verdict := "BLOCK" if "contractor" in input.identity.roles
 `)
 	require.NoError(t, err)
 	pipe, err := policy.NewToolPipeline(policy.PipelineConfig{Decide: []*policy.Decide{decide}})
 	require.NoError(t, err)
 
 	res, err := pipe.Evaluate(t.Context(), buildToolInput(t, policy.ToolCall{Name: "x", Index: 3}, `{}`,
-		map[string]any{"metadata": map[string]any{"role": "admin"}}))
+		policy.Identity{Roles: []string{"admin"}}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictLog, res.Verdict)
 
 	res, err = pipe.Evaluate(t.Context(), buildToolInput(t, policy.ToolCall{Name: "x", Index: 0}, `{}`,
-		map[string]any{"metadata": map[string]any{"role": "contractor"}}))
+		policy.Identity{Roles: []string{"contractor"}}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictBlock, res.Verdict)
 }
@@ -89,7 +90,7 @@ verdict := "BLOCK" if object.get(input.tool_call.arguments, "x", "") == "y"
 	pipe, err := policy.NewToolPipeline(policy.PipelineConfig{Decide: []*policy.Decide{decide}})
 	require.NoError(t, err)
 
-	res, err := pipe.Evaluate(t.Context(), buildToolInput(t, policy.ToolCall{Name: "x"}, `{}`, nil))
+	res, err := pipe.Evaluate(t.Context(), buildToolInput(t, policy.ToolCall{Name: "x"}, `{}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictAllow, res.Verdict)
 }
@@ -97,10 +98,13 @@ verdict := "BLOCK" if object.get(input.tool_call.arguments, "x", "") == "y"
 func TestBuildToolInput_InvalidArgsErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := policy.BuildToolInput(policy.ToolCall{
-		Name:      "x",
-		Arguments: json.RawMessage(`{not valid json`),
-	}, []byte(`{}`), nil)
+	_, err := policy.PreToolEnvelope{
+		ToolCall: policy.ToolCall{
+			Name:      "x",
+			Arguments: json.RawMessage(`{not valid json`),
+		},
+		Request: []byte(`{}`),
+	}.Build()
 	require.Error(t, err)
 }
 

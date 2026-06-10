@@ -47,6 +47,17 @@ func KindValidAtHook(h Hook, k Kind) bool {
 	}
 }
 
+// CurrentOutputSchemaVersion is the output-contract generation new policy
+// versions are stamped with at create/edit (stored in
+// ai_gateway_policy_versions.output_schema_version). Like the input stamp
+// (CurrentInputSchemaVersion) it is forensic, not a runtime selector: the host
+// always consumes the current output contract. The contract per kind (the
+// entrypoint rule plus the accepted output type) is kept backward compatible by
+// the output shape guard in output_guard_test.go; it may be widened (accept an
+// additional shape, which bumps this) but never narrowed. Tightening what the
+// host accepts would break already-deployed policies.
+const CurrentOutputSchemaVersion = SchemaV1
+
 // EntrypointRule returns the Rego rule a policy of the given kind must define
 // within the gateway package. ok is false for an unknown kind.
 func EntrypointRule(k Kind) (rule string, ok bool) {

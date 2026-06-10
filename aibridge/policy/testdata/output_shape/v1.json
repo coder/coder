@@ -1,0 +1,18 @@
+{
+  "classify": {
+    "accepts": "object of arbitrary annotation keys",
+    "rule": "annotations"
+  },
+  "decide": {
+    "accepts": "string verdict in {ALLOW,LOG,BLOCK}",
+    "rule": "verdict"
+  },
+  "route": {
+    "accepts": "string model name",
+    "rule": "model"
+  },
+  "transform": {
+    "accepts": "JSON object body",
+    "rule": "body"
+  }
+}

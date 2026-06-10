@@ -150,13 +150,31 @@ per hook — see §10.
 
 - **pre-auth** — raw request, headers, credentials; identity **not** yet
   resolved. For cheap, identity-free gating before paying auth cost.
-- **pre-req** — + resolved identity, groups, attributes, full body, request-time
-  enrichment. The richest hook; most policies live here.
+- **pre-req** — + resolved identity, headers, full request, request-time
+  enrichment. The richest hook; most policies live here. It is a **superset of
+  pre-auth minus credential** (the credential is resolved into identity by now,
+  so re-exposing the raw secret is needless attack surface).
 - **pre-tool** — fires **once per assembled, client-bound tool call**, before
-  the call is released to the client (see §3b). Envelope carries `input.tool_call`
-  ({id, name, arguments, index}) plus the request body, identity, and threaded
-  annotations. Only classify and decide are valid: the request is already
-  dispatched (no route) and a flushed stream cannot be rewritten (no transform).
+  the call is released to the client (see §3b). A superset of pre-req plus
+  `input.tool_call` ({id, name, arguments, index}). Only classify and decide are
+  valid: the request is already dispatched (no route) and a flushed stream cannot
+  be rewritten (no transform).
+
+**Envelope field contracts (as built).** The host-built parts of the envelope
+are typed, owned by `aibridge/policy`, and frozen by the shape guard (§10.4):
+
+- `input.request` = `{ method, path, body }` where `method`/`path` are
+  gateway-owned and **`body` is the provider-native request body** (parsed but
+  otherwise opaque, since its shape is the upstream provider's contract, not
+  ours, so it is excluded from the shape guard).
+- `input.identity` = `{ id, username, groups[], roles[] }`, a typed contract
+  **decoupled from the upstream-forwarded actor metadata** so it cannot leak to
+  the provider. `groups`/`roles` are always materialized as arrays (never
+  undefined); they are reserved-empty until the `IsAuthorized` RPC carries them.
+- `input.headers` = lowercase header → first value (plus synthesized
+  `x-remote-addr`), present from pre-auth onward.
+- `input.annotations` = the threaded classify/guardrail outputs, seeded `{}` at
+  every hook so a read is defined-but-empty rather than undefined.
 - **post-resp** — original request + response (+ annotations accumulated from
   earlier hooks). Output inspection / transform. Has two execution modes for
   streamed responses (see "Output inspection").
@@ -417,12 +435,7 @@ flowchart TD
 
   TR --> UP["Upstream provider<br/>routed model"]
   UP --> PT["pre-tool hook<br/>per client-bound tool call<br/>classify · decide only<br/>hold · ALLOW flush / BLOCK terminate"]
-  PT --> SW{"streaming?"}
-  SW -->|buffered| PB["post-resp hook<br/>classify · decide · transform"]
-  SW -->|windowed| PW["windowed hook<br/>classify · decide only<br/>per SSE event"]
-  PB --> RC["Client — response"]
-  PW --> RC
-  PT -. BLOCK 400 / terminate .-> RC
+  PT --> RC["Client — response<br/>(stream-through)"]
 
   GR -. annotations .-> CL
   GR -.-> DE
@@ -432,13 +445,12 @@ flowchart TD
   PA -. BLOCK .-> RC
   GR -. BLOCK 400 .-> RC
   DE -. BLOCK .-> RC
-  PB -. BLOCK .-> RC
-  PW -. halt .-> RC
+  PT -. BLOCK 400 / terminate .-> RC
 
   classDef hook fill:#EEEDFE,stroke:#534AB7,color:#26215C;
   classDef step fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
   classDef prov fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-  class PA,GR,CL,RO,DE,TR,PT,PB,PW hook;
+  class PA,GR,CL,RO,DE,TR,PT hook;
   class C,AU,RC step;
   class UP prov;
 ```
@@ -968,23 +980,60 @@ ever persisted. **No shelling out** — use the OPA Go libraries:
   *is* built: `pre_req`-only hook, required mode/fail_mode, and that the
   referenced guardrail version exists.
 
-### 10.4 Backward compatibility (HARD requirement: never break an existing policy)
+### 10.4 Backward compatibility (HARD requirement: never break an existing policy) [AS BUILT]
 
-- **Append-only schema registry.** Per-kind input-per-hook and output schemas are
-  versioned JSON Schema, embedded in-binary (`embed`, `schemas/<kind>/<hook>/vN.json`),
-  loaded into a version-keyed map. Once published, a schema version's bytes are
-  **immutable**; new requirements mint a new version. The binary retains **all**
-  historical versions because stored policies reference old ones.
-- **Bound at registration, frozen.** A `policy_version` stores
-  `input_schema_version` / `output_schema_version`; re-validation on reload uses
-  the bound version, never "latest".
-- **Additive-only `Input` envelope.** The runtime `aibridge/policy.Input` struct
-  evolves by **adding** fields only — never remove/rename/retype. The live
-  envelope is always a superset, so a policy authored against an old schema always
-  finds its fields.
-- **CI breaking-change guard (required).** A CI check diffs schema files and the
-  `Input` struct against the previous commit and **fails** on any schema-version
-  mutation or field removal/rename/retype.
+The hard requirement (never break a deployed policy) is met by a **structural BC
+guarantee enforced by shape guards**, not by building per-version envelopes at
+runtime. The earlier "version-keyed runtime envelope" idea was dropped as
+over-engineered: it required juggling per-policy envelope versions, mixed-version
+hooks, and overlay-threading of classify annotations across versions, all to
+defend a case the structural guarantee already covers.
+
+- **Per-hook envelope structs, single `Build()`.** `aibridge/policy` defines
+  `PreAuthEnvelope` / `PreReqEnvelope` / `PreToolEnvelope`, each with a `Build()`
+  that produces the **current** envelope shape. There is **no** runtime version
+  switch: the host always builds the latest shape.
+- **Forensic version stamps, not runtime selectors.** `CurrentInputSchemaVersion`
+  and `CurrentOutputSchemaVersion` are stamped onto each `policy_version`
+  (`input_schema_version` / `output_schema_version`) at create/edit. Nothing
+  reads them at evaluation time; they exist so an audit can correlate a regression
+  to the envelope/output generation a policy was authored against.
+- **Input contract: never remove/rename/retype a field.** Fields may be **added**
+  (which bumps `CurrentInputSchemaVersion`). Because nothing is ever removed, the
+  current envelope is always a superset and an old policy still finds the paths it
+  reads. **Accepted residual risk:** *adding* a field can still change the verdict
+  of a policy that probed the previously-undefined path (`not input.foo` flips
+  when `foo` appears). This is accepted, not engineered around: additions are
+  rare, reviewed, and LOG-first rollout plus per-policy tests catch regressions;
+  the alternative (per-version envelopes) is a permanent complexity tax for a
+  low-probability, reviewable event.
+- **Output contract: widen, never narrow.** The host *consumes* policy output, so
+  the rule is the mirror image: the accepted output per kind (entrypoint rule +
+  type) may be **widened** (bumps `CurrentOutputSchemaVersion`) but never
+  narrowed/renamed. A genuinely new output *role* gets a **new kind**, never a
+  reused kind with a changed output shape (kind = semantic role, immutable on the
+  policy; a kind change is a new policy, not a new version, so it is reserved for
+  new roles like a hypothetical `redact`, not for shape revisions).
+- **Shape guards (as built), shape-change ⇒ version-bump coupling.** Two
+  in-package Go tests enforce the above by inspecting the **real contract**, not
+  the Go structs:
+  - `schema_guard_test.go` builds each hook's envelope, walks the resulting
+    `ast.Value`, and pins a `path:type` snapshot of the **fixed** skeleton
+    (excluding the variable-content subtrees `request.*` and
+    `tool_call.arguments.*`) against `testdata/envelope_shape/vN.json`.
+  - `output_guard_test.go` feeds each kind's representative output through the
+    real consumer (`{decide,classify,route,transform}.Evaluate`) to catch a
+    narrowed type assertion or renamed entrypoint rule, and pins
+    (kind → rule, accepts) against `testdata/output_shape/vN.json`.
+  - The golden filename is the current version, and the guard asserts the current
+    shape differs from every frozen prior `vN`, so a shape/contract change cannot
+    land without bumping the version (the stamp cannot silently lie). Regenerate
+    with `POLICY_SCHEMA_UPDATE=1 go test ./aibridge/policy/...` and commit the new
+    `vN` file; prior files are immutable.
+- **Not built:** the embedded JSON-Schema registry (`schemas/<kind>/<hook>/vN.json`)
+  and `opa check -s` against it. The Go shape guards are the lighter-weight
+  compensating control; a JSON-Schema registry can layer on later if operator-
+  facing published schemas are needed.
 
 ### 10.5 Runtime swap
 

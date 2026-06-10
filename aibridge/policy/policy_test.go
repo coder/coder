@@ -22,9 +22,10 @@ var routingPolicy string
 //go:embed examples/transform.rego
 var transformPolicy string
 
-func buildInput(t *testing.T, body string, identity map[string]any) policy.Input {
+func buildInput(t *testing.T, body string, identity policy.Identity) policy.Input {
 	t.Helper()
-	in, err := policy.BuildInput([]byte(body), identity)
+	in, err := policy.PreReqEnvelope{Request: []byte(body), Identity: identity}.
+		Build()
 	require.NoError(t, err)
 	return in
 }
@@ -51,7 +52,7 @@ func TestDecide_BlockBananaPrompt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			v, err := d.Evaluate(t.Context(), buildInput(t, tc.body, nil))
+			v, err := d.Evaluate(t.Context(), buildInput(t, tc.body, policy.Identity{}))
 			require.NoError(t, err)
 			require.Equal(t, tc.want, v)
 		})
@@ -65,7 +66,7 @@ func TestClassify_Annotations(t *testing.T) {
 	require.NoError(t, err)
 
 	body := `{"model":"gpt-4o","messages":[{"role":"user","content":"a"},{"role":"user","content":"b"}],"tools":[{"name":"t"}],"stream":true}`
-	ann, ok, err := c.Evaluate(t.Context(), buildInput(t, body, nil))
+	ann, ok, err := c.Evaluate(t.Context(), buildInput(t, body, policy.Identity{}))
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, json.Number("2"), ann["message_count"])
@@ -81,7 +82,7 @@ func TestRoute_Downgrade(t *testing.T) {
 
 	t.Run("non_premium_downgraded", func(t *testing.T) {
 		t.Parallel()
-		model, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, map[string]any{"groups": []string{"eng"}}))
+		model, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"eng"}}))
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, "claude-sonnet-4-6", model)
@@ -89,14 +90,14 @@ func TestRoute_Downgrade(t *testing.T) {
 
 	t.Run("premium_untouched", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, map[string]any{"groups": []string{"premium"}}))
+		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"premium"}}))
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
 
 	t.Run("other_model_untouched", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, nil))
+		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.False(t, ok)
 	})
@@ -116,7 +117,7 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 
 	t.Run("no_system_set", func(t *testing.T) {
 		t.Parallel()
-		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","max_tokens":1024}`, nil))
+		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","max_tokens":1024}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.True(t, ok)
 		var got map[string]any
@@ -127,7 +128,7 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 
 	t.Run("string_system_replaced", func(t *testing.T) {
 		t.Parallel()
-		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":"You are a helpful assistant."}`, nil))
+		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":"You are a helpful assistant."}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.True(t, ok)
 		var got map[string]any
@@ -137,7 +138,7 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 
 	t.Run("array_system_replaced", func(t *testing.T) {
 		t.Parallel()
-		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"You are a helpful assistant."}]}`, nil))
+		body, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"You are a helpful assistant."}]}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.True(t, ok)
 		var got map[string]any
@@ -147,7 +148,7 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 
 	t.Run("non_anthropic_noop", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, nil))
+		_, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.False(t, ok)
 	})

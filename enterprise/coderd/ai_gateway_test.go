@@ -22,7 +22,7 @@ func TestAIGatewayPoliciesCRUD(t *testing.T) {
 		_, err := client.CreateAIGatewayPolicy(ctx, codersdk.CreateAIGatewayPolicyRequest{
 			Name: "bad",
 			Kind: codersdk.AIGatewayPolicyKindDecide,
-			Rego: `verdict := "BLOCK" if input.request.model == "x"`,
+			Rego: `verdict := "BLOCK" if input.request.body.model == "x"`,
 		})
 		require.Error(t, err)
 	})

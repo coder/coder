@@ -99,7 +99,10 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	ph := h.byProvider[provider]
 
 	if ph.PreAuth != nil {
-		in, err := policy.BuildAuthInput(headerMap(r.Header, remoteIP(r)), credentialMap(r))
+		in, err := policy.PreAuthEnvelope{
+			Headers:    headerMap(r.Header, remoteIP(r)),
+			Credential: credentialMap(r),
+		}.Build()
 		if err != nil {
 			p, a, b := h.fail(w, ctx, hookPreAuth, "build pre-auth input", err, logger)
 			return p, a, nil, b
@@ -151,7 +154,13 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	}
 
 	if ph.PreReq != nil {
-		in, err := policy.BuildInput(payload.Body(), identityMap(actor))
+		in, err := policy.PreReqEnvelope{
+			Headers:  headerMap(r.Header, remoteIP(r)),
+			Method:   r.Method,
+			Path:     r.URL.Path,
+			Request:  payload.Body(),
+			Identity: identityFromActor(actor),
+		}.Build()
 		if err != nil {
 			p, a, b := h.fail(w, ctx, hookPreReq, "build pre-req input", err, logger)
 			return p, a, nil, b
@@ -181,7 +190,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 // capturing the (post-pre-req) request body, identity, and accumulated
 // annotations. It returns nil when the provider has no pre-tool pipeline, which
 // makes tool gating a no-op for the request.
-func (h policyHooks) toolGate(provider string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
+func (h policyHooks) toolGate(provider string, headers map[string]any, method, path string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
 	ph := h.byProvider[provider]
 	if ph.PreTool == nil {
 		return nil
@@ -191,8 +200,11 @@ func (h policyHooks) toolGate(provider string, body []byte, actor *aibcontext.Ac
 		failOpen:    ph.PreToolFailOpen,
 		version:     ph.Version,
 		provider:    provider,
+		headers:     headers,
+		method:      method,
+		path:        path,
 		body:        body,
-		identity:    identityMap(actor),
+		identity:    identityFromActor(actor),
 		annotations: annotations,
 		metrics:     m,
 		logger:      logger.With(slog.F("hook", hookPreTool), slog.F("pipeline_version", ph.Version)),
@@ -205,8 +217,11 @@ type policyToolGate struct {
 	failOpen    bool
 	version     int32
 	provider    string
+	headers     map[string]any
+	method      string
+	path        string
 	body        []byte
-	identity    map[string]any
+	identity    policy.Identity
 	annotations map[string]any
 	metrics     *metrics.Metrics
 	logger      slog.Logger
@@ -221,12 +236,19 @@ func (g *policyToolGate) ObserveHold(seconds float64) {
 }
 
 func (g *policyToolGate) EvaluateToolCall(ctx context.Context, call intercept.ToolCall) (intercept.ToolGateDecision, error) {
-	in, err := policy.BuildToolInput(policy.ToolCall{
-		ID:        call.ID,
-		Name:      call.Name,
-		Arguments: call.Arguments,
-		Index:     call.Index,
-	}, g.body, g.identity)
+	in, err := policy.PreToolEnvelope{
+		ToolCall: policy.ToolCall{
+			ID:        call.ID,
+			Name:      call.Name,
+			Arguments: call.Arguments,
+			Index:     call.Index,
+		},
+		Headers:  g.headers,
+		Method:   g.method,
+		Path:     g.path,
+		Request:  g.body,
+		Identity: g.identity,
+	}.Build()
 	if err != nil {
 		return intercept.ToolGateDecision{}, xerrors.Errorf("build pre-tool input: %w", err)
 	}
@@ -331,14 +353,17 @@ func credentialMap(r *http.Request) map[string]any {
 	}
 }
 
-func identityMap(actor *aibcontext.Actor) map[string]any {
+// identityFromActor maps the request actor to the typed policy identity. Only
+// id and username are available today; groups and roles are reserved (empty)
+// until the IsAuthorized RPC carries them (see aibridgedserver.IsAuthorized).
+// This is intentionally separate from actor.Metadata, which is forwarded
+// upstream and must stay non-sensitive.
+func identityFromActor(actor *aibcontext.Actor) policy.Identity {
 	if actor == nil {
-		return nil
+		return policy.Identity{}
 	}
-	return map[string]any{
-		"id":       actor.ID,
-		"metadata": map[string]any(actor.Metadata),
-	}
+	username, _ := actor.Metadata["Username"].(string)
+	return policy.Identity{ID: actor.ID, Username: username}
 }
 
 func mergeAnnotations(dst, src map[string]any) map[string]any {

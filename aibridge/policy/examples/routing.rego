@@ -4,7 +4,7 @@
 # Rule queried by the route kind: data.gateway.model
 
 model := "claude-sonnet-4-6" if {
-	input.request.model == "claude-opus-4-8"
+	input.request.body.model == "claude-opus-4-8"
 	not is_premium
 }
 

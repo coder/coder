@@ -10,10 +10,10 @@ import (
 )
 
 // errModule errors at evaluation time under StrictBuiltinErrors: object.get on
-// a string (input.request.model) is a builtin type error.
+// a string (input.request.body.model) is a builtin type error.
 const errModule = `
 default verdict := "ALLOW"
-verdict := "BLOCK" if { object.get(input.request.model, "k", "") == "" }
+verdict := "BLOCK" if { object.get(input.request.body.model, "k", "") == "" }
 `
 
 func mustDecide(t *testing.T, module string, opts ...policy.Option) *policy.Decide {
@@ -27,7 +27,7 @@ func TestPipeline_ClassifyAnnotationVisibleToDecide(t *testing.T) {
 	t.Parallel()
 
 	classify, err := policy.NewClassify("test-classify", `
-annotations := {"risk": "high"} if object.get(input.request, "max_tokens", 0) > 1000
+annotations := {"risk": "high"} if object.get(input.request.body, "max_tokens", 0) > 1000
 `)
 	require.NoError(t, err)
 	// LOG (a pass-through verdict) so the pipeline completes and surfaces the
@@ -45,13 +45,13 @@ verdict := "LOG" if input.annotations.risk == "high"
 
 	// High max_tokens -> classify sets risk=high -> decide (reading the
 	// threaded annotation) flags. The LOG proves the annotation was visible.
-	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":5000}`, nil))
+	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":5000}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictLog, res.Verdict)
 	require.Equal(t, "high", res.Annotations["risk"])
 
 	// Low max_tokens -> no annotation -> allowed.
-	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":100}`, nil))
+	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":100}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictAllow, res.Verdict)
 }
@@ -60,14 +60,14 @@ func TestPipeline_RouteModelVisibleToDecide(t *testing.T) {
 	t.Parallel()
 
 	route, err := policy.NewRoute("test-route", `
-model := "blocked-model" if input.request.model == "trigger"
+model := "blocked-model" if input.request.body.model == "trigger"
 `)
 	require.NoError(t, err)
 	// LOG (pass-through) so the rewritten body is surfaced rather than
 	// short-circuited by a BLOCK.
 	decide := mustDecide(t, `
 default verdict := "ALLOW"
-verdict := "LOG" if input.request.model == "blocked-model"
+verdict := "LOG" if input.request.body.model == "blocked-model"
 `)
 
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
@@ -78,7 +78,7 @@ verdict := "LOG" if input.request.model == "blocked-model"
 
 	// Route rewrites the model; the later decide sees the rewritten value (LOG
 	// only fires on the rewritten model).
-	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"trigger"}`, nil))
+	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"trigger"}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictLog, res.Verdict)
 
@@ -98,7 +98,7 @@ func TestPipeline_FailMode(t *testing.T) {
 			Decide: []*policy.Decide{mustDecide(t, errModule)}, // default FailClosed
 		})
 		require.NoError(t, err)
-		res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, nil))
+		res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.Equal(t, policy.VerdictBlock, res.Verdict)
 	})
@@ -109,7 +109,7 @@ func TestPipeline_FailMode(t *testing.T) {
 			Decide: []*policy.Decide{mustDecide(t, errModule, policy.WithFailMode(policy.FailOpen))},
 		})
 		require.NoError(t, err)
-		res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, nil))
+		res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 		require.NoError(t, err)
 		require.Equal(t, policy.VerdictAllow, res.Verdict)
 	})
@@ -131,7 +131,7 @@ body := {"mutated": true}
 	})
 	require.NoError(t, err)
 
-	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, nil))
+	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictBlock, res.Verdict)
 	require.Nil(t, res.RequestBody) // transform did not run
