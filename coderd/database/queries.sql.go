@@ -5542,10 +5542,8 @@ type BackfillChatModelConfigProviderParams struct {
 	OldProvider string `db:"old_provider" json:"old_provider"`
 }
 
-// Updates stale provider strings on model configs whose linked ai_providers row
-// has a canonical type that differs from the stored provider string.
-// old_provider is matched as plain text against chat_model_configs.provider;
-// new_provider is cast to ai_provider_type for the JOIN against ai_providers.type.
+// old_provider is matched as text; new_provider is also cast to ai_provider_type
+// for the EXISTS check against ai_providers.type.
 func (q *sqlQuerier) BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error) {
 	return q.db.ExecContext(ctx, backfillChatModelConfigProvider, arg.NewProvider, arg.OldProvider)
 }
