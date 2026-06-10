@@ -71,7 +71,10 @@ const POLICY_KINDS: AIGatewayPolicyKind[] = [
 	"transform",
 ];
 
-const HOOKS: AIGatewayHook[] = ["pre_auth", "pre_req"];
+// Hooks a policy member can be attached to. pre_tool gates each client-bound
+// tool call (classify/decide only); the server rejects kind-invalid (hook,
+// policy) pairs on submit, matching how pre_auth is handled here.
+const HOOKS: AIGatewayHook[] = ["pre_auth", "pre_req", "pre_tool"];
 
 const GUARDRAIL_MODES: AIGatewayGuardrailMode[] = ["advisory", "enforcing"];
 

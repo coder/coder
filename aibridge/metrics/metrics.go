@@ -35,8 +35,10 @@ type Metrics struct {
 	CircuitBreakerRejects *prometheus.CounterVec // Requests rejected due to open circuit
 
 	// Policy metrics.
-	PolicyVerdictCount *prometheus.CounterVec   // Verdicts produced per hook
-	PolicyEvalDuration *prometheus.HistogramVec // Pipeline evaluation latency per hook
+	PolicyVerdictCount     *prometheus.CounterVec   // Verdicts produced per hook
+	PolicyEvalDuration     *prometheus.HistogramVec // Pipeline evaluation latency per hook
+	PolicyToolVerdictCount *prometheus.CounterVec   // Pre-tool verdicts, per tool name
+	PolicyToolHoldDuration *prometheus.HistogramVec // How long a tool block is held for gating
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -150,5 +152,21 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			// the timeout, so saturation against it is visible.
 			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
 		}, []string{"provider", "hook"}),
+		// Pre-tool gating. Tool name is bounded by the deployment's configured
+		// tool surface. Pessimistic cardinality: 3 providers, ~30 tools, 3
+		// verdicts = up to 270.
+		PolicyToolVerdictCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "policy",
+			Name:      "tool_verdicts_total",
+			Help:      "The count of pre-tool hook verdicts, per provider and tool name.",
+		}, []string{"provider", "tool", "verdict"}),
+		// How long a client-bound tool block is held while the pre-tool pipeline
+		// evaluates it. The hold also includes upstream argument-generation time.
+		PolicyToolHoldDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Subsystem: "policy",
+			Name:      "tool_hold_duration_seconds",
+			Help:      "The duration a client-bound tool call is held for pre-tool gating, in seconds.",
+			Buckets:   []float64{0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5},
+		}, []string{"provider"}),
 	}
 }

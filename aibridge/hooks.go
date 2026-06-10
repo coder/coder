@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/guardrail"
@@ -29,6 +31,7 @@ const blockedByGuardrailMessage = "request blocked by guardrail"
 const (
 	hookPreAuth = "pre-auth"
 	hookPreReq  = "pre-req"
+	hookPreTool = "pre-tool"
 )
 
 // ProviderPipelines holds the compiled per-hook policy pipelines for a single
@@ -44,6 +47,14 @@ type ProviderPipelines struct {
 	// rewrite the body (masking), or attach annotations that the PreReq policy
 	// pipeline can read. A nil or empty stage is a no-op.
 	PreReqGuardrails *guardrail.Stage
+	// PreTool is the per-tool-call pipeline (classify + decide only). It is
+	// evaluated once per assembled, client-bound tool call before the call is
+	// released to the client. A nil pipeline is a no-op for that hook.
+	PreTool *policy.Pipeline
+	// PreToolFailOpen is the aggregate fail mode of the PreTool pipeline: true
+	// only when every decide member is fail-open. It governs the interceptor's
+	// behavior on an over-cap or incomplete held block that cannot be evaluated.
+	PreToolFailOpen bool
 	// Version is the active pipeline version that produced these pipelines. It
 	// is recorded on policy decisions so an audit can reconstruct exactly which
 	// version evaluated a past request.
@@ -164,6 +175,84 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	}
 
 	return payload, annotations, modifications, false
+}
+
+// toolGate builds an [intercept.ToolGate] for the provider's pre-tool pipeline,
+// capturing the (post-pre-req) request body, identity, and accumulated
+// annotations. It returns nil when the provider has no pre-tool pipeline, which
+// makes tool gating a no-op for the request.
+func (h policyHooks) toolGate(provider string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
+	ph := h.byProvider[provider]
+	if ph.PreTool == nil {
+		return nil
+	}
+	return &policyToolGate{
+		pipe:        ph.PreTool,
+		failOpen:    ph.PreToolFailOpen,
+		version:     ph.Version,
+		provider:    provider,
+		body:        body,
+		identity:    identityMap(actor),
+		annotations: annotations,
+		metrics:     m,
+		logger:      logger.With(slog.F("hook", hookPreTool), slog.F("pipeline_version", ph.Version)),
+	}
+}
+
+// policyToolGate adapts a pre-tool [policy.Pipeline] to [intercept.ToolGate].
+type policyToolGate struct {
+	pipe        *policy.Pipeline
+	failOpen    bool
+	version     int32
+	provider    string
+	body        []byte
+	identity    map[string]any
+	annotations map[string]any
+	metrics     *metrics.Metrics
+	logger      slog.Logger
+}
+
+func (g *policyToolGate) FailOpen() bool { return g.failOpen }
+
+func (g *policyToolGate) ObserveHold(seconds float64) {
+	if g.metrics != nil {
+		g.metrics.PolicyToolHoldDuration.WithLabelValues(g.provider).Observe(seconds)
+	}
+}
+
+func (g *policyToolGate) EvaluateToolCall(ctx context.Context, call intercept.ToolCall) (intercept.ToolGateDecision, error) {
+	in, err := policy.BuildToolInput(policy.ToolCall{
+		ID:        call.ID,
+		Name:      call.Name,
+		Arguments: call.Arguments,
+		Index:     call.Index,
+	}, g.body, g.identity)
+	if err != nil {
+		return intercept.ToolGateDecision{}, xerrors.Errorf("build pre-tool input: %w", err)
+	}
+	if len(g.annotations) > 0 {
+		in, err = in.WithAnnotations(g.annotations)
+		if err != nil {
+			return intercept.ToolGateDecision{}, xerrors.Errorf("thread annotations: %w", err)
+		}
+	}
+	res, err := g.pipe.Evaluate(ctx, in)
+	if err != nil {
+		return intercept.ToolGateDecision{}, err
+	}
+	if g.metrics != nil {
+		g.metrics.PolicyToolVerdictCount.WithLabelValues(g.provider, call.Name, string(res.Verdict)).Inc()
+	}
+	if res.Verdict.Blocks() {
+		g.logger.Debug(ctx, "tool call blocked by policy",
+			slog.F("tool", call.Name), slog.F("policy", res.BlockedBy))
+		return intercept.ToolGateDecision{
+			Block:     true,
+			BlockedBy: res.BlockedBy,
+			Reason:    fmt.Sprintf("tool call %q blocked by policy %q", call.Name, res.BlockedBy),
+		}, nil
+	}
+	return intercept.ToolGateDecision{}, nil
 }
 
 // evaluate runs a pipeline, records metrics, and blocks the response on a BLOCK

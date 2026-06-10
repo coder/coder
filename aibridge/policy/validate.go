@@ -16,6 +16,37 @@ const (
 	KindTransform Kind = "transform"
 )
 
+// Hook identifies where in the request lifecycle a policy stage runs. The hook
+// determines the input envelope and, in turn, which kinds are valid.
+type Hook string
+
+const (
+	HookPreAuth Hook = "pre_auth"
+	HookPreReq  Hook = "pre_req"
+	// HookPreTool fires once per assembled, client-bound tool call, before the
+	// call is released to the client. Only classify and decide are valid: the
+	// request is already dispatched (no route) and a flushed stream cannot be
+	// rewritten (no transform).
+	HookPreTool Hook = "pre_tool"
+)
+
+// KindValidAtHook reports whether a policy of kind k may run at hook h. An
+// unknown hook permits nothing. This mirrors the kind-validity matrix in the
+// policy engine design doc (§3) and is enforced both at registration and
+// defensively at load.
+func KindValidAtHook(h Hook, k Kind) bool {
+	switch h {
+	case HookPreAuth:
+		return k == KindClassify || k == KindDecide
+	case HookPreReq:
+		return k == KindClassify || k == KindRoute || k == KindDecide || k == KindTransform
+	case HookPreTool:
+		return k == KindClassify || k == KindDecide
+	default:
+		return false
+	}
+}
+
 // EntrypointRule returns the Rego rule a policy of the given kind must define
 // within the gateway package. ok is false for an unknown kind.
 func EntrypointRule(k Kind) (rule string, ok bool) {

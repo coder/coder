@@ -52,6 +52,7 @@ type bridgeConfig struct {
 	userID           string
 	metadata         recorder.Metadata
 	logger           slog.Logger
+	policyHooks      map[string]aibridge.ProviderPipelines
 }
 
 // bridgeTestServer wraps an httptest.Server running a RequestBridge.
@@ -119,6 +120,11 @@ func withMCP(p mcp.ServerProxier) bridgeOption {
 	return func(c *bridgeConfig) { c.mcpProxy = p }
 }
 
+// withPolicyHooks attaches per-provider policy pipelines keyed by provider name.
+func withPolicyHooks(byProvider map[string]aibridge.ProviderPipelines) bridgeOption {
+	return func(c *bridgeConfig) { c.policyHooks = byProvider }
+}
+
 // withActor sets the actor ID and metadata for the BaseContext.
 func withActor(id string, md recorder.Metadata) bridgeOption {
 	return func(c *bridgeConfig) { c.userID = id; c.metadata = md }
@@ -172,9 +178,14 @@ func newBridgeTestServer(
 		return mockRec, nil
 	})
 
+	var bridgeOpts []aibridge.RequestBridgeOption
+	if cfg.policyHooks != nil {
+		bridgeOpts = append(bridgeOpts, aibridge.WithPolicyHooks(cfg.policyHooks))
+	}
 	bridge, err := aibridge.NewRequestBridge(
 		ctx, providers, rec, cfg.mcpProxy,
 		cfg.logger, cfg.metrics, cfg.tracer,
+		bridgeOpts...,
 	)
 	require.NoError(t, err)
 

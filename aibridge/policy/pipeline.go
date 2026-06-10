@@ -61,6 +61,19 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	}, nil
 }
 
+// NewToolPipeline builds a pipeline for the pre-tool hook. Only classify and
+// decide are valid there (the request is already dispatched, so route and
+// transform are rejected), and classify is capped at one.
+func NewToolPipeline(cfg PipelineConfig) (*Pipeline, error) {
+	if cfg.Route != nil {
+		return nil, xerrors.New("route policy is not valid at the pre-tool hook")
+	}
+	if len(cfg.Transform) > 0 {
+		return nil, xerrors.New("transform policy is not valid at the pre-tool hook")
+	}
+	return NewPipeline(cfg)
+}
+
 // Result is the combined outcome of a pipeline.
 type Result struct {
 	// Verdict is the reduced decision across the pipeline.

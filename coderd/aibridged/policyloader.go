@@ -34,6 +34,12 @@ func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.
 	// activeVersion records each provider's live pipeline version for metrics.
 	activeVersion := make(map[string]int32)
 
+	// preToolFailOpen records each provider's aggregate pre-tool fail mode: it
+	// stays true only while every pre-tool member is fail-open. Any fail-closed
+	// member flips it false, so an unevaluable (over-cap/incomplete) tool block
+	// terminates the turn.
+	preToolFailOpen := make(map[string]bool)
+
 	// Group stage configs per (provider, hook). Rows arrive ordered by
 	// provider, hook, kind, then policy name, so decide ordering is stable.
 	type hookKey struct {
@@ -57,6 +63,14 @@ func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.
 		}
 
 		activeVersion[row.ProviderName] = row.PipelineVersionNumber
+
+		if row.Hook == database.AIGatewayHookPreTool {
+			fo, seen := preToolFailOpen[row.ProviderName]
+			if !seen {
+				fo = true
+			}
+			preToolFailOpen[row.ProviderName] = fo && row.FailMode == database.AIGatewayFailModeFailOpen
+		}
 
 		key := hookKey{row.ProviderName, row.Hook}
 		cfg := configs[key]
@@ -114,7 +128,14 @@ func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.
 
 	out := make(map[string]aibridge.ProviderPipelines)
 	for key, cfg := range configs {
-		pipe, err := policy.NewPipeline(*cfg)
+		// The pre-tool hook permits only classify and decide; build it through
+		// the constrained constructor so a route/transform smuggled past the
+		// kind-validity check is rejected.
+		newPipe := policy.NewPipeline
+		if key.hook == database.AIGatewayHookPreTool {
+			newPipe = policy.NewToolPipeline
+		}
+		pipe, err := newPipe(*cfg)
 		if err != nil {
 			// A malformed composition (e.g. >1 classify) should be impossible
 			// given the DB constraints; skip the whole hook for this provider
@@ -133,6 +154,9 @@ func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.
 			pp.PreAuth = pipe
 		case database.AIGatewayHookPreReq:
 			pp.PreReq = pipe
+		case database.AIGatewayHookPreTool:
+			pp.PreTool = pipe
+			pp.PreToolFailOpen = preToolFailOpen[key.provider]
 		}
 		out[key.provider] = pp
 	}
@@ -153,6 +177,10 @@ func hookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewayPolicyKi
 		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
 	case database.AIGatewayHookPreReq:
 		return true
+	case database.AIGatewayHookPreTool:
+		// The request is already dispatched, so route and transform do not
+		// apply; only classify and decide gate a tool call.
+		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
 	default:
 		return false
 	}

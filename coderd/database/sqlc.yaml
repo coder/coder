@@ -281,6 +281,7 @@ sql:
           ai_gateway_hook: AIGatewayHook
           ai_gateway_hook_pre_auth: AIGatewayHookPreAuth
           ai_gateway_hook_pre_req: AIGatewayHookPreReq
+          ai_gateway_hook_pre_tool: AIGatewayHookPreTool
           ai_gateway_fail_mode: AIGatewayFailMode
           ai_gateway_fail_mode_fail_open: AIGatewayFailModeFailOpen
           ai_gateway_fail_mode_fail_closed: AIGatewayFailModeFailClosed

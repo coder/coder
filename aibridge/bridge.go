@@ -245,6 +245,16 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		// Attach the per-tool-call gate (pre-tool hook) to the context so the
+		// streaming interceptor can evaluate each assembled, client-bound tool
+		// call before releasing it. A nil gate (no pre-tool pipeline) is a
+		// no-op. The gate captures the post-pre-req body and accumulated
+		// classifications.
+		if gate := hooks.toolGate(p.Name(), payload.Body(), actor, classifications, m, logger); gate != nil {
+			ctx = intercept.WithToolGate(ctx, gate)
+			r = r.WithContext(ctx)
+		}
+
 		interceptor, err := p.CreateInterceptor(w, r, payload, tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))

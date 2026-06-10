@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
@@ -12,8 +13,40 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
+
+// gateClientToolCalls evaluates every client-bound (non-injected) function_call
+// item in the response against the pre-tool gate, in output order. It returns
+// the first BLOCK decision and blocked=true; otherwise blocked=false. Index is
+// the ordinal of the call among client-bound calls in the turn.
+func (i *responsesInterceptionBase) gateClientToolCalls(ctx context.Context, gate intercept.ToolGate, response *responses.Response) (intercept.ToolGateDecision, bool) {
+	seq := 0
+	for _, item := range response.Output {
+		if item.Type != string(constant.ValueOf[constant.FunctionCall]()) {
+			continue
+		}
+		fc := item.AsFunctionCall()
+		// Injected (MCP) tool calls are executed server-side and never reach the
+		// client, so they are not gated here.
+		if i.mcpProxy != nil && i.mcpProxy.GetTool(fc.Name) != nil {
+			continue
+		}
+		call := intercept.ToolCall{
+			ID:        fc.CallID,
+			Name:      fc.Name,
+			Arguments: json.RawMessage(fc.Arguments),
+			Index:     seq,
+		}
+		seq++
+		outcome, dec := intercept.ResolveHeldToolCall(ctx, gate, call, 0, time.Time{})
+		if outcome == intercept.ToolHoldTerminate {
+			return dec, true
+		}
+	}
+	return intercept.ToolGateDecision{}, false
+}
 
 func (i *responsesInterceptionBase) injectTools() {
 	if i.mcpProxy == nil || !i.hasInjectableTools() {

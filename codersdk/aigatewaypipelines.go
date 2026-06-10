@@ -124,7 +124,7 @@ func validateAIGatewayPipelinePolicies(policies []AIGatewayPipelinePolicyRequest
 			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].policy_version_id", i), Detail: "policy_version_id is required"})
 		}
 		switch p.Hook {
-		case AIGatewayHookPreAuth, AIGatewayHookPreReq:
+		case AIGatewayHookPreAuth, AIGatewayHookPreReq, AIGatewayHookPreTool:
 		default:
 			v = append(v, ValidationError{Field: fmt.Sprintf("policies[%d].hook", i), Detail: fmt.Sprintf("unsupported hook %q", p.Hook)})
 		}

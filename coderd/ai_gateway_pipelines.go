@@ -87,6 +87,10 @@ func aiGatewayHookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewa
 		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
 	case database.AIGatewayHookPreReq:
 		return true
+	case database.AIGatewayHookPreTool:
+		// The request is already dispatched at pre-tool, so route and transform
+		// do not apply; only classify and decide gate a tool call.
+		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
 	default:
 		return false
 	}

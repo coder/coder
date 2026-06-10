@@ -99,6 +99,13 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var innerLoopErr error
 	var streamErr error
 
+	// Pre-tool gating: when a gate is configured, the response is buffered (not
+	// forwarded per-delta) so its function_call items can be evaluated before
+	// anything reaches the client. This trades streaming latency for the ability
+	// to veto a tool call; a per-block byte-range hold (preserving streaming for
+	// tool-free responses) is a future optimization.
+	gate := intercept.ToolGateFromContext(ctx)
+
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
 		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
@@ -219,7 +226,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				//
 				// Otherwise inner loop could iterate. Only last response should be forwarded.
 				// This is needed to keep consistency between response.id and response.previous_response_id fields.
-				if i.mcpProxy == nil {
+				if i.mcpProxy == nil && gate == nil {
 					if err := events.Send(ctx, respCopy.buff.readDelta()); err != nil {
 						err = xerrors.Errorf("failed to relay chunk: %w", err)
 						return err
@@ -258,6 +265,16 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	// exit without emptying respCopy buffer.
 	if innerLoopErr != nil {
 		return innerLoopErr
+	}
+
+	// Evaluate client-bound tool calls before releasing the buffered response.
+	// A BLOCK returns HTTP 400 (the stream has not been opened in buffered
+	// mode), consistent with other block paths.
+	if gate != nil && completedResponse != nil {
+		if dec, blocked := i.gateClientToolCalls(ctx, gate, completedResponse); blocked {
+			i.sendCustomErr(ctx, w, http.StatusBadRequest, xerrors.New(dec.Reason))
+			return xerrors.New(dec.Reason)
+		}
 	}
 
 	b, err := respCopy.readAll()

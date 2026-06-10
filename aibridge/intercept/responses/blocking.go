@@ -136,6 +136,15 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	}
 	i.recordNonInjectedToolUsage(ctx, response)
 
+	// Pre-tool gating: evaluate client-bound tool calls before forwarding the
+	// response. A BLOCK returns HTTP 400.
+	if gate := intercept.ToolGateFromContext(ctx); gate != nil && response != nil {
+		if dec, blocked := i.gateClientToolCalls(ctx, gate, response); blocked {
+			i.sendCustomErr(ctx, w, http.StatusBadRequest, xerrors.New(dec.Reason))
+			return xerrors.New(dec.Reason)
+		}
+	}
+
 	if upstreamErr != nil && !respCopy.responseReceived.Load() {
 		// no response received from upstream, return custom error
 		i.sendCustomErr(ctx, w, http.StatusInternalServerError, upstreamErr)

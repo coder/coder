@@ -137,6 +137,7 @@ type AIGatewayHook string
 const (
 	AIGatewayHookPreAuth AIGatewayHook = "pre_auth"
 	AIGatewayHookPreReq  AIGatewayHook = "pre_req"
+	AIGatewayHookPreTool AIGatewayHook = "pre_tool"
 )
 
 func (e *AIGatewayHook) Scan(src interface{}) error {
@@ -177,7 +178,8 @@ func (ns NullAIGatewayHook) Value() (driver.Value, error) {
 func (e AIGatewayHook) Valid() bool {
 	switch e {
 	case AIGatewayHookPreAuth,
-		AIGatewayHookPreReq:
+		AIGatewayHookPreReq,
+		AIGatewayHookPreTool:
 		return true
 	}
 	return false
@@ -187,6 +189,7 @@ func AllAIGatewayHookValues() []AIGatewayHook {
 	return []AIGatewayHook{
 		AIGatewayHookPreAuth,
 		AIGatewayHookPreReq,
+		AIGatewayHookPreTool,
 	}
 }
 

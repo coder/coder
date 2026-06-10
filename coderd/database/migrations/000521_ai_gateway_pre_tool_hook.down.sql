@@ -1,0 +1,3 @@
+-- Postgres does not support removing enum values. The 'pre_tool' value remains;
+-- removing it would require a create/cast/drop cycle on ai_gateway_hook and is
+-- intentionally omitted.

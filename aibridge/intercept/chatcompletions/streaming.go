@@ -196,6 +196,17 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		stream = i.newStream(streamCtx, svc, opts)
 		processor := newStreamProcessor(streamCtx, i.logger.Named("stream-processor"), i.getInjectedToolByName)
 
+		// Pre-tool gating state. When a gate is configured, chunks belonging to
+		// a client-bound tool call are held until the call's arguments are
+		// assembled, then the call is evaluated and the held chunks are either
+		// flushed or discarded (with the turn terminated).
+		gate := intercept.ToolGateFromContext(ctx)
+		var (
+			held      [][]byte
+			heldBytes int
+			holdStart time.Time
+		)
+
 		var toolCall *openai.FinishedChatCompletionToolCall
 
 		// iterationStarted is per-iteration (reset on every
@@ -207,6 +218,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		// downstream.
 		var iterationStarted bool
 
+		var toolBlocked *intercept.ToolGateDecision
 		for stream.Next() {
 			iterationStarted = true
 			chunk := stream.Current()
@@ -228,11 +240,62 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				lastErr = xerrors.Errorf("marshal chunk: %w", err)
 				break
 			}
+
+			// Pre-tool gating: hold a client-bound tool call's chunks until its
+			// arguments are assembled, then release or terminate.
+			if gate != nil && processor.clientToolInProgress() {
+				if holdStart.IsZero() {
+					holdStart = time.Now()
+				}
+				held = append(held, payload)
+				heldBytes += len(payload)
+
+				fin := processor.getToolCall()
+				assembled := fin != nil && i.getInjectedToolByName(fin.Name) == nil
+				if !assembled && !intercept.HoldOverflowed(heldBytes, holdStart) {
+					// Still assembling; keep holding.
+					continue
+				}
+
+				call := intercept.ToolCall{Index: 0}
+				if fin != nil {
+					call = intercept.ToolCall{ID: fin.ID, Name: fin.Name, Arguments: json.RawMessage(fin.Arguments)}
+				}
+				outcome, dec := intercept.ResolveHeldToolCall(ctx, gate, call, heldBytes, holdStart)
+				gate.ObserveHold(time.Since(holdStart).Seconds())
+				if outcome == intercept.ToolHoldTerminate {
+					toolBlocked = &dec
+					break
+				}
+				// Release: flush the held chunks and resume streaming.
+				if relayErr := i.flushHeld(ctx, events, held); relayErr != nil {
+					lastErr = relayErr
+					break
+				}
+				held, heldBytes, holdStart = nil, 0, time.Time{}
+				processor.clearClientTool()
+				continue
+			}
+
 			if err := events.Send(ctx, payload); err != nil {
 				logger.Warn(ctx, "failed to relay chunk", slog.Error(err))
 				lastErr = xerrors.Errorf("relay chunk: %w", err)
 				break
 			}
+		}
+
+		// A pre-tool BLOCK terminates the whole turn: discard any held chunks,
+		// emit a terminal error event, and stop. Already-flushed text remains
+		// flushed; the blocked tool call never reaches the client.
+		if toolBlocked != nil {
+			respErr := intercept.NewResponseError(toolBlocked.Reason, intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadRequest, 0)
+			interceptionErr = respErr
+			if payload, mErr := i.marshalErr(respErr); mErr != nil {
+				logger.Warn(ctx, "failed to marshal tool-block error", slog.Error(mErr))
+			} else if sErr := events.Send(streamCtx, payload); sErr != nil {
+				logger.Warn(ctx, "failed to relay tool-block error", slog.Error(sErr))
+			}
+			break
 		}
 
 		if toolCall != nil {
@@ -415,6 +478,16 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	return interceptionErr
 }
 
+// flushHeld relays buffered tool-call chunks to the client in order.
+func (*StreamingInterception) flushHeld(ctx context.Context, events *eventstream.EventStream, held [][]byte) error {
+	for _, p := range held {
+		if err := events.Send(ctx, p); err != nil {
+			return xerrors.Errorf("relay held chunk: %w", err)
+		}
+	}
+	return nil
+}
+
 func (i *StreamingInterception) getInjectedToolByName(name string) *mcp.Tool {
 	if i.mcpProxy == nil {
 		return nil
@@ -511,7 +584,8 @@ type streamProcessor struct {
 	acc openai.ChatCompletionAccumulator
 
 	// Tool handling.
-	pendingToolCall     bool
+	pendingToolCall     bool // an injected (MCP) tool call is being suppressed
+	clientToolPending   bool // a client-bound tool call is being assembled (held for gating)
 	getInjectedToolFunc func(string) *mcp.Tool
 
 	// Token handling.
@@ -597,8 +671,22 @@ func (s *streamProcessor) process(chunk openai.ChatCompletionChunk) bool {
 		return false
 	}
 
-	// There is a tool call, but it's not injected.
+	// There is a tool call, but it's not injected. Mark it as a client tool in
+	// progress so the interceptor can hold its chunks for pre-tool gating.
+	s.clientToolPending = true
 	return true
+}
+
+// clientToolInProgress reports whether a client-bound (non-injected) tool call
+// is currently being assembled. Its chunks are held for pre-tool gating when a
+// gate is configured.
+func (s *streamProcessor) clientToolInProgress() bool {
+	return s.clientToolPending
+}
+
+// clearClientTool resets the client-tool holding state after a call is resolved.
+func (s *streamProcessor) clearClientTool() {
+	s.clientToolPending = false
 }
 
 // getMsgID returns the ID given by the API for this (accumulated) message.

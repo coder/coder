@@ -141,10 +141,10 @@ determines the input envelope, which in turn determines which **kinds** are
 valid there. Versioning and atomic swap operate on the **whole pipeline**, not
 per hook — see §10.
 
-> **v1 scope:** only **pre-auth** and **pre-req** hooks are implemented. The
-> **post-resp** hook and all output-inspection/streaming modes are deferred to
-> phase 2 (§12). The post-resp/streaming material below is retained as phase-2
-> design, not v1.
+> **v1 scope:** **pre-auth**, **pre-req**, and **pre-tool** hooks are
+> implemented. The **post-resp** hook and all output-inspection/streaming modes
+> are deferred to phase 2 (§12). The post-resp/streaming material below is
+> retained as phase-2 design, not v1.
 
 ### Hooks and their envelopes
 
@@ -152,6 +152,11 @@ per hook — see §10.
   resolved. For cheap, identity-free gating before paying auth cost.
 - **pre-req** — + resolved identity, groups, attributes, full body, request-time
   enrichment. The richest hook; most policies live here.
+- **pre-tool** — fires **once per assembled, client-bound tool call**, before
+  the call is released to the client (see §3b). Envelope carries `input.tool_call`
+  ({id, name, arguments, index}) plus the request body, identity, and threaded
+  annotations. Only classify and decide are valid: the request is already
+  dispatched (no route) and a flushed stream cannot be rewritten (no transform).
 - **post-resp** — original request + response (+ annotations accumulated from
   earlier hooks). Output inspection / transform. Has two execution modes for
   streamed responses (see "Output inspection").
@@ -162,6 +167,7 @@ per hook — see §10.
 |---|---|---|
 | pre-auth | raw request, headers, credentials (no identity) | classification, decision |
 | pre-req | + identity / groups / attributes, body, enrichment | classification, routing, decision, transform |
+| pre-tool | + the assembled tool_call (per call) | classification, decision |
 | post-resp (buffered) | + full response | classification, decision, transform |
 | post-resp (windowed stream) | + rolling window of the response | classification, decision **only** |
 
@@ -300,6 +306,65 @@ annotations → `decide`. Deferred to phase 2 (§12):
   whole response, including model-requested tool calls, is discarded before
   delivery; aibridge tool execution is client-side post-response).
 
+### 3b. Pre-tool hook (per-tool-call gating) [AS BUILT]
+
+The **pre-tool** hook is the last control point before a model-requested tool
+call reaches the client, where agentic clients execute it. It fires **once per
+assembled, client-bound tool call**: a turn with three tool calls evaluates the
+pipeline three times. Only **classify and decide** are valid (like pre-auth);
+route and transform are rejected at registration and defensively at load.
+
+**Envelope.** `input.tool_call` = `{id, name, arguments, index}` where
+`arguments` is the parsed JSON object and `index` is the zero-based ordinal of
+the call within its turn (so "at most N tool calls per turn" is expressible
+without state). The envelope also carries the original `request` body,
+`identity`, and the `annotations` threaded from earlier hooks/guardrails. A
+policy is a plain `decide` module over `input.tool_call.*`.
+
+**Streaming hold-and-release.** Tool calls are splayed across many SSE events, so
+the interceptor **holds** a client-bound tool block's events from its start
+(Anthropic `content_block_start` of type `tool_use`; OpenAI Chat Completions
+first `tool_calls` delta) through completion, buffering instead of flushing.
+Text outside the block streams through untouched (order-preserving FIFO). On the
+block's completion the assembled call is evaluated; on **ALLOW** the held events
+are flushed in order, on **BLOCK** they are discarded and the **turn is
+terminated** with a provider-shaped terminal error event naming the tool and
+policy. Already-flushed text stays flushed; the blocked tool call never reaches
+the client. Holding is engaged only when a pre-tool pipeline is configured;
+otherwise streaming is byte-for-byte unchanged. The OpenAI **Responses** path
+buffers the whole response when gated (reusing the MCP-mode buffering) and
+evaluates its `function_call` items before the single final flush; a per-block
+byte-range hold that preserves streaming for tool-free responses is a future
+optimization. Non-streaming (blocking) responses gate every client-bound tool
+call with the full body in hand and return **HTTP 400** on BLOCK (so a client
+cannot bypass the gate by requesting non-streaming).
+
+**Stopping conditions / caps.** The hold is bounded: the per-stage 1s eval
+timeout fails closed; a byte cap (`HoldMaxBytes`, 4 MiB) and a wall-clock hold
+deadline (`HoldDeadline`, 5 min) bound a stalled/oversized block; a client
+disconnect tears everything down via the existing stream context. These are
+hardcoded (generous) in v1, not operator-configurable. A cap breach or an
+unevaluable/incomplete block honors the gate's **aggregate fail mode**:
+fail-open releases the call unevaluated, fail-closed terminates. The aggregate
+is fail-open only when **every** pre-tool member is fail-open (any fail-closed
+member makes the gate fail-closed).
+
+**BLOCK granularity.** A BLOCK terminates the **whole turn**, including any
+parallel tool calls in the same turn; per-call suppression (which would require
+fabricating stop-reason/index consistency) is intentionally not done.
+
+**Phasing.** v1 gates client-bound tool calls only. Server-side injected (MCP)
+tool calls are **not** gated here (the injected-MCP path is deprecated). Argument
+*rewriting* (a pre-tool transform, possible since the block has not flushed) and
+guardrails at pre-tool (a networked round-trip per tool call mid-stream is a
+latency cliff) are out of scope for v1.
+
+**Observability.** `policy_tool_verdicts_total{provider,tool,verdict}` and
+`policy_tool_hold_duration_seconds{provider}`; each blocked call is logged with
+the tool, policy, and pipeline version. Operators should roll out in **LOG**
+first (zero client impact) before flipping to BLOCK, since a false positive
+terminates a live agent turn.
+
 ### Validation mechanism
 
 Unlike CEL's type-checker, Rego is dynamically typed, so hook-appropriateness and
@@ -351,11 +416,13 @@ flowchart TD
   end
 
   TR --> UP["Upstream provider<br/>routed model"]
-  UP --> SW{"streaming?"}
+  UP --> PT["pre-tool hook<br/>per client-bound tool call<br/>classify · decide only<br/>hold · ALLOW flush / BLOCK terminate"]
+  PT --> SW{"streaming?"}
   SW -->|buffered| PB["post-resp hook<br/>classify · decide · transform"]
   SW -->|windowed| PW["windowed hook<br/>classify · decide only<br/>per SSE event"]
   PB --> RC["Client — response"]
   PW --> RC
+  PT -. BLOCK 400 / terminate .-> RC
 
   GR -. annotations .-> CL
   GR -.-> DE
@@ -371,7 +438,7 @@ flowchart TD
   classDef hook fill:#EEEDFE,stroke:#534AB7,color:#26215C;
   classDef step fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
   classDef prov fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
-  class PA,GR,CL,RO,DE,TR,PB,PW hook;
+  class PA,GR,CL,RO,DE,TR,PT,PB,PW hook;
   class C,AU,RC step;
   class UP prov;
 ```
@@ -403,6 +470,13 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
 - **FR7** Provide identity, groups, and attributes to every policy from pre-req
   onward (RBAC/ABAC).
 - **FR8** Allow/deny MCP tool calls.
+- **FR8a** *(AS BUILT)* **Pre-tool hook**: gate each **client-bound** tool call
+  inline at the **pre-tool** hook (classify + decide only), holding the tool
+  block in the stream until its arguments are assembled, then ALLOW (flush) or
+  BLOCK (discard + terminate the turn, HTTP 400 in blocking mode). Bounded by a
+  byte/time hold cap and the per-stage timeout; cap/incomplete breaches honor the
+  aggregate fail mode. Injected-MCP gating is out of scope (path deprecated).
+  See §3b.
 - **FR9** Inspect content — keyword / PII / pattern matching over prompts,
   responses, and `tool_result` payloads (incl. `/v1/messages` traversal).
 - **FR10** *(deferred, §12)* Selectable output-inspection mode per route. v1 is
@@ -684,8 +758,10 @@ Policies and pipelines are stored in Postgres, versioned, and made live in
 
 ```sql
 CREATE TYPE ai_gateway_policy_kind AS ENUM ('classify','route','decide','transform');
--- v1 hooks only; 'post_resp' is added in phase 2 (ALTER TYPE ... ADD VALUE).
-CREATE TYPE ai_gateway_hook AS ENUM ('pre_auth','pre_req');
+-- v1 hooks: pre_auth, pre_req, pre_tool. 'pre_tool' was added by a follow-up
+-- migration via ALTER TYPE ... ADD VALUE; 'post_resp' is added in phase 2 the
+-- same way.
+CREATE TYPE ai_gateway_hook AS ENUM ('pre_auth','pre_req','pre_tool');
 CREATE TYPE ai_gateway_fail_mode AS ENUM ('fail_open','fail_closed');
 
 CREATE TABLE ai_gateway_policies (
@@ -971,9 +1047,12 @@ ever persisted. **No shelling out** — use the OPA Go libraries:
 
 ### 10.7 Functional decisions
 
-- **[DECIDED] v1 hooks are pre-auth and pre-req only.** `post_resp` and all
-  output-inspection modes (FR10) are deferred to phase 2 (§12); the `post_resp`
-  enum value is not created in v1.
+- **[DECIDED, as built] v1 hooks are pre-auth, pre-req, and pre-tool.**
+  `post_resp` and all output-inspection modes (FR10) are deferred to phase 2
+  (§12); the `post_resp` enum value is not created in v1. The **pre-tool** hook
+  (§3b) gates client-bound tool calls inline (classify + decide only); its enum
+  value was added by a follow-up `ALTER TYPE ... ADD VALUE` migration. Loader and
+  registration both enforce kind-validity-by-hook for pre-tool.
 - **[DECIDED] Execution log records the evaluating versions (D1).** Each execution
   record carries the active `pipeline_version_id` and the member
   `policy_version_id`s, so "what ran" is reconstructable after a swap/rollback.

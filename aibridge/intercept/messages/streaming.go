@@ -215,6 +215,22 @@ newStream:
 
 		pendingToolCalls := make(map[string]string)
 
+		// Pre-tool gating state. When a gate is configured, the events of a
+		// client-bound (non-injected) tool_use block are held from
+		// content_block_start through content_block_stop, then the assembled
+		// call is evaluated and the held events are flushed or discarded (with
+		// the turn terminated).
+		gate := intercept.ToolGateFromContext(ctx)
+		var (
+			holding      bool
+			held         [][]byte
+			heldBytes    int
+			holdStart    time.Time
+			holdBlockIdx int64
+			toolCallSeq  int
+			toolBlocked  *intercept.ToolGateDecision
+		)
+
 		// iterationStarted is per-iteration (reset on every
 		// newStream loop): true once the upstream call has
 		// produced any events for this iteration. While false,
@@ -243,6 +259,16 @@ newStream:
 						pendingToolCalls[block.Name] = block.ID
 						// Don't relay this event back, otherwise the client will try invoke the tool as well.
 						continue
+					}
+
+					// Client-bound tool call: begin holding its events for
+					// pre-tool gating.
+					if gate != nil {
+						holding = true
+						holdStart = time.Now()
+						holdBlockIdx = event.AsContentBlockStart().Index
+						held = nil
+						heldBytes = 0
 					}
 				}
 			case string(constant.ValueOf[constant.ContentBlockDelta]()):
@@ -512,6 +538,39 @@ newStream:
 				lastErr = xerrors.Errorf("marshal event: %w", err)
 				break
 			}
+
+			// Pre-tool gating: while holding a client-bound tool_use block,
+			// buffer its events. On the block's content_block_stop (or a cap
+			// breach), evaluate the assembled call and release or terminate.
+			if gate != nil && holding {
+				held = append(held, payload)
+				heldBytes += len(payload)
+
+				blockDone := event.Type == string(constant.ValueOf[constant.ContentBlockStop]()) &&
+					event.AsContentBlockStop().Index == holdBlockIdx
+				if !blockDone && !intercept.HoldOverflowed(heldBytes, holdStart) {
+					continue
+				}
+
+				call := assembleToolCall(message, holdBlockIdx, toolCallSeq)
+				toolCallSeq++
+				outcome, dec := intercept.ResolveHeldToolCall(streamCtx, gate, call, heldBytes, holdStart)
+				gate.ObserveHold(time.Since(holdStart).Seconds())
+				if outcome == intercept.ToolHoldTerminate {
+					toolBlocked = &dec
+					break
+				}
+				if relayErr := i.flushHeld(streamCtx, events, held); relayErr != nil {
+					if eventstream.IsUnrecoverableError(relayErr) {
+						break
+					}
+					lastErr = relayErr
+					break
+				}
+				holding, held, heldBytes, holdStart = false, nil, 0, time.Time{}
+				continue
+			}
+
 			if err := events.Send(streamCtx, payload); err != nil {
 				if eventstream.IsUnrecoverableError(err) {
 					logger.Debug(ctx, "processing terminated", slog.Error(err))
@@ -521,6 +580,26 @@ newStream:
 				lastErr = xerrors.Errorf("relay event: %w", err)
 				break
 			}
+		}
+
+		// A pre-tool BLOCK terminates the turn: discard held events, emit a
+		// terminal error event, and stop. Already-flushed content stays
+		// flushed; the blocked tool call never reaches the client.
+		if toolBlocked != nil {
+			respErr := newResponseError(toolBlocked.Reason, string(constant.ValueOf[constant.Error]()), http.StatusBadRequest, 0)
+			interceptionErr = respErr
+			if payload, mErr := i.marshal(respErr); mErr != nil {
+				logger.Warn(ctx, "failed to marshal tool-block error", slog.Error(mErr))
+			} else if sErr := events.Send(streamCtx, payload); sErr != nil {
+				logger.Warn(ctx, "failed to relay tool-block error", slog.Error(sErr))
+			}
+			shutdownCtx, shutdownCancel := context.WithTimeout(ctx, time.Second*30)
+			if err := events.Shutdown(shutdownCtx); err != nil {
+				logger.Warn(ctx, "event stream shutdown", slog.Error(err))
+			}
+			shutdownCancel()
+			streamCancel(interceptionErr)
+			break newStream
 		}
 
 		if promptFound {
@@ -627,6 +706,32 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 	if lastErr != nil {
 		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
 		return newResponseError(fmt.Sprintf("processing error: %s", lastErr), string(constant.ValueOf[constant.Error]()), http.StatusBadGateway, 0)
+	}
+	return nil
+}
+
+// assembleToolCall extracts the completed tool_use block at content-block index
+// blockIdx from the accumulated message. seq is the zero-based ordinal of this
+// tool call within the turn. Returns a call with only the index set when the
+// block is missing or not a tool_use (a cap breach before completion).
+func assembleToolCall(message anthropic.Message, blockIdx int64, seq int) intercept.ToolCall {
+	call := intercept.ToolCall{Index: seq}
+	if blockIdx >= 0 && int(blockIdx) < len(message.Content) {
+		if tub, ok := message.Content[blockIdx].AsAny().(anthropic.ToolUseBlock); ok {
+			call.ID = tub.ID
+			call.Name = tub.Name
+			call.Arguments = tub.Input
+		}
+	}
+	return call
+}
+
+// flushHeld relays buffered tool-block events to the client in order.
+func (*StreamingInterception) flushHeld(ctx context.Context, events *eventstream.EventStream, held [][]byte) error {
+	for _, p := range held {
+		if err := events.Send(ctx, p); err != nil {
+			return xerrors.Errorf("relay held event: %w", err)
+		}
 	}
 	return nil
 }

@@ -354,9 +354,13 @@ export interface AIGatewayGuardrailVersion {
 }
 
 // From codersdk/aigatewaypolicies.go
-export type AIGatewayHook = "pre_auth" | "pre_req";
+export type AIGatewayHook = "pre_auth" | "pre_req" | "pre_tool";
 
-export const AIGatewayHooks: AIGatewayHook[] = ["pre_auth", "pre_req"];
+export const AIGatewayHooks: AIGatewayHook[] = [
+	"pre_auth",
+	"pre_req",
+	"pre_tool",
+];
 
 // From codersdk/aigatewaykeys.go
 /**

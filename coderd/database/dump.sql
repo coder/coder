@@ -22,7 +22,8 @@ CREATE TYPE ai_gateway_guardrail_mode AS ENUM (
 
 CREATE TYPE ai_gateway_hook AS ENUM (
     'pre_auth',
-    'pre_req'
+    'pre_req',
+    'pre_tool'
 );
 
 CREATE TYPE ai_gateway_policy_kind AS ENUM (

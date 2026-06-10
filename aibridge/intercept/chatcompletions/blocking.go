@@ -135,10 +135,26 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion
 		if len(completion.Choices) > 0 && completion.Choices[0].Message.ToolCalls != nil {
+			gate := intercept.ToolGateFromContext(ctx)
+			seq := 0
 			for _, toolCall := range completion.Choices[0].Message.ToolCalls {
 				if i.mcpProxy != nil && i.mcpProxy.GetTool(toolCall.Function.Name) != nil {
 					pendingToolCalls = append(pendingToolCalls, toolCall)
 				} else {
+					// Pre-tool gating: a BLOCK denies the whole response (400).
+					if gate != nil {
+						call := intercept.ToolCall{
+							ID:        toolCall.ID,
+							Name:      toolCall.Function.Name,
+							Arguments: json.RawMessage(toolCall.Function.Arguments),
+							Index:     seq,
+						}
+						seq++
+						if outcome, dec := intercept.ResolveHeldToolCall(ctx, gate, call, 0, time.Time{}); outcome == intercept.ToolHoldTerminate {
+							http.Error(w, dec.Reason, http.StatusBadRequest)
+							return xerrors.New(dec.Reason)
+						}
+					}
 					_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
 						InterceptionID: i.ID().String(),
 						MsgID:          completion.ID,

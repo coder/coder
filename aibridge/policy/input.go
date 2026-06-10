@@ -35,6 +35,52 @@ func BuildInput(request []byte, identity map[string]any) (Input, error) {
 	}), nil
 }
 
+// ToolCall describes a single model-requested tool call to be gated at the
+// pre-tool hook. Arguments is the raw JSON arguments object as assembled from
+// the upstream stream; Index is the zero-based position of this call within its
+// turn (so a policy can express "at most N tool calls per turn" without state).
+type ToolCall struct {
+	ID        string
+	Name      string
+	Arguments json.RawMessage
+	Index     int
+}
+
+// BuildToolInput constructs the pre-tool envelope: input.tool_call (the
+// assembled call), input.request (the original request body), input.identity,
+// and an empty input.annotations. It is built once per tool call. Invalid
+// arguments JSON is an error; the caller fails the call per its fail mode.
+func BuildToolInput(call ToolCall, request []byte, identity map[string]any) (Input, error) {
+	reqVal, err := ast.ValueFromReader(bytes.NewReader(request))
+	if err != nil {
+		return Input{}, xerrors.Errorf("parse request body: %w", err)
+	}
+	idVal, err := ast.InterfaceToValue(identity)
+	if err != nil {
+		return Input{}, xerrors.Errorf("convert identity: %w", err)
+	}
+	var args ast.Value = ast.NewObject()
+	if len(bytes.TrimSpace(call.Arguments)) > 0 {
+		av, err := ast.ValueFromReader(bytes.NewReader(call.Arguments))
+		if err != nil {
+			return Input{}, xerrors.Errorf("parse tool arguments: %w", err)
+		}
+		args = av
+	}
+	tc := ast.NewObject(
+		[2]*ast.Term{ast.StringTerm("id"), ast.StringTerm(call.ID)},
+		[2]*ast.Term{ast.StringTerm("name"), ast.StringTerm(call.Name)},
+		[2]*ast.Term{ast.StringTerm("arguments"), ast.NewTerm(args)},
+		[2]*ast.Term{ast.StringTerm("index"), ast.NewTerm(ast.IntNumberTerm(call.Index).Value)},
+	)
+	return envelope(map[string]ast.Value{
+		"tool_call":   tc,
+		"request":     reqVal,
+		"identity":    idVal,
+		"annotations": ast.NewObject(),
+	}), nil
+}
+
 // BuildAuthInput constructs the pre-auth envelope: input.headers and
 // input.credential. It carries no request body or identity.
 func BuildAuthInput(headers, credential map[string]any) (Input, error) {

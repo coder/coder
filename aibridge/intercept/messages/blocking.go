@@ -167,6 +167,8 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		// Handle tool calls.
 		var pendingToolCalls []anthropic.ToolUseBlock
+		gate := intercept.ToolGateFromContext(ctx)
+		toolSeq := 0
 		for _, c := range resp.Content {
 			toolUse := c.AsToolUse()
 			if toolUse.ID == "" {
@@ -176,6 +178,21 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			if i.mcpProxy != nil && i.mcpProxy.GetTool(toolUse.Name) != nil {
 				pendingToolCalls = append(pendingToolCalls, toolUse)
 				continue
+			}
+
+			// Pre-tool gating: a BLOCK denies the whole response (400).
+			if gate != nil {
+				call := intercept.ToolCall{
+					ID:        toolUse.ID,
+					Name:      toolUse.Name,
+					Arguments: toolUse.Input,
+					Index:     toolSeq,
+				}
+				toolSeq++
+				if outcome, dec := intercept.ResolveHeldToolCall(ctx, gate, call, 0, time.Time{}); outcome == intercept.ToolHoldTerminate {
+					http.Error(w, dec.Reason, http.StatusBadRequest)
+					return xerrors.New(dec.Reason)
+				}
 			}
 
 			// If tool is not injected, track it since the client will be handling it.

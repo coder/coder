@@ -32,6 +32,7 @@ type AIGatewayHook string
 const (
 	AIGatewayHookPreAuth AIGatewayHook = "pre_auth"
 	AIGatewayHookPreReq  AIGatewayHook = "pre_req"
+	AIGatewayHookPreTool AIGatewayHook = "pre_tool"
 )
 
 // AIGatewayFailMode controls behaviour when a policy cannot produce a result.
@@ -44,13 +45,13 @@ const (
 
 // AIGatewayPolicy is a reusable, versioned Rego policy.
 type AIGatewayPolicy struct {
-	ID              uuid.UUID               `json:"id" format:"uuid"`
-	Name            string                  `json:"name"`
-	DisplayName     string                  `json:"display_name"`
-	Kind            AIGatewayPolicyKind     `json:"kind"`
-	ActiveVersionID *uuid.UUID              `json:"active_version_id,omitempty" format:"uuid"`
-	CreatedAt       time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time               `json:"updated_at" format:"date-time"`
+	ID              uuid.UUID                `json:"id" format:"uuid"`
+	Name            string                   `json:"name"`
+	DisplayName     string                   `json:"display_name"`
+	Kind            AIGatewayPolicyKind      `json:"kind"`
+	ActiveVersionID *uuid.UUID               `json:"active_version_id,omitempty" format:"uuid"`
+	CreatedAt       time.Time                `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                `json:"updated_at" format:"date-time"`
 	Versions        []AIGatewayPolicyVersion `json:"versions,omitempty"`
 }
 
