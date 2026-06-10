@@ -71,6 +71,37 @@ describe("getAgentConnectivityIssues", () => {
 			),
 		).toEqual([]);
 	});
+
+	it("returns connecting issue for a connecting agent", () => {
+		expect(
+			getAgentConnectivityIssues(
+				buildAgent({ status: "connecting", lifecycle_state: "starting" }),
+			),
+		).toContainEqual(
+			expect.objectContaining({
+				title: "Workspace agent is connecting",
+				severity: "info",
+				prominent: false,
+			}),
+		);
+	});
+
+	it("returns shutdown issue for shutdown lifecycle states", () => {
+		for (const lifecycle_state of [
+			"shutting_down",
+			"shutdown_error",
+			"shutdown_timeout",
+		] as const) {
+			expect(
+				getAgentConnectivityIssues(buildAgent({ lifecycle_state })),
+			).toContainEqual(
+				expect.objectContaining({
+					title: "Workspace agent is shutting down",
+					severity: "info",
+				}),
+			);
+		}
+	});
 });
 
 describe("getAgentScriptIssues", () => {

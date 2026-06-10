@@ -4,7 +4,7 @@ import type { WorkspaceAgent } from "#/api/typesGenerated";
  * Canonical messages for startup and shutdown script issues.
  * Used by the per-agent-row tooltips in AgentStatus; the
  * start-related entries are also shared with per-agent health
- * classification in getAgentHealthIssues.
+ * classification in getAgentScriptIssues.
  */
 export const agentScriptMessages = {
 	start_error: {
@@ -90,6 +90,10 @@ export function getAgentConnectivityIssues(
 		});
 	}
 
+	// Shutdown lifecycle states are treated as connectivity concerns rather than
+	// script concerns because the workspace is actively becoming unavailable;
+	// unlike startup script failures, the agent is no longer reachable once
+	// shutdown begins.
 	if (
 		agent.lifecycle_state === "shutting_down" ||
 		agent.lifecycle_state === "shutdown_error" ||

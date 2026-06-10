@@ -104,6 +104,8 @@ const statusBorderClassByLifecycle: Partial<
 	starting: "border-border-pending",
 	shutting_down: "border-border-pending",
 	ready: "border-border-success",
+	// Script errors and timeouts do not affect agent connectivity; they are
+	// surfaced in the per-script log tabs instead.
 	start_timeout: "border-border-success",
 	shutdown_timeout: "border-border-warning",
 	start_error: "border-border-success",
@@ -170,8 +172,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
-			hasConnectivityIssues) &&
+		(agent.lifecycle_state !== "ready" || hasConnectivityIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
