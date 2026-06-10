@@ -56,6 +56,14 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		/**
+		 * Accessible text for the underlying `<img>`. Defaults to an empty
+		 * string, which marks the avatar as decorative and removes it from
+		 * the accessibility tree. Callers that render the avatar without
+		 * adjacent text describing the same content should pass a meaningful
+		 * value so screen readers can announce it.
+		 */
+		alt?: string;
 		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
@@ -65,6 +73,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 	variant,
 	src,
 	fallback,
+	alt = "",
 	children,
 	...props
 }) => {
@@ -77,6 +86,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 		>
 			<AvatarPrimitive.Image
 				src={src}
+				alt={alt}
 				className="aspect-square size-full object-contain"
 				style={getExternalImageStylesFromUrl(theme.externalImages, src)}
 			/>

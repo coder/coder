@@ -18,6 +18,14 @@ interface AvatarDataProps {
 	imgFallbackText?: string;
 
 	/**
+	 * Accessible text for the avatar image rendered by the default avatar.
+	 * Ignored when `avatar` is provided. Defaults to an empty string, which
+	 * marks the avatar as decorative since `title` already conveys the same
+	 * content.
+	 */
+	alt?: string;
+
+	/**
 	 * When true, the title and subtitle clip with an ellipsis if they overflow
 	 * the available width. Off by default because callers that pass non-text
 	 * nodes (icons, badges) as `title` would otherwise clip silently.
@@ -31,6 +39,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	src,
 	imgFallbackText,
 	avatar,
+	alt = "",
 	truncate = false,
 }) => {
 	if (!avatar) {
@@ -39,6 +48,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 				size="lg"
 				src={src}
 				fallback={(typeof title === "string" ? title : imgFallbackText) || "-"}
+				alt={alt}
 			/>
 		);
 	}
