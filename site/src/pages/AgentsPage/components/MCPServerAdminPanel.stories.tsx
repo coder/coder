@@ -202,6 +202,107 @@ export const CreateServer: Story = {
 	},
 };
 
+/**
+ * Typing a Server URL that matches a known MCP server populates the
+ * display name, slug, and bundled icon URL for empty fields. Anything
+ * the admin has already typed is preserved. The Details section is
+ * auto-expanded so the suggested icon is visible before save.
+ */
+export const CreateServerKnownUrlPrefill: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		// Type the Server URL first. The known-server registry should
+		// then auto-fill the empty display name, slug, and icon URL.
+		await userEvent.type(
+			await body.findByLabelText(/Server URL/i),
+			"https://mcp.linear.app/sse",
+		);
+
+		await waitFor(() => {
+			expect(body.getByLabelText(/Display Name/i)).toHaveValue("Linear");
+		});
+		expect(body.getByLabelText(/^Slug/i)).toHaveValue("linear");
+
+		// Details section opens so the admin sees the suggested icon.
+		const iconInput = await body.findByLabelText("Icon");
+		expect(iconInput).toHaveValue("/icon/linear.svg");
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				display_name: "Linear",
+				slug: "linear",
+				url: "https://mcp.linear.app/sse",
+				icon_url: "/icon/linear.svg",
+			}),
+		);
+	},
+};
+
+/**
+ * If the admin has already typed a display name and slug, the known
+ * URL match must not overwrite them. Only the still-empty icon URL
+ * fills in from the registry.
+ */
+export const CreateServerKnownUrlPrefillRespectsExistingValues: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		// Admin types a custom display name first; slug auto-derives.
+		await userEvent.type(
+			await body.findByLabelText(/Display Name/i),
+			"Notion (staging)",
+		);
+		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("notion-staging");
+
+		await userEvent.type(
+			body.getByLabelText(/Server URL/i),
+			"https://mcp.notion.com/mcp",
+		);
+
+		// Display name and slug are kept; icon URL is filled because empty.
+		expect(body.getByLabelText(/Display Name/i)).toHaveValue(
+			"Notion (staging)",
+		);
+		expect(body.getByLabelText(/^Slug/i)).toHaveValue("notion-staging");
+		const iconInput = await body.findByLabelText("Icon");
+		expect(iconInput).toHaveValue("/icon/notion.svg");
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				display_name: "Notion (staging)",
+				slug: "notion-staging",
+				url: "https://mcp.notion.com/mcp",
+				icon_url: "/icon/notion.svg",
+			}),
+		);
+	},
+};
+
 /** Open the create form and select OAuth2 auth type. */
 export const CreateServerOAuth2: Story = {
 	args: {

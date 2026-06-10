@@ -1235,9 +1235,18 @@ export const MCPToolRunning: Story = {
 	play: async ({ canvasElement }) => {
 		// Spinner should be visible while running.
 		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
-		// Icon should be monochrome (brightness-0 filter).
-		const icon = canvasElement.querySelector(".brightness-0");
+		// External MCP icons render through ExternalImage's shared
+		// pipeline. The class-based brightness-0/dark:invert silhouette
+		// filter no longer lives on the <img>; theming for bundled
+		// icons comes from `getExternalImageStylesFromUrl` as inline
+		// style. Cross-origin URLs (like the brandfetch CDN used in
+		// this fixture) fall through unfiltered.
+		const icon = canvasElement.querySelector(
+			'img[alt="linear__list_issues icon"]',
+		);
 		expect(icon).not.toBeNull();
+		expect(canvasElement.querySelector(".brightness-0")).toBeNull();
+		expect(canvasElement.querySelector(".dark\\:invert")).toBeNull();
 	},
 };
 
@@ -1259,8 +1268,13 @@ export const MCPToolCompleted: Story = {
 		const canvas = within(canvasElement);
 		// No spinner when completed.
 		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
-		// Icon should still be monochrome when completed.
-		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
+		// External MCP icon renders through the shared pipeline with no
+		// class-based silhouette filter.
+		const icon = canvasElement.querySelector(
+			'img[alt="linear__list_issues icon"]',
+		);
+		expect(icon).not.toBeNull();
+		expect(canvasElement.querySelector(".brightness-0")).toBeNull();
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
 		await userEvent.click(toggle);
@@ -1363,6 +1377,75 @@ export const MCPToolFigmaIcon: Story = {
 					"https://upload.wikimedia.org/wikipedia/commons/3/33/Figma-logo.svg",
 			},
 		],
+	},
+};
+
+// Regression coverage for the Notion logo. The upstream Brandfetch
+// block-style SVG layers a white-filled rounded square under a black
+// "N". An earlier `brightness-0 + dark:invert` silhouette filter
+// flattened both fills to the same shade and produced a featureless
+// blob in the chat row. The fix routes external MCP icons through
+// the shared `ExternalImage` pipeline: cross-origin URLs (like the
+// brandfetch CDN used here) render unfiltered, and bundled icons
+// (`/icon/notion.svg`, see `MCPToolNotionIconBundled`) opt in to the
+// monochrome filter for a uniform muted silhouette.
+export const MCPToolNotionIcon: Story = {
+	args: {
+		name: "notion__fetch",
+		status: "completed",
+		result: { title: "WCAG Level A PRD" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "notion",
+				display_name: "Notion",
+				icon_url: "https://www.notion.com/images/notion-logo-block-main.svg",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const icon = canvasElement.querySelector('img[alt="notion__fetch icon"]');
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute("src")).toContain("notion-logo-block-main.svg");
+		// No silhouette filter classes are applied; cross-origin icons go
+		// through ExternalImage unfiltered, mirroring the MCP pill.
+		expect(canvasElement.querySelector(".brightness-0")).toBeNull();
+		expect(canvasElement.querySelector(".dark\\:invert")).toBeNull();
+	},
+};
+
+// Bundled-icon path: when the admin (or the form's known-server
+// prefill) points `icon_url` at one of Coder's `/icon/*.svg` files,
+// `getExternalImageStylesFromUrl` looks the path up in
+// `defaultParametersForBuiltinIcons` and applies the theme-aware
+// `monochrome` filter as an inline `style`. The result is the same
+// muted silhouette regardless of whether the tool icon ships from
+// our bundle or a third-party CDN.
+export const MCPToolNotionIconBundled: Story = {
+	args: {
+		name: "notion__fetch",
+		status: "completed",
+		result: { title: "WCAG Level A PRD" },
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: [
+			{
+				...sampleMCPServers[0],
+				slug: "notion",
+				display_name: "Notion",
+				icon_url: "/icon/notion.svg",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const icon = canvasElement.querySelector(
+			'img[alt="notion__fetch icon"]',
+		) as HTMLImageElement | null;
+		expect(icon).not.toBeNull();
+		expect(icon?.getAttribute("src")).toBe("/icon/notion.svg");
+		// The shared pipeline sets the monochrome filter via inline style
+		// for any bundled icon registered as `monochrome`.
+		expect(icon?.style.filter).toMatch(/grayscale/);
 	},
 };
 

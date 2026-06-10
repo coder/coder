@@ -44,28 +44,26 @@ export const ToolIcon: React.FC<{
 		isRunning && "grayscale",
 	);
 
-	// If an MCP icon URL is provided and hasn't failed, render it.
-	// Strip colour so external icons match the monochrome lucide
-	// style. brightness-0 forces every pixel to black, then in dark
-	// mode we invert to white and tune opacity to approximate
-	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
+	// External MCP icons render through the shared `ExternalImage` and
+	// `getExternalImageStylesFromUrl` pipeline. Bundled `/icon/*.svg`
+	// paths that opt in via `defaultParametersForBuiltinIcons` receive
+	// the theme-aware `monochrome` filter (light:
+	// `grayscale(100%) contrast(0%) brightness(70%)`, dark:
+	// `... brightness(250%)`), which produces a uniform muted
+	// silhouette next to the surrounding lucide icons. Cross-origin
+	// URLs that aren't in the map fall through unfiltered, matching
+	// the MCP server pill rendering.
 	if (iconUrl && !imgError) {
 		const img = (
-			<div className="size-4 shrink-0 overflow-hidden">
-				<ExternalImage
-					src={iconUrl}
-					alt={`${name} icon`}
-					className={cn(
-						"block size-4",
-						// Monochrome: brightness-0 strips colour to black,
-						// dark:invert flips to white for dark backgrounds,
-						// opacity tuned per-theme to match content-secondary
-						// (light ~35% lightness, dark ~65%).
-						"brightness-0 opacity-[0.35] dark:invert dark:opacity-[0.65]",
-					)}
-					onError={() => setImgError(true)}
-				/>
-			</div>
+			<ExternalImage
+				src={iconUrl}
+				alt={`${name} icon`}
+				className={cn(
+					"size-4 shrink-0 object-contain",
+					isRunning && "grayscale",
+				)}
+				onError={() => setImgError(true)}
+			/>
 		);
 
 		if (serverName) {

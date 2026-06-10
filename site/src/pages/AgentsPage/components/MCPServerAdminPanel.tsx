@@ -50,6 +50,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { findKnownMcpServerByUrl } from "../data/knownMcpServers";
 import { BackButton } from "./BackButton";
 import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
@@ -553,7 +554,33 @@ const ServerForm: FC<ServerFormProps> = ({
 								<Input
 									id={`${formId}-url`}
 									className="h-9 text-[13px]"
-									{...form.getFieldProps("url")}
+									value={form.values.url}
+									onChange={(e) => {
+										const nextUrl = e.target.value;
+										form.setFieldValue("url", nextUrl);
+										const known = findKnownMcpServerByUrl(nextUrl);
+										if (!known) {
+											return;
+										}
+										// Pre-fill empty fields from the well-known
+										// MCP server registry. Anything the admin has
+										// already typed is preserved so the registry
+										// can never overwrite user input.
+										if (form.values.displayName.trim() === "") {
+											form.setFieldValue("displayName", known.displayName);
+										}
+										if (form.values.slug.trim() === "") {
+											form.setFieldValue("slug", known.slug);
+										}
+										if (form.values.iconURL.trim() === "") {
+											form.setFieldValue("iconURL", known.iconUrl);
+											// Surface the auto-filled icon so the admin
+											// sees it before saving.
+											setShowDetails(true);
+										}
+									}}
+									onBlur={form.handleBlur}
+									name="url"
 									placeholder="https://mcp.example.com/sse"
 									disabled={isDisabled}
 								/>
@@ -618,8 +645,9 @@ const ServerForm: FC<ServerFormProps> = ({
 										disabled={isDisabled}
 									/>
 								</Field>
-								<Field label="Icon">
+								<Field label="Icon" htmlFor={`${formId}-icon`}>
 									<IconPickerField
+										id={`${formId}-icon`}
 										value={form.values.iconURL}
 										onChange={(v) => {
 											form.setFieldValue("iconURL", v);

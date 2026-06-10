@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none"><g transform="translate(0.0000 15.0000) scale(2.000000)">
+ <style type="text/css">
+  .st0{fill:#32E6E2;}
+ </style>
+ <metadata>
+  <sfw xmlns="ns_sfw;">
+   <slices>
+   </slices>
+   <sliceSourceBounds bottomLeftOrigin="true" height="112.6" width="128" x="0" y="0.2">
+   </sliceSourceBounds>
+  </sfw>
+ </metadata>
+ <g>
+  <g>
+   <g>
+    <path class="st0" d="M34.6,94.2h-1.2l-6-6V87l9.2-9.2H43l0.9,0.9V85L34.6,94.2z">
+    </path>
+    <path class="st0" d="M27.4,26v-1.2l6-6h1.2l9.2,9.2v6.4L43,35.2h-6.4L27.4,26z">
+    </path>
+    <path class="st0" d="M80.5,74.8h-8.8L70.9,74V53.5c0-3.7-1.4-6.5-5.8-6.6c-2.3-0.1-4.9,0-7.6,0.1l-0.4,0.4V74l-0.7,0.7h-8.8
+				L46.8,74V38.9l0.7-0.7h19.8c7.7,0,13.9,6.2,13.9,13.9V74L80.5,74.8z">
+    </path>
+    <path class="st0" d="M35.8,61.6H0.7L0,60.9v-8.8l0.7-0.7h35.1l0.7,0.7v8.8L35.8,61.6z">
+    </path>
+    <path class="st0" d="M127.3,61.6H92.2l-0.7-0.7v-8.8l0.7-0.7h35.1l0.7,0.7v8.8L127.3,61.6z">
+    </path>
+    <path class="st0" d="M58.9,27.2V0.9l0.7-0.7h8.8l0.7,0.7v26.3L68.5,28h-8.8L58.9,27.2z">
+    </path>
+    <path class="st0" d="M58.9,112.1V85.7l0.7-0.7h8.8l0.7,0.7v26.3l-0.7,0.7h-8.8L58.9,112.1z">
+    </path>
+   </g>
+  </g>
+ </g>
+</g></svg>

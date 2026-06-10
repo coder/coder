@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none"><g transform="translate(22.8000 0.0000) scale(4.000000)">
+ <style type="text/css">
+  .st0{fill:#FFFFFF;}
+ </style>
+ <metadata>
+  <sfw xmlns="ns_sfw;">
+   <slices>
+   </slices>
+   <sliceSourceBounds bottomLeftOrigin="true" height="64" width="52.6" x="0" y="39.6">
+   </sliceSourceBounds>
+  </sfw>
+ </metadata>
+ <g>
+  <path class="st0" d="M3.4,27.8c10.5-1.7,18.7-10.4,20.4-20.9l0.6-5C24.5,1,24-0.1,22.9,0C15,0.6,7.6,3.2,3.4,4.9
+		C1.3,5.8,0,7.8,0,10v16.5c0,1,0.9,1.7,1.8,1.6L3.4,27.8L3.4,27.8z">
+  </path>
+  <path class="st0" d="M28.8,6.9c1.7,10.5,9.9,19.2,20.4,20.9l1.5,0.3c1,0.2,1.8-0.6,1.8-1.6V10c0-2.2-1.3-4.2-3.4-5.1
+		C45,3.2,37.6,0.6,29.7,0c-1-0.1-1.5,1-1.4,1.8L28.8,6.9L28.8,6.9z">
+  </path>
+  <path class="st0" d="M49.2,32.4c-14.3,2.8-21,12.4-21,30.4c0,0.9,0.9,1.5,1.7,1c6.6-4.4,21.1-16.1,22.6-30.6
+		C52.5,31.4,50.3,32.3,49.2,32.4z">
+  </path>
+  <path class="st0" d="M3.4,32.4c14.3,2.8,21,12.4,21,30.4c0,0.9-0.9,1.5-1.7,1C16.1,59.4,1.6,47.8,0.1,33.2
+		C0.1,31.4,2.3,32.3,3.4,32.4z">
+  </path>
+ </g>
+</g></svg>
