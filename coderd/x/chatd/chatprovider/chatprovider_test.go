@@ -1401,10 +1401,11 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 // path that lets a user-uploaded PDF actually reach Claude/Bedrock: a
 // fantasy.FilePart with MediaType "application/pdf" must be serialized as an
 // Anthropic "document" content block with a base64 source carrying the PDF
-// bytes. Older fantasy versions silently dropped PDF FileParts in the
-// Anthropic provider, so the user message ended up empty and the model never
-// saw the document. See coder/fantasy#37 (cherry-pick of upstream
-// charmbracelet/fantasy#197). The Generate call would fail outright on the
+// bytes and a sanitized filename as the document title. Older fantasy versions
+// silently dropped PDF FileParts in the Anthropic provider, so the user
+// message ended up empty and the model never saw the document. The underlying
+// PDF block support came from coder/fantasy#37, a cherry-pick of upstream
+// charmbracelet/fantasy#197. The Generate call would fail outright on the
 // regressed code path because the dropped FilePart leaves the request with
 // zero messages.
 func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
@@ -1423,6 +1424,7 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 
 		var blocks []struct {
 			Type   string `json:"type"`
+			Title  string `json:"title"`
 			Source struct {
 				Type      string `json:"type"`
 				MediaType string `json:"media_type"`
@@ -1439,6 +1441,11 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 			}
 			assert.Equal(t, "base64", block.Source.Type, "PDF document block must use a base64 source")
 			assert.Equal(t, wantData, block.Source.Data, "PDF bytes must round-trip base64 unchanged")
+			assert.Equal(t,
+				"quarterly report v1 pdf",
+				block.Title,
+				"PDF filename must reach Anthropic as a sanitized document title",
+			)
 			if block.Source.MediaType != "" {
 				assert.Equal(t, "application/pdf", block.Source.MediaType)
 			}
@@ -1462,7 +1469,11 @@ func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
 			{
 				Role: fantasy.MessageRoleUser,
 				Content: []fantasy.MessagePart{
-					fantasy.FilePart{Data: pdfData, MediaType: "application/pdf"},
+					fantasy.FilePart{
+						Filename:  "quarterly_report.v1.pdf",
+						Data:      pdfData,
+						MediaType: "application/pdf",
+					},
 				},
 			},
 		},
