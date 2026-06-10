@@ -365,13 +365,27 @@ When Coder is installed from the
 systemd unit is installed alongside `coder.service`. Use this unit instead of
 editing or duplicating `coder.service` to run an external provisioner.
 
-1. Edit `/etc/coder.d/coder-provisioner.env` and set, at minimum,
-   `CODER_URL` and `CODER_PROVISIONER_DAEMON_KEY` (preferred) or
+1. Create `/etc/coder.d/coder-provisioner.env`. The package does not ship
+   this file, and the unit only starts once it exists and is not empty. Set,
+   at minimum, `CODER_URL` and `CODER_PROVISIONER_DAEMON_KEY` (preferred) or
    `CODER_PROVISIONER_DAEMON_PSK`. Run `coder provisioner start --help` for
    the full list of supported environment variables.
 
    ```shell
    sudoedit /etc/coder.d/coder-provisioner.env
+   ```
+
+   ```env
+   CODER_URL=https://coder.example.com
+   CODER_PROVISIONER_DAEMON_KEY=your_provisioner_key
+   # Optional. Defaults to the machine hostname.
+   # CODER_PROVISIONER_DAEMON_NAME=provisioner-1
+   ```
+
+   The file contains a credential, so restrict access to it:
+
+   ```shell
+   sudo chmod 0600 /etc/coder.d/coder-provisioner.env
    ```
 
 1. Start the provisioner now and on boot:

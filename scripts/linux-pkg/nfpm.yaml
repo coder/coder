@@ -23,9 +23,6 @@ contents:
   - src: coder.env
     dst: /etc/coder.d/coder.env
     type: "config|noreplace"
-  - src: coder-provisioner.env
-    dst: /etc/coder.d/coder-provisioner.env
-    type: "config|noreplace"
   - src: coder.service
     dst: /usr/lib/systemd/system/coder.service
   - src: coder-provisioner.service

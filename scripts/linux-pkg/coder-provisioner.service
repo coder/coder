@@ -8,10 +8,7 @@ StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
-# Type=exec is used here instead of Type=notify because `coder provisioner
-# start` does not yet send sd_notify(READY=1). Switch to Type=notify once the
-# daemon supports systemd readiness notification, to match coder.service.
-Type=exec
+Type=notify
 EnvironmentFile=/etc/coder.d/coder-provisioner.env
 User=coder
 Group=coder
@@ -24,8 +21,7 @@ PrivateDevices=yes
 # binds the prometheus port (default 2112), and writes logs via stderr, so the
 # capability set is left empty.
 CapabilityBoundingSet=
-CacheDirectory=coder
-KillSignal=SIGINT
+CacheDirectory=coder-provisioner
 KillMode=mixed
 NoNewPrivileges=yes
 ExecStart=/usr/bin/coder provisioner start

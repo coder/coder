@@ -64,7 +64,6 @@ winget uninstall Coder.Coder
 
 ```shell
 sudo rm /etc/coder.d/coder.env
-sudo rm -f /etc/coder.d/coder-provisioner.env
 ```
 
 ## Coder settings, cache, and the optional built-in PostgreSQL database
