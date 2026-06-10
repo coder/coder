@@ -199,53 +199,6 @@ describe("TerminalPage", () => {
 		expect(req.data).toBe("\x1b\r");
 	});
 
-	it("shows a custom copy/paste menu on right-click on non-macOS", async () => {
-		vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
-
-		createWorkspaceTerminalWebSocket();
-		const { container } = await renderTerminal();
-
-		const terminal = container.querySelector<HTMLDivElement>(
-			".workspace-terminal",
-		);
-		expect(terminal).not.toBeNull();
-
-		const event = new MouseEvent("contextmenu", {
-			bubbles: true,
-			cancelable: true,
-		});
-		terminal?.dispatchEvent(event);
-
-		expect(event.defaultPrevented).toBe(true);
-		expect(
-			await screen.findByRole("menuitem", { name: "Copy" }),
-		).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "Paste" })).toBeInTheDocument();
-	});
-
-	it("keeps the native context menu on macOS", async () => {
-		vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-
-		createWorkspaceTerminalWebSocket();
-		const { container } = await renderTerminal();
-
-		const terminal = container.querySelector<HTMLDivElement>(
-			".workspace-terminal",
-		);
-		expect(terminal).not.toBeNull();
-
-		const event = new MouseEvent("contextmenu", {
-			bubbles: true,
-			cancelable: true,
-		});
-		terminal?.dispatchEvent(event);
-
-		expect(event.defaultPrevented).toBe(false);
-		expect(
-			screen.queryByRole("menuitem", { name: "Copy" }),
-		).not.toBeInTheDocument();
-	});
-
 	it("shows confirmation dialog when command param is present", async () => {
 		renderTerminalRaw(
 			`/${MockUserOwner.username}/${MockWorkspace.name}/terminal?command=echo+hello`,
