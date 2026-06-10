@@ -37,8 +37,7 @@ const buildThinkingSpacerStore = () => {
 				text: "I should think before answering.",
 			},
 		]),
-		// The spacer only renders when another bubble follows; the last
-		// transcript message intentionally gets no trailing spacer.
+		// A following message is needed so the spacer renders.
 		buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
 	]);
 

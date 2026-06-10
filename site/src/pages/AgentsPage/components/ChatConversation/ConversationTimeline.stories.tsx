@@ -1676,8 +1676,7 @@ export const NoCopyButtonAfterTrailingToolCall: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("Running the test suite now.");
-		// Only the user message gets an action row; the assistant
-		// message ends with a tool call so its copy button is omitted.
+		// The assistant message ends with a tool call, so no copy button.
 		const actions = canvas.getAllByTestId("message-actions");
 		expect(actions).toHaveLength(1);
 		for (const actionRow of actions) {
@@ -2020,12 +2019,7 @@ export const ThinkingOnlyAssistantSpacing: Story = {
 	},
 };
 
-/**
- * Regression: a thinking-only assistant message at the very end of the
- * transcript must not render the bottom spacer. There is no following
- * bubble to space against, so the spacer would just be a dangling
- * blank at the end of the chat.
- */
+/** No following bubble to space against; the spacer would be a dangling blank. */
 export const NoSpacerAfterTrailingThinkingMessage: Story = {
 	args: {
 		...defaultArgs,

@@ -259,7 +259,7 @@ export const StartingShowsThinkingActivity: Story = {
 	},
 };
 
-export const ResponseKeepsActivitySlotReserved: Story = {
+export const ResponseDoesNotRenderActivitySlot: Story = {
 	args: {
 		streamState: responseStreamState.streamState,
 		streamTools: responseStreamState.streamTools,
