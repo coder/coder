@@ -11,8 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/chat"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -77,7 +75,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "No scaletest workspaces found; running chats without workspace context.")
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
+			logger := inv.Logger
 			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, workspaces[0].OrganizationID)
 			if err != nil {
 				return err
