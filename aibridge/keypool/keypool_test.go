@@ -5,10 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -31,7 +34,7 @@ func TestNewKeyPool(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pool, err := keypool.New(tc.keys, quartz.NewMock(t))
+			pool, err := keypool.New("test-provider", tc.keys, quartz.NewMock(t), nil)
 			if tc.expectedErr != nil {
 				require.ErrorIs(t, err, tc.expectedErr)
 				return
@@ -125,7 +128,7 @@ func TestState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool, err := keypool.New([]string{"key-0"}, clk)
+			pool, err := keypool.New("test-provider", []string{"key-0"}, clk, nil)
 			require.NoError(t, err)
 
 			key := tc.setup(t, pool, clk)
@@ -204,7 +207,7 @@ func TestMarkTemporary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool, err := keypool.New([]string{"key-0", "key-1"}, clk)
+			pool, err := keypool.New("test-provider", []string{"key-0", "key-1"}, clk, nil)
 			require.NoError(t, err)
 
 			key := tc.setup(t, pool, clk)
@@ -267,7 +270,7 @@ func TestMarkPermanent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool, err := keypool.New([]string{"key-0", "key-1"}, clk)
+			pool, err := keypool.New("test-provider", []string{"key-0", "key-1"}, clk, nil)
 			require.NoError(t, err)
 
 			key := tc.setup(t, pool)
@@ -498,11 +501,15 @@ func TestWalkerNext(t *testing.T) {
 		},
 	}
 
+	const providerName = "test-provider"
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clk := quartz.NewMock(t)
-			pool, err := keypool.New(tc.keys, clk)
+			reg := prometheus.NewRegistry()
+			m := metrics.NewMetrics(reg)
+			pool, err := keypool.New(providerName, tc.keys, clk, m)
 			require.NoError(t, err)
 
 			tc.setup(t, pool)
@@ -522,6 +529,26 @@ func TestWalkerNext(t *testing.T) {
 			// After all expected keys, the walker should be exhausted.
 			_, keyPoolErr := walker.Next()
 			require.Equal(t, tc.expectedErr, keyPoolErr)
+
+			// The walker hands out one attempt per valid key before
+			// exhaustion.
+			assert.Equal(t, len(tc.expectedValid), walker.Attempts())
+
+			// Exhaustion records one event whose outcome reflects the
+			// error kind: rate-limited keys can recover, permanent cannot.
+			wantOutcome := "rate_limited"
+			if tc.expectedErr.Kind == keypool.ErrorKindPermanent {
+				wantOutcome = "auth_failed"
+			}
+			gathered, err := reg.Gather()
+			require.NoError(t, err)
+			for _, outcome := range []string{"rate_limited", "auth_failed"} {
+				if outcome == wantOutcome {
+					assert.True(t, codertestutil.PromCounterHasValue(t, gathered, 1, "key_pool_exhaustions_total", outcome, providerName))
+				} else {
+					assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, providerName))
+				}
+			}
 		})
 	}
 }
@@ -584,7 +611,7 @@ func TestKeyConcurrent(t *testing.T) {
 			t.Parallel()
 
 			clk := quartz.NewMock(t)
-			pool, err := keypool.New([]string{"key-0"}, clk)
+			pool, err := keypool.New("test-provider", []string{"key-0"}, clk, nil)
 			require.NoError(t, err)
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
@@ -613,7 +640,7 @@ func TestWalkerIndependence(t *testing.T) {
 	t.Parallel()
 
 	clk := quartz.NewMock(t)
-	pool, err := keypool.New([]string{"key-0", "key-1", "key-2"}, clk)
+	pool, err := keypool.New("test-provider", []string{"key-0", "key-1", "key-2"}, clk, nil)
 	require.NoError(t, err)
 
 	walker := pool.Walker()

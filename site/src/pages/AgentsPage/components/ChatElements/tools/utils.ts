@@ -119,26 +119,6 @@ export const toProviderLabel = (
 	return "Git provider";
 };
 
-/**
- * Formats a duration in milliseconds into a compact label using
- * the same style as {@link shortRelativeTime} in utils/time.
- */
-export const shortDurationMs = (durationMs: number | undefined): string => {
-	if (durationMs === undefined || durationMs < 0) {
-		return "";
-	}
-	const seconds = Math.round(durationMs / 1000);
-	if (seconds < 60) {
-		return `${seconds}s`;
-	}
-	const minutes = Math.round(durationMs / 60_000);
-	if (minutes < 60) {
-		return `${minutes}m`;
-	}
-	const hours = Math.round(durationMs / 3_600_000);
-	return `${hours}h`;
-};
-
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
 
 export const formatShellDurationMs = (

@@ -56,10 +56,7 @@ import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import {
-	AGENT_SOURCE_ORDER,
-	getAgentSidebarFilters,
-} from "./utils/agentSidebarFilters";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -67,6 +64,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -152,16 +150,12 @@ const AgentsPage: FC = () => {
 		sidebarFilters.chatStatuses.length === 1
 			? sidebarFilters.chatStatuses[0]
 			: undefined;
-	const sourceFilter =
-		sidebarFilters.sources.length === AGENT_SOURCE_ORDER.length
-			? "all"
-			: sidebarFilters.sources[0];
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
-			source: sourceFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
@@ -216,6 +210,7 @@ const AgentsPage: FC = () => {
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -239,6 +234,7 @@ const AgentsPage: FC = () => {
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),

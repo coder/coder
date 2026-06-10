@@ -34,7 +34,7 @@ type InfiniteChatsFilters = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
-	source?: TypesGen.ChatListSource;
+	sources?: readonly TypesGen.ChatListSource[];
 }>;
 
 export const infiniteChatsKey = (filters?: InfiniteChatsFilters) =>
@@ -559,8 +559,8 @@ const getInfiniteChatsQueryString = (
 	if (filters?.chatStatus) {
 		qParts.push(`has_unread:${filters.chatStatus === "unread"}`);
 	}
-	if (filters?.source) {
-		qParts.push(`source:${filters.source}`);
+	if (filters?.sources?.length) {
+		qParts.push(`source:${filters.sources.join(",")}`);
 	}
 	return qParts.length > 0 ? qParts.join(" ") : undefined;
 };
