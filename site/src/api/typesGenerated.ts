@@ -7182,6 +7182,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
 	| "workspace"
@@ -7218,6 +7219,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
 	"workspace",

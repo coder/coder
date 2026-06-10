@@ -1588,6 +1588,7 @@ func partsToMessageParts(
 				continue
 			}
 			result = append(result, fantasy.FilePart{
+				Filename:        name,
 				Data:            data,
 				MediaType:       mediaType,
 				ProviderOptions: opts,

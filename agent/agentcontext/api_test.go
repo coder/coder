@@ -61,7 +61,7 @@ func TestAPI_ListSourcesEmpty(t *testing.T) {
 func TestAPI_AddAndListSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir:   func() string { return wd },
@@ -103,7 +103,7 @@ func TestAPI_AddSourceRejected(t *testing.T) {
 func TestAPI_GetAndDeleteSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 
 	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir:   func() string { return wd },
