@@ -90,8 +90,6 @@ func TestUserPasswordCompare(t *testing.T) {
 			wantEqual:          false,
 		},
 		{
-			// Regression test for ANT-2026-22433: an empty stored hash must
-			// never match the legacy "hunter2" placeholder password.
 			name:               "EmptyHashHunter2",
 			passwordToValidate: "",
 			password:           "hunter2",
