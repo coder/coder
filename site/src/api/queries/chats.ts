@@ -235,6 +235,110 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+const archivedFilterForChatListKey = (
+	queryKey: readonly unknown[],
+): boolean | undefined => {
+	if (queryKey.length !== 2) {
+		return undefined;
+	}
+	const filters = queryKey[1];
+	if (!filters || typeof filters !== "object") {
+		return undefined;
+	}
+	const archived = (filters as { archived?: unknown }).archived;
+	return typeof archived === "boolean" ? archived : undefined;
+};
+
+const isInfiniteChatsCacheData = (
+	data: unknown,
+): data is InfiniteChatsCacheData => {
+	if (!data || typeof data !== "object") {
+		return false;
+	}
+	const maybeData = data as { pages?: unknown; pageParams?: unknown };
+	return Array.isArray(maybeData.pages) && Array.isArray(maybeData.pageParams);
+};
+
+const patchChatArchiveState = (
+	chat: TypesGen.Chat,
+	archived: boolean,
+): TypesGen.Chat => {
+	const pinOrder = archived ? 0 : chat.pin_order;
+	if (chat.archived === archived && chat.pin_order === pinOrder) {
+		return chat;
+	}
+	return { ...chat, archived, pin_order: pinOrder };
+};
+
+/** Applies an accepted archive state to loaded sidebar and detail caches. */
+export const applyChatArchiveStateToCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+	archived: boolean,
+) => {
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKey(chatId),
+		(chat) => (chat ? patchChatArchiveState(chat, archived) : chat),
+	);
+
+	if (archived) {
+		removeChildFromParentInCache(queryClient, chatId);
+	} else {
+		updateChildInParentCache(
+			queryClient,
+			(child) => patchChatArchiveState(child, archived),
+			chatId,
+		);
+	}
+
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+
+	for (const [queryKey, data] of queries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		const archivedFilter = archivedFilterForChatListKey(queryKey);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
+			if (!isInfiniteChatsCacheData(prev)) {
+				return prev;
+			}
+
+			let changed = false;
+			const pages = prev.pages.map((page) => {
+				let pageChanged = false;
+				const nextPage: TypesGen.Chat[] = [];
+				for (const chat of page) {
+					if (chat.id !== chatId) {
+						nextPage.push(chat);
+						continue;
+					}
+
+					if (archivedFilter !== undefined && archivedFilter !== archived) {
+						pageChanged = true;
+						continue;
+					}
+
+					const updatedChat = patchChatArchiveState(chat, archived);
+					if (updatedChat !== chat) {
+						pageChanged = true;
+					}
+					nextPage.push(updatedChat);
+				}
+				if (pageChanged) {
+					changed = true;
+					return nextPage;
+				}
+				return page;
+			});
+
+			return changed ? { ...prev, pages } : prev;
+		});
+	}
+};
+
 const parseUpdatedAtInstant = (updatedAt: string) => {
 	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
 	if (!match) {
@@ -697,13 +801,16 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+	onSuccess: (_data: unknown, chatId: string) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, true);
+	},
+	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
+		void queryClient.invalidateQueries({
 			queryKey: chatsByWorkspaceKeyPrefix,
 		});
 	},
@@ -755,13 +862,16 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+	onSuccess: (_data: unknown, chatId: string) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, false);
+	},
+	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
+		void queryClient.invalidateQueries({
 			queryKey: chatsByWorkspaceKeyPrefix,
 		});
 	},
@@ -1127,13 +1237,13 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		);
 	},
 
-	onSettled: async (
+	onSettled: (
 		_data: unknown,
 		_error: unknown,
 		{ chatId }: UpdateChatTitleVariables,
 	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
