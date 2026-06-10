@@ -1,19 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none"><g transform="translate(5.7905 0.0000) scale(6.095238)">
- <style type="text/css">
-  .st0{fill:#FF3621;}
- </style>
- <metadata>
-  <sfw xmlns="ns_sfw;">
-   <slices>
-   </slices>
-   <sliceSourceBounds bottomLeftOrigin="true" height="42" width="40.1" x="-69.1" y="-10.5">
-   </sliceSourceBounds>
-  </sfw>
- </metadata>
- <g>
-  <path class="st0" d="M40.1,31.1v-7.4l-0.8-0.5L20.1,33.7l-18.2-10l0-4.3l18.2,9.9l20.1-10.9v-7.3l-0.8-0.5L20.1,21.2L2.6,11.6
-		L20.1,2l14.1,7.7l1.1-0.6V8.3L20.1,0L0,10.9V12L20.1,23l18.2-10v4.4l-18.2,10L0.8,16.8L0,17.3v7.4l20.1,10.9l18.2-9.9v4.3l-18.2,10
-		L0.8,29.5L0,30v1.1L20.1,42L40.1,31.1z">
-  </path>
- </g>
-</g></svg>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="256" height="256" fill="white"/>
+<g clip-path="url(#clip0_2_150)">
+<path d="M223.5 176.412V141.174L219.69 138.793L128.238 188.793L41.5499 141.174V120.697L128.238 167.84L223.976 115.935V81.1736L220.166 78.7926L128.238 129.269L44.884 83.5545L128.238 37.8402L195.398 74.5069L200.637 71.6497V67.8402L128.238 28.3164L32.5 80.2212V85.4593L128.238 137.84L214.926 90.2212V111.174L128.238 158.793L36.3105 108.316L32.5 110.697V145.935L128.238 197.84L214.926 150.697V171.174L128.238 218.793L36.3105 168.793L32.5 171.174V176.412L128.238 228.316L223.5 176.412Z" fill="#FF3621"/>
+</g>
+<defs>
+<clipPath id="clip0_2_150">
+<rect width="191" height="200" fill="white" transform="translate(32.5 28.3164)"/>
+</clipPath>
+</defs>
+</svg>
