@@ -445,4 +445,12 @@ export const LargeDiff: Story = {
 			</div>
 		),
 	],
+	play: async ({ canvasElement }) => {
+		// The @pierre/trees file tree mounts a `file-tree-container` custom
+		// element once the sidebar is shown (isExpanded). Assert it appears.
+		await waitFor(() => {
+			const tree = canvasElement.querySelector("file-tree-container");
+			expect(tree).not.toBeNull();
+		});
+	},
 };

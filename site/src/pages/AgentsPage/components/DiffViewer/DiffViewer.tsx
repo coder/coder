@@ -23,11 +23,13 @@ import {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
+import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
+import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import { useActiveFileTracking } from "./useActiveFileTracking";
 
 interface DiffViewerProps {
 	parsedFiles: readonly FileDiffMetadata[];
-	cacheKeyPrefix?: string;
 	isExpanded?: boolean;
 	isLoading?: boolean;
 	error?: unknown;
@@ -37,7 +39,9 @@ interface DiffViewerProps {
 		fileName: string,
 		props: { lineNumber: number; annotationSide: "additions" | "deletions" },
 	) => void;
+	/** Fires when a line selection is committed (e.g. on pointer up). */
 	onLineSelected?: (fileName: string, range: SelectedLineRange | null) => void;
+	/** Fires continuously as the selection range changes during a drag. */
 	onLineSelectionChange?: (
 		fileName: string,
 		range: SelectedLineRange | null,
@@ -53,6 +57,8 @@ export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
+const DIFF_HEADER_HEIGHT = 32;
+const HUNK_SEPARATOR_HEIGHT = 28;
 
 // Minimum width (px) of the diff container at which the file tree sidebar is
 // shown alongside the diff. Below this the diff takes the full width unless the
@@ -67,38 +73,10 @@ const diffViewerStyle = {
 } satisfies CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
-	diffHeaderHeight: 32,
-	hunkSeparatorHeight: 28,
+	diffHeaderHeight: DIFF_HEADER_HEIGHT,
+	hunkSeparatorHeight: HUNK_SEPARATOR_HEIGHT,
 	lineHeight: DIFF_VIEWER_LINE_HEIGHT,
 };
-
-const diffViewerSeparatorCSS = [
-	":host { --diffs-bg-separator-override: transparent; }",
-	"[data-separator='line-info'] { height: 28px !important; }",
-	"[data-separator-content] {",
-	"  display: flex !important;",
-	"  align-items: center !important;",
-	"  gap: 12px !important;",
-	"  overflow: visible !important;",
-	"  height: auto !important;",
-	"  border-radius: 0 !important;",
-	"  background-color: transparent !important;",
-	"  font-size: 11px !important;",
-	"  color: hsl(var(--content-secondary)) !important;",
-	"  opacity: 0.8;",
-	"}",
-	"[data-separator-wrapper] { border-radius: 0 !important; }",
-	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
-	"  padding-inline: 0 !important;",
-	"}",
-	"[data-separator-content]::before,",
-	"[data-separator-content]::after {",
-	"  content: '' !important;",
-	"  flex: 1 !important;",
-	"  height: 1px !important;",
-	"  background: hsl(var(--border-default)) !important;",
-	"}",
-].join(" ");
 
 const fileTreeStyle = {
 	height: "100%",
@@ -118,14 +96,33 @@ const fileTreeStyle = {
 	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
 } satisfies CSSProperties;
 
-function countChangedLines(fileDiff: FileDiffMetadata) {
-	let additions = 0;
-	let deletions = 0;
-	for (const hunk of fileDiff.hunks) {
-		additions += hunk.additionLines;
-		deletions += hunk.deletionLines;
+// Orders diff entries to match the sidebar tree's leaf order so scrolling
+// moves monotonically down the tree. Reproduces @pierre/trees'
+// defaultChildrenComparator across full paths: at each segment a directory
+// (a path with deeper segments) sorts before a file, dot-prefixed names sort
+// first, then case-insensitive localeCompare breaks the tie.
+function compareTreePaths(a: string, b: string): number {
+	const aSegments = a.split("/");
+	const bSegments = b.split("/");
+	const length = Math.min(aSegments.length, bSegments.length);
+	for (let i = 0; i < length; i++) {
+		const aSegment = aSegments[i];
+		const bSegment = bSegments[i];
+		const aIsFile = i === aSegments.length - 1;
+		const bIsFile = i === bSegments.length - 1;
+		if (aIsFile !== bIsFile) {
+			return aIsFile ? 1 : -1;
+		}
+		if (aSegment !== bSegment) {
+			const aIsDot = aSegment.charCodeAt(0) === 46;
+			const bIsDot = bSegment.charCodeAt(0) === 46;
+			if (aIsDot !== bIsDot) {
+				return aIsDot ? -1 : 1;
+			}
+			return aSegment.toLowerCase().localeCompare(bSegment.toLowerCase());
+		}
 	}
-	return { additions, deletions };
+	return aSegments.length - bSegments.length;
 }
 
 // The library forces classic, space-reserving scrollbars via
@@ -197,16 +194,26 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 
 function DiffFileTree({
 	files,
-	onSelectFile,
+	activePath,
+	onUserSelectPath,
 }: {
 	files: readonly FileDiffMetadata[];
-	onSelectFile: (fileName: string) => void;
+	activePath: string | null;
+	onUserSelectPath: (fileName: string) => void;
 }) {
 	const paths = files.map((file) => file.name);
 	const gitStatus = files.map((file) => ({
 		path: file.name,
 		status: gitStatusForFile(file),
 	}));
+	// Tracks the row currently selected in the model so scroll-driven syncing
+	// can skip redundant selects.
+	const selectedPathRef = useRef<string | null>(null);
+	// Holds the path of an in-flight programmatic select() so its echoed
+	// selection event is dropped instead of scrolling back and fighting the
+	// user's scroll. A path token (not a boolean) avoids swallowing an
+	// unrelated user selection that lands first.
+	const suppressedSelectionRef = useRef<string | null>(null);
 	const { model } = useFileTree({
 		density: "compact",
 		flattenEmptyDirectories: false,
@@ -214,9 +221,15 @@ function DiffFileTree({
 		initialExpansion: "open",
 		unsafeCSS: fileTreeUnsafeCSS,
 		onSelectionChange: (selectedPaths) => {
-			const selectedPath = selectedPaths.at(-1);
+			const selectedPath = selectedPaths.at(-1) ?? null;
+			selectedPathRef.current = selectedPath;
+			if (selectedPath && suppressedSelectionRef.current === selectedPath) {
+				suppressedSelectionRef.current = null;
+				return;
+			}
+			suppressedSelectionRef.current = null;
 			if (selectedPath) {
-				onSelectFile(selectedPath);
+				onUserSelectPath(selectedPath);
 			}
 		},
 		paths,
@@ -226,6 +239,17 @@ function DiffFileTree({
 		model.resetPaths(paths);
 		model.setGitStatus(gitStatus);
 	}, [gitStatus, model, paths]);
+
+	// Drive the tree selection from the active file. select() echoes a
+	// selection event, so the suppression token above keeps it from looping
+	// back into onUserSelectPath.
+	useEffect(() => {
+		if (!activePath || selectedPathRef.current === activePath) return;
+		const item = model.getItem(activePath);
+		if (!item) return;
+		suppressedSelectionRef.current = activePath;
+		item.select();
+	}, [activePath, model]);
 
 	return (
 		<FileTree
@@ -338,6 +362,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string>>(null);
 	const isDark = theme.palette.mode === "dark";
+	const [activeFile, setActiveFile] = useState<string | null>(null);
 
 	// Measure the diff container so the file tree only appears when there is
 	// enough horizontal room, rather than keying off the viewport width.
@@ -353,6 +378,13 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		return () => observer.disconnect();
 	}, [containerEl]);
 
+	const showTree = isExpanded || containerWidth >= FILE_TREE_THRESHOLD;
+	const handleScroll = useActiveFileTracking({
+		enabled: showTree,
+		onActiveFileChange: (path) =>
+			setActiveFile((current) => (current === path ? current : path)),
+	});
+
 	const options: ComponentProps<typeof CodeView<string>>["options"] = {
 		diffStyle,
 		diffIndicators: "bars",
@@ -361,7 +393,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: diffViewerSeparatorCSS,
+		unsafeCSS: SEPARATOR_CSS,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
@@ -388,7 +420,13 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		},
 	};
 
-	const items: CodeViewItem<string>[] = parsedFiles.map((fileDiff) => {
+	// Render the diff in the same order the sidebar tree lays out its leaves so
+	// scrolling moves monotonically down the tree.
+	const sortedFiles = [...parsedFiles].sort((a, b) =>
+		compareTreePaths(a.name, b.name),
+	);
+
+	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
 		const annotations = getLineAnnotations?.(fileDiff.name);
 		return {
 			id: fileDiff.name,
@@ -401,23 +439,29 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 
 	const selectedLines = (() => {
 		if (!getSelectedLines) return undefined;
-		for (const fileDiff of parsedFiles) {
+		for (const fileDiff of sortedFiles) {
 			const range = getSelectedLines(fileDiff.name);
 			if (range) return { id: fileDiff.name, range };
 		}
 		return null;
 	})();
 
+	const canScroll = !isLoading && !error && items.length > 0;
+
 	useEffect(() => {
 		if (!scrollToFile) return;
-		codeViewRef.current?.scrollTo({
+		// CodeView is not mounted while loading/erroring/empty, so the ref is
+		// null. Skip the scroll without signalling completion so the parent
+		// keeps the pending target and retries once the view is ready.
+		if (!canScroll || !codeViewRef.current) return;
+		codeViewRef.current.scrollTo({
 			type: "item",
 			id: scrollToFile,
 			align: "start",
 			behavior: "instant",
 		});
 		onScrollToFileComplete?.();
-	}, [scrollToFile, onScrollToFileComplete]);
+	}, [scrollToFile, onScrollToFileComplete, canScroll]);
 
 	if (isLoading) {
 		return <DiffViewerSkeleton />;
@@ -428,11 +472,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}
 
 	if (items.length === 0) {
-		return <div>{emptyMessage}</div>;
+		return (
+			<div className="flex h-full flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
+				{emptyMessage}
+			</div>
+		);
 	}
-
-	const showTree =
-		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) && items.length > 0;
 
 	return (
 		<div
@@ -442,8 +487,10 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			{showTree && (
 				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border-default">
 					<DiffFileTree
-						files={parsedFiles}
-						onSelectFile={(fileName) => {
+						files={sortedFiles}
+						activePath={activeFile}
+						onUserSelectPath={(fileName) => {
+							setActiveFile(fileName);
 							codeViewRef.current?.scrollTo({
 								type: "item",
 								id: fileName,
@@ -461,6 +508,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 				selectedLines={selectedLines}
 				className="h-full min-h-0 min-w-0 flex-1 overflow-auto"
 				style={diffViewerStyle}
+				onScroll={handleScroll}
 				renderCustomHeader={(item) =>
 					item.type === "diff" ? (
 						<HeaderContent fileDiff={item.fileDiff} />

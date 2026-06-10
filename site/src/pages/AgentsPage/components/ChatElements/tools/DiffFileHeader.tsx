@@ -1,16 +1,7 @@
 import type { FileContents, FileDiffMetadata } from "@pierre/diffs";
 import { cn } from "#/utils/cn";
+import { countChangedLines } from "../../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../../utils/diffColors";
-
-function countChangedLines(fileDiff: FileDiffMetadata) {
-	let additions = 0;
-	let deletions = 0;
-	for (const hunk of fileDiff.hunks) {
-		additions += hunk.additionLines;
-		deletions += hunk.deletionLines;
-	}
-	return { additions, deletions };
-}
 
 export function DiffFileHeader({
 	file,

@@ -295,7 +295,7 @@ export const fileViewerCSS = [
 
 // Restyled separators: quiet, full-width dividers that fade
 // into the background instead of drawing attention.
-const SEPARATOR_CSS = [
+export const SEPARATOR_CSS = [
 	// Transparent backgrounds so separators blend with the
 	// code area rather than forming a distinct band.
 	":host {",
