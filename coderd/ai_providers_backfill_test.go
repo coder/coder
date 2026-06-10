@@ -319,6 +319,27 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
 	})
 
+	t.Run("ProviderDeletedDuringBackfill", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+
+		db.EXPECT().
+			GetAIProviders(gomock.Any(), gomock.Any()).
+			Return([]database.AIProvider{{
+				Type:     database.AiProviderTypeAnthropic,
+				Settings: bedrockSettings,
+			}}, nil)
+		db.EXPECT().
+			UpdateAIProvider(gomock.Any(), gomock.Any()).
+			Return(database.AIProvider{}, sql.ErrNoRows)
+
+		// Must not panic or log at error level; ErrNoRows means the provider
+		// was deleted between the list and the update, which is benign.
+		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
+	})
+
 	t.Run("ModelConfigQueryFailure", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
