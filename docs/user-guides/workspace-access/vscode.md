@@ -34,6 +34,56 @@ ext install coder.coder-remote
 Alternatively, manually install the VSIX from the
 [latest release](https://github.com/coder/vscode-coder/releases/latest).
 
+## Local telemetry
+
+The Coder Remote extension records local telemetry to help diagnose extension
+and workspace connection issues. Telemetry is stored on your machine. It is not
+sent to Coder unless you export it or include it in a support bundle and share
+that file.
+
+Local telemetry is controlled by the VS Code setting `coder.telemetry.level`:
+
+| Value   | Behavior                                                      |
+|---------|---------------------------------------------------------------|
+| `local` | Record telemetry events on this machine. This is the default. |
+| `off`   | Disable extension telemetry collection.                       |
+
+### Stored data
+
+Telemetry can include diagnostic details such as extension version, VS Code
+version, operating system, machine and session identifiers, deployment URL,
+workspace and agent names, command outcomes, connection state, request routes,
+timing, and error details. It does not intentionally collect source code,
+terminal contents, tokens, or credentials.
+
+### Storage and retention
+
+The extension stores telemetry as JSON Lines files in its VS Code global storage
+under a `telemetry` directory. Files rotate at 5 MiB, are kept for up to 30 days,
+and are capped at 100 MiB total by default.
+
+You can tune local retention with the advanced `coder.telemetry.local` setting.
+Most users should keep the default values.
+
+### Export telemetry
+
+To review or share telemetry:
+
+1. Open the VS Code Command Palette.
+1. Run **Coder: Export Telemetry**.
+1. Choose a date range and export format.
+1. Save the export, then review the file before sharing it.
+
+The extension supports JSON and OTLP JSON zip exports. Exports may contain the
+same diagnostic identifiers listed above, so only share them with people you
+trust.
+
+### Support bundles
+
+Coder support bundles include recent VS Code extension diagnostics, including
+local telemetry files, when available. Review the generated support bundle before
+sharing it.
+
 ## VS Code extensions
 
 There are multiple ways to add extensions to VS Code Desktop:
