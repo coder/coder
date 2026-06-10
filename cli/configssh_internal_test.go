@@ -361,6 +361,34 @@ func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
 			},
 			wantErr: `ssh config option "UserKnownHostsFile" must not contain carriage return, newline, or NUL characters`,
 		},
+		{
+			name: "SmartcardDevice",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"SmartcardDevice": "/path/to/lib"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "XAuthLocation",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"XAuthLocation": "/usr/bin/xauth"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "ProxyJump",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyJump": "bastion.example.com"},
+			},
+			wantErr: `conflicts with`,
+		},
+		{
+			name: "HostnameSuffixGlob",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "*",
+			},
+			wantErr: `glob`,
+		},
 	}
 
 	for _, tt := range testCases {

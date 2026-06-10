@@ -255,6 +255,9 @@ func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
 		{name: "Tab", suffix: "coder\t*", wantErr: true},
 		{name: "NUL", suffix: "coder\x00", wantErr: true},
 		{name: "NonBreakingSpace", suffix: "coder\u00A0suffix", wantErr: true},
+		{name: "Glob", suffix: "*", wantErr: true},
+		{name: "GlobPrefix", suffix: "*.*", wantErr: true},
+		{name: "QuestionMark", suffix: "code?", wantErr: true},
 	}
 
 	for _, tt := range testCases {
@@ -340,6 +343,9 @@ func TestValidateSSHConfigOptions(t *testing.T) {
 		{name: "NewlineInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *\nProxyCommand evil"}, wantErr: true},
 		{name: "CarriageReturnInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\r\nHost *"}, wantErr: true},
 		{name: "NULInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\x00suffix"}, wantErr: true},
+		{name: "SmartcardDevice", options: map[string]string{"SmartcardDevice": "/path/to/lib"}, wantErr: true},
+		{name: "XAuthLocation", options: map[string]string{"XAuthLocation": "/usr/bin/xauth"}, wantErr: true},
+		{name: "ProxyJump", options: map[string]string{"ProxyJump": "bastion.example.com"}, wantErr: true},
 	}
 
 	for _, tt := range testCases {

@@ -291,8 +291,9 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           Provide options in "key=value" or "key value" format separated by
           commas. Using this incorrectly can break SSH to your deployment, use
           cautiously. The following options are not allowed: Host, Match,
-          Include, ProxyCommand, LocalCommand, PermitLocalCommand,
-          RemoteCommand, KnownHostsCommand. Option values must not contain
+          Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand,
+          RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider,
+          SmartcardDevice, XAuthLocation. Option values must not contain
           newline, carriage return, or NUL characters.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
@@ -303,7 +304,7 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           Workspace hostnames use this suffix in SSH config and Coder Connect on
           Coder Desktop. By default it is coder, resulting in names like
           myworkspace.coder. The suffix must not start with a dot, and must not
-          contain spaces or newlines.
+          contain spaces, newlines, or glob characters (* and ?).
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.

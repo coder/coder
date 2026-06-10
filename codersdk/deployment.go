@@ -742,6 +742,9 @@ func ValidateWorkspaceHostnameSuffix(suffix string) error {
 	if strings.HasPrefix(suffix, ".") {
 		return xerrors.Errorf("workspace hostname suffix %q must not start with a leading dot", suffix)
 	}
+	if strings.ContainsAny(suffix, "*?") {
+		return xerrors.Errorf("workspace hostname suffix %q must not contain glob characters", suffix)
+	}
 	if !isSingleHostPatternToken(suffix) {
 		return xerrors.Errorf("workspace hostname suffix %q must not contain whitespace or control characters", suffix)
 	}
@@ -799,8 +802,13 @@ func ValidateSSHConfigOption(key, value string) error {
 		// Directives that run an attacker-supplied command string.
 		"proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand",
 		// Directives that dlopen an attacker-controlled shared library.
-		"pkcs11provider", "securitykeyprovider":
+		"pkcs11provider", "securitykeyprovider", "smartcarddevice",
+		// Directives that execute a command for X11 authentication.
+		"xauthlocation":
 		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code, load shared libraries, or override Coder's managed SSH settings on client machines", key)
+	// ProxyJump conflicts with Coder's managed ProxyCommand.
+	case "proxyjump":
+		return xerrors.Errorf("ssh config option %q is not allowed: it conflicts with Coder's managed ProxyCommand", key)
 	}
 	if strings.ContainsAny(value, "\r\n\x00") {
 		return xerrors.Errorf("ssh config option %q must not contain carriage return, newline, or NUL characters", key)
@@ -1779,7 +1787,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	workspaceHostnameSuffix := serpent.Option{
 		Name:        "Workspace Hostname Suffix",
-		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces or newlines.",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).",
 		Flag:        "workspace-hostname-suffix",
 		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
 		YAML:        "workspaceHostnameSuffix",
@@ -3655,8 +3663,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
 				"Using this incorrectly can break SSH to your deployment, use cautiously. " +
 				"The following options are not allowed: " +
-				"Host, Match, Include, ProxyCommand, LocalCommand, PermitLocalCommand, " +
-				"RemoteCommand, KnownHostsCommand. " +
+				"Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, " +
+				"RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, " +
+				"SmartcardDevice, XAuthLocation. " +
 				"Option values must not contain newline, carriage return, or NUL characters.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
