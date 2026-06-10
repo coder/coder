@@ -13,6 +13,13 @@ export type UseClipboardInput = Readonly<{
 
 export type UseClipboardResult = Readonly<{
 	copyToClipboard: (textToCopy: string) => Promise<void>;
+
+	/**
+	 * Reads text from the clipboard. When the asynchronous Clipboard API is
+	 * available (secure contexts), it returns the live clipboard contents.
+	 */
+	readFromClipboard: () => Promise<string>;
+
 	error: Error | undefined;
 
 	/**
@@ -44,6 +51,7 @@ export const useClipboard = (
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
 	const timeoutIdRef = useRef<number | undefined>(undefined);
+	const lastCopiedTextRef = useRef("");
 
 	useEffect(() => {
 		return () => window.clearTimeout(timeoutIdRef.current);
@@ -52,6 +60,7 @@ export const useClipboard = (
 	const copyToClipboard = useCallback(
 		async (textToCopy: string) => {
 			const markSuccess = () => {
+				lastCopiedTextRef.current = textToCopy;
 				setShowCopiedSuccess(true);
 				if (clearErrorOnSuccess) {
 					setError(undefined);
@@ -84,7 +93,20 @@ export const useClipboard = (
 		[onError, clearErrorOnSuccess],
 	);
 
-	return { showCopiedSuccess, error, copyToClipboard };
+	const readFromClipboard = useCallback(async (): Promise<string> => {
+		if (typeof navigator.clipboard?.readText === "function") {
+			try {
+				return await navigator.clipboard.readText();
+			} catch {
+				// The Clipboard API exists but rejected (e.g. denied permission or
+				// an insecure context). Fall back to the cached value below.
+			}
+		}
+
+		return lastCopiedTextRef.current;
+	}, []);
+
+	return { showCopiedSuccess, error, copyToClipboard, readFromClipboard };
 };
 
 /**

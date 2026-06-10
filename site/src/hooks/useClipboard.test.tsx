@@ -299,6 +299,33 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(result.current.copyToClipboard).toBe(initialCopy);
 	});
 
+	it("Reads back text that was copied through the hook", async () => {
+		const textToCopy = "wolves";
+		const { result } = renderUseClipboard();
+		await assertClipboardUpdateLifecycle(result, textToCopy);
+
+		const readText = await act(() => result.current.readFromClipboard());
+		expect(readText).toEqual(textToCopy);
+	});
+
+	it("Falls back to the last copied value when reading from the clipboard fails", async () => {
+		const textToCopy = "otters";
+		const { result } = renderUseClipboard();
+		await assertClipboardUpdateLifecycle(result, textToCopy);
+
+		// Simulating a failure makes the native readText reject, exercising the
+		// cached fallback path that keeps paste working in insecure contexts.
+		setSimulateFailure(true);
+		const readText = await act(() => result.current.readFromClipboard());
+		expect(readText).toEqual(textToCopy);
+	});
+
+	it("Returns an empty string when nothing has been copied yet", async () => {
+		const { result } = renderUseClipboard();
+		const readText = await act(() => result.current.readFromClipboard());
+		expect(readText).toEqual("");
+	});
+
 	it("Always uses the most up-to-date onError prop", async () => {
 		const initialOnError = vi.fn();
 		const { result, rerender } = renderUseClipboard({

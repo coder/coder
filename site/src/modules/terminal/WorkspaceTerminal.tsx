@@ -106,7 +106,7 @@ export const WorkspaceTerminal = ({
 		onContentReady?.();
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
-	const { copyToClipboard } = useClipboard();
+	const { copyToClipboard, readFromClipboard } = useClipboard();
 
 	const [hasSelection, setHasSelection] = useState(false);
 	const handleContextMenuOpenChange = (open: boolean) => {
@@ -125,7 +125,7 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 		try {
-			const text = await navigator.clipboard.readText();
+			const text = await readFromClipboard();
 			if (text) {
 				terminal.paste(text);
 			}
@@ -136,8 +136,6 @@ export const WorkspaceTerminal = ({
 			terminal.focus();
 		}
 	};
-	const canPasteFromClipboard =
-		typeof navigator.clipboard?.readText === "function";
 
 	const reportTerminalError = useEffectEvent((error: Error) => {
 		console.error(error);
@@ -612,11 +610,9 @@ export const WorkspaceTerminal = ({
 					>
 						Copy
 					</ContextMenuItem>
-					{canPasteFromClipboard && (
-						<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
-							Paste
-						</ContextMenuItem>
-					)}
+					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+						Paste
+					</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
 		</>
