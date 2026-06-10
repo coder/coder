@@ -974,6 +974,7 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -1051,6 +1052,7 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
