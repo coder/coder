@@ -1262,7 +1262,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	// until the expected log appears.
 	require.Eventually(t, func() bool {
 		logs := auditor.AuditLogs()
-		return len(logs) == numLogs && logs[numLogs-1].Action == database.AuditActionStop
+		return len(logs) == numLogs &&
+			assert.Equal(t, database.AuditActionStop, logs[numLogs-1].Action)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	_ = closeDaemon.Close()
