@@ -19,10 +19,9 @@ type Story = StoryObj<typeof ProvisionerVersion>;
 
 export const UpToDate: Story = {};
 
-// Provisioner build version differs from the server, but the provisioner API
-// version is in the server's supported range. This is the case Kayla hit:
-// a v2.33 provisioner against a v2.32 server, both on the same provisioner
-// API. The UI should not warn.
+// Provisioner and server report different release versions but share a
+// compatible provisioner API (same major, daemon minor not ahead of the
+// server). The UI renders a neutral indicator instead of a warning.
 export const Compatible: Story = {
 	args: {
 		provisionerVersion: "v2.32.5",
@@ -43,8 +42,9 @@ export const ServerAhead: Story = {
 	},
 };
 
-// Provisioner reports an older major API version. The server may or may not
-// still accept it via backward-compat, but the UI cannot confirm.
+// Provisioner reports an older major API version. The server rejects such
+// daemons at connect time, so the provisioner cannot reconnect until it is
+// upgraded.
 export const Outdated: Story = {
 	args: {
 		provisionerVersion: "v2.10.0",
@@ -54,14 +54,27 @@ export const Outdated: Story = {
 	},
 };
 
-// Provisioner did not report an API version (older daemon or unexpected data),
-// so we cannot compare meaningfully. Fall back to a generic mismatch label.
+// Provisioner did not report an API version (older daemon or unexpected
+// data), so compatibility cannot be verified. Render a neutral indicator.
 export const Unknown: Story = {
 	args: {
 		provisionerVersion: "0.0.0",
 		buildVersion: MockBuildInfo.version,
 		provisionerAPIVersion: "",
 		buildAPIVersion: MockBuildInfo.provisioner_api_version,
+	},
+};
+
+// Build info has not resolved yet, so the server versions are undefined.
+// Render the neutral unknown indicator instead of a mismatch warning.
+export const BuildInfoLoading: Story = {
+	args: {
+		buildVersion: undefined,
+		buildAPIVersion: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Unknown")).toBeInTheDocument();
 	},
 };
 

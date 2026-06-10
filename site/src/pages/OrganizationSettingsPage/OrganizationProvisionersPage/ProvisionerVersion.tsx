@@ -1,7 +1,10 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import semver from "semver";
-import { StatusIndicator } from "#/components/StatusIndicator/StatusIndicator";
+import {
+	StatusIndicator,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
@@ -25,23 +28,29 @@ type ProvisionerCompatibility =
 	| "server-ahead"
 	| "unknown";
 
-// getProvisionerCompatibility mirrors apiversion.Validate at a coarse level:
-// a daemon is compatible when its API version has the same major as the
-// server and a minor that is less than or equal. Servers may accept older
-// majors via backward-compat lists the UI does not see, so older majors are
-// reported as "outdated" rather than incompatible.
+// getProvisionerCompatibility mirrors apiversion.Validate: a daemon is
+// compatible when its API version has the same major as the server and a
+// minor that is less than or equal. The server registers no backward-compat
+// majors, so it rejects a daemon with an older API major at connect time,
+// and that daemon cannot reconnect until it is upgraded.
 export const getProvisionerCompatibility = (
 	buildVersion: string | undefined,
 	buildAPIVersion: string | undefined,
 	provisionerVersion: string,
 	provisionerAPIVersion: string,
 ): ProvisionerCompatibility => {
-	if (buildVersion && provisionerVersion === buildVersion) {
+	// Build info loads asynchronously. Until both the server release version
+	// and its provisioner API version are known, compatibility cannot be
+	// assessed, so report "unknown" instead of a warning.
+	if (!buildVersion || !buildAPIVersion) {
+		return "unknown";
+	}
+	if (provisionerVersion === buildVersion) {
 		return "match";
 	}
 
 	const prov = semver.coerce(provisionerAPIVersion);
-	const srv = semver.coerce(buildAPIVersion ?? "");
+	const srv = semver.coerce(buildAPIVersion);
 	if (!prov || !srv) {
 		return "unknown";
 	}
@@ -63,7 +72,13 @@ export const provisionerCompatibilityLabel: Record<
 	compatible: "Compatible",
 	outdated: "Outdated",
 	"server-ahead": "Server out of date",
-	unknown: "Version mismatch",
+	unknown: "Unknown",
+};
+
+type StatusConfig = {
+	variant: StatusIndicatorProps["variant"];
+	icon?: ReactNode;
+	description: string;
 };
 
 export const ProvisionerVersion: FC<ProvisionerVersionProps> = ({
@@ -88,77 +103,47 @@ export const ProvisionerVersion: FC<ProvisionerVersionProps> = ({
 		);
 	}
 
-	if (status === "compatible") {
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<StatusIndicator
-						variant="inactive"
-						size="sm"
-						className="cursor-pointer"
-						tabIndex={0}
-					>
-						{label}
-					</StatusIndicator>
-				</TooltipTrigger>
-				<TooltipContent className="max-w-xs">
-					<p className="m-0">
-						This provisioner ({provisionerVersion}) and the Coder server (
-						{buildVersion}) report different release versions, but share a
-						compatible provisioner API ({provisionerAPIVersion} vs{" "}
-						{buildAPIVersion}). No action is required.
-					</p>
-				</TooltipContent>
-			</Tooltip>
-		);
-	}
-
-	if (status === "server-ahead") {
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<StatusIndicator
-						variant="warning"
-						size="sm"
-						className="cursor-pointer"
-						tabIndex={0}
-					>
-						<TriangleAlertIcon className="size-icon-xs" />
-						{label}
-					</StatusIndicator>
-				</TooltipTrigger>
-				<TooltipContent className="max-w-xs">
-					<p className="m-0">
-						This provisioner reports API version {provisionerAPIVersion}, which
-						is newer than the Coder server (API {buildAPIVersion}). Upgrade the
-						server, or downgrade this provisioner to a compatible version.
-					</p>
-				</TooltipContent>
-			</Tooltip>
-		);
-	}
-
-	// "outdated" or "unknown".
-	const description =
-		status === "outdated"
-			? `This provisioner reports API version ${provisionerAPIVersion}, which is older than the Coder server (API ${buildAPIVersion}). Upgrading the provisioner is recommended.`
-			: `This provisioner is on ${provisionerVersion}, while the Coder server is on ${buildVersion ?? "an unknown version"}. The provisioner API version could not be compared, so compatibility cannot be verified.`;
+	const statusConfig: Record<
+		Exclude<ProvisionerCompatibility, "match">,
+		StatusConfig
+	> = {
+		compatible: {
+			variant: "inactive",
+			description: `This provisioner (${provisionerVersion}) and the Coder server (${buildVersion}) report different release versions, but share a compatible provisioner API (${provisionerAPIVersion} vs ${buildAPIVersion}). No action is required.`,
+		},
+		"server-ahead": {
+			variant: "warning",
+			icon: <TriangleAlertIcon className="size-icon-xs" />,
+			description: `This provisioner reports API version ${provisionerAPIVersion}, which is newer than the Coder server (API ${buildAPIVersion}). Upgrade the server, or downgrade this provisioner to a compatible version.`,
+		},
+		outdated: {
+			variant: "warning",
+			icon: <TriangleAlertIcon className="size-icon-xs" />,
+			description: `This provisioner reports API version ${provisionerAPIVersion}, which is incompatible with the Coder server (API ${buildAPIVersion}). The server rejects incompatible provisioners, so this provisioner cannot reconnect until it is upgraded.`,
+		},
+		unknown: {
+			variant: "inactive",
+			description: `This provisioner is on ${provisionerVersion}, while the Coder server is on ${buildVersion ?? "an unknown version"}. The provisioner API version could not be compared, so compatibility cannot be verified.`,
+		},
+	};
+	const config = statusConfig[status];
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<StatusIndicator
-					variant="warning"
+					variant={config.variant}
 					size="sm"
 					className="cursor-pointer"
+					role="status"
 					tabIndex={0}
 				>
-					<TriangleAlertIcon className="size-icon-xs" />
+					{config.icon}
 					{label}
 				</StatusIndicator>
 			</TooltipTrigger>
 			<TooltipContent className="max-w-xs">
-				<p className="m-0">{description}</p>
+				<p className="m-0">{config.description}</p>
 			</TooltipContent>
 		</Tooltip>
 	);
