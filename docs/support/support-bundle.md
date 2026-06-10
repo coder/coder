@@ -53,6 +53,7 @@ A brief overview of all files contained in the bundle is provided below:
 | `workspace/template.json`         | The template currently in use by the selected workspace.                                                                          |
 | `workspace/template_file.zip`     | The source code of the template currently in use by the selected workspace.                                                       |
 | `workspace/template_version.json` | The template version currently in use by the selected workspace.                                                                  |
+| `vscode-logs/`                    | Recent diagnostics from the Coder Remote extension, including logs, redacted settings, and local telemetry files.                 |
 
 ## How do I generate a Support Bundle?
 
@@ -75,6 +76,11 @@ A brief overview of all files contained in the bundle is provided below:
 4. Run `coder support bundle [owner/workspace]`, and respond `yes` to the
    prompt. The support bundle will be generated in the current directory with
    the filename `coder-support-$TIMESTAMP.zip`.
+
+   If you use VS Code, you can also run **Coder: Create Support Bundle** from
+   the Command Palette. The extension runs `coder support bundle` and appends
+   recent VS Code diagnostics to the generated archive. Learn more about
+   [VS Code diagnostics](../user-guides/workspace-access/vscode.md#diagnostics-and-support-bundles).
 
    > [!NOTE]
    > While support bundles can be generated without a running workspace, it is

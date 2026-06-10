@@ -82,24 +82,20 @@ and are capped at 100 MiB total by default.
 You can tune local retention with the advanced `coder.telemetry.local` setting.
 Most users should keep the default values.
 
-### Export telemetry
+### Diagnostics and support bundles
 
-To review or share telemetry:
+The extension includes commands for collecting diagnostics from VS Code:
 
-1. Open the VS Code Command Palette.
-1. Run **Coder: Export Telemetry**.
-1. Choose a date range and export format.
-1. Save the export, then review the file before sharing it.
+- **Coder: Export Telemetry** exports only local telemetry. Choose a date range
+  and JSON or OTLP JSON zip format, then review the file before sharing it.
+- **Coder: Create Support Bundle** runs `coder support bundle` and adds recent
+  VS Code extension diagnostics, including extension logs, proxy and Remote-SSH
+  logs, redacted VS Code settings, and local telemetry files when available.
+- **Coder: View Logs** opens the extension output logs in VS Code.
 
-The extension supports JSON and OTLP JSON zip exports. Exports may contain the
-same diagnostic identifiers listed above, so only share them with people you
-trust.
-
-### Support bundles
-
-Coder support bundles include recent VS Code extension diagnostics, including
-local telemetry files, when available. Review the generated support bundle before
-sharing it.
+Support bundles can contain sensitive diagnostic data. Review the generated
+bundle before sharing it. Learn more about
+[support bundles](../../support/support-bundle.md).
 
 ## VS Code extensions
 
