@@ -200,10 +200,6 @@ describe("TerminalPage", () => {
 	});
 
 	it("shows a custom copy/paste menu on right-click on non-macOS", async () => {
-		// Chromium-based browsers on Windows and Linux surface image actions
-		// like "Copy image" when right-clicking the canvas-based terminal
-		// renderer. The terminal intercepts contextmenu to suppress that
-		// native menu and shows its own copy/paste menu instead.
 		vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
 
 		createWorkspaceTerminalWebSocket();
@@ -220,9 +216,7 @@ describe("TerminalPage", () => {
 		});
 		terminal?.dispatchEvent(event);
 
-		// The browser's native (canvas image) menu is suppressed.
 		expect(event.defaultPrevented).toBe(true);
-		// The custom menu is shown instead.
 		expect(
 			await screen.findByRole("menuitem", { name: "Copy" }),
 		).toBeInTheDocument();
@@ -230,9 +224,6 @@ describe("TerminalPage", () => {
 	});
 
 	it("keeps the native context menu on macOS", async () => {
-		// macOS renders native context menus that already expose working
-		// copy/paste for the terminal, so the custom menu is disabled there
-		// and the browser's default handling is left untouched.
 		vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
 
 		createWorkspaceTerminalWebSocket();

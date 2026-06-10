@@ -185,9 +185,6 @@ export const RightClickMenu: Story = {
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
 	},
 	play: async ({ canvasElement }) => {
-		// The custom copy/paste menu replaces the browser's native (canvas
-		// image) menu on Windows and Linux. macOS keeps its working native
-		// menu, so the custom menu is intentionally disabled there.
 		if (isMac()) {
 			return;
 		}
@@ -200,9 +197,6 @@ export const RightClickMenu: Story = {
 			return element;
 		});
 
-		// Right-clicking the canvas-rendered terminal would normally surface
-		// the browser's image context menu. The event bubbles to the wrapper,
-		// where the custom menu intercepts it.
 		const rect = terminal.getBoundingClientRect();
 		terminal.dispatchEvent(
 			new MouseEvent("contextmenu", {

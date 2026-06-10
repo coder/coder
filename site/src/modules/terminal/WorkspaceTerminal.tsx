@@ -108,8 +108,6 @@ export const WorkspaceTerminal = ({
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard } = useClipboard();
 
-	// Track whether the terminal has a selection when the right-click menu
-	// opens, so the Copy item can be disabled when there's nothing to copy.
 	const [hasSelection, setHasSelection] = useState(false);
 	const handleContextMenuOpenChange = (open: boolean) => {
 		if (open) {
