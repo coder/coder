@@ -392,17 +392,13 @@ func (r *RootCmd) openApp() *serpent.Command {
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
 			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
-			if foundApp.External {
-				// Sub-agent apps are attacker-influenceable through workspace
-				// configuration (e.g. devcontainer.json) and runtime sub-agent
-				// registration. Never substitute the user's session token into
-				// their URLs. Template-defined apps run on a top-level agent
-				// and are admin-authored, so their URLs are trusted.
-				if !agt.ParentID.Valid {
-					appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
-				} else if strings.Contains(appURL, externalSessionTokenPlaceholder) {
-					cliui.Warnf(inv.Stderr, "This app was registered from inside the workspace rather than from the workspace template. For security, the session token will not be substituted into the URL.")
-				}
+			externalSubAgentApp := foundApp.External && agt.ParentID.Valid
+			if foundApp.External && !agt.ParentID.Valid {
+				// Template-defined apps run on a top-level agent and are
+				// admin-authored, so their URLs are trusted. Substitute the
+				// session token placeholder so the OS open handler receives
+				// a usable URL.
+				appURL = strings.ReplaceAll(appURL, externalSessionTokenPlaceholder, client.SessionToken())
 			}
 
 			// Check if we're inside a workspace.  Generally, we know
@@ -410,6 +406,18 @@ func (r *RootCmd) openApp() *serpent.Command {
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+				return nil
+			}
+
+			// Sub-agent external app URLs are set at runtime. Only open
+			// sub-agent URLs that don't contain the placeholder to prevent
+			// token exfiltration.
+			if externalSubAgentApp && strings.Contains(appURL, externalSessionTokenPlaceholder) {
+				cliui.Warnf(inv.Stderr,
+					"This app was registered from inside the workspace rather than from the workspace template. "+
+						"Inspect the URL below carefully and, if you trust the source, substitute the $SESSION_TOKEN placeholder "+
+						"with your session token and manually open it:")
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
 				return nil
 			}

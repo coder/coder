@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"net/url"
@@ -731,12 +732,14 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains(client.SessionToken())
 	})
 
-	t.Run("ExternalAppOnSubAgentOpensAsIs", func(t *testing.T) {
+	t.Run("ExternalAppOnSubAgentWithPlaceholderPrintsURLAndDoesNotOpen", func(t *testing.T) {
 		t.Parallel()
 
 		// Sub-agent app URLs are attacker-influenceable through workspace
-		// configuration and runtime registration. Even with an allowlisted
-		// scheme the CLI must not substitute the user's session token.
+		// configuration and runtime registration. The CLI must not
+		// substitute the session token, and must not hand the URL to the
+		// OS open handler. The URL is printed to stdout so a user who
+		// trusts the source can substitute and open it manually.
 		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
 		ownerClient.SetLogger(testutil.Logger(t).Named("client"))
 		first := coderdtest.CreateFirstUser(t, ownerClient)
@@ -764,11 +767,56 @@ func TestOpenApp(t *testing.T) {
 
 		inv, root := clitest.New(t, "open", "app", r.Workspace.Name+".devcontainer", "subapp", "--test.open-error")
 		clitest.SetupConfig(t, userClient, root)
+		var stdout, stderr bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireSuccess()
+		require.NotContains(t, stderr.String(), "test.open-error")
+		require.NotContains(t, stdout.String(), "test.open-error")
+		require.Contains(t, stdout.String(), "vscode://coder.coder-remote/open?token=$SESSION_TOKEN")
+		require.NotContains(t, stdout.String(), userClient.SessionToken())
+		require.Contains(t, stderr.String(), "substitute")
+	})
+
+	t.Run("ExternalAppOnSubAgentWithoutPlaceholderOpensAsIs", func(t *testing.T) {
+		t.Parallel()
+
+		// Sub-agent app URLs that don't reference $SESSION_TOKEN carry no
+		// token to leak. The CLI auto-opens them like any other external
+		// app; only placeholder-bearing URLs are gated.
+		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
+		ownerClient.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, ownerClient, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "subagentowner2"
+		})
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "subagentws2",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+
+		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
+		mainAgent := r.Agents[0]
+
+		subAgent := dbgen.WorkspaceSubAgent(t, store, mainAgent, database.WorkspaceAgent{
+			Name: "devcontainer",
+		})
+		_ = dbgen.WorkspaceApp(t, store, database.WorkspaceApp{
+			AgentID:  subAgent.ID,
+			Slug:     "subapp",
+			External: true,
+			Url:      sql.NullString{Valid: true, String: "https://example.com/some/path"},
+		})
+
+		inv, root := clitest.New(t, "open", "app", r.Workspace.Name+".devcontainer", "subapp", "--test.open-error")
+		clitest.SetupConfig(t, userClient, root)
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
 		w.RequireContains("test.open-error")
-		w.RequireContains("$SESSION_TOKEN")
-		w.RequireNotContains(userClient.SessionToken())
+		w.RequireContains("https://example.com/some/path")
 	})
 }
