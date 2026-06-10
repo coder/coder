@@ -1,6 +1,5 @@
 import { InfoIcon } from "lucide-react";
 import {
-	type CSSProperties,
 	type FC,
 	type FormEvent,
 	type ReactNode,
@@ -271,7 +270,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									data-lpignore="true"
 									data-form-type="other"
 									data-bwignore
-									style={{ WebkitTextSecurity: "disc" } as CSSProperties}
+									style={{ WebkitTextSecurity: "disc" }}
 									className="h-9 font-mono text-[13px]"
 									placeholder={apiKeyPlaceholder}
 									required={requiresAPIKey}

@@ -1,7 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
-import type { CSSProperties } from "react";
 import * as Yup from "yup";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -424,7 +423,7 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
 	"--diffs-selection-number-fg": "hsl(var(--content-link))",
 	"--diffs-gap-style": "1px solid hsl(var(--border-default))",
-} as CSSProperties;
+};
 
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
