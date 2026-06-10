@@ -78,6 +78,10 @@ organization, and optionally to a specific set of tags.
    coder provisioner start
    ```
 
+   To keep the key out of the environment, store it in a file and reference
+   the file instead with `CODER_PROVISIONER_DAEMON_KEY_FILE=<path>` or
+   `--key-file <path>`.
+
 Keep reading to see instructions for running provisioners on
 Kubernetes/Docker/etc.
 

@@ -107,7 +107,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 			if provisionerKey != "" {
 				if preSharedKey != "" {
-					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
+					return xerrors.New("cannot provide both provisioner key (--key or --key-file) and pre-shared key --psk")
 				}
 				if len(rawTags) > 0 {
 					return xerrors.New("cannot provide tags when using provisioner key")

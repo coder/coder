@@ -386,7 +386,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		err = conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
 		err = inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "cannot provide both provisioner key --key and pre-shared key --psk")
+		require.ErrorContains(t, err, "cannot provide both provisioner key (--key or --key-file) and pre-shared key --psk")
 	})
 
 	t.Run("NoTags", func(t *testing.T) {
