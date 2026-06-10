@@ -89,11 +89,8 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if desc := strings.TrimSpace(template.Description); desc != "" {
 				templateInfo["description"] = desc
 			}
-			// The active version README carries optional agent_description
-			// frontmatter that gives the agent richer routing context than
-			// the short, card-sized template description. It is best-effort:
-			// a missing or unreadable version must not fail read_template,
-			// which still returns the template, parameters, and presets.
+			// Best-effort: a missing or unreadable version must not fail
+			// read_template.
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
 				if agentDesc := frontmatter.AgentDescription(version.Readme); agentDesc != "" {
 					templateInfo["agent_description"] = agentDesc

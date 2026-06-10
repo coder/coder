@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -248,5 +249,43 @@ func TestReadTemplate_AgentDescription(t *testing.T) {
 		gotRunes := []rune(got)
 		require.Len(t, gotRunes, 2048)
 		require.Equal(t, '…', gotRunes[len(gotRunes)-1])
+	})
+
+	// A template whose active version row is missing must not fail
+	// read_template; the version fetch is best-effort and agent_description is
+	// simply omitted. This guards the CRF-1 fix against regression.
+	t.Run("MissingVersionOmitsField", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: uuid.New(),
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo, ok := result["template"].(map[string]any)
+		require.True(t, ok)
+		_, ok = tmplInfo["agent_description"]
+		require.False(t, ok, "agent_description should be omitted when the version is missing")
 	})
 }
