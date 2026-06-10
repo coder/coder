@@ -147,6 +147,8 @@ WHERE
 -- name: BackfillChatModelConfigProvider :execresult
 -- old_provider is matched as text; new_provider is also cast to ai_provider_type
 -- for the EXISTS check against ai_providers.type.
+-- ai_provider_id IS NOT NULL is defensive; the check constraint already
+-- enforces that non-deleted rows always have a provider ID.
 UPDATE
     chat_model_configs
 SET

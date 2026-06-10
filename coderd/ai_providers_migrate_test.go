@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -603,9 +604,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 	t.Run("SeedIsIdempotentAfterBedrockBackfill", func(t *testing.T) {
 		t.Parallel()
-		// Regression: after BackfillBedrockProviderType promotes the legacy
-		// type=anthropic row to type=bedrock, SeedAIProvidersFromEnv must not
-		// treat the type change as drift and crash the server on the next startup.
+		// Regression: seed must not treat a type=anthropic row promoted to
+		// type=bedrock by the backfill as drift.
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -618,15 +618,25 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 			},
 		}
 
-		// First startup: seed creates type=anthropic row, backfill promotes it.
+		// Seed to get a row with correct settings, then set type=anthropic to
+		// simulate the pre-upgrade state where the old seed stored that type.
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
-		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
-
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeBedrock, row.Type, "backfill must have promoted the row")
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            row.ID,
+			Type:          database.AiProviderTypeAnthropic,
+			DisplayName:   row.DisplayName,
+			Enabled:       row.Enabled,
+			BaseUrl:       row.BaseUrl,
+			Settings:      row.Settings,
+			SettingsKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		row, err = db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeAnthropic, row.Type, "pre-condition: row must be anthropic before seed runs")
 
-		// Second startup: seed must not treat the promoted type as drift.
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 	})
 }
