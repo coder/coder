@@ -89,6 +89,32 @@ func TestUserPasswordCompare(t *testing.T) {
 			wantErr:            true,
 			wantEqual:          false,
 		},
+		{
+			// Regression test for ANT-2026-22433: an empty stored hash must
+			// never match the legacy "hunter2" placeholder password.
+			name:               "EmptyHashHunter2",
+			passwordToValidate: "",
+			password:           "hunter2",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
+		{
+			name:               "EmptyHashEmptyPassword",
+			passwordToValidate: "",
+			password:           "",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
+		{
+			name:               "EmptyHashArbitraryPassword",
+			passwordToValidate: "",
+			password:           "anyOtherPassword",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
 	}
 
 	for _, tt := range tests {
