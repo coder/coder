@@ -208,18 +208,24 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			updated, err := db.GetChatModelConfigByID(ctx, staleConfig.ID)
 			require.NoError(t, err)
 			require.Equal(t, "bedrock", updated.Provider, "stale anthropic provider string must be fixed to bedrock")
+
+			// Second run must be a no-op: the same config must still be "bedrock".
+			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
+
+			updated, err = db.GetChatModelConfigByID(ctx, staleConfig.ID)
+			require.NoError(t, err)
+			require.Equal(t, "bedrock", updated.Provider, "provider must remain bedrock after second run")
 		})
 
 		t.Run("ModelConfigIdempotent", func(t *testing.T) {
-			// DB already has the model config from the previous subtest with
-			// provider="bedrock". A second run must be a no-op.
+			before, err := db.GetChatModelConfigs(ctx)
+			require.NoError(t, err)
+
 			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
 
-			configs, err := db.GetChatModelConfigs(ctx)
+			after, err := db.GetChatModelConfigs(ctx)
 			require.NoError(t, err)
-			for _, c := range configs {
-				require.NotEqual(t, "anthropic", c.Provider, "no model config must have provider=anthropic after second run")
-			}
+			require.Equal(t, len(before), len(after), "second run must not create or delete rows")
 		})
 
 		t.Run("PreservesNonAnthropicModelConfig", func(t *testing.T) {
