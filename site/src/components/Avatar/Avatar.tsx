@@ -57,11 +57,9 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 		src?: string;
 		fallback?: string;
 		/**
-		 * Accessible text for the underlying `<img>`. Defaults to an empty
-		 * string, which marks the avatar as decorative and removes it from
-		 * the accessibility tree. Callers that render the avatar without
-		 * adjacent text describing the same content should pass a meaningful
-		 * value so screen readers can announce it.
+		 * Alt text for the inner `<img>`. Defaults to `""` (decorative,
+		 * hidden from assistive tech). Pass a descriptive value when no
+		 * adjacent text identifies the content.
 		 */
 		alt?: string;
 		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;

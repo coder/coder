@@ -214,7 +214,7 @@ const Resources: FC<StageProps> = ({ workspaces }) => {
 			<div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm">
 				{Object.entries(resources).map(([type, summary]) => (
 					<div key={type} className="flex items-center gap-2">
-						<ExternalImage src={summary.icon} alt="" width={16} height={16} />
+						<ExternalImage src={summary.icon} width={16} height={16} />
 						<span>
 							{summary.count} <code>{type}</code>
 						</span>

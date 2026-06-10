@@ -18,10 +18,8 @@ interface AvatarDataProps {
 	imgFallbackText?: string;
 
 	/**
-	 * Accessible text for the avatar image rendered by the default avatar.
-	 * Ignored when `avatar` is provided. Defaults to an empty string, which
-	 * marks the avatar as decorative since `title` already conveys the same
-	 * content.
+	 * Ignored when `avatar` is provided. Empty default marks the image as
+	 * decorative because `title` already conveys the same content.
 	 */
 	alt?: string;
 
