@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestSecretCreate(t *testing.T) {
@@ -501,6 +501,7 @@ func TestSecretDelete(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -516,12 +517,13 @@ func TestSecretDelete(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		waiter := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatchContext(ctx, "Delete secret")
-		pty.ExpectMatchContext(ctx, "service-token")
-		pty.WriteLine("yes")
-		pty.ExpectMatchContext(ctx, "Deleted secret")
+		stdout.ExpectMatch(ctx, "Delete secret")
+		stdout.ExpectMatch(ctx, "service-token")
+		stdin.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Deleted secret")
 
 		require.NoError(t, waiter.Wait())
 
@@ -566,6 +568,7 @@ func TestSecretDelete(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -574,11 +577,12 @@ func TestSecretDelete(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		waiter := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatchContext(ctx, "Delete secret")
-		pty.ExpectMatchContext(ctx, "missing-secret")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Delete secret")
+		stdout.ExpectMatch(ctx, "missing-secret")
+		stdin.WriteLine("yes")
 
 		err := waiter.Wait()
 		require.ErrorContains(t, err, `delete secret "missing-secret"`)

@@ -75,6 +75,13 @@ func GuessSessionID(client Client, r *http.Request) *string {
 		return cleanRef(r.Header.Get("X-KILOCODE-TASKID"))
 	case ClientCoderAgents:
 		return cleanRef(r.Header.Get("X-Coder-Chat-Id"))
+	case ClientOpenCode:
+		// Prefer X-OpenCode-Session (set by the OpenCode "Zen" provider).
+		if sid := cleanRef(r.Header.Get("X-OpenCode-Session")); sid != nil {
+			return sid
+		}
+		// Fall back to x-session-affinity (set by other providers).
+		return cleanRef(r.Header.Get("x-session-affinity"))
 	case ClientCrush:
 		return nil // Crush does not send a session ID header.
 	case ClientRoo:

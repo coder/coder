@@ -1,9 +1,4 @@
-import {
-	BrainIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -44,6 +39,7 @@ import {
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -53,8 +49,8 @@ import {
 import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -166,7 +162,7 @@ const ReasoningDisclosure = memo<{
 					onExpandedChange={(open) => setManualToggle(open)}
 					header={
 						<>
-							<BrainIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+							<ToolIcon name="thinking" isError={false} />
 							{isStreaming ? (
 								<Shimmer as="span" className="text-[13px] leading-6">
 									{title}
@@ -301,7 +297,7 @@ export const BlockList: FC<{
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.shell_tool_display_mode || "auto";
+		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
@@ -1149,7 +1145,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
-		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
+		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
 		if (parsedMessages.length === 0) {

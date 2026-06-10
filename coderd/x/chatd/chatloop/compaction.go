@@ -35,14 +35,22 @@ const (
 		"- Key decisions made and their rationale\n" +
 		"- Concrete technical details: file paths, function names, " +
 		"commands, APIs, and configurations\n" +
-		"- Errors encountered and how they were resolved\n" +
+		"- Errors encountered and how they were resolved. Keep error " +
+		"notes specific: name the file, the error, and the fix. Do not " +
+		"generalize from a specific failure to a blanket tool-avoidance " +
+		"rule (e.g. \"tool X is unreliable\" or \"always use Y instead " +
+		"of Z\")\n" +
 		"- Current state of the work: what is DONE, what is IN PROGRESS, " +
 		"and what REMAINS to be done\n" +
 		"- The specific action the assistant was performing or about to " +
 		"perform when this summary was triggered\n\n" +
 		"Be dense and factual. Every sentence should convey essential " +
 		"context for continuation. Do not include pleasantries or " +
-		"conversational filler."
+		"conversational filler. For content that can be reproduced " +
+		"(repo files, command output, API responses), reference how to " +
+		"obtain it (file path, command, URL) rather than inlining the " +
+		"full content. Include brief inline summaries when the content " +
+		"itself would exceed a few lines."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"

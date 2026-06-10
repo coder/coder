@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -853,6 +854,70 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 		Field:  "region",
 		Detail: "region must be set before the workspace can start",
 	}}, result.Validations)
+}
+
+func TestCreateWorkspaceWithNameRetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NameConflictRetriesWithGeneratedName", func(t *testing.T) {
+		t.Parallel()
+
+		var names []string
+		workspace, err := createWorkspaceWithNameRetry(
+			context.Background(),
+			uuid.New(),
+			codersdk.CreateWorkspaceRequest{Name: "fun-dashboard"},
+			func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+				names = append(names, req.Name)
+				if len(names) == 1 {
+					return codersdk.Workspace{}, workspaceNameConflictError(req.Name)
+				}
+
+				require.Regexp(t, `^fun-dashboard-[0-9a-f]{4}$`, req.Name)
+				return codersdk.Workspace{Name: req.Name}, nil
+			},
+		)
+
+		require.NoError(t, err)
+		require.Len(t, names, 2)
+		require.Equal(t, "fun-dashboard", names[0])
+		require.Equal(t, names[1], workspace.Name)
+	})
+
+	t.Run("OtherConflictDoesNotRetry", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		wantErr := httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+			Message: "quota exceeded",
+			Validations: []codersdk.ValidationError{{
+				Field:  "quota",
+				Detail: "quota exceeded",
+			}},
+		})
+		_, err := createWorkspaceWithNameRetry(
+			context.Background(),
+			uuid.New(),
+			codersdk.CreateWorkspaceRequest{Name: "fun-dashboard"},
+			func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+				calls++
+				return codersdk.Workspace{}, wantErr
+			},
+		)
+
+		require.Same(t, wantErr, err)
+		require.Equal(t, 1, calls)
+	})
+}
+
+func workspaceNameConflictError(name string) error {
+	return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+		Message: fmt.Sprintf("Workspace %q already exists.", name),
+		Validations: []codersdk.ValidationError{{
+			Field:  "name",
+			Detail: "This value is already in use and should be unique.",
+		}},
+	})
 }
 
 func TestCreateWorkspace_GlobalTTL(t *testing.T) {

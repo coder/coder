@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -559,10 +560,15 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - pr: positive integer (exact PR number match)
 //   - repo: string (case-insensitive substring match against git remote origin or URL)
 //   - pr_title: string (case-insensitive PR title substring match)
+//   - source: one of created_by_me, shared_with_me, or all (controls
+//     ownership scope; created_by_me returns only chats the caller owns,
+//     shared_with_me returns only chats shared with the caller, all returns
+//     both)
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
-		// Default to hiding archived chats.
-		Archived: sql.NullBool{Bool: false, Valid: true},
+		// Default to hiding archived chats and chats not owned by the caller.
+		Archived:  sql.NullBool{Bool: false, Valid: true},
+		OwnedOnly: true,
 	}
 
 	if query == "" {
@@ -606,6 +612,31 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
+	sources := httpapi.ParseCustomList(parser, values, nil, "source", func(v string) (string, error) {
+		source := strings.ToLower(strings.TrimSpace(v))
+		switch source {
+		case "created_by_me", "shared_with_me":
+			return source, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if len(sources) > 0 {
+		hasCreatedByMe := slices.Contains(sources, "created_by_me")
+		hasSharedWithMe := slices.Contains(sources, "shared_with_me")
+
+		switch {
+		case hasCreatedByMe && hasSharedWithMe:
+			filter.OwnedOnly = true
+			filter.SharedOnly = true
+		case hasSharedWithMe:
+			filter.OwnedOnly = false
+			filter.SharedOnly = true
+		default:
+			filter.OwnedOnly = true
+			filter.SharedOnly = false
+		}
+	}
 
 	// pr: requires a positive integer.
 	if prStr := parser.String(values, "", "pr"); prStr != "" {

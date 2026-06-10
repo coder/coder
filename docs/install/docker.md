@@ -8,10 +8,15 @@ You can install and run Coder using the official Docker images published on
 - Docker. See the
   [official installation documentation](https://docs.docker.com/install/).
 
-- A Linux machine. For macOS devices, start Coder using the
-  [standalone binary](./cli.md).
+- A Linux host.
 
 - 2 CPU cores and 4 GB memory free on your machine.
+
+> [!IMPORTANT]
+> This guide is for **Linux** hosts only. The `getent` and `--group-add`
+> Docker socket patterns used below are Linux-specific and do not translate
+> cleanly to macOS Docker runtimes. For macOS, install Coder using the
+> [standalone binary](./cli.md) instead.
 
 <div class="tabs">
 

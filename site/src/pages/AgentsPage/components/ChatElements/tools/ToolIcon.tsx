@@ -4,6 +4,7 @@ import {
 	CompassIcon,
 	FilePenLineIcon,
 	FileTextIcon,
+	LightbulbIcon,
 	LogInIcon,
 	MonitorIcon,
 	PowerIcon,
@@ -116,6 +117,8 @@ export const ToolIcon: React.FC<{
 			return <PowerIcon className={base} />;
 		case "chat_summarized":
 			return <BotIcon className={base} />;
+		case "thinking":
+			return <LightbulbIcon className={base} />;
 		case "propose_plan":
 			return <RouteIcon className={base} />;
 		case "ask_user_question":

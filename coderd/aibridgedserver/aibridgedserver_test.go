@@ -102,16 +102,36 @@ func TestAuthorization(t *testing.T) {
 			name:        "deleted user",
 			expectedErr: aibridgedserver.ErrDeletedUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Deleted = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, Deleted: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			name:        "suspended user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusSuspended
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			name:        "dormant user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusDormant
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 		{
 			name:        "system user",
 			expectedErr: aibridgedserver.ErrSystemUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.IsSystem = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, IsSystem: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 		{
@@ -201,7 +221,7 @@ func TestAuthorization(t *testing.T) {
 
 // When IsAuthorizedRequest carries KeyId instead of Key, the server skips
 // the secret check and validates only that the key exists, is unexpired, and
-// belongs to a non-deleted non-system user. This is the path used by
+// belongs to an active, non-deleted, non-system user. This is the path used by
 // in-process delegated callers (e.g., chatd) that hold only the key ID.
 func TestAuthorization_Delegated(t *testing.T) {
 	t.Parallel()
@@ -260,8 +280,31 @@ func TestAuthorization_Delegated(t *testing.T) {
 			name:        "deleted user",
 			expectedErr: aibridgedserver.ErrDeletedUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Deleted = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, Deleted: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			// The delegated path must reject inactive users; transport
+			// trust does not override account suspension.
+			name:        "suspended user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusSuspended
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			// Dormant users are inactive unless they are explicitly
+			// reactivated through the HTTP middleware path.
+			name:        "dormant user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusDormant
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 		{
@@ -270,8 +313,9 @@ func TestAuthorization_Delegated(t *testing.T) {
 			name:        "system user",
 			expectedErr: aibridgedserver.ErrSystemUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.IsSystem = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, IsSystem: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 	}
@@ -944,23 +988,26 @@ func TestRecordInterceptionEnded(t *testing.T) {
 			{
 				name: "ok",
 				request: &proto.RecordInterceptionEndedRequest{
-					Id:      uuid.UUID{1}.String(),
-					EndedAt: timestamppb.Now(),
+					Id:             uuid.UUID{1}.String(),
+					EndedAt:        timestamppb.Now(),
+					CredentialHint: "sk-a...efgh",
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
 					interceptionID, err := uuid.Parse(req.GetId())
 					assert.NoError(t, err, "parse interception UUID")
 
 					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
-						ID:      interceptionID,
-						EndedAt: req.EndedAt.AsTime(),
+						ID:             interceptionID,
+						EndedAt:        req.EndedAt.AsTime(),
+						CredentialHint: req.CredentialHint,
 					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						InitiatorID: uuid.UUID{2},
-						Provider:    "prov",
-						Model:       "mod",
-						StartedAt:   time.Now(),
-						EndedAt:     sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+						ID:             interceptionID,
+						InitiatorID:    uuid.UUID{2},
+						Provider:       "prov",
+						Model:          "mod",
+						StartedAt:      time.Now(),
+						EndedAt:        sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+						CredentialHint: req.CredentialHint,
 					}, nil)
 				},
 			},

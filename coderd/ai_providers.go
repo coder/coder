@@ -340,6 +340,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errBedrockRejectsAPIKeys
 		}
 
+		if req.APIKeys != nil && old.Type == database.AiProviderTypeCopilot && len(*req.APIKeys) > 0 {
+			return errCopilotRejectsAPIKeys
+		}
+
 		displayName := old.DisplayName
 		if req.DisplayName != nil {
 			// Empty string clears the column.
@@ -380,6 +384,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errBedrockRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
+		})
+		return
+	}
+	if errors.Is(err, errCopilotRejectsAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Copilot providers do not accept api_keys; they authenticate via request-time GitHub OAuth tokens.",
 		})
 		return
 	}
@@ -482,6 +492,12 @@ func (api *API) publishAIProvidersChanged(ctx context.Context) {
 // update transaction when a caller attempts to attach api_keys to a
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
+
+// errCopilotRejectsAPIKeys is the sentinel returned from inside the
+// update transaction when a caller attempts to attach api_keys to a
+// Copilot-typed provider; the outer handler translates it into a 400.
+// Copilot authenticates via request-time GitHub OAuth tokens.
+var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_keys")
 
 // errAIProviderBedrockTypeMismatch is the sentinel returned from
 // inside the update transaction when the post-merge settings carry a

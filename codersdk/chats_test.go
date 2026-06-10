@@ -24,11 +24,13 @@ func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testin
 
 	sendReasoning := true
 	effort := "high"
+	thinkingDisplay := "summarized"
 
 	raw, err := json.Marshal(codersdk.ChatModelProviderOptions{
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-			SendReasoning: &sendReasoning,
-			Effort:        &effort,
+			SendReasoning:   &sendReasoning,
+			Effort:          &effort,
+			ThinkingDisplay: &thinkingDisplay,
 		},
 	})
 	require.NoError(t, err)
@@ -36,6 +38,7 @@ func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testin
 	require.NotContains(t, string(raw), `"data":`)
 	require.Contains(t, string(raw), `"send_reasoning":true`)
 	require.Contains(t, string(raw), `"effort":"high"`)
+	require.Contains(t, string(raw), `"thinking_display":"summarized"`)
 }
 
 func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *testing.T) {
@@ -44,7 +47,8 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	raw := []byte(`{
 		"anthropic": {
 			"send_reasoning": true,
-			"effort": "high"
+			"effort": "high",
+			"thinking_display": "summarized"
 		}
 	}`)
 
@@ -60,6 +64,8 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 		"high",
 		*decoded.Anthropic.Effort,
 	)
+	require.NotNil(t, decoded.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *decoded.Anthropic.ThinkingDisplay)
 }
 
 func TestChatUsageLimitExceededFrom(t *testing.T) {

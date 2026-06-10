@@ -102,6 +102,26 @@ func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
 	}
 }
 
+// AuditableUserAiBudgetOverride is the audit-log representation of
+// UserAiBudgetOverride. It enriches the raw record with the username, the
+// attributed group's name, and a human-readable spend limit so audit
+// entries can display meaningful values instead of UUIDs and micros.
+type AuditableUserAiBudgetOverride struct {
+	UserAiBudgetOverride
+	Username   string `json:"username"`
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (o UserAiBudgetOverride) Auditable(username, groupName string) AuditableUserAiBudgetOverride {
+	return AuditableUserAiBudgetOverride{
+		UserAiBudgetOverride: o,
+		Username:             username,
+		GroupName:            groupName,
+		SpendLimit:           fmt.Sprintf("$%.2f", float64(o.SpendLimitMicros)/1_000_000),
+	}
+}
+
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
 func (g Group) Auditable(members []GroupMember) AuditableGroup {
@@ -1002,4 +1022,11 @@ type UpsertConnectionLogParams struct {
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
+}
+
+func (s BoundarySession) RBACObject() rbac.Object {
+	if s.OwnerID.Valid {
+		return rbac.ResourceBoundaryLog.WithOwner(s.OwnerID.UUID.String())
+	}
+	return rbac.ResourceBoundaryLog
 }
