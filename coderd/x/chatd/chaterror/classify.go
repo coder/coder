@@ -204,6 +204,9 @@ func Classify(err error) ClassifiedError {
 	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
+	// Usage limits do not have a dedicated status code, so provider
+	// response bodies can be the only reliable signal. Other classes
+	// already have status-code signals or transport wrapper text.
 	usageLimitText := lower + "\n" + strings.ToLower(structured.detail)
 	usageLimitMatch := containsAny(usageLimitText, usageLimitAnyStatusPatterns...) ||
 		(statusCode != 429 && containsAny(usageLimitText, usageLimitPatterns...))
