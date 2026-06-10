@@ -710,10 +710,10 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 // ParseSSHConfigOption parses a single ssh config option into its key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 	if strings.ContainsAny(opt, "\r\n\x00") {
-		return "", "", xerrors.Errorf("config-ssh option %q must not contain newline or NUL characters", opt)
+		return "", "", xerrors.Errorf("config-ssh option %q must not contain carriage return, newline, or NUL characters", opt)
 	}
 
-	// An equal sign or whitespace is the separator between the key and value.
+	// An equal sign or a space is the separator between the key and value.
 	idx := strings.IndexFunc(opt, func(r rune) bool {
 		return r == ' ' || r == '='
 	})
@@ -803,7 +803,7 @@ func ValidateSSHConfigOption(key, value string) error {
 		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code, load shared libraries, or override Coder's managed SSH settings on client machines", key)
 	}
 	if strings.ContainsAny(value, "\r\n\x00") {
-		return xerrors.Errorf("ssh config option %q must be a single line", key)
+		return xerrors.Errorf("ssh config option %q must not contain carriage return, newline, or NUL characters", key)
 	}
 	return nil
 }
