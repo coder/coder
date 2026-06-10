@@ -96,59 +96,65 @@ const fileTreeStyle = {
 	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
 } satisfies CSSProperties;
 
-// Single ordering rule shared by the sidebar tree and the flat diff list so
-// the two cannot drift apart if @pierre/trees changes its own default sort.
-// Directories sort before files, dot-prefixed names first, then
-// case-insensitive locale order.
-function compareTreeSiblings(
-	aName: string,
+// Single full-path ordering rule shared by the sidebar tree and the flat diff
+// list so the two cannot drift apart. useFileTree applies the sort comparator
+// to the whole flat set of path entries (directories included), so it must be
+// a full-path comparator, not a basename one: at the first differing segment a
+// directory sorts before a file, dot-prefixed names first, then
+// case-insensitive locale order; a shorter path sorts before its descendants.
+function compareTreeEntries(
+	aSegments: readonly string[],
 	aIsDirectory: boolean,
-	bName: string,
+	bSegments: readonly string[],
 	bIsDirectory: boolean,
 ): number {
-	if (aIsDirectory !== bIsDirectory) {
-		return aIsDirectory ? -1 : 1;
+	const shared = Math.min(aSegments.length, bSegments.length);
+	for (let i = 0; i < shared; i++) {
+		const aSegment = aSegments[i];
+		const bSegment = bSegments[i];
+		if (aSegment === bSegment) {
+			continue;
+		}
+		// A segment is a directory when it is not the last one, or when the
+		// entry itself is a directory whose final segment this is.
+		const aSegmentIsDir = i < aSegments.length - 1 || aIsDirectory;
+		const bSegmentIsDir = i < bSegments.length - 1 || bIsDirectory;
+		if (aSegmentIsDir !== bSegmentIsDir) {
+			return aSegmentIsDir ? -1 : 1;
+		}
+		const aIsDot = aSegment.charCodeAt(0) === 46;
+		const bIsDot = bSegment.charCodeAt(0) === 46;
+		if (aIsDot !== bIsDot) {
+			return aIsDot ? -1 : 1;
+		}
+		return aSegment.toLowerCase().localeCompare(bSegment.toLowerCase());
 	}
-	const aIsDot = aName.charCodeAt(0) === 46;
-	const bIsDot = bName.charCodeAt(0) === 46;
-	if (aIsDot !== bIsDot) {
-		return aIsDot ? -1 : 1;
+	if (aSegments.length !== bSegments.length) {
+		return aSegments.length - bSegments.length;
 	}
-	return aName.toLowerCase().localeCompare(bName.toLowerCase());
+	if (aIsDirectory === bIsDirectory) {
+		return 0;
+	}
+	return aIsDirectory ? -1 : 1;
 }
 
-// Passed to useFileTree so the sidebar uses compareTreeSiblings rather than
-// the library's undocumented defaultChildrenComparator.
-const treeSortComparator: FileTreeSortComparator = (left, right) =>
-	compareTreeSiblings(
-		left.basename,
+// Passed to useFileTree so the sidebar uses compareTreeEntries rather than the
+// library's undocumented default sort. The entry carries the full segment
+// list. Exported for unit tests that verify the tree order matches the diff.
+export const treeSortComparator: FileTreeSortComparator = (left, right) =>
+	compareTreeEntries(
+		left.segments,
 		left.isDirectory,
-		right.basename,
+		right.segments,
 		right.isDirectory,
 	);
 
-// Orders the flat diff list to the sidebar tree's leaf order so scrolling
-// moves monotonically down the tree. Walks segments applying
-// compareTreeSiblings, treating any non-final segment as a directory, so it
-// stays consistent with treeSortComparator by construction. Exported for unit
-// tests that pin the shared ordering.
+// Orders the flat diff list to the sidebar tree's leaf order so scrolling moves
+// monotonically down the tree. Diff entries are always files, so it runs the
+// same compareTreeEntries the tree uses, keeping the two orders identical by
+// construction. Exported for unit tests that pin the shared ordering.
 export function compareTreePaths(a: string, b: string): number {
-	const aSegments = a.split("/");
-	const bSegments = b.split("/");
-	const length = Math.min(aSegments.length, bSegments.length);
-	for (let i = 0; i < length; i++) {
-		const aIsDirectory = i < aSegments.length - 1;
-		const bIsDirectory = i < bSegments.length - 1;
-		if (aSegments[i] !== bSegments[i] || aIsDirectory !== bIsDirectory) {
-			return compareTreeSiblings(
-				aSegments[i],
-				aIsDirectory,
-				bSegments[i],
-				bIsDirectory,
-			);
-		}
-	}
-	return aSegments.length - bSegments.length;
+	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
 // The library forces classic, space-reserving scrollbars via
@@ -235,11 +241,12 @@ function DiffFileTree({
 	// Tracks the row currently selected in the model so scroll-driven syncing
 	// can skip redundant selects.
 	const selectedPathRef = useRef<string | null>(null);
-	// Holds the path of an in-flight programmatic select() so its echoed
-	// selection event is dropped instead of scrolling back and fighting the
-	// user's scroll. A path token (not a boolean) avoids swallowing an
-	// unrelated user selection that lands first.
-	const suppressedSelectionRef = useRef<string | null>(null);
+	// Set while we replace the selection programmatically. The model emits
+	// selection events synchronously, so this drops the echoes from our own
+	// deselect/select calls in one window instead of looping back into
+	// onUserSelectPath. A user click can only land between effect runs, when
+	// the flag is already false.
+	const isSyncingSelectionRef = useRef(false);
 	const { model } = useFileTree({
 		density: "compact",
 		flattenEmptyDirectories: false,
@@ -250,11 +257,9 @@ function DiffFileTree({
 		onSelectionChange: (selectedPaths) => {
 			const selectedPath = selectedPaths.at(-1) ?? null;
 			selectedPathRef.current = selectedPath;
-			if (selectedPath && suppressedSelectionRef.current === selectedPath) {
-				suppressedSelectionRef.current = null;
+			if (isSyncingSelectionRef.current) {
 				return;
 			}
-			suppressedSelectionRef.current = null;
 			if (selectedPath) {
 				onUserSelectPath(selectedPath);
 			}
@@ -267,15 +272,23 @@ function DiffFileTree({
 		model.setGitStatus(gitStatus);
 	}, [gitStatus, model, paths]);
 
-	// Drive the tree selection from the active file. select() echoes a
-	// selection event, so the suppression token above keeps it from looping
-	// back into onUserSelectPath.
+	// Drive the tree selection from the active file. The @pierre/trees item
+	// handle's select() is additive, so a scrolled-past file stays
+	// highlighted unless its selection is cleared. Replace the whole
+	// selection with just the active file, suppressing the echoed events.
 	useEffect(() => {
 		if (!activePath || selectedPathRef.current === activePath) return;
 		const item = model.getItem(activePath);
 		if (!item) return;
-		suppressedSelectionRef.current = activePath;
+		isSyncingSelectionRef.current = true;
+		for (const path of model.getSelectedPaths()) {
+			if (path !== activePath) {
+				model.getItem(path)?.deselect();
+			}
+		}
 		item.select();
+		isSyncingSelectionRef.current = false;
+		selectedPathRef.current = activePath;
 	}, [activePath, model]);
 
 	return (
