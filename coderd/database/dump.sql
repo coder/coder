@@ -1430,7 +1430,18 @@ CREATE TABLE aibridge_token_usages (
     metadata jsonb,
     created_at timestamp with time zone NOT NULL,
     cache_read_input_tokens bigint DEFAULT 0 NOT NULL,
-    cache_write_input_tokens bigint DEFAULT 0 NOT NULL
+    cache_write_input_tokens bigint DEFAULT 0 NOT NULL,
+    effective_group_id uuid,
+    input_price_micros bigint,
+    output_price_micros bigint,
+    cache_read_price_micros bigint,
+    cache_write_price_micros bigint,
+    cost_micros bigint,
+    CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_input_price_micros_check CHECK ((input_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_output_price_micros_check CHECK ((output_price_micros >= 0))
 );
 
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
