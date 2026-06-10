@@ -13,6 +13,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -59,7 +60,38 @@ type section struct {
 	rows  []row
 }
 
+// prepareEnv mirrors scripts/clidocgen so the generated defaults do not
+// depend on the generating host. Without it, defaults derived from
+// os.UserCacheDir and the config dir embed the local home directory.
+func prepareEnv() {
+	// Unset CODER_ environment variables
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "CODER_") {
+			split := strings.SplitN(env, "=", 2)
+			if err := os.Unsetenv(split[0]); err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	// Override default OS values to ensure the same generated results.
+	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
+	if err != nil {
+		panic(err)
+	}
+	err = os.Setenv("TMPDIR", "/tmp")
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
+	prepareEnv()
+
 	out := flag.String("out", "docs/admin/setup/configuration-reference.md", "path to write the generated reference page")
 	flag.Parse()
 
@@ -129,19 +161,9 @@ func buildSections(opts serpent.OptionSet) []section {
 }
 
 func optionToRow(opt serpent.Option) row {
-	env := dash(opt.Env)
-	if opt.Env != "" {
-		env = "`" + opt.Env + "`"
-	}
-
-	flagCell := dash("")
+	flagCell := "-"
 	if opt.Flag != "" {
 		flagCell = fmt.Sprintf("[`--%s`](../../reference/cli/server.md#--%s)", opt.Flag, opt.Flag)
-	}
-
-	yamlCell := dash(opt.YAMLPath())
-	if opt.YAMLPath() != "" {
-		yamlCell = "`" + opt.YAMLPath() + "`"
 	}
 
 	def := opt.Default
@@ -151,26 +173,24 @@ func optionToRow(opt serpent.Option) row {
 		// check the CLI reference for the resolved default.
 		def = "(dynamic)"
 	}
-	defCell := dash(def)
-	if def != "" {
-		defCell = "`" + def + "`"
-	}
 
 	return row{
 		name:     opt.Name,
-		env:      env,
+		env:      codeCell(opt.Env),
 		flag:     flagCell,
-		yaml:     yamlCell,
-		defValue: defCell,
+		yaml:     codeCell(opt.YAMLPath()),
+		defValue: codeCell(def),
 		desc:     sanitizeDesc(opt.Description),
 	}
 }
 
-func dash(s string) string {
+// codeCell wraps s in backticks for a markdown table cell, or returns a dash
+// placeholder when s is empty.
+func codeCell(s string) string {
 	if s == "" {
 		return "-"
 	}
-	return s
+	return "`" + s + "`"
 }
 
 // sanitizeDesc collapses whitespace and escapes pipes so the description fits
