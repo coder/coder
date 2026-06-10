@@ -260,6 +260,28 @@ describe("deriveMessageDisplayState", () => {
 		expect(state.hasCopyableContent).toBe(true);
 	});
 
+	it("does not mark assistant messages ending with a thinking block as copyable", () => {
+		// Intended: the action row renders below the whole message, so a
+		// trailing thinking disclosure has the same visual problem as a
+		// trailing tool call even though copyable markdown exists.
+		const message = buildMessage(
+			[{ type: "text", text: "Here is my answer." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "Here is my answer.",
+				blocks: [
+					{ type: "response", text: "Here is my answer." },
+					{ type: "thinking", text: "Reconsidering the edge cases." },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
 	it("shows the assistant spacer for reasoning messages when no suppressing flags apply", () => {
 		const message = buildMessage(
 			[{ type: "reasoning", text: "I should think before answering." }],

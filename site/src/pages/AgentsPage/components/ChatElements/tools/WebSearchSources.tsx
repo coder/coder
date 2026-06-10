@@ -7,11 +7,7 @@ interface WebSearchSourcesProps {
 	sources: Array<{ url: string; title: string }>;
 }
 
-/**
- * Renders web search sources as a collapsible tool card, consistent
- * with other tool call renderings. The collapsed header shows a globe
- * icon and "Searched N sources"; expanding reveals clickable pills.
- */
+/** Collapsible web-search result pills, styled as a ToolCall row. */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	// Deduplicate sources by URL, keeping the first occurrence.
 	const unique = (() => {

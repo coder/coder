@@ -1976,7 +1976,7 @@ export const MultiAssistantTurnCopyButton: Story = {
 };
 
 /**
- * Regression: thinking-only assistant messages must have consistent
+ * Thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
  * gap that would normally come from the invisible action bar.
  */
