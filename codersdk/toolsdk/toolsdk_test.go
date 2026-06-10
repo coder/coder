@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -717,6 +718,62 @@ func TestTools(t *testing.T) {
 			b, err := json.Marshal(result)
 			require.NoError(t, err)
 			require.NotContains(t, string(b), `"presets"`)
+		})
+
+		t.Run("AgentDescription", func(t *testing.T) {
+			buildWithReadme := func(t *testing.T, readme string) dbfake.TemplateVersionResponse {
+				t.Helper()
+				return dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      member.ID,
+					Readme:         readme,
+				}).Do()
+			}
+
+			t.Run("Surfaced", func(t *testing.T) {
+				resp := buildWithReadme(t,
+					"---\nagent_description: Go 1.23 with Docker and internal registry access.\n---\n# Title\n")
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+					TemplateID: resp.Template.ID.String(),
+				})
+				require.NoError(t, err)
+				require.Equal(t, "Go 1.23 with Docker and internal registry access.", result.AgentDescription)
+			})
+
+			t.Run("AbsentOmitsField", func(t *testing.T) {
+				resp := buildWithReadme(t, "# Just a heading\n\nNo frontmatter here.\n")
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+					TemplateID: resp.Template.ID.String(),
+				})
+				require.NoError(t, err)
+				require.Empty(t, result.AgentDescription)
+				require.Equal(t, resp.Template.Description, result.Description)
+
+				b, err := json.Marshal(result)
+				require.NoError(t, err)
+				require.NotContains(t, string(b), `"agent_description"`)
+			})
+
+			t.Run("Truncated", func(t *testing.T) {
+				resp := buildWithReadme(t,
+					"---\nagent_description: "+strings.Repeat("x", 3000)+"\n---\n# Title\n")
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+					TemplateID: resp.Template.ID.String(),
+				})
+				require.NoError(t, err)
+				gotRunes := []rune(result.AgentDescription)
+				require.Len(t, gotRunes, 2048)
+				require.Equal(t, '…', gotRunes[len(gotRunes)-1])
+			})
 		})
 
 		t.Run("InvalidID", func(t *testing.T) {

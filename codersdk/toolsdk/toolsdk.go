@@ -18,6 +18,7 @@ import (
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/frontmatter"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -690,6 +691,10 @@ type TemplateDetail struct {
 	MinimalTemplate
 	Parameters []codersdk.TemplateVersionParameter `json:"parameters"`
 	Presets    []presetView                        `json:"presets,omitempty"`
+	// AgentDescription is the longer-form routing context parsed from the
+	// active version README's agent_description frontmatter key. It is omitted
+	// when the README has no such key.
+	AgentDescription string `json:"agent_description,omitempty"`
 }
 
 // presetView is a tool-local projection of codersdk.Preset with
@@ -771,6 +776,13 @@ When selecting a preset: if a preset is marked default and the user has not spec
 		if err != nil {
 			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
 		}
+		// The active version README carries optional agent_description
+		// frontmatter that gives the agent richer routing context than the
+		// short, card-sized template description.
+		version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID)
+		if err != nil {
+			return TemplateDetail{}, xerrors.Errorf("get template version: %w", err)
+		}
 		detail := TemplateDetail{
 			MinimalTemplate: MinimalTemplate{
 				DisplayName:     template.DisplayName,
@@ -780,7 +792,8 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			},
-			Parameters: parameters,
+			Parameters:       parameters,
+			AgentDescription: frontmatter.AgentDescription(version.Readme),
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
