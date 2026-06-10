@@ -1,7 +1,7 @@
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "#/utils/cn";
-import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolCall } from "./ToolCall";
 
 interface WebSearchSourcesProps {
 	sources: Array<{ url: string; title: string }>;
@@ -32,23 +32,24 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	const detail = unique.length === 1 ? "1 result" : `${unique.length} results`;
 
 	return (
-		<ToolCollapsible
-			hasContent={unique.length > 0}
-			header={
-				<>
+		<ToolCall.Root status="completed" hasContent={unique.length > 0}>
+			<ToolCall.HeaderButton>
+				<ToolCall.LeadingIcon>
 					<GlobeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
-					<span className="text-[13px] leading-6">
-						Searched <span className="text-content-secondary/60">{detail}</span>
-					</span>
-				</>
-			}
-		>
-			<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-				{unique.map((source) => (
-					<SourcePill key={source.url} source={source} />
-				))}
-			</div>
-		</ToolCollapsible>
+				</ToolCall.LeadingIcon>
+				<ToolCall.Label>
+					Searched <span className="text-content-secondary/60">{detail}</span>
+				</ToolCall.Label>
+				<ToolCall.Chevron />
+			</ToolCall.HeaderButton>
+			<ToolCall.Content>
+				<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+					{unique.map((source) => (
+						<SourcePill key={source.url} source={source} />
+					))}
+				</div>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 

@@ -56,7 +56,7 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 	},
 };
@@ -79,7 +79,7 @@ export const RetryWithVisibleReason: Story = {
 		expect(
 			canvas.getByText(/anthropic returned an unexpected error/i),
 		).toBeVisible();
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
@@ -267,7 +267,7 @@ export const ResponseKeepsActivitySlotReserved: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 	},
 };
 
@@ -291,7 +291,7 @@ export const RunningToolsSuppressThinkingActivity: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("live-activity-slot")).not.toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(
 			canvas.getByRole("button", { name: /expand command/i }),
 		).toBeVisible();
