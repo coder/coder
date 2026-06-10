@@ -776,13 +776,6 @@ When selecting a preset: if a preset is marked default and the user has not spec
 		if err != nil {
 			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
 		}
-		// The active version README carries optional agent_description
-		// frontmatter that gives the agent richer routing context than the
-		// short, card-sized template description.
-		version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID)
-		if err != nil {
-			return TemplateDetail{}, xerrors.Errorf("get template version: %w", err)
-		}
 		detail := TemplateDetail{
 			MinimalTemplate: MinimalTemplate{
 				DisplayName:     template.DisplayName,
@@ -792,8 +785,15 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			},
-			Parameters:       parameters,
-			AgentDescription: frontmatter.AgentDescription(version.Readme),
+			Parameters: parameters,
+		}
+		// The active version README carries optional agent_description
+		// frontmatter that gives the agent richer routing context than the
+		// short, card-sized template description. Fetch it best-effort: a
+		// missing or unreadable version must not fail coder_get_template,
+		// which still returns the template, parameters, and presets.
+		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
+			detail.AgentDescription = frontmatter.AgentDescription(version.Readme)
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
