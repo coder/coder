@@ -2617,6 +2617,41 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 	return i, err
 }
 
+const getHighestGroupAIBudgetByUser = `-- name: GetHighestGroupAIBudgetByUser :one
+SELECT
+	gaib.group_id,
+	gaib.spend_limit_micros
+FROM group_ai_budgets gaib
+JOIN group_members_expanded gme ON gme.group_id = gaib.group_id
+WHERE gme.user_id = $1
+ORDER BY
+	gaib.spend_limit_micros DESC, -- highest wins
+	gme.group_name ASC,           -- alphabetical tiebreak
+	-- Final tiebreak on the group id makes the result deterministic when two
+	-- groups share both name and limit, which is possible across organizations
+	-- (groups are unique on (organization_id, name), not name alone).
+	gaib.group_id ASC
+LIMIT 1
+`
+
+type GetHighestGroupAIBudgetByUserRow struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+// Returns the highest group AI budget across the groups the user belongs to,
+// breaking ties by group name ascending. Implements the "highest" budget policy.
+// group_members_expanded is a UNION of group_members and organization_members,
+// so the implicit "Everyone" group (group_id == organization_id) is included.
+// Returns no rows when the user has no budgeted groups; callers should treat
+// sql.ErrNoRows as "no group budget".
+func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error) {
+	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, userID)
+	var i GetHighestGroupAIBudgetByUserRow
+	err := row.Scan(&i.GroupID, &i.SpendLimitMicros)
+	return i, err
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides

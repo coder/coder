@@ -6502,6 +6502,14 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(override)
 	}))
 
+	s.Run("GetHighestGroupAIBudgetByUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		row := testutil.Fake(s.T(), faker, database.GetHighestGroupAIBudgetByUserRow{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), user.ID).Return(row, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(row)
+	}))
+
 	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		group := testutil.Fake(s.T(), faker, database.Group{})
