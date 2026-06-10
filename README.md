@@ -94,12 +94,12 @@ Use `coder --help` to get a list of flags and environment variables. See the [in
 
 Browse the [documentation](https://coder.com/docs) or visit a specific section below:
 
-- [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
-- [**Templates**](https://coder.com/docs/templates): Templates are written in Terraform and describe the infrastructure for workspaces
+- [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
+- [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
-- [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
+- [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
 
 ## Support
 
