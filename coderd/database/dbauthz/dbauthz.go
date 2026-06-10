@@ -1828,14 +1828,6 @@ func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Contex
 	return q.db.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
 }
 
-func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
-	if err != nil {
-		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	return q.db.CountAuthorizedAIBridgeInterceptions(ctx, arg, prep)
-}
-
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -6223,14 +6215,6 @@ func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBr
 	return q.db.ListAuthorizedAIBridgeClients(ctx, arg, prep)
 }
 
-func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
-}
-
 func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySummariesParams) ([]database.ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
@@ -8661,14 +8645,6 @@ func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg dat
 
 func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
 	return q.CountConnectionLogs(ctx, arg)
-}
-
-func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeInterceptionsRow, error) {
-	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prepared)
-}
-
-func (q *querier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.db.CountAuthorizedAIBridgeInterceptions(ctx, arg, prepared)
 }
 
 func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, _ rbac.PreparedAuthorized) ([]string, error) {
