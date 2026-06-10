@@ -359,7 +359,7 @@ func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
 			coderd: codersdk.SSHConfigResponse{
 				SSHConfigOptions: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *"},
 			},
-			wantErr: `ssh config option "UserKnownHostsFile" must be a single line`,
+			wantErr: `ssh config option "UserKnownHostsFile" must not contain carriage return, newline, or NUL characters`,
 		},
 	}
 
