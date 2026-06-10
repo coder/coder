@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -611,22 +612,29 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
-	if source := parser.String(values, "", "source"); source != "" {
+	sources := httpapi.ParseCustomList(parser, values, nil, "source", func(v string) (string, error) {
+		source := strings.ToLower(strings.TrimSpace(v))
 		switch source {
-		case "created_by_me":
+		case "created_by_me", "shared_with_me":
+			return source, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if len(sources) > 0 {
+		hasCreatedByMe := slices.Contains(sources, "created_by_me")
+		hasSharedWithMe := slices.Contains(sources, "shared_with_me")
+
+		switch {
+		case hasCreatedByMe && hasSharedWithMe:
 			filter.OwnedOnly = true
-			filter.SharedOnly = false
-		case "shared_with_me":
+			filter.SharedOnly = true
+		case hasSharedWithMe:
 			filter.OwnedOnly = false
 			filter.SharedOnly = true
-		case "all":
-			filter.OwnedOnly = false
-			filter.SharedOnly = false
 		default:
-			parser.Errors = append(parser.Errors, codersdk.ValidationError{
-				Field:  "source",
-				Detail: fmt.Sprintf("%q is not a valid value", source),
-			})
+			filter.OwnedOnly = true
+			filter.SharedOnly = false
 		}
 	}
 

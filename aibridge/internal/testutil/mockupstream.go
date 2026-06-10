@@ -1,4 +1,4 @@
-package integrationtest
+package testutil
 
 import (
 	"bufio"
@@ -25,10 +25,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 )
 
-// upstreamResponse defines a single response that mockUpstream will replay
-// for one incoming request. Use [newFixtureResponse] or [newFixtureToolResponse] to
+// UpstreamResponse defines a single response that MockUpstream will replay
+// for one incoming request. Use [NewFixtureResponse] or [NewFixtureToolResponse] to
 // construct one from a parsed txtar archive.
-type upstreamResponse struct {
+type UpstreamResponse struct {
 	Streaming []byte // returned when the request has "stream": true.
 	Blocking  []byte // returned for non-streaming requests.
 
@@ -37,11 +37,11 @@ type upstreamResponse struct {
 	OnRequest func(r *http.Request, body []byte)
 }
 
-// newFixtureResponse creates an upstreamResponse from a parsed fixture archive.
+// NewFixtureResponse creates an UpstreamResponse from a parsed fixture archive.
 // It reads whichever of 'streaming' and 'non-streaming' sections exist;
 // not every fixture has both (e.g. error fixtures may only define one).
-func newFixtureResponse(fix fixtures.Fixture) upstreamResponse {
-	var resp upstreamResponse
+func NewFixtureResponse(fix fixtures.Fixture) UpstreamResponse {
+	var resp UpstreamResponse
 	if fix.Has(fixtures.SectionStreaming) {
 		resp.Streaming = fix.Streaming()
 	}
@@ -51,11 +51,11 @@ func newFixtureResponse(fix fixtures.Fixture) upstreamResponse {
 	return resp
 }
 
-// newFixtureToolResponse creates an upstreamResponse from the tool-call fixture files.
+// NewFixtureToolResponse creates an UpstreamResponse from the tool-call fixture files.
 // It reads whichever of 'streaming/tool-call' and 'non-streaming/tool-call'
 // sections exist.
-func newFixtureToolResponse(fix fixtures.Fixture) upstreamResponse {
-	var resp upstreamResponse
+func NewFixtureToolResponse(fix fixtures.Fixture) UpstreamResponse {
+	var resp UpstreamResponse
 	if fix.Has(fixtures.SectionStreamingToolCall) {
 		resp.Streaming = fix.StreamingToolCall()
 	}
@@ -65,18 +65,36 @@ func newFixtureToolResponse(fix fixtures.Fixture) upstreamResponse {
 	return resp
 }
 
-// receivedRequest captures the details of a single request handled by mockUpstream.
-type receivedRequest struct {
+// NewErrorResponse returns an UpstreamResponse that replays a raw HTTP error
+// response with the given status code and optional Retry-After header. SDK
+// auto-retries are disabled via x-should-retry.
+func NewErrorResponse(status int, retryAfter string) UpstreamResponse {
+	body := fmt.Sprintf(`{"error":{"message":%q}}`, http.StatusText(status))
+
+	raw := fmt.Sprintf("HTTP/1.1 %d %s\r\n", status, http.StatusText(status))
+	if retryAfter != "" {
+		raw += fmt.Sprintf("Retry-After: %s\r\n", retryAfter)
+	}
+	raw += "x-should-retry: false\r\n"
+	raw += "Content-Type: application/json\r\n"
+	raw += fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+
+	rawBytes := []byte(raw)
+	return UpstreamResponse{Streaming: rawBytes, Blocking: rawBytes}
+}
+
+// ReceivedRequest captures the details of a single request handled by MockUpstream.
+type ReceivedRequest struct {
 	Method string
 	Path   string
 	Header http.Header
 	Body   []byte
 }
 
-// mockUpstream replays txtar fixture responses, validates incoming request
+// MockUpstream replays txtar fixture responses, validates incoming request
 // bodies, and counts calls. It stands in for a real AI provider API
 // (Anthropic, OpenAI) during integration tests.
-type mockUpstream struct {
+type MockUpstream struct {
 	*httptest.Server
 
 	// Calls is incremented atomically on every request.
@@ -94,31 +112,31 @@ type mockUpstream struct {
 	AllowOverflow bool
 
 	mu       sync.Mutex
-	requests []receivedRequest
+	requests []ReceivedRequest
 
 	t         *testing.T
-	responses []upstreamResponse
+	responses []UpstreamResponse
 }
 
-// receivedRequests returns a copy of all requests received so far.
-func (ms *mockUpstream) receivedRequests() []receivedRequest {
+// ReceivedRequests returns a copy of all requests received so far.
+func (ms *MockUpstream) ReceivedRequests() []ReceivedRequest {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	return append([]receivedRequest(nil), ms.requests...)
+	return append([]ReceivedRequest(nil), ms.requests...)
 }
 
-// newMockUpstream creates a started httptest.Server that replays fixture
+// NewMockUpstream creates a started httptest.Server that replays fixture
 // responses. Responses are returned in order: first call → first response.
 // The test fails if the number of requests doesn't match the number of
 // responses (when AllowOverflow is not set, default).
 //
-//	srv := newMockUpstream(ctx, t, newFixtureResponse(fix))                        // simple
-//	srv := newMockUpstream(ctx, t, newFixtureResponse(fix), newFixtureToolResponse(fix)) // multi-turn
-func newMockUpstream(ctx context.Context, t *testing.T, responses ...upstreamResponse) *mockUpstream {
+//	srv := NewMockUpstream(ctx, t, NewFixtureResponse(fix))                        // simple
+//	srv := NewMockUpstream(ctx, t, NewFixtureResponse(fix), NewFixtureToolResponse(fix)) // multi-turn
+func NewMockUpstream(ctx context.Context, t *testing.T, responses ...UpstreamResponse) *MockUpstream {
 	t.Helper()
-	require.NotEmpty(t, responses, "at least one upstreamResponse required")
+	require.NotEmpty(t, responses, "at least one UpstreamResponse required")
 
-	ms := &mockUpstream{
+	ms := &MockUpstream{
 		t:         t,
 		responses: responses,
 	}
@@ -143,7 +161,7 @@ func newMockUpstream(ctx context.Context, t *testing.T, responses ...upstreamRes
 	return ms
 }
 
-func (ms *mockUpstream) handle(w http.ResponseWriter, r *http.Request) {
+func (ms *MockUpstream) handle(w http.ResponseWriter, r *http.Request) {
 	call := int(ms.Calls.Add(1) - 1)
 
 	body, err := io.ReadAll(r.Body)
@@ -151,7 +169,7 @@ func (ms *mockUpstream) handle(w http.ResponseWriter, r *http.Request) {
 	require.NoError(ms.t, err)
 
 	ms.mu.Lock()
-	ms.requests = append(ms.requests, receivedRequest{
+	ms.requests = append(ms.requests, ReceivedRequest{
 		Method: r.Method,
 		Path:   r.URL.Path,
 		Header: r.Header.Clone(),
@@ -188,7 +206,7 @@ func (ms *mockUpstream) handle(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(resp.Blocking)
 }
 
-func (ms *mockUpstream) responseForCall(call int) upstreamResponse {
+func (ms *MockUpstream) responseForCall(call int) UpstreamResponse {
 	if call >= len(ms.responses) {
 		if ms.AllowOverflow {
 			return ms.responses[len(ms.responses)-1]
@@ -205,7 +223,7 @@ func isStreaming(body []byte, urlPath string) bool {
 	return gjson.GetBytes(body, "stream").Bool() || strings.HasSuffix(urlPath, "invoke-with-response-stream")
 }
 
-func (ms *mockUpstream) writeSSE(w http.ResponseWriter, data []byte) {
+func (ms *MockUpstream) writeSSE(w http.ResponseWriter, data []byte) {
 	ms.t.Helper()
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -244,7 +262,7 @@ func isRawHTTPResponse(data []byte) bool {
 // writeRawHTTPResponse parses data as a complete HTTP response and replays it,
 // copying the status code, headers, and body to w. This supports error fixtures
 // that contain full HTTP responses (e.g. "HTTP/2.0 400 Bad Request\r\n...").
-func (ms *mockUpstream) writeRawHTTPResponse(w http.ResponseWriter, r *http.Request, data []byte) {
+func (ms *MockUpstream) writeRawHTTPResponse(w http.ResponseWriter, r *http.Request, data []byte) {
 	ms.t.Helper()
 
 	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(data)), r)

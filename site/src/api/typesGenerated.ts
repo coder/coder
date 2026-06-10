@@ -2151,10 +2151,9 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
-export type ChatListSource = "all" | "created_by_me" | "shared_with_me";
+export type ChatListSource = "created_by_me" | "shared_with_me";
 
 export const ChatListSources: ChatListSource[] = [
-	"all",
 	"created_by_me",
 	"shared_with_me",
 ];
@@ -7183,6 +7182,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
 	| "workspace"
@@ -7219,6 +7219,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
 	"workspace",

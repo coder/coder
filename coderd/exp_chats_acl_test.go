@@ -432,9 +432,9 @@ func TestListChatsSharedScope(t *testing.T) {
 			shared:   map[uuid.UUID]bool{sharedChat.ID: true},
 		},
 		{
-			name: "all",
+			name: "created by me and shared with me",
 			opts: &codersdk.ListChatsOptions{
-				Source: codersdk.ChatListSourceAll,
+				Query: "source:created_by_me,shared_with_me",
 			},
 			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}, sharedChat.ID: {}},
 			shared:   map[uuid.UUID]bool{viewerChat.ID: false, sharedChat.ID: true},

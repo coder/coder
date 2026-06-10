@@ -3271,7 +3271,7 @@ describe("thinking indicator event ordering", () => {
 
 		// Server sends message_part BEFORE status:running in the same
 		// WebSocket frame. This is the event ordering that previously
-		// caused the "Thinking..." indicator to be skipped.
+		// caused the Thinking indicator to be skipped.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3291,7 +3291,7 @@ describe("thinking indicator event ordering", () => {
 
 		// After the batch, the status should be "running" but stream
 		// parts should NOT have been applied yet (deferred to
-		// setTimeout). This is the window where "Thinking..." shows.
+		// setTimeout). This is the window where the Thinking indicator shows.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 			expect(result.current.streamState).toBeNull();

@@ -1,15 +1,12 @@
 import {
 	CheckIcon,
-	ChevronDownIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LayersIcon,
 	LoaderIcon,
 	OctagonXIcon,
-	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -20,13 +17,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
-	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
 	formatShellDurationMs,
@@ -49,33 +44,7 @@ type ExecuteToolProps = {
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
-type ExecuteToolInnerProps = ExecuteToolProps & {
-	outputInitiallyOpen: boolean;
-};
-
-export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
-	const hasTranscriptBlocks = props.transcriptBlocks.length > 0;
-	const autoDisplayState: AgentDisplayState =
-		hasTranscriptBlocks ||
-		props.status === "running" ||
-		props.isBackgrounded ||
-		!!props.killedBySignal
-			? "preview"
-			: "collapsed";
-	const resolvedDisplayState = resolveAgentDisplayState(
-		props.shellToolDisplayMode,
-		autoDisplayState,
-	);
-	return (
-		<ExecuteToolInner
-			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
-			{...props}
-			outputInitiallyOpen={isAgentDisplayOpen(resolvedDisplayState)}
-		/>
-	);
-};
-
-const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
+export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	command,
 	transcriptBlocks,
 	status,
@@ -85,106 +54,117 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
-	outputInitiallyOpen,
+	shellToolDisplayMode,
 }) => {
 	const hasCommand = command.trim().length > 0;
+	const hasTranscriptBlocks = transcriptBlocks.length > 0;
+	const autoDisplayState: AgentDisplayState =
+		hasTranscriptBlocks ||
+		status === "running" ||
+		isBackgrounded ||
+		!!killedBySignal
+			? "preview"
+			: "collapsed";
 	const isRunning = status === "running";
-	const showFailureIndicator = isError && !isRunning;
-	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
+	const { commandLabel, durationSuffix } = getShellCommandLine({
+		command,
+		modelIntent,
+		parsedCommands,
+		durationLabel,
+	});
+	const defaultView = resolveAgentDisplayState(
+		shellToolDisplayMode,
+		autoDisplayState,
+	);
 
 	if (!hasCommand) {
 		return null;
 	}
 
 	return (
-		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
-			<TranscriptRow
-				asChild
-				className="col-start-1 row-start-1 m-0 w-full min-w-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
-			>
-				<button
-					type="button"
-					aria-expanded={outputOpen}
-					aria-label={outputToggleLabel}
-					onClick={() => setOutputOpen((value) => !value)}
-				>
-					<ShellCommandLine
-						command={command}
-						modelIntent={modelIntent}
-						parsedCommands={parsedCommands}
-						durationLabel={durationLabel}
-						expanded={outputOpen}
+		<ToolCall.Root
+			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
+			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
+			status={status}
+			isError={isError}
+			errorMessage="Command failed"
+			hasContent
+			defaultView={defaultView}
+			ariaLabel={(expanded) =>
+				expanded ? "Collapse command" : "Expand command"
+			}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton className="col-start-1 row-start-1 min-w-0 font-normal">
+					<ToolCall.LeadingIcon name="execute" />
+					<span className="flex min-w-0 items-baseline">
+						<ToolCall.Label>{commandLabel}</ToolCall.Label>
+						{durationSuffix && (
+							<span className="ml-1 shrink-0 text-content-secondary">
+								{durationSuffix}
+							</span>
+						)}
+					</span>
+					<ToolCall.Status />
+					<ToolCall.Chevron />
+				</ToolCall.HeaderButton>
+				<ToolCall.HeaderActions>
+					{isBackgrounded && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									aria-label="Running in background"
+									role="img"
+									className="flex shrink-0 text-content-secondary"
+								>
+									<LayersIcon aria-hidden className="size-3.5 shrink-0" />
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>Running in background</TooltipContent>
+						</Tooltip>
+					)}
+					{killedBySignal && !isRunning && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{signalTooltipLabel(killedBySignal)}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					<CopyButton
+						text={command}
+						label="Copy command"
+						className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100 focus-visible:opacity-100"
 					/>
-				</button>
-			</TranscriptRow>
-			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
-				{isRunning && (
-					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-				)}
-				{showFailureIndicator && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span
-								aria-label="Command failed"
-								role="img"
-								className="flex shrink-0 text-content-secondary"
-							>
-								<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
-							</span>
-						</TooltipTrigger>
-						<TooltipContent>Command failed</TooltipContent>
-					</Tooltip>
-				)}
-				{isBackgrounded && !isRunning && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span
-								aria-label="Running in background"
-								role="img"
-								className="flex shrink-0 text-content-secondary"
-							>
-								<LayersIcon aria-hidden className="size-3.5 shrink-0" />
-							</span>
-						</TooltipTrigger>
-						<TooltipContent>Running in background</TooltipContent>
-					</Tooltip>
-				)}
-				{killedBySignal && !isRunning && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<OctagonXIcon className="size-3.5 shrink-0 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent>
-							{signalTooltipLabel(killedBySignal)}
-						</TooltipContent>
-					</Tooltip>
-				)}
-				<CopyButton
-					text={command}
-					label="Copy command"
-					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
-				/>
-			</TranscriptRow>
-			{outputOpen && (
+				</ToolCall.HeaderActions>
+			</ToolCall.HeaderLayout>
+			<ToolCall.Content>
 				<ShellTranscriptBody
 					command={command}
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 				/>
-			)}
-		</div>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 
-const ShellCommandLine: React.FC<{
+type ShellCommandLineInput = {
 	command: string;
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
-	expanded?: boolean;
-}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
+};
+
+const getShellCommandLine = ({
+	command,
+	modelIntent,
+	parsedCommands,
+	durationLabel,
+}: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
 		parsedCommands && parsedCommands.length > 0
@@ -194,27 +174,11 @@ const ShellCommandLine: React.FC<{
 	const commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
-	const durationSuffix = durationLabel ? ` for ${durationLabel}` : "";
 
-	return (
-		<>
-			<ToolIcon name="execute" isError={false} />
-			<span className="min-w-0 truncate text-[13px] font-normal leading-6 text-current">
-				{commandLabel}
-				{durationSuffix && (
-					<span className="text-content-secondary">{durationSuffix}</span>
-				)}
-			</span>
-			{expanded !== undefined && (
-				<ChevronDownIcon
-					className={cn(
-						"size-3 shrink-0 text-current transition-transform",
-						expanded ? "rotate-0" : "-rotate-90",
-					)}
-				/>
-			)}
-		</>
-	);
+	return {
+		commandLabel,
+		durationSuffix: durationLabel ? ` for ${durationLabel}` : "",
+	};
 };
 
 const ShellTranscriptBody: React.FC<{
@@ -229,7 +193,7 @@ const ShellTranscriptBody: React.FC<{
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">
-				<pre className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+				<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					<span aria-hidden className="select-none">
 						$
 					</span>{" "}
@@ -239,7 +203,7 @@ const ShellTranscriptBody: React.FC<{
 					<pre
 						key={block.kind}
 						className={cn(
-							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+							"m-0 mt-4 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
 							block.kind === "error" || isError
 								? "text-content-destructive"
 								: "text-content-secondary",
@@ -331,32 +295,63 @@ export const WaitForExternalAuthTool: React.FC<{
 }) => {
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
-	let icon: React.ReactNode = (
-		<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
-	);
+	let statusIcon: React.ReactNode = isRunning ? (
+		<LoaderIcon
+			aria-label="Authentication in progress"
+			role="img"
+			className="size-3.5 shrink-0 animate-spin text-content-link motion-reduce:animate-none"
+		/>
+	) : null;
 	if (isError) {
 		label =
 			errorMessage ||
 			`Failed while waiting for ${providerLabel} authentication`;
-		icon = (
-			<TriangleAlertIcon className="size-3.5 shrink-0 text-content-secondary" />
+		statusIcon = (
+			<OctagonXIcon
+				aria-label="Authentication failed"
+				role="img"
+				className="size-3.5 shrink-0 text-content-destructive"
+			/>
 		);
 	} else if (timedOut) {
 		label = `Timed out waiting for ${providerLabel} authentication`;
-		icon = (
-			<CircleAlertIcon className="size-3.5 shrink-0 text-content-warning" />
+		statusIcon = (
+			<CircleAlertIcon
+				aria-label="Authentication timed out"
+				role="img"
+				className="size-3.5 shrink-0 text-content-warning"
+			/>
 		);
 	} else if (authenticated && !isRunning) {
 		label = `Authenticated with ${providerLabel}`;
-		icon = <CheckIcon className="size-3.5 shrink-0 text-content-success" />;
+		statusIcon = (
+			<CheckIcon
+				aria-label="Authentication completed"
+				role="img"
+				className="size-3.5 shrink-0 text-content-success"
+			/>
+		);
 	}
 
 	return (
-		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2">
-			<div className="flex items-center gap-2">
-				{icon}
-				<span className="text-[13px] text-content-primary">{label}</span>
-			</div>
-		</div>
+		<ToolCall.Root
+			className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2"
+			status={status}
+			isError={isError}
+			errorMessage={
+				errorMessage ||
+				`Failed while waiting for ${providerLabel} authentication`
+			}
+			hasContent={false}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton className="min-w-0 flex-1 font-normal text-content-secondary">
+					<ToolCall.LeadingIcon>{statusIcon}</ToolCall.LeadingIcon>
+					<ToolCall.Label className="text-content-primary">
+						{label}
+					</ToolCall.Label>
+				</ToolCall.HeaderButton>
+			</ToolCall.HeaderLayout>
+		</ToolCall.Root>
 	);
 };

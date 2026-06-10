@@ -162,7 +162,11 @@ export const ErrorState: Story = {
 		expect(
 			canvas.getByText(`Proposed ${defaultPlanFilename}`),
 		).toBeInTheDocument();
-		expect(canvas.getByLabelText("Error")).toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", {
+				name: "Failed to read file: file not found",
+			}),
+		).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "Implement plan" }),
 		).not.toBeInTheDocument();
@@ -253,6 +257,8 @@ export const FileIDFetchError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(await canvas.findByLabelText("Error")).toBeInTheDocument();
+		expect(
+			await canvas.findByRole("img", { name: "Failed to load plan" }),
+		).toBeInTheDocument();
 	},
 };

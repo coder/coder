@@ -1378,11 +1378,9 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
-			Name:  "SourceAll",
-			Query: "source:all",
-			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
-			},
+			Name:                  "SourceAllInvalid",
+			Query:                 "source:all",
+			ExpectedErrorContains: "source",
 		},
 		{
 			Name:                  "SourceInvalid",
@@ -1390,9 +1388,22 @@ func TestSearchChats(t *testing.T) {
 			ExpectedErrorContains: "source",
 		},
 		{
-			Name:                  "SourceRepeated",
-			Query:                 "source:created_by_me source:shared_with_me",
-			ExpectedErrorContains: "source",
+			Name:  "SourceCreatedByMeAndSharedWithMe",
+			Query: "source:created_by_me,shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceRepeated",
+			Query: "source:created_by_me source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
+			},
 		},
 		{
 			Name:                  "ExtraParam",

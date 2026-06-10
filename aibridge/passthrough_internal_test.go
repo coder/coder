@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -22,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -384,6 +387,10 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		expectedRetryAfter   string
 		// Expected key states after the request, by index in keys.
 		expectedKeyStates []keypool.KeyState
+		// Expected key_pool_state_transitions_total counts by reason.
+		expectedTransitions map[string]int
+		// Expected key_pool_exhaustions_total counts by outcome.
+		expectedExhaustions map[string]int
 	}{
 		{
 			// Given: 1 valid key returning 200.
@@ -416,6 +423,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
+			expectedTransitions: map[string]int{"rate_limited": 1},
 		},
 		{
 			// Given: 2 keys; key-0 returns 401, key-1 returns 200.
@@ -432,6 +440,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStateValid,
 			},
+			expectedTransitions: map[string]int{"unauthorized": 1},
 		},
 		{
 			// Given: 2 keys; key-0 returns 403, key-1 returns 200.
@@ -448,6 +457,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStateValid,
 			},
+			expectedTransitions: map[string]int{"forbidden": 1},
 		},
 		{
 			// Given: 3 keys; all return 429 with cooldowns 5s, 3s, 10s.
@@ -480,6 +490,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				keypool.KeyStateTemporary,
 				keypool.KeyStateTemporary,
 			},
+			expectedTransitions: map[string]int{"rate_limited": 3},
+			expectedExhaustions: map[string]int{"rate_limited": 1},
 		},
 		{
 			// Given: 2 keys; both return 401.
@@ -496,6 +508,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				keypool.KeyStatePermanent,
 				keypool.KeyStatePermanent,
 			},
+			expectedTransitions: map[string]int{"unauthorized": 2},
+			expectedExhaustions: map[string]int{"auth_failed": 1},
 		},
 		{
 			// Given: 2 keys; key-0 returns 500.
@@ -561,10 +575,13 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				}))
 				t.Cleanup(upstream.Close)
 
+				reg := prometheus.NewRegistry()
+				m := NewMetrics(reg)
+
 				var pool *keypool.Pool
 				if len(tc.keys) > 0 {
 					var err error
-					pool, err = keypool.New(tc.keys, quartz.NewMock(t))
+					pool, err = keypool.New("test", tc.keys, quartz.NewMock(t), m)
 					require.NoError(t, err)
 				}
 
@@ -587,6 +604,30 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				assert.Equal(t, tc.expectedRetryAfter, w.Header().Get("Retry-After"), "Retry-After header")
 				if pool != nil {
 					assert.Equal(t, tc.expectedKeyStates, pool.PoolState(), "key states")
+
+					gathered, err := reg.Gather()
+					require.NoError(t, err)
+					// One transition per marked key, by reason.
+					for _, reason := range []string{"rate_limited", "unauthorized", "forbidden"} {
+						if want := tc.expectedTransitions[reason]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_state_transitions_total", "test", reason))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_state_transitions_total", "test", reason))
+						}
+					}
+					// Exhaustion outcome when no usable key remains.
+					for _, outcome := range []string{"rate_limited", "auth_failed"} {
+						if want := tc.expectedExhaustions[outcome]; want > 0 {
+							assert.True(t, codertestutil.PromCounterHasValue(t, gathered, float64(want), "key_pool_exhaustions_total", outcome, "test"))
+						} else {
+							assert.False(t, codertestutil.PromCounterGathered(t, gathered, "key_pool_exhaustions_total", outcome, "test"))
+						}
+					}
+					// One observation per request, summing the keys tried.
+					hist := promhelp.HistogramValue(t, reg, "key_pool_failover_attempts", prometheus.Labels{"provider": "test"})
+					require.NotNil(t, hist)
+					assert.Equal(t, uint64(1), hist.GetSampleCount())
+					assert.Equal(t, float64(tc.expectedRequestCount), hist.GetSampleSum())
 				}
 			})
 		}

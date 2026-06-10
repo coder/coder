@@ -502,6 +502,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 
 	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
 	require.True(t, ok, "expected first part to stay a FilePart")
+	require.Equal(t, "resolved.png", filePart.Filename)
 	require.Equal(t, resolvedData, filePart.Data)
 	require.Equal(t, "image/png", filePart.MediaType)
 

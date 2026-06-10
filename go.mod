@@ -94,7 +94,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     emit a Base64 PDF document block for application/pdf FileParts on the
 //     Anthropic provider so user-uploaded PDFs actually reach Claude/Bedrock
 //     instead of being silently dropped.
-// 11) coder/fantasy#39, support Anthropic thinking_display natively.
+// 11) coder/fantasy#38, forward PDF and text filenames as a sanitized
+//     Anthropic document title so Claude can refer to attachments by
+//     name, and warn on unsupported FilePart media types instead of
+//     silently dropping them.
+// 12) coder/fantasy#39, support Anthropic thinking_display natively.
 // See: https://github.com/coder/fantasy/commits/a2a3f2171ec8
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260604204802-a2a3f2171ec8
 
@@ -167,7 +171,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-playground/validator/v10 v10.30.0
 	github.com/gofrs/flock v0.13.0
-	github.com/gohugoio/hugo v0.162.0
+	github.com/gohugoio/hugo v0.163.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/gomarkdown/markdown v0.0.0-20260411013819-759bbc3e3207
@@ -566,7 +570,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.8 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
-	github.com/bits-and-blooms/bitset v1.24.4 // indirect
+	github.com/bits-and-blooms/bitset v1.24.5 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab // indirect

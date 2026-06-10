@@ -2047,8 +2047,6 @@ const (
 	ChatListSourceCreatedByMe ChatListSource = "created_by_me"
 	// ChatListSourceSharedWithMe returns chats shared with the caller.
 	ChatListSourceSharedWithMe ChatListSource = "shared_with_me"
-	// ChatListSourceAll returns both owned and shared chats.
-	ChatListSourceAll ChatListSource = "all"
 )
 
 // ListChatsOptions are optional parameters for ListChats.
