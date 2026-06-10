@@ -54,7 +54,7 @@ func Parse(readme string) (Frontmatter, string, error) {
 }
 
 // AgentDescription returns the trimmed, truncated agent_description from a
-// README's frontmatter, or empty string when absent, blank, or unparseable.
+// README's frontmatter, or empty string when absent, blank, or unparsable.
 // This is the single entry point used by the agent template-selection tools.
 func AgentDescription(readme string) string {
 	fm, _, err := Parse(readme)
