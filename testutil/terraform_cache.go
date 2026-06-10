@@ -94,16 +94,12 @@ const (
 	runCmdRetryCeil   = 30 * time.Second
 )
 
-// runCmd runs the given command, retrying on any non-zero exit because the
-// provider cache population commands hit the network and intermittently fail
-// with transient registry/GitHub 5xx errors. Retrying is safe because
-// `terraform init` and `terraform providers mirror` are idempotent.
-//
-// The window is wide because registry/GitHub incidents last seconds to
-// minutes, not a single request. coder/retry grows the delay by phi (~1.618)
-// from the floor and caps it at the ceil, so attempts start at roughly t=0s,
-// 8s, 21s, 42s, and 72s, plus command runtime. The wait is cheap because this
-// path runs only on a cache miss (see DownloadTFProviders).
+// runCmd runs the given command, retrying on any non-zero exit. The provider
+// cache population commands hit the network and intermittently fail with
+// transient registry/GitHub 5xx errors; retrying is safe because `terraform
+// init` and `terraform providers mirror` are idempotent. The backoff window is
+// wide because registry incidents last seconds to minutes, and the wait is
+// only incurred on a cache miss (see DownloadTFProviders).
 func runCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
