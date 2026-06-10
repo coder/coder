@@ -10,11 +10,7 @@ interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
 	horizontalScrollBarClassName?: string;
-	/**
-	 * Extra classes for the scrollbar thumb, including its expanded `before`
-	 * hit-target pseudo-element. Use to scope hit-area overrides to a single
-	 * instance without affecting other scrollbars.
-	 */
+	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
 	scrollThumbClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;

@@ -447,10 +447,9 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"
-					// Disable the thumb's expanded hit-target. It extends ~18px left
-					// of this thin scrollbar and would otherwise sit on top of the
-					// row controls (actions menu, timestamp, indicators). The 6px
-					// thumb stays draggable and the visible scrollbar is unchanged.
+					// The default 24px hit-target extends ~18px left of this narrow
+					// scrollbar, onto the row controls (actions menu, timestamp,
+					// indicators). Disable it so those controls stay clickable.
 					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
 						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
