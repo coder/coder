@@ -691,9 +691,8 @@ type TemplateDetail struct {
 	MinimalTemplate
 	Parameters []codersdk.TemplateVersionParameter `json:"parameters"`
 	Presets    []presetView                        `json:"presets,omitempty"`
-	// AgentDescription is the longer-form routing context parsed from the
-	// active version README's agent_description frontmatter key. It is omitted
-	// when the README has no such key.
+	// AgentDescription is parsed from the active version README's
+	// agent_description frontmatter key.
 	AgentDescription string `json:"agent_description,omitempty"`
 }
 
@@ -787,11 +786,9 @@ When selecting a preset: if a preset is marked default and the user has not spec
 			},
 			Parameters: parameters,
 		}
-		// The active version README carries optional agent_description
-		// frontmatter that gives the agent richer routing context than the
-		// short, card-sized template description. Fetch it best-effort: a
-		// missing or unreadable version must not fail coder_get_template,
-		// which still returns the template, parameters, and presets.
+		// Best-effort: a missing or unreadable version must not fail
+		// coder_get_template, which still returns the template, parameters, and
+		// presets.
 		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
 			detail.AgentDescription = frontmatter.AgentDescription(version.Readme)
 		}
