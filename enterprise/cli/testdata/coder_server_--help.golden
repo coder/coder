@@ -289,8 +289,11 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
-          commas.Using this incorrectly can break SSH to your deployment, use
-          cautiously.
+          commas. Using this incorrectly can break SSH to your deployment, use
+          cautiously. The following options are not allowed: Host, Match,
+          Include, ProxyCommand, LocalCommand, PermitLocalCommand,
+          RemoteCommand, KnownHostsCommand. Option values must not contain
+          newline, carriage return, or NUL characters.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
@@ -299,7 +302,8 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
       --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
           Workspace hostnames use this suffix in SSH config and Coder Connect on
           Coder Desktop. By default it is coder, resulting in names like
-          myworkspace.coder.
+          myworkspace.coder. The suffix must not start with a dot, and must not
+          contain spaces or newlines.
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.

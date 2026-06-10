@@ -1779,7 +1779,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	workspaceHostnameSuffix := serpent.Option{
 		Name:        "Workspace Hostname Suffix",
-		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces or newlines.",
 		Flag:        "workspace-hostname-suffix",
 		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
 		YAML:        "workspaceHostnameSuffix",
@@ -3652,8 +3652,12 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
-				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
-				"Using this incorrectly can break SSH to your deployment, use cautiously.",
+				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
+				"Using this incorrectly can break SSH to your deployment, use cautiously. " +
+				"The following options are not allowed: " +
+				"Host, Match, Include, ProxyCommand, LocalCommand, PermitLocalCommand, " +
+				"RemoteCommand, KnownHostsCommand. " +
+				"Option values must not contain newline, carriage return, or NUL characters.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
 			YAML:   "sshConfigOptions",
