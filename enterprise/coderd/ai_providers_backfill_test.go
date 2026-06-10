@@ -24,8 +24,7 @@ func TestBackfillBedrockProviderTypeEncryptedSettings(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	key := make([]byte, 32)
-	_, err := rand.Read(key)
-	require.NoError(t, err)
+	_, _ = rand.Read(key)
 	ciphers, err := dbcrypt.NewCiphers(key)
 	require.NoError(t, err)
 	cryptDB, err := dbcrypt.New(ctx, rawDB, ciphers...)
