@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -180,4 +181,72 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 	// Presets key should be absent when there are no presets.
 	_, hasPresets := result["presets"]
 	require.False(t, hasPresets, "presets key should be absent when there are none")
+}
+
+func TestReadTemplate_AgentDescription(t *testing.T) {
+	t.Parallel()
+
+	readTemplateInfo := func(t *testing.T, readme string) map[string]any {
+		t.Helper()
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Readme:         readme,
+		})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: tv.ID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo, ok := result["template"].(map[string]any)
+		require.True(t, ok)
+		return tmplInfo
+	}
+
+	t.Run("Surfaced", func(t *testing.T) {
+		t.Parallel()
+		tmplInfo := readTemplateInfo(t,
+			"---\nagent_description: Go 1.23 with Docker and internal registry access.\n---\n# Title\n")
+		require.Equal(t, "Go 1.23 with Docker and internal registry access.", tmplInfo["agent_description"])
+	})
+
+	t.Run("AbsentOmitsField", func(t *testing.T) {
+		t.Parallel()
+		tmplInfo := readTemplateInfo(t, "# Just a heading\n\nNo frontmatter here.\n")
+		_, ok := tmplInfo["agent_description"]
+		require.False(t, ok, "agent_description should be omitted when absent")
+	})
+
+	t.Run("Truncated", func(t *testing.T) {
+		t.Parallel()
+		tmplInfo := readTemplateInfo(t,
+			"---\nagent_description: "+strings.Repeat("x", 3000)+"\n---\n# Title\n")
+		got, ok := tmplInfo["agent_description"].(string)
+		require.True(t, ok)
+		gotRunes := []rune(got)
+		require.Len(t, gotRunes, 2048)
+		require.Equal(t, '…', gotRunes[len(gotRunes)-1])
+	})
 }
