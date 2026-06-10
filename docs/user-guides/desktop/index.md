@@ -1,4 +1,4 @@
-# Install Coder Desktop
+# Coder Desktop
 
 Coder Desktop is a native macOS and Windows application that connects your local
 machine to your remote workspaces over a secure tunnel. Once installed, you can
@@ -11,27 +11,6 @@ or SSH client, with no CLI setup and no manual port forwarding.
 > accessible at `workspace-name.coder:PORT` with no manual setup required. For
 > a comparison of all port forwarding methods, see
 > [Workspace Ports](../workspace-access/port-forwarding.md).
-
-## What is Coder Desktop?
-
-Coder Desktop runs **Coder Connect**, a secure tunnel between your machine and
-your Coder deployment. With Coder Connect enabled, your workspaces appear as
-regular hosts on your local network, so any tool that speaks TCP works without
-extra configuration.
-
-- **Direct workspace hostnames**: Reach workspaces at `workspace-name.coder`.
-  No SSH config, no `coder port-forward` commands.
-- **All workspace ports, automatically**: Every port your workspace exposes is
-  available at `workspace-name.coder:PORT`. No allowlists, no per-port setup.
-- **Any local app, any protocol**: SSH clients, browsers, IDEs, database GUIs,
-  and HTTP/gRPC clients connect like the workspace is on your LAN.
-- **File sync**: Mirror a workspace directory to a local folder for offline
-  editing and fast local tooling.
-- **Split tunnel**: Only Coder traffic is routed through the tunnel. The rest
-  of your internet stays untouched.
-
-For a deeper walkthrough of Coder Connect and file sync, see
-[Using Coder Connect and File Sync](./desktop-connect-sync.md).
 
 ## Install
 
@@ -96,6 +75,27 @@ and follow the instructions in that repository.
 If you need stable workspace access on Linux today, use the
 [Coder CLI](../../install/cli.md).
 
+## What is Coder Desktop?
+
+Coder Desktop runs **Coder Connect**, a secure tunnel between your machine and
+your Coder deployment. With Coder Connect enabled, your workspaces appear as
+regular hosts on your local network, so any tool that speaks TCP works without
+extra configuration.
+
+- **Direct workspace hostnames**: Reach workspaces at `workspace-name.coder`.
+  No SSH config, no `coder port-forward` commands.
+- **All workspace ports, automatically**: Every port your workspace exposes is
+  available at `workspace-name.coder:PORT`. No allowlists, no per-port setup.
+- **Any local app, any protocol**: SSH clients, browsers, IDEs, database GUIs,
+  and HTTP/gRPC clients connect like the workspace is on your LAN.
+- **File sync**: Mirror a workspace directory to a local folder for offline
+  editing and fast local tooling.
+- **Split tunnel**: Only Coder traffic is routed through the tunnel. The rest
+  of your internet stays untouched.
+
+For a deeper walkthrough of Coder Connect and file sync, see
+[Using Coder Connect and File Sync](./desktop-connect-sync.md).
+
 ## Get started
 
 After installing Coder Desktop:
@@ -115,13 +115,13 @@ Once Coder Connect is enabled, confirm a workspace is reachable:
 
 <div class="tabs">
 
-### SSH Connection
+### SSH connection
 
 ```shell
 ssh your-workspace.coder
 ```
 
-### Ping Test
+### Ping test
 
 ```shell
 # macOS
@@ -131,7 +131,7 @@ ping6 -c 3 your-workspace.coder
 ping -n 3 your-workspace.coder
 ```
 
-### Web Services
+### Web services
 
 Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with
 the specific service port you want to access (e.g. 3000 for frontend, 8080 for
@@ -184,7 +184,7 @@ a specific update channel (e.g. `stable`).
 
 ## Troubleshooting
 
-### Connection Issues
+### Connection issues
 
 #### Can't connect to workspace
 
