@@ -16,8 +16,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
-			agplcli.SlimUnsupported(inv.Stderr, "workspace-proxy server")
-			return nil
+			return agplcli.SlimUnsupported(inv.Stderr, "workspace-proxy server")
 		},
 	}
 

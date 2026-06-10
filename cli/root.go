@@ -1547,14 +1547,19 @@ func tailLineStyle() pretty.Style {
 	return pretty.Style{pretty.Nop}
 }
 
-func SlimUnsupported(w io.Writer, cmd string) {
+// SlimUnsupported writes guidance for installing a full build of Coder to
+// w and returns ErrSilent so handlers exit non-zero without printing a
+// redundant error. Slim builds register stub commands that call this
+// instead of failing with "unknown command".
+func SlimUnsupported(w io.Writer, cmd string) error {
 	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
 	_, _ = fmt.Fprintln(w, "")
-	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
+	_, _ = fmt.Fprintln(w, "Please use a full build of Coder from GitHub releases:")
 	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
-
-	//nolint:revive
-	os.Exit(1)
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "On macOS, the full build is also available from the Homebrew tap:")
+	_, _ = fmt.Fprintln(w, "  brew install coder/coder/coder")
+	return ErrSilent
 }
 
 func defaultUpgradeMessage(version string) string {

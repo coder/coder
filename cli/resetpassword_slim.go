@@ -12,8 +12,7 @@ func (*RootCmd) resetPassword() *serpent.Command {
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
-			SlimUnsupported(inv.Stderr, "reset-password")
-			return nil
+			return SlimUnsupported(inv.Stderr, "reset-password")
 		},
 	}
 

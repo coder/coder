@@ -1,29 +1,45 @@
 package cli
 
-import (
-	"fmt"
-	"io"
-
-	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/pretty"
-)
-
-// slimEnterpriseUnsupportedMsg writes a helpful, actionable error to w
-// explaining that the requested command requires the full Coder build.
-// It is used by stub commands registered in slim AGPL builds (see
-// enterprise_stubs_slim.go) so that users running e.g. the homebrew-core
-// formula get a discoverable upgrade path instead of "unknown command".
+// EnterpriseCommandStub describes an enterprise-only command that slim
+// AGPL builds register as a hidden stub. Invoking a stub prints guidance
+// on installing a full build of Coder instead of failing with "unknown
+// command".
 //
-// The helper is kept out of any //go:build slim file so it can be unit
-// tested without rebuilding the world with -tags slim.
-func slimEnterpriseUnsupportedMsg(w io.Writer, cmd string) {
-	_, _ = fmt.Fprintf(w, "%s is not available in this binary.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
-	_, _ = fmt.Fprintln(w, "Your current Coder binary is the slim AGPL build, e.g. from homebrew-core,")
-	_, _ = fmt.Fprintln(w, "which does not include enterprise CLI commands.")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "To install the full Coder build:")
-	_, _ = fmt.Fprintln(w, "  brew install coder/coder/coder")
-	_, _ = fmt.Fprintln(w)
-	_, _ = fmt.Fprintln(w, "Or download a release from:")
-	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
+// The table lives in an untagged file so it compiles in every build and
+// tests can assert it stays in sync with the enterprise CLI without
+// requiring -tags slim.
+type EnterpriseCommandStub struct {
+	Name    string
+	Short   string
+	Aliases []string
+	// Children holds enterprise-only subcommands stubbed beneath this
+	// command.
+	Children []EnterpriseCommandStub
+}
+
+// EnterpriseCommandStubs returns the top-level enterprise-only commands
+// stubbed in slim AGPL builds. Names, short descriptions, and aliases
+// must mirror the real commands registered by enterprise/cli; a test in
+// enterprise/cli asserts parity with the enterprise command list.
+func EnterpriseCommandStubs() []EnterpriseCommandStub {
+	return []EnterpriseCommandStub{
+		{Name: "agent-firewall", Short: "Network isolation tool for monitoring and restricting HTTP/HTTPS requests"},
+		{Name: "workspace-proxy", Short: "Workspace proxies provide low-latency experiences for geo-distributed teams.", Aliases: []string{"wsproxy"}},
+		{Name: "features", Short: "List Enterprise features", Aliases: []string{"feature"}},
+		{Name: "licenses", Short: "Add, delete, and list licenses", Aliases: []string{"license"}},
+		{Name: "groups", Short: "Manage groups", Aliases: []string{"group"}},
+		{Name: "prebuilds", Short: "Manage Coder prebuilds", Aliases: []string{"prebuild"}},
+		{Name: "external-workspaces", Short: "Create or manage external workspaces"},
+		{Name: "aibridge", Short: "Manage AI Bridge."},
+	}
+}
+
+// EnterpriseProvisionerCommandStubs returns the enterprise-only
+// subcommands of the provisioner command stubbed in slim AGPL builds. The
+// AGPL provisioner command keeps its real list and jobs subcommands.
+func EnterpriseProvisionerCommandStubs() []EnterpriseCommandStub {
+	return []EnterpriseCommandStub{
+		{Name: "keys", Short: "Manage provisioner keys", Aliases: []string{"key"}},
+		{Name: "start", Short: "Run a provisioner daemon"},
+	}
 }

@@ -12,8 +12,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
-			SlimUnsupported(inv.Stderr, "server")
-			return nil
+			return SlimUnsupported(inv.Stderr, "server")
 		},
 	}
 
