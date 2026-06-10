@@ -157,6 +157,26 @@ export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
+// CodeView's syncItemRecord skips reusing a record when item.version is
+// unchanged, so the version must reflect annotation content rather than count.
+// Moving the active comment box to another line in the same file keeps the
+// count at 1 but must still re-render, so fold each annotation's side and line
+// into the version. Exported for unit tests.
+export function annotationsVersion(
+	annotations: readonly DiffLineAnnotation<string>[] | undefined,
+): number {
+	if (!annotations || annotations.length === 0) {
+		return 0;
+	}
+	return annotations.reduce(
+		(version, annotation) =>
+			version * 31 +
+			annotation.lineNumber * 2 +
+			(annotation.side === "additions" ? 1 : 0),
+		annotations.length,
+	);
+}
+
 // The library forces classic, space-reserving scrollbars via
 // scrollbar-gutter: stable, leaving a permanent empty strip on the right.
 // Restore the default gutter so the scrollbar overlays content while scrolling
@@ -473,7 +493,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			type: "diff",
 			fileDiff,
 			annotations,
-			version: annotations?.length ?? 0,
+			version: annotationsVersion(annotations),
 		};
 	});
 
