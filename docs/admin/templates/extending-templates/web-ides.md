@@ -240,7 +240,7 @@ EOT
 resource "coder_app" "rstudio" {
   agent_id      = coder_agent.coder.id
   slug          = "rstudio"
-  display_name  = "R Studio"
+  display_name  = "RStudio"
   icon          = "/icon/rstudio.svg"
   url           = "http://localhost:8787"
   subdomain     = true
