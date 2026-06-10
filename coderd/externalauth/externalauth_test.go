@@ -156,9 +156,10 @@ func TestRefreshToken(t *testing.T) {
 	// refresh attempts should ever happen. An invalid refresh token does
 	// not magically become valid at some point in the future.
 	//
-	// Internal retries are disabled in this subtest via RefreshRetryTimeout
-	// so each RefreshToken call results in exactly one IDP refresh attempt.
-	// The RefreshTokenWithBackoff subtest covers the retry-with-backoff path.
+	// Internal retries are disabled in this subtest via a negative
+	// RefreshRetryTimeout so each RefreshToken call results in exactly one
+	// IDP refresh attempt. The RefreshTokenWithBackoff subtest covers the
+	// retry-with-backoff path.
 	t.Run("RefreshRetries", func(t *testing.T) {
 		t.Parallel()
 
@@ -182,9 +183,12 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
-				// Disable transient-error retries so the assertion below
-				// (1 IDP call per RefreshToken) holds.
-				cfg.RefreshRetryTimeout = time.Nanosecond
+				// A negative timeout disables transient-error retries so the
+				// assertion below (1 IDP call per RefreshToken) holds. A tiny
+				// positive timeout is not deterministic: on coarse-clock
+				// platforms (Windows) the deadline may not register as expired
+				// after the first attempt, letting a zero-delay retry through.
+				cfg.RefreshRetryTimeout = -1
 			},
 		})
 

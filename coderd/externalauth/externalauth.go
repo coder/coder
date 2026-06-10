@@ -139,7 +139,8 @@ type Config struct {
 	RefreshRetryMaxBackoff time.Duration
 	// RefreshRetryTimeout overrides the total budget for retrying a transient
 	// refresh failure across all attempts. A zero value applies
-	// defaultRefreshRetryTimeout.
+	// defaultRefreshRetryTimeout. A negative value disables transient-failure
+	// retries entirely, so exactly one refresh attempt is made.
 	RefreshRetryTimeout time.Duration
 }
 
@@ -400,6 +401,15 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		return c.TokenSource(ctx, existingToken).Token()
 	}
 
+	// A negative RefreshRetryTimeout disables retries: exactly one refresh
+	// attempt is made. A near-zero timeout cannot deterministically prevent
+	// a retry because on platforms with coarse clocks (notably Windows) the
+	// deadline may not register as expired until after the first attempt
+	// completes, allowing an extra zero-delay retry.
+	if c.RefreshRetryTimeout < 0 {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
 	initial := c.RefreshRetryInitialBackoff
 	if initial <= 0 {
 		initial = defaultRefreshRetryInitialBackoff
@@ -409,7 +419,7 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		maximum = defaultRefreshRetryMaxBackoff
 	}
 	total := c.RefreshRetryTimeout
-	if total <= 0 {
+	if total == 0 {
 		total = defaultRefreshRetryTimeout
 	}
 
@@ -430,7 +440,7 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		// retry.Wait selects between time.After(delay) and ctx.Done(); when
 		// delay is zero and the context is already canceled the two cases
 		// race nondeterministically, which would cause an unwanted extra
-		// refresh attempt with a near-zero budget (notably in tests).
+		// refresh attempt with a near-zero budget.
 		if retryCtx.Err() != nil {
 			return token, err
 		}
