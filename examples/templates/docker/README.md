@@ -5,7 +5,11 @@ icon: ../../../site/static/icon/docker.png
 maintainer_github: coder
 verified: true
 tags: [docker, container]
-agent_description: Linux Docker container workspaces for general-purpose development. Best for backend, scripting, and CLI work that does not need a full VM or a Kubernetes cluster. Supports Docker-in-Docker; pre-install your language runtimes and tools in the image so the agent can start working immediately.
+agent_description: >-
+  Linux Docker container workspaces for general-purpose development. Best for
+  backend, scripting, and CLI work that does not need a full VM or a
+  Kubernetes cluster. Supports Docker-in-Docker; pre-install your language
+  runtimes and tools in the image so the agent can start working immediately.
 ---
 
 # Remote Development on Docker Containers

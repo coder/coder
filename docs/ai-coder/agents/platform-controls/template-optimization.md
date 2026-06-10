@@ -88,9 +88,9 @@ agent than `py-be-pay-v3`.
 ### Add a longer agent description
 
 The short `description` also appears on the dashboard templates page, so it is
-intentionally limited to 128 characters. When that is not enough room to fully
-describe a template for the agent, add an `agent_description` field to the
-template's `README.md` frontmatter.
+intentionally limited to fewer than 128 characters. When that is not enough
+room to fully describe a template for the agent, add an `agent_description`
+field to the template's `README.md` frontmatter.
 
 `agent_description` is read only by the agent, is never shown in the dashboard,
 and can be up to 2048 characters. The agent sees it when it inspects a template
@@ -319,7 +319,7 @@ Agents:
 - Template has a specific, natural-language description that includes
   language, framework, and target project or service.
 - `agent_description` README frontmatter provides longer routing context when
-  the 128-character description is not enough.
+  the short description is not enough.
 - Display name is readable and descriptive.
 - Network egress is restricted to the control plane and git provider.
 - External service credentials use minimal-scope tokens.

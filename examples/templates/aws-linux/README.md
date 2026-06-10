@@ -5,7 +5,11 @@ icon: ../../../site/static/icon/aws.svg
 maintainer_github: coder
 verified: true
 tags: [vm, linux, aws, persistent-vm]
-agent_description: AWS EC2 Linux VM workspaces for development that needs a full virtual machine on AWS. Good for workloads requiring systemd, Docker, kernel features, or a specific AWS region. The instance persists across workspace restarts.
+agent_description: >-
+  AWS EC2 Linux VM workspaces for development that needs a full virtual
+  machine on AWS. Good for workloads requiring systemd, Docker, kernel
+  features, or a specific AWS region. The instance persists across workspace
+  restarts.
 ---
 
 # Remote Development on AWS EC2 VMs (Linux)
