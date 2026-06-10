@@ -150,9 +150,9 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		})
 
 		t.Run("PreservesAnthropicRowWithNonBedrockSettings", func(t *testing.T) {
-			// Valid JSON that parses without error but carries no Bedrock
-			// discriminator. settings.Bedrock is nil so the row must not be
-			// promoted, even though it would survive UnmarshalJSON cleanly.
+			// {} has no _type discriminator, so UnmarshalJSON returns an error
+			// and the row is skipped via the unparsable-settings path, not the
+			// settings.Bedrock == nil guard. Either way the row must stay anthropic.
 			nonBedrock := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{}", Valid: true},
