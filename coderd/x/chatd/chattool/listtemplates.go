@@ -471,44 +471,42 @@ func relevanceSignals(t rankedTemplate) string {
 
 func templateQueryScore(t database.Template, query string) int {
 	query = normalizeTemplateSearch(query)
-	if query == "" {
+	queryCompact := compactTemplateSearch(query)
+	if query == "" || queryCompact == "" {
 		return 0
 	}
 
-	queryCompact := compactTemplateSearch(query)
-	if queryCompact == "" {
-		return 0
-	}
+	best := 0
 	for _, field := range []string{t.Name, t.DisplayName} {
-		field = normalizeTemplateSearch(field)
-		if field == "" {
-			continue
-		}
-		if field == query || compactTemplateSearch(field) == queryCompact {
-			return queryScoreExactName
-		}
+		best = max(best, nameQueryScore(field, query, queryCompact))
 	}
-	for _, field := range []string{t.Name, t.DisplayName} {
-		field = normalizeTemplateSearch(field)
-		if field == "" {
-			continue
-		}
-		if strings.HasPrefix(field, query) || strings.HasPrefix(compactTemplateSearch(field), queryCompact) {
-			return queryScoreNamePrefix
-		}
-	}
-	for _, field := range []string{t.Name, t.DisplayName} {
-		field = normalizeTemplateSearch(field)
-		if field == "" {
-			continue
-		}
-		if strings.Contains(field, query) || strings.Contains(compactTemplateSearch(field), queryCompact) {
-			return queryScoreNameContains
-		}
+	if best > 0 {
+		return best
 	}
 	desc := normalizeTemplateSearch(t.Description)
 	if strings.Contains(desc, query) || strings.Contains(compactTemplateSearch(desc), queryCompact) {
 		return queryScoreDescriptionMatch
+	}
+	return 0
+}
+
+// nameQueryScore returns the relevance tier of a single name-like field:
+// exact match outranks prefix match, which outranks substring match, on
+// either the normalized or compact form. Returns 0 when the field does not
+// match.
+func nameQueryScore(field, query, queryCompact string) int {
+	field = normalizeTemplateSearch(field)
+	if field == "" {
+		return 0
+	}
+	fieldCompact := compactTemplateSearch(field)
+	switch {
+	case field == query || fieldCompact == queryCompact:
+		return queryScoreExactName
+	case strings.HasPrefix(field, query) || strings.HasPrefix(fieldCompact, queryCompact):
+		return queryScoreNamePrefix
+	case strings.Contains(field, query) || strings.Contains(fieldCompact, queryCompact):
+		return queryScoreNameContains
 	}
 	return 0
 }
