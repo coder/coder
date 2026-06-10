@@ -302,7 +302,8 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           myworkspace.coder.
 
 CONFIG OPTIONS: 
-Use a YAML configuration file when your server launch become unwieldy.
+Use a YAML configuration file to manage server settings as code. Use `coder
+server --write-config` to generate a fully commented file from current settings.
 
   -c, --config yaml-config-path, $CODER_CONFIG_PATH
           Specify a YAML file to load configuration from.
