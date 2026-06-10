@@ -71,9 +71,9 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 }
 
 // BackfillChatModelConfigProviderStrings fixes stale chat_model_configs.provider
-// strings left as "anthropic" when the linked provider was type=anthropic before
-// BackfillBedrockProviderType promoted it. The frontend uses this field for icon
-// selection. Errors are logged and startup continues.
+// strings left as "anthropic" when the linked provider was promoted from
+// type=anthropic to type=bedrock by BackfillBedrockProviderType. Errors are
+// logged and startup continues.
 func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Store, logger slog.Logger) {
 	//nolint:gocritic // Startup-only backfill; no user actor is present.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
