@@ -243,9 +243,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				ExternalProvisioner: true,
 			})
 
-			// Updates the systemd status from activating to activated. This
-			// lets users reuse the bundled coder.service unit (Type=notify)
-			// for a standalone provisioner without switching to Type=exec.
+			// Updates the systemd status from activating to activated.
+			// SdNotify is a no-op when not running under systemd.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
