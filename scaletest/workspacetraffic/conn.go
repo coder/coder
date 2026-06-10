@@ -67,6 +67,9 @@ type rptyConn struct {
 	conn io.ReadWriteCloser
 	wenc *json.Encoder
 
+	// Both timeouts default to the package constants and are overridden
+	// only in tests.
+	//
 	// closeTimeout limits how long Close waits for the server to close the
 	// connection after Ctrl+C is sent.
 	closeTimeout time.Duration
