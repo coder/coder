@@ -3169,6 +3169,30 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.Equal(t, "", deleteDiff["group_id"].New)
 	})
 
+	t.Run("Audit/DeleteAbsentEmitsNoEntry", func(t *testing.T) {
+		t.Parallel()
+
+		// Deleting an override that does not exist must not emit an audit log entry.
+		db, adminClient, _, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Empty(t, rows, "no audit entry expected when delete returns 404")
+	})
+
 	t.Run("Audit/UpsertEverything", func(t *testing.T) {
 		t.Parallel()
 
