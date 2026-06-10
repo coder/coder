@@ -650,6 +650,17 @@ const ServerForm: FC<ServerFormProps> = ({
 										id={`${formId}-icon`}
 										value={form.values.iconURL}
 										onChange={(v) => {
+											// When the admin clears the icon while a known
+											// Server URL is present, re-suggest the bundled
+											// default so the registry suggestion isn't lost
+											// until they explicitly pick a different one.
+											if (v.trim() === "") {
+												const known = findKnownMcpServerByUrl(form.values.url);
+												if (known) {
+													form.setFieldValue("iconURL", known.iconUrl);
+													return;
+												}
+											}
 											form.setFieldValue("iconURL", v);
 										}}
 										onPickEmoji={(v) => {

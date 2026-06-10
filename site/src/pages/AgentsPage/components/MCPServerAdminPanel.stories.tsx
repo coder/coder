@@ -303,6 +303,42 @@ export const CreateServerKnownUrlPrefillRespectsExistingValues: Story = {
 	},
 };
 
+/**
+ * Clearing the icon field while a known Server URL is present
+ * re-suggests the bundled default. The admin never has to retype
+ * the URL just to get the suggestion back.
+ */
+export const CreateServerKnownUrlIconRestoresOnClear: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		await userEvent.type(
+			await body.findByLabelText(/Server URL/i),
+			"https://mcp.sentry.dev/mcp",
+		);
+
+		// Wait for the URL prefill to set the icon URL.
+		const iconInput = await body.findByLabelText("Icon");
+		await waitFor(() => {
+			expect(iconInput).toHaveValue("/icon/sentry.svg");
+		});
+
+		// Clear the icon field. The known-server registry should
+		// re-suggest the bundled default immediately.
+		await userEvent.clear(iconInput);
+		await waitFor(() => {
+			expect(iconInput).toHaveValue("/icon/sentry.svg");
+		});
+	},
+};
+
 /** Open the create form and select OAuth2 auth type. */
 export const CreateServerOAuth2: Story = {
 	args: {
