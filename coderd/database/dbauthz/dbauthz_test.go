@@ -5171,6 +5171,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().InsertWorkspaceAgentScripts(gomock.Any(), arg).Return([]database.WorkspaceAgentScript{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("InsertWorkspaceAgentScriptOrder", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertWorkspaceAgentScriptOrderParams{}
+		dbm.EXPECT().InsertWorkspaceAgentScriptOrder(gomock.Any(), arg).Return([]database.WorkspaceAgentScriptOrder{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 	s.Run("InsertWorkspaceAgentMetadata", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceAgentMetadataParams{}
 		dbm.EXPECT().InsertWorkspaceAgentMetadata(gomock.Any(), arg).Return(nil).AnyTimes()
@@ -5319,6 +5324,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
 		dbm.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), ids).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceAgentScriptOrderByScriptIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().GetWorkspaceAgentScriptOrderByScriptIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentScriptOrder{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentLogSourcesByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

@@ -297,7 +297,7 @@ func (*executeOptionTestLogger) Flush(context.Context) error {
 	return nil
 }
 
-func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger) *agentscripts.Runner {
+func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscripts.ScriptLogger, mutators ...func(*agentscripts.Options)) *agentscripts.Runner {
 	t.Helper()
 	if getScriptLogger == nil {
 		// noop
@@ -312,14 +312,18 @@ func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscript
 	t.Cleanup(func() {
 		_ = s.Close()
 	})
-	return agentscripts.New(agentscripts.Options{
+	opts := agentscripts.Options{
 		LogDir:          t.TempDir(),
 		DataDirBase:     t.TempDir(),
 		Logger:          logger,
 		SSHServer:       s,
 		Filesystem:      fs,
 		GetScriptLogger: getScriptLogger,
-	})
+	}
+	for _, mutate := range mutators {
+		mutate(&opts)
+	}
+	return agentscripts.New(opts)
 }
 
 type noopScriptLogger struct{}

@@ -6462,6 +6462,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), ctx, arg)
 }
 
+// GetWorkspaceAgentScriptOrderByScriptIDs mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptOrderByScriptIDs(ctx context.Context, scriptIds []uuid.UUID) ([]database.WorkspaceAgentScriptOrder, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptOrderByScriptIDs", ctx, scriptIds)
+	ret0, _ := ret[0].([]database.WorkspaceAgentScriptOrder)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentScriptOrderByScriptIDs indicates an expected call of GetWorkspaceAgentScriptOrderByScriptIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptOrderByScriptIDs(ctx, scriptIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptOrderByScriptIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptOrderByScriptIDs), ctx, scriptIds)
+}
+
 // GetWorkspaceAgentScriptTimingsByBuildID mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	m.ctrl.T.Helper()
@@ -8366,6 +8381,21 @@ func (m *MockStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), ctx, arg)
+}
+
+// InsertWorkspaceAgentScriptOrder mocks base method.
+func (m *MockStore) InsertWorkspaceAgentScriptOrder(ctx context.Context, arg database.InsertWorkspaceAgentScriptOrderParams) ([]database.WorkspaceAgentScriptOrder, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptOrder", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceAgentScriptOrder)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentScriptOrder indicates an expected call of InsertWorkspaceAgentScriptOrder.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentScriptOrder(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentScriptOrder", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentScriptOrder), ctx, arg)
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.

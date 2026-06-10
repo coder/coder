@@ -3457,6 +3457,14 @@ func (m queryMetricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentScriptOrderByScriptIDs(ctx context.Context, scriptIds []uuid.UUID) ([]database.WorkspaceAgentScriptOrder, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentScriptOrderByScriptIDs(ctx, scriptIds)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptOrderByScriptIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentScriptOrderByScriptIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentScriptTimingsByBuildID(ctx, id)
@@ -4471,6 +4479,14 @@ func (m queryMetricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceAgentMetadata").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertWorkspaceAgentScriptOrder(ctx context.Context, arg database.InsertWorkspaceAgentScriptOrderParams) ([]database.WorkspaceAgentScriptOrder, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentScriptOrder(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentScriptOrder").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceAgentScriptOrder").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

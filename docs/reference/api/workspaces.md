@@ -241,6 +241,12 @@ of the template will be used.
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "order_dependencies": [
+                  {
+                    "requires": "success",
+                    "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+                  }
+                ],
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -607,6 +613,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "order_dependencies": [
+                  {
+                    "requires": "success",
+                    "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+                  }
+                ],
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -940,6 +952,12 @@ of the template will be used.
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "order_dependencies": [
+                  {
+                    "requires": "success",
+                    "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+                  }
+                ],
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -1234,6 +1252,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "order_dependencies": [],
                     "run_on_start": true,
                     "run_on_stop": true,
                     "script": "string",
@@ -1543,6 +1562,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "order_dependencies": [
+                  {
+                    "requires": "success",
+                    "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+                  }
+                ],
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -2162,6 +2187,12 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "order_dependencies": [
+                  {
+                    "requires": "success",
+                    "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+                  }
+                ],
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",

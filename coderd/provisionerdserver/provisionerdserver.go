@@ -3002,7 +3002,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		scriptsParams := agentScriptsFromProto(prAgent.Scripts)
+		scriptsParams, err := agentScriptsFromProto(prAgent.Scripts)
+		if err != nil {
+			return xerrors.Errorf("convert agent scripts: %w", err)
+		}
 
 		// Dev Containers require a script and log/source, so we do this before
 		// the logs insert below.
@@ -3476,7 +3479,11 @@ func insertDevcontainerSubagent(
 		}
 	}
 
-	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, agentScriptsFromProto(dc.GetScripts())); err != nil {
+	subAgentScriptsParams, err := agentScriptsFromProto(dc.GetScripts())
+	if err != nil {
+		return uuid.UUID{}, xerrors.Errorf("convert agent scripts: %w", err)
+	}
+	if err := insertAgentScriptsAndLogSources(ctx, db, subAgentID, subAgentScriptsParams); err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert agent scripts and log sources: %w", err)
 	}
 
@@ -3556,11 +3563,22 @@ type agentScriptsParams struct {
 	ScriptStartBlocksLogin []bool
 	ScriptRunOnStart       []bool
 	ScriptRunOnStop        []bool
+
+	// Script execution order rows resolved from coder_script_order data
+	// sources. Each entry means ScriptOrderIDs[i] runs after
+	// ScriptOrderAfterIDs[i].
+	ScriptOrderIDs      []uuid.UUID
+	ScriptOrderAfterIDs []uuid.UUID
+	ScriptOrderRequires []database.WorkspaceAgentScriptOrderRequires
 }
 
 // agentScriptsFromProto converts a slice of proto scripts into the
-// agentScriptsParams struct needed for database insertion.
-func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
+// agentScriptsParams struct needed for database insertion. Database script
+// ids are always generated fresh: the provider-generated proto ids persist
+// across builds in Terraform state and would collide with the UNIQUE
+// constraint on workspace_agent_scripts.id, so they only serve as
+// correlation keys for order_dependencies within a single payload.
+func agentScriptsFromProto(scripts []*sdkproto.Script) (agentScriptsParams, error) {
 	params := agentScriptsParams{
 		LogSourceIDs:          make([]uuid.UUID, 0, len(scripts)),
 		LogSourceDisplayNames: make([]string, 0, len(scripts)),
@@ -3577,12 +3595,18 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
 	}
 
+	dbScriptIDs := make(map[string]uuid.UUID, len(scripts))
 	for _, script := range scripts {
+		scriptID := uuid.New()
+		if protoID := script.GetId(); protoID != "" {
+			dbScriptIDs[protoID] = scriptID
+		}
+
 		params.LogSourceIDs = append(params.LogSourceIDs, uuid.New())
 		params.LogSourceDisplayNames = append(params.LogSourceDisplayNames, script.GetDisplayName())
 		params.LogSourceIcons = append(params.LogSourceIcons, script.GetIcon())
 
-		params.ScriptIDs = append(params.ScriptIDs, uuid.New())
+		params.ScriptIDs = append(params.ScriptIDs, scriptID)
 		params.ScriptDisplayNames = append(params.ScriptDisplayNames, script.GetDisplayName())
 		params.ScriptLogPaths = append(params.ScriptLogPaths, script.GetLogPath())
 		params.ScriptSources = append(params.ScriptSources, script.GetScript())
@@ -3593,7 +3617,35 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
 	}
 
-	return params
+	for i, script := range scripts {
+		for _, dep := range script.GetOrderDependencies() {
+			afterID, ok := dbScriptIDs[dep.GetScriptId()]
+			if !ok {
+				return agentScriptsParams{}, xerrors.Errorf("script %q order dependency references unknown script id %q", script.GetDisplayName(), dep.GetScriptId())
+			}
+			requires, err := scriptOrderRequiresFromProto(dep.GetRequires())
+			if err != nil {
+				return agentScriptsParams{}, xerrors.Errorf("script %q order dependency: %w", script.GetDisplayName(), err)
+			}
+			params.ScriptOrderIDs = append(params.ScriptOrderIDs, params.ScriptIDs[i])
+			params.ScriptOrderAfterIDs = append(params.ScriptOrderAfterIDs, afterID)
+			params.ScriptOrderRequires = append(params.ScriptOrderRequires, requires)
+		}
+	}
+
+	return params, nil
+}
+
+func scriptOrderRequiresFromProto(requires string) (database.WorkspaceAgentScriptOrderRequires, error) {
+	switch requires {
+	// The provisioner defaults to success, but tolerate an empty value.
+	case "", string(database.WorkspaceAgentScriptOrderRequiresSuccess):
+		return database.WorkspaceAgentScriptOrderRequiresSuccess, nil
+	case string(database.WorkspaceAgentScriptOrderRequiresCompletion):
+		return database.WorkspaceAgentScriptOrderRequiresCompletion, nil
+	default:
+		return "", xerrors.Errorf("unknown requires value %q", requires)
+	}
 }
 
 // insertAgentScriptsAndLogSources inserts log sources and scripts for an agent (or
@@ -3632,6 +3684,17 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 	})
 	if err != nil {
 		return xerrors.Errorf("insert scripts: %w", err)
+	}
+
+	if len(params.ScriptOrderIDs) > 0 {
+		_, err = db.InsertWorkspaceAgentScriptOrder(ctx, database.InsertWorkspaceAgentScriptOrderParams{
+			ScriptID:      params.ScriptOrderIDs,
+			AfterScriptID: params.ScriptOrderAfterIDs,
+			Requires:      params.ScriptOrderRequires,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert script order: %w", err)
+		}
 	}
 
 	return nil

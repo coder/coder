@@ -649,6 +649,13 @@ CREATE TYPE workspace_agent_monitor_state AS ENUM (
     'NOK'
 );
 
+CREATE TYPE workspace_agent_script_order_requires AS ENUM (
+    'success',
+    'completion'
+);
+
+COMMENT ON TYPE workspace_agent_script_order_requires IS 'What state the awaited script must reach before the dependent script starts: success means the dependent is skipped unless the awaited script succeeds, completion means the dependent runs after the awaited script reaches any terminal state.';
+
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'start',
     'stop',
@@ -661,7 +668,8 @@ CREATE TYPE workspace_agent_script_timing_status AS ENUM (
     'ok',
     'exit_failure',
     'timed_out',
-    'pipes_left_open'
+    'pipes_left_open',
+    'skipped'
 );
 
 COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
@@ -3693,6 +3701,15 @@ CREATE TABLE workspace_agent_port_share (
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
+CREATE TABLE workspace_agent_script_order (
+    script_id uuid NOT NULL,
+    after_script_id uuid NOT NULL,
+    requires workspace_agent_script_order_requires DEFAULT 'success'::workspace_agent_script_order_requires NOT NULL,
+    CONSTRAINT workspace_agent_script_order_no_self CHECK ((script_id <> after_script_id))
+);
+
+COMMENT ON TABLE workspace_agent_script_order IS 'Resolved coder_script_order rules: the script identified by script_id runs after the script identified by after_script_id reaches a terminal state.';
+
 CREATE TABLE workspace_agent_script_timings (
     script_id uuid NOT NULL,
     started_at timestamp with time zone NOT NULL,
@@ -4437,6 +4454,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
+
+ALTER TABLE ONLY workspace_agent_script_order
+    ADD CONSTRAINT workspace_agent_script_order_pkey PRIMARY KEY (script_id, after_script_id);
 
 ALTER TABLE ONLY workspace_agent_script_timings
     ADD CONSTRAINT workspace_agent_script_timings_script_id_started_at_key UNIQUE (script_id, started_at);
@@ -5306,6 +5326,12 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_script_order
+    ADD CONSTRAINT workspace_agent_script_order_after_script_id_fkey FOREIGN KEY (after_script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_script_order
+    ADD CONSTRAINT workspace_agent_script_order_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_script_timings
     ADD CONSTRAINT workspace_agent_script_timings_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;

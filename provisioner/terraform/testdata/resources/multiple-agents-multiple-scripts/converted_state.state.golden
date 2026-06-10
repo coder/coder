@@ -23,12 +23,14 @@
             {
               "display_name": "Foobar Script 1",
               "script": "echo foobar 1",
-              "run_on_start": true
+              "run_on_start": true,
+              "id": "45afdbb4-6d87-49b3-8549-4e40951cc0da"
             },
             {
               "display_name": "Foobar Script 2",
               "script": "echo foobar 2",
-              "run_on_start": true
+              "run_on_start": true,
+              "id": "f53b798b-d0e5-4fe2-b2ed-b3d1ad099fd8"
             }
           ],
           "resources_monitoring": {},
@@ -59,7 +61,8 @@
             {
               "display_name": "Foobar Script 3",
               "script": "echo foobar 3",
-              "run_on_start": true
+              "run_on_start": true,
+              "id": "60b141d7-2a08-4919-b470-d585af5fa330"
             }
           ],
           "resources_monitoring": {},
@@ -73,5 +76,6 @@
   "ExternalAuthProviders": [],
   "AITasks": [],
   "HasAITasks": false,
-  "HasExternalAgents": false
+  "HasExternalAgents": false,
+  "Warnings": null
 }

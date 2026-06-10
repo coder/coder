@@ -4084,6 +4084,65 @@ func AllWorkspaceAgentMonitorStateValues() []WorkspaceAgentMonitorState {
 	}
 }
 
+// What state the awaited script must reach before the dependent script starts: success means the dependent is skipped unless the awaited script succeeds, completion means the dependent runs after the awaited script reaches any terminal state.
+type WorkspaceAgentScriptOrderRequires string
+
+const (
+	WorkspaceAgentScriptOrderRequiresSuccess    WorkspaceAgentScriptOrderRequires = "success"
+	WorkspaceAgentScriptOrderRequiresCompletion WorkspaceAgentScriptOrderRequires = "completion"
+)
+
+func (e *WorkspaceAgentScriptOrderRequires) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptOrderRequires(s)
+	case string:
+		*e = WorkspaceAgentScriptOrderRequires(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptOrderRequires: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptOrderRequires struct {
+	WorkspaceAgentScriptOrderRequires WorkspaceAgentScriptOrderRequires `json:"workspace_agent_script_order_requires"`
+	Valid                             bool                              `json:"valid"` // Valid is true if WorkspaceAgentScriptOrderRequires is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptOrderRequires) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptOrderRequires, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptOrderRequires.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptOrderRequires) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptOrderRequires), nil
+}
+
+func (e WorkspaceAgentScriptOrderRequires) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptOrderRequiresSuccess,
+		WorkspaceAgentScriptOrderRequiresCompletion:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptOrderRequiresValues() []WorkspaceAgentScriptOrderRequires {
+	return []WorkspaceAgentScriptOrderRequires{
+		WorkspaceAgentScriptOrderRequiresSuccess,
+		WorkspaceAgentScriptOrderRequiresCompletion,
+	}
+}
+
 // What stage the script was ran in.
 type WorkspaceAgentScriptTimingStage string
 
@@ -4154,6 +4213,7 @@ const (
 	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
 	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
 	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+	WorkspaceAgentScriptTimingStatusSkipped       WorkspaceAgentScriptTimingStatus = "skipped"
 )
 
 func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
@@ -4196,7 +4256,8 @@ func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
 	case WorkspaceAgentScriptTimingStatusOk,
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
-		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped:
 		return true
 	}
 	return false
@@ -4208,6 +4269,7 @@ func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingSta
 		WorkspaceAgentScriptTimingStatusExitFailure,
 		WorkspaceAgentScriptTimingStatusTimedOut,
 		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+		WorkspaceAgentScriptTimingStatusSkipped,
 	}
 }
 
@@ -6295,6 +6357,13 @@ type WorkspaceAgentScript struct {
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
 	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+// Resolved coder_script_order rules: the script identified by script_id runs after the script identified by after_script_id reaches a terminal state.
+type WorkspaceAgentScriptOrder struct {
+	ScriptID      uuid.UUID                         `db:"script_id" json:"script_id"`
+	AfterScriptID uuid.UUID                         `db:"after_script_id" json:"after_script_id"`
+	Requires      WorkspaceAgentScriptOrderRequires `db:"requires" json:"requires"`
 }
 
 type WorkspaceAgentScriptTiming struct {

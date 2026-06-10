@@ -81,9 +81,15 @@ import (
 //     deployments remain interoperable. Real persistence,
 //     KindMCPServer provider, and chatd hydration land in
 //     CODAGT-569.
+//
+// API v2.11:
+//   - Added order_dependencies to WorkspaceAgentScript on the Agent API
+//     manifest, carrying resolved coder_script_order rules. Agents gate
+//     start script execution on these dependencies; older agents ignore
+//     the field and keep running all start scripts in parallel.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 10
+	CurrentMinor = 11
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

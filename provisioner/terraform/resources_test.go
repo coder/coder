@@ -1119,11 +1119,17 @@ func TestConvertResources(t *testing.T) {
 						for _, app := range agent.Apps {
 							app.Id = ""
 						}
+						for _, script := range agent.Scripts {
+							script.Id = ""
+						}
 						for _, dc := range agent.Devcontainers {
 							dc.Id = ""
 							dc.SubagentId = ""
 							for _, app := range dc.Apps {
 								app.Id = ""
+							}
+							for _, script := range dc.Scripts {
+								script.Id = ""
 							}
 						}
 					}
@@ -1199,11 +1205,17 @@ func TestConvertResources(t *testing.T) {
 						for _, app := range agent.Apps {
 							app.Id = ""
 						}
+						for _, script := range agent.Scripts {
+							script.Id = ""
+						}
 						for _, dc := range agent.Devcontainers {
 							dc.Id = ""
 							dc.SubagentId = ""
 							for _, app := range dc.Apps {
 								app.Id = ""
+							}
+							for _, script := range dc.Scripts {
+								script.Id = ""
 							}
 						}
 					}

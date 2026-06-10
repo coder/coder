@@ -12,12 +12,13 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-// Option represents a configuration option for NewClient.
+// Option represents a configuration option for NewClient or NewServer.
 type Option func(*options)
 
 type options struct {
 	path           string
 	contextManager ContextManager
+	unitManager    *unit.Manager
 }
 
 // WithPath sets the socket path. If not provided or empty, the client will
@@ -36,6 +37,16 @@ func WithPath(path string) Option {
 func WithContextManager(cm ContextManager) Option {
 	return func(opts *options) {
 		opts.contextManager = cm
+	}
+}
+
+// WithUnitManager sets the unit manager backing the server's sync
+// service so it can be shared with other agent subsystems. If not
+// provided, NewServer creates a private one. This option has no effect
+// on NewClient.
+func WithUnitManager(manager *unit.Manager) Option {
+	return func(opts *options) {
+		opts.unitManager = manager
 	}
 }
 

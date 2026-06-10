@@ -38819,6 +38819,40 @@ func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg Up
 	return err
 }
 
+const getWorkspaceAgentScriptOrderByScriptIDs = `-- name: GetWorkspaceAgentScriptOrderByScriptIDs :many
+SELECT
+	script_id, after_script_id, requires
+FROM
+	workspace_agent_script_order
+WHERE
+	script_id = ANY($1 :: uuid [ ])
+ORDER BY
+	script_id, after_script_id
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptOrderByScriptIDs(ctx context.Context, scriptIds []uuid.UUID) ([]WorkspaceAgentScriptOrder, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptOrderByScriptIDs, pq.Array(scriptIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScriptOrder
+	for rows.Next() {
+		var i WorkspaceAgentScriptOrder
+		if err := rows.Scan(&i.ScriptID, &i.AfterScriptID, &i.Requires); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
 SELECT
 	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name, workspace_agent_scripts.id,
@@ -38874,6 +38908,45 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.ExitCode,
 			&i.Status,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentScriptOrder = `-- name: InsertWorkspaceAgentScriptOrder :many
+INSERT INTO
+	workspace_agent_script_order (script_id, after_script_id, requires)
+SELECT
+	unnest($1 :: uuid [ ]) AS script_id,
+	unnest($2 :: uuid [ ]) AS after_script_id,
+	unnest($3 :: workspace_agent_script_order_requires [ ]) AS requires
+RETURNING workspace_agent_script_order.script_id, workspace_agent_script_order.after_script_id, workspace_agent_script_order.requires
+`
+
+type InsertWorkspaceAgentScriptOrderParams struct {
+	ScriptID      []uuid.UUID                         `db:"script_id" json:"script_id"`
+	AfterScriptID []uuid.UUID                         `db:"after_script_id" json:"after_script_id"`
+	Requires      []WorkspaceAgentScriptOrderRequires `db:"requires" json:"requires"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentScriptOrder(ctx context.Context, arg InsertWorkspaceAgentScriptOrderParams) ([]WorkspaceAgentScriptOrder, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScriptOrder, pq.Array(arg.ScriptID), pq.Array(arg.AfterScriptID), pq.Array(arg.Requires))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScriptOrder
+	for rows.Next() {
+		var i WorkspaceAgentScriptOrder
+		if err := rows.Scan(&i.ScriptID, &i.AfterScriptID, &i.Requires); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

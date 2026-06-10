@@ -41,6 +41,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	var (
 		dbApps        []database.WorkspaceApp
 		scripts       []database.GetWorkspaceAgentScriptsByAgentIDsRow
+		scriptOrder   []database.WorkspaceAgentScriptOrder
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
@@ -62,6 +63,15 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	eg.Go(func() (err error) {
 		// nolint:gocritic // This is necessary to fetch agent scripts!
 		scripts, err = a.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		if err != nil {
+			return err
+		}
+		scriptIDs := make([]uuid.UUID, 0, len(scripts))
+		for _, script := range scripts {
+			scriptIDs = append(scriptIDs, script.ID)
+		}
+		// nolint:gocritic // This is necessary to fetch agent script order rules!
+		scriptOrder, err = a.Database.GetWorkspaceAgentScriptOrderByScriptIDs(dbauthz.AsSystemRestricted(ctx), scriptIDs)
 		return err
 	})
 	eg.Go(func() (err error) {
@@ -145,7 +155,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:       dbAgentScriptsToProto(scripts),
+		Scripts:       dbAgentScriptsToProto(scripts, scriptOrder),
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
@@ -184,25 +194,45 @@ func dbAgentMetadatumToProtoDescription(metadatum database.WorkspaceAgentMetadat
 	}
 }
 
-func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow) []*agentproto.WorkspaceAgentScript {
+func dbAgentScriptsToProto(scripts []database.GetWorkspaceAgentScriptsByAgentIDsRow, order []database.WorkspaceAgentScriptOrder) []*agentproto.WorkspaceAgentScript {
+	orderByScriptID := make(map[uuid.UUID][]*agentproto.WorkspaceAgentScript_OrderDependency, len(order))
+	for _, row := range order {
+		orderByScriptID[row.ScriptID] = append(orderByScriptID[row.ScriptID], dbScriptOrderToProto(row))
+	}
 	ret := make([]*agentproto.WorkspaceAgentScript, len(scripts))
 	for i, script := range scripts {
-		ret[i] = dbAgentScriptToProto(script)
+		ret[i] = dbAgentScriptToProto(script, orderByScriptID[script.ID])
 	}
 	return ret
 }
 
-func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow) *agentproto.WorkspaceAgentScript {
+func dbScriptOrderToProto(row database.WorkspaceAgentScriptOrder) *agentproto.WorkspaceAgentScript_OrderDependency {
+	requires := agentproto.WorkspaceAgentScript_OrderDependency_REQUIRES_UNSPECIFIED
+	switch row.Requires {
+	case database.WorkspaceAgentScriptOrderRequiresSuccess:
+		requires = agentproto.WorkspaceAgentScript_OrderDependency_SUCCESS
+	case database.WorkspaceAgentScriptOrderRequiresCompletion:
+		requires = agentproto.WorkspaceAgentScript_OrderDependency_COMPLETION
+	}
+	return &agentproto.WorkspaceAgentScript_OrderDependency{
+		ScriptId: row.AfterScriptID[:],
+		Requires: requires,
+	}
+}
+
+func dbAgentScriptToProto(script database.GetWorkspaceAgentScriptsByAgentIDsRow, orderDependencies []*agentproto.WorkspaceAgentScript_OrderDependency) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
-		Id:               script.ID[:],
-		LogSourceId:      script.LogSourceID[:],
-		LogPath:          script.LogPath,
-		Script:           script.Script,
-		Cron:             script.Cron,
-		RunOnStart:       script.RunOnStart,
-		RunOnStop:        script.RunOnStop,
-		StartBlocksLogin: script.StartBlocksLogin,
-		Timeout:          durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		Id:                script.ID[:],
+		LogSourceId:       script.LogSourceID[:],
+		LogPath:           script.LogPath,
+		Script:            script.Script,
+		Cron:              script.Cron,
+		RunOnStart:        script.RunOnStart,
+		RunOnStop:         script.RunOnStop,
+		StartBlocksLogin:  script.StartBlocksLogin,
+		Timeout:           durationpb.New(time.Duration(script.TimeoutSeconds) * time.Second),
+		DisplayName:       script.DisplayName,
+		OrderDependencies: orderDependencies,
 	}
 }
 

@@ -193,32 +193,61 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse log source id: %w", err)
 	}
 
+	var orderDependencies []codersdk.WorkspaceAgentScriptOrderDependency
+	for i, dep := range protoScript.OrderDependencies {
+		depID, err := uuid.FromBytes(dep.ScriptId)
+		if err != nil {
+			return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse order dependency %v script id: %w", i, err)
+		}
+		requires := codersdk.WorkspaceAgentScriptOrderRequiresSuccess
+		if dep.Requires == proto.WorkspaceAgentScript_OrderDependency_COMPLETION {
+			requires = codersdk.WorkspaceAgentScriptOrderRequiresCompletion
+		}
+		orderDependencies = append(orderDependencies, codersdk.WorkspaceAgentScriptOrderDependency{
+			ScriptID: depID,
+			Requires: requires,
+		})
+	}
+
 	return codersdk.WorkspaceAgentScript{
-		ID:               id,
-		LogSourceID:      logSourceID,
-		LogPath:          protoScript.LogPath,
-		Script:           protoScript.Script,
-		Cron:             protoScript.Cron,
-		RunOnStart:       protoScript.RunOnStart,
-		RunOnStop:        protoScript.RunOnStop,
-		StartBlocksLogin: protoScript.StartBlocksLogin,
-		Timeout:          protoScript.Timeout.AsDuration(),
-		DisplayName:      protoScript.DisplayName,
+		ID:                id,
+		LogSourceID:       logSourceID,
+		LogPath:           protoScript.LogPath,
+		Script:            protoScript.Script,
+		Cron:              protoScript.Cron,
+		RunOnStart:        protoScript.RunOnStart,
+		RunOnStop:         protoScript.RunOnStop,
+		StartBlocksLogin:  protoScript.StartBlocksLogin,
+		Timeout:           protoScript.Timeout.AsDuration(),
+		DisplayName:       protoScript.DisplayName,
+		OrderDependencies: orderDependencies,
 	}, nil
 }
 
 func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
+	var orderDependencies []*proto.WorkspaceAgentScript_OrderDependency
+	for _, dep := range s.OrderDependencies {
+		requires := proto.WorkspaceAgentScript_OrderDependency_SUCCESS
+		if dep.Requires == codersdk.WorkspaceAgentScriptOrderRequiresCompletion {
+			requires = proto.WorkspaceAgentScript_OrderDependency_COMPLETION
+		}
+		orderDependencies = append(orderDependencies, &proto.WorkspaceAgentScript_OrderDependency{
+			ScriptId: dep.ScriptID[:],
+			Requires: requires,
+		})
+	}
 	return &proto.WorkspaceAgentScript{
-		Id:               s.ID[:],
-		LogSourceId:      s.LogSourceID[:],
-		LogPath:          s.LogPath,
-		Script:           s.Script,
-		Cron:             s.Cron,
-		RunOnStart:       s.RunOnStart,
-		RunOnStop:        s.RunOnStop,
-		StartBlocksLogin: s.StartBlocksLogin,
-		Timeout:          durationpb.New(s.Timeout),
-		DisplayName:      s.DisplayName,
+		Id:                s.ID[:],
+		LogSourceId:       s.LogSourceID[:],
+		LogPath:           s.LogPath,
+		Script:            s.Script,
+		Cron:              s.Cron,
+		RunOnStart:        s.RunOnStart,
+		RunOnStop:         s.RunOnStop,
+		StartBlocksLogin:  s.StartBlocksLogin,
+		Timeout:           durationpb.New(s.Timeout),
+		DisplayName:       s.DisplayName,
+		OrderDependencies: orderDependencies,
 	}
 }
 

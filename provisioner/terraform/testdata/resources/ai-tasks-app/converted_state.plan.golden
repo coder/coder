@@ -17,5 +17,6 @@
     }
   ],
   "HasAITasks": true,
-  "HasExternalAgents": false
+  "HasExternalAgents": false,
+  "Warnings": null
 }

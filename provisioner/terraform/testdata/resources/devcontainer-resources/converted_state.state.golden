@@ -42,7 +42,8 @@
                 {
                   "display_name": "Devcontainer Script",
                   "script": "echo devcontainer",
-                  "run_on_start": true
+                  "run_on_start": true,
+                  "id": "494653e8-d3e8-4264-86ac-81305d43376d"
                 }
               ],
               "envs": [
@@ -68,5 +69,6 @@
   "ExternalAuthProviders": [],
   "AITasks": [],
   "HasAITasks": false,
-  "HasExternalAgents": false
+  "HasExternalAgents": false,
+  "Warnings": null
 }

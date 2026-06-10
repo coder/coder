@@ -267,6 +267,9 @@ func (s *server) Graph(
 	if err != nil {
 		return provisionersdk.GraphError("convert state for graph: %s", err)
 	}
+	for _, warning := range state.Warnings {
+		sess.ProvisionLog(proto.LogLevel_WARN, warning)
+	}
 
 	return &proto.GraphComplete{
 		Error:                 "",

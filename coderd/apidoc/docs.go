@@ -26742,6 +26742,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "order_dependencies": {
+                    "description": "OrderDependencies lists scripts on the same agent that must reach a\nterminal state before this script starts. Resolved from\ncoder_script_order data sources in the template.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScriptOrderDependency"
+                    }
+                },
                 "run_on_start": {
                     "type": "boolean"
                 },
@@ -26762,19 +26769,52 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentScriptOrderDependency": {
+            "type": "object",
+            "properties": {
+                "requires": {
+                    "enum": [
+                        "success",
+                        "completion"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentScriptOrderRequires"
+                        }
+                    ]
+                },
+                "script_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentScriptOrderRequires": {
+            "type": "string",
+            "enum": [
+                "success",
+                "completion"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentScriptOrderRequiresSuccess",
+                "WorkspaceAgentScriptOrderRequiresCompletion"
+            ]
+        },
         "codersdk.WorkspaceAgentScriptStatus": {
             "type": "string",
             "enum": [
                 "ok",
                 "exit_failure",
                 "timed_out",
-                "pipes_left_open"
+                "pipes_left_open",
+                "skipped"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentScriptStatusOK",
                 "WorkspaceAgentScriptStatusExitFailure",
                 "WorkspaceAgentScriptStatusTimedOut",
-                "WorkspaceAgentScriptStatusPipesLeftOpen"
+                "WorkspaceAgentScriptStatusPipesLeftOpen",
+                "WorkspaceAgentScriptStatusSkipped"
             ]
         },
         "codersdk.WorkspaceAgentStartupScriptBehavior": {

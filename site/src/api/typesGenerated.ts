@@ -10369,19 +10369,44 @@ export interface WorkspaceAgentScript {
 	readonly display_name: string;
 	readonly exit_code?: number;
 	readonly status?: WorkspaceAgentScriptStatus;
+	/**
+	 * OrderDependencies lists scripts on the same agent that must reach a
+	 * terminal state before this script starts. Resolved from
+	 * coder_script_order data sources in the template.
+	 */
+	readonly order_dependencies?: readonly WorkspaceAgentScriptOrderDependency[];
 }
+
+// From codersdk/workspaceagents.go
+/**
+ * WorkspaceAgentScriptOrderDependency is a resolved coder_script_order rule:
+ * the script identified by ScriptID must reach a terminal state before the
+ * script carrying this entry starts.
+ */
+export interface WorkspaceAgentScriptOrderDependency {
+	readonly script_id: string;
+	readonly requires: WorkspaceAgentScriptOrderRequires;
+}
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentScriptOrderRequires = "completion" | "success";
+
+export const WorkspaceAgentScriptOrderRequireses: WorkspaceAgentScriptOrderRequires[] =
+	["completion", "success"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentScriptStatus =
 	| "exit_failure"
 	| "ok"
 	| "pipes_left_open"
+	| "skipped"
 	| "timed_out";
 
 export const WorkspaceAgentScriptStatuses: WorkspaceAgentScriptStatus[] = [
 	"exit_failure",
 	"ok",
 	"pipes_left_open",
+	"skipped",
 	"timed_out",
 ];
 

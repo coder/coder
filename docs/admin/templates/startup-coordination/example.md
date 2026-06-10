@@ -1,5 +1,11 @@
 # Workspace Startup Coordination Examples
 
+> [!TIP]
+> These examples use the legacy, script-level `coder exp sync` commands.
+> For new templates, prefer the declarative
+> [`coder_script_order`](./script-ordering.md) data source, which orders
+> scripts without modifying their bodies.
+
 ## Script Example
 
 This example shows a complete, production-ready script that starts Claude Code

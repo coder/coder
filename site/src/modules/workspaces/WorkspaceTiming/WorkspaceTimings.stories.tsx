@@ -77,6 +77,34 @@ export const FailedScript: Story = {
 	},
 };
 
+// A failed script causes scripts that depend on it (via coder_script_order)
+// to be skipped. Skipped scripts report a zero-duration timing.
+export const SkippedScript: Story = {
+	args: {
+		agentScriptTimings: [
+			{ ...failedScriptTimings[0], status: "exit_failure", exit_code: 1 },
+			{
+				...failedScriptTimings[1],
+				status: "skipped",
+				exit_code: -1,
+				started_at: failedScriptTimings[0].ended_at,
+				ended_at: failedScriptTimings[0].ended_at,
+			},
+			...failedScriptTimings.slice(2),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const detailsButton = canvas.getByRole("button", {
+			name: "View run startup scripts details",
+		});
+		await user.click(detailsButton);
+		// The skipped script appears in the chart with its own legend.
+		await canvas.findByText("skipped");
+	},
+};
+
 // Navigate into a provisioning stage
 export const NavigateToPlanStage: Story = {
 	play: async ({ canvasElement }) => {

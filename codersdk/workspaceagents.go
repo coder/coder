@@ -193,6 +193,9 @@ const (
 	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
 	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
 	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+	// WorkspaceAgentScriptStatusSkipped is reported when a script did not
+	// run because a coder_script_order dependency did not succeed.
+	WorkspaceAgentScriptStatusSkipped WorkspaceAgentScriptStatus = "skipped"
 )
 
 type WorkspaceAgentScript struct {
@@ -208,6 +211,29 @@ type WorkspaceAgentScript struct {
 	DisplayName      string                      `json:"display_name"`
 	ExitCode         *int32                      `json:"exit_code,omitempty"`
 	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
+	// OrderDependencies lists scripts on the same agent that must reach a
+	// terminal state before this script starts. Resolved from
+	// coder_script_order data sources in the template.
+	OrderDependencies []WorkspaceAgentScriptOrderDependency `json:"order_dependencies,omitempty"`
+}
+
+type WorkspaceAgentScriptOrderRequires string
+
+const (
+	// WorkspaceAgentScriptOrderRequiresSuccess skips the dependent script
+	// unless the awaited script succeeds.
+	WorkspaceAgentScriptOrderRequiresSuccess WorkspaceAgentScriptOrderRequires = "success"
+	// WorkspaceAgentScriptOrderRequiresCompletion runs the dependent script
+	// after the awaited script reaches any terminal state.
+	WorkspaceAgentScriptOrderRequiresCompletion WorkspaceAgentScriptOrderRequires = "completion"
+)
+
+// WorkspaceAgentScriptOrderDependency is a resolved coder_script_order rule:
+// the script identified by ScriptID must reach a terminal state before the
+// script carrying this entry starts.
+type WorkspaceAgentScriptOrderDependency struct {
+	ScriptID uuid.UUID                         `json:"script_id" format:"uuid"`
+	Requires WorkspaceAgentScriptOrderRequires `json:"requires" enums:"success,completion"`
 }
 
 type WorkspaceAgentHealth struct {

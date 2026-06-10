@@ -83,6 +83,22 @@ func TestScriptCompleted(t *testing.T) {
 		},
 		{
 			scriptID: uuid.New(),
+			timing: func() *agentproto.Timing {
+				// Skipped scripts never ran, so they report a
+				// zero-duration timing with identical start and end.
+				now := timestamppb.New(dbtime.Now())
+				return &agentproto.Timing{
+					Stage:    agentproto.Timing_START,
+					Start:    now,
+					End:      now,
+					Status:   agentproto.Timing_SKIPPED,
+					ExitCode: -1,
+				}
+			}(),
+			expectInsert: true,
+		},
+		{
+			scriptID: uuid.New(),
 			timing: &agentproto.Timing{
 				Stage:    agentproto.Timing_START,
 				Start:    nil,
@@ -195,6 +211,8 @@ func protoScriptTimingStatusToDatabase(stage agentproto.Timing_Status) database.
 		dbStatus = database.WorkspaceAgentScriptTimingStatusTimedOut
 	case agentproto.Timing_PIPES_LEFT_OPEN:
 		dbStatus = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
+	case agentproto.Timing_SKIPPED:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusSkipped
 	}
 	return dbStatus
 }

@@ -734,6 +734,11 @@
 									"state": ["early access"],
 									"children": [
 										{
+											"title": "Script Ordering",
+											"description": "Declare script execution order in your template",
+											"path": "./admin/templates/startup-coordination/script-ordering.md"
+										},
+										{
 											"title": "Usage",
 											"description": "How to use startup coordination",
 											"path": "./admin/templates/startup-coordination/usage.md"

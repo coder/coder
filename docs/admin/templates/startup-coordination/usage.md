@@ -5,6 +5,12 @@
 
 Startup coordination is built around the concept of **units**. You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources. When the Coder agent starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware. When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
 
+> [!TIP]
+> `coder exp sync` is the legacy, script-level coordination path. For new
+> templates, prefer the declarative
+> [`coder_script_order`](./script-ordering.md) data source, which orders
+> scripts without modifying their bodies.
+
 ## What is a unit?
 
 A **unit** is a named phase of work, typically corresponding to a script or initialization

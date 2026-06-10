@@ -27,3 +27,22 @@ SELECT
 	WHERE workspace_agent_scripts.workspace_agent_id = ANY(@ids :: uuid [ ])
 	ORDER BY workspace_agent_scripts.id, workspace_agent_script_timings.started_at
 	DESC NULLS LAST;
+
+-- name: InsertWorkspaceAgentScriptOrder :many
+INSERT INTO
+	workspace_agent_script_order (script_id, after_script_id, requires)
+SELECT
+	unnest(@script_id :: uuid [ ]) AS script_id,
+	unnest(@after_script_id :: uuid [ ]) AS after_script_id,
+	unnest(@requires :: workspace_agent_script_order_requires [ ]) AS requires
+RETURNING workspace_agent_script_order.*;
+
+-- name: GetWorkspaceAgentScriptOrderByScriptIDs :many
+SELECT
+	*
+FROM
+	workspace_agent_script_order
+WHERE
+	script_id = ANY(@script_ids :: uuid [ ])
+ORDER BY
+	script_id, after_script_id;

@@ -2508,6 +2508,12 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+            "order_dependencies": [
+              {
+                "requires": "success",
+                "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+              }
+            ],
             "run_on_start": true,
             "run_on_stop": true,
             "script": "string",
@@ -2636,6 +2642,9 @@ Status Code **200**
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» order_dependencies`        | array                                                                                                  | false    |              | Order dependencies lists scripts on the same agent that must reach a terminal state before this script starts. Resolved from coder_script_order data sources in the template.                                                                  |
+| `»»»» requires`                 | [codersdk.WorkspaceAgentScriptOrderRequires](schemas.md#codersdkworkspaceagentscriptorderrequires)     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» script_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -2672,7 +2681,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
+| `requires`                | `completion`, `success`                                                                                                      |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout`        |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
@@ -3178,6 +3188,12 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+            "order_dependencies": [
+              {
+                "requires": "success",
+                "script_id": "74e7d8c3-daa9-40c1-ac0e-b64bfab79c57"
+              }
+            ],
             "run_on_start": true,
             "run_on_stop": true,
             "script": "string",
@@ -3306,6 +3322,9 @@ Status Code **200**
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» order_dependencies`        | array                                                                                                  | false    |              | Order dependencies lists scripts on the same agent that must reach a terminal state before this script starts. Resolved from coder_script_order data sources in the template.                                                                  |
+| `»»»» requires`                 | [codersdk.WorkspaceAgentScriptOrderRequires](schemas.md#codersdkworkspaceagentscriptorderrequires)     | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» script_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -3342,7 +3361,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
-| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
+| `requires`                | `completion`, `success`                                                                                                      |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `skipped`, `timed_out`, `timeout`        |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 

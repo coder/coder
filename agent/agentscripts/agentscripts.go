@@ -23,9 +23,11 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 var (
@@ -56,10 +58,29 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+
+	// Clock is used for the periodic "waiting for dependencies" log
+	// while an ordered start script is blocked. If nil, the real clock
+	// is used.
+	Clock quartz.Clock
+
+	// UnitManager tracks readiness of inter-dependent units. Start
+	// scripts with order dependencies (coder_script_order) are
+	// registered here and gated on their dependencies. Pass the same
+	// instance used by the agent socket service so that units created
+	// via "coder exp sync" share one dependency graph. If nil, a
+	// private manager is created.
+	UnitManager *unit.Manager
 }
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
+	if opts.UnitManager == nil {
+		opts.UnitManager = unit.NewManager()
+	}
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 	cronCtx, cronCtxCancel := context.WithCancel(context.Background())
 	return &Runner{
 		Options:       opts,
@@ -68,6 +89,7 @@ func New(opts Options) *Runner {
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
 		dataDir:       filepath.Join(opts.DataDirBase, "coder-script-data"),
+		outcomes:      make(map[uuid.UUID]scriptOutcome),
 		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "agent",
 			Subsystem: "scripts",
@@ -98,6 +120,19 @@ type Runner struct {
 
 	initMutex   sync.Mutex
 	initialized bool
+
+	// The fields below implement script order gating for start scripts
+	// (coder_script_order). The dependency graph is built at most once
+	// per runner; orderParticipants is written inside orderOnce and only
+	// read by goroutines spawned afterwards.
+	orderOnce         sync.Once
+	orderErr          error
+	orderParticipants map[uuid.UUID]struct{}
+
+	// outcomes records the terminal result of each ordered start script
+	// so dependent scripts can decide whether to run or skip.
+	outcomesMu sync.Mutex
+	outcomes   map[uuid.UUID]scriptOutcome
 }
 
 // DataDir returns the directory where scripts data is stored.
@@ -211,6 +246,18 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		return initErr
 	}
 
+	// Start scripts may declare order dependencies (coder_script_order).
+	// Build the dependency graph once before any gated script runs.
+	gateStartScripts := option == ExecuteStartScripts || option == ExecuteAllScripts
+	if gateStartScripts {
+		r.orderOnce.Do(func() {
+			r.orderErr = r.initScriptOrder()
+		})
+		if r.orderErr != nil {
+			return xerrors.Errorf("initialize script order: %w", r.orderErr)
+		}
+	}
+
 	var eg errgroup.Group
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
@@ -223,6 +270,11 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		}
 
 		eg.Go(func() error {
+			if gateStartScripts && script.RunOnStart {
+				if _, ok := r.orderParticipants[script.ID]; ok {
+					return r.runOrdered(ctx, script, option)
+				}
+			}
 			err := r.trackRun(ctx, script, option)
 			if err != nil {
 				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)

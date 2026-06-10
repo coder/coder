@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const (
@@ -685,6 +686,78 @@ func TestManager_IsReady(t *testing.T) {
 		isReady, err := manager.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, isReady)
+	})
+}
+
+func TestManager_Watch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SignalsOnMutation", func(t *testing.T) {
+		t.Parallel()
+
+		manager := unit.NewManager()
+		require.NoError(t, manager.Register(unitA))
+
+		// Given: a watch channel obtained before a mutation
+		changed := manager.Watch()
+		select {
+		case <-changed:
+			t.Fatal("watch channel closed before any change")
+		default:
+		}
+
+		// When: a unit's status is updated
+		require.NoError(t, manager.UpdateStatus(unitA, unit.StatusStarted))
+
+		// Then: the channel is closed and a fresh one is handed out
+		select {
+		case <-changed:
+		default:
+			t.Fatal("watch channel should be closed after status update")
+		}
+		select {
+		case <-manager.Watch():
+			t.Fatal("fresh watch channel should not be closed")
+		default:
+		}
+	})
+
+	t.Run("WaitForReadiness", func(t *testing.T) {
+		t.Parallel()
+
+		manager := unit.NewManager()
+		require.NoError(t, manager.Register(unitA))
+		require.NoError(t, manager.Register(unitB))
+		require.NoError(t, manager.AddDependency(unitB, unitA, unit.StatusComplete))
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		done := make(chan error, 1)
+		go func() {
+			for {
+				// Subscribe before checking readiness so updates between
+				// the check and the wait are not missed.
+				changed := manager.Watch()
+				ready, err := manager.IsReady(unitB)
+				if err != nil {
+					done <- err
+					return
+				}
+				if ready {
+					done <- nil
+					return
+				}
+				select {
+				case <-ctx.Done():
+					done <- ctx.Err()
+					return
+				case <-changed:
+				}
+			}
+		}()
+
+		require.NoError(t, manager.UpdateStatus(unitA, unit.StatusStarted))
+		require.NoError(t, manager.UpdateStatus(unitA, unit.StatusComplete))
+		require.NoError(t, testutil.TryReceive(ctx, t, done))
 	})
 }
 

@@ -58,6 +58,24 @@ message WorkspaceAgentScript {
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
 	bytes id = 10;
+
+	// OrderDependency is a resolved coder_script_order rule: the script
+	// identified by script_id must reach a terminal state before this
+	// script starts.
+	message OrderDependency {
+		enum Requires {
+			REQUIRES_UNSPECIFIED = 0;
+			// The dependent script is skipped unless the awaited script
+			// succeeds.
+			SUCCESS = 1;
+			// The dependent script runs after the awaited script reaches any
+			// terminal state.
+			COMPLETION = 2;
+		}
+		bytes script_id = 1;
+		Requires requires = 2;
+	}
+	repeated OrderDependency order_dependencies = 11;
 }
 
 message WorkspaceAgentMetadata {
@@ -319,6 +337,11 @@ message Timing {
         EXIT_FAILURE = 1;
         TIMED_OUT = 2;
         PIPES_LEFT_OPEN = 3;
+        // The script did not run because a script order dependency with
+        // requires=success did not succeed. Only sent by agents that
+        // received order_dependencies, so older coderd versions never
+        // observe it.
+        SKIPPED = 4;
     }
     Status status = 6;
 }

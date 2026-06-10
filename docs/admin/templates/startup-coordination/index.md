@@ -22,9 +22,32 @@ However, this can lead to intermittent failures between dependent scripts due to
 Up until now, template authors have had to rely on manual coordination methods (for example, touching a file upon completion).
 The goal of startup script coordination is to provide a single reliable source of truth for coordination between workspace startup scripts.
 
+## Choose an approach
+
+| Approach                                     | Where ordering is declared            | When to use                                                                                          |
+|----------------------------------------------|---------------------------------------|------------------------------------------------------------------------------------------------------|
+| [`coder_script_order`](./script-ordering.md) | In the template (Terraform)           | Recommended. Order any `coder_script` resources or registry modules without modifying script bodies. |
+| [`coder exp sync`](./usage.md) (legacy)      | Inside the scripts themselves (shell) | Only when ordering must be decided dynamically by a running script.                                  |
+
 ## Quick Start
 
-To start using workspace startup coordination, add calls to `coder exp sync (start|complete)` in your startup scripts where required:
+Declare ordering rules with the `coder_script_order` data source in your
+template:
+
+```tf
+data "coder_script_order" "startup" {
+  rule {
+    run   = "coder_script.install"
+    after = ["coder_script.clone"]
+  }
+}
+```
+
+See the [declarative script ordering documentation](./script-ordering.md)
+for selectors, failure semantics, and a complete example.
+
+Alternatively, with the legacy script-level path, add calls to
+`coder exp sync (start|complete)` in your startup scripts where required:
 
   ```bash
   trap 'coder exp sync complete my-script' EXIT

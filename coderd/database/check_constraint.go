@@ -59,4 +59,5 @@ const (
 	CheckUserSkillsDescriptionSize                     CheckConstraint = "user_skills_description_size"                         // user_skills
 	CheckUserSkillsNameFormat                          CheckConstraint = "user_skills_name_format"                              // user_skills
 	CheckUserSkillsNameSize                            CheckConstraint = "user_skills_name_size"                                // user_skills
+	CheckWorkspaceAgentScriptOrderNoSelf               CheckConstraint = "workspace_agent_script_order_no_self"                 // workspace_agent_script_order
 )

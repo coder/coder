@@ -86,14 +86,39 @@ type Manager struct {
 
 	// Store vertex instances for each unit to ensure consistent references
 	units map[ID]Unit
+
+	// changed is closed and replaced whenever the dependency graph
+	// mutates (registration, status update, or new dependency). Watchers
+	// obtain the current channel via Watch and wait for it to close
+	// before re-checking the state they care about.
+	changed chan struct{}
 }
 
 // NewManager creates a new Manager instance.
 func NewManager() *Manager {
 	return &Manager{
-		graph: &Graph[Status, ID]{},
-		units: make(map[ID]Unit),
+		graph:   &Graph[Status, ID]{},
+		units:   make(map[ID]Unit),
+		changed: make(chan struct{}),
 	}
+}
+
+// Watch returns a channel that is closed on the next mutation of the
+// dependency graph. The channel only signals that something changed;
+// callers must re-check the state they care about (e.g. IsReady) and
+// call Watch again to wait for further changes. To avoid missing
+// updates, call Watch before checking state.
+func (m *Manager) Watch() <-chan struct{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.changed
+}
+
+// notifyUnsafe wakes all Watch subscribers. The caller must hold the
+// write lock.
+func (m *Manager) notifyUnsafe() {
+	close(m.changed)
+	m.changed = make(chan struct{})
 }
 
 // Register adds a unit to the manager if it is not already registered.
@@ -115,6 +140,7 @@ func (m *Manager) Register(id ID) error {
 		status: StatusPending,
 		ready:  true,
 	}
+	m.notifyUnsafe()
 
 	return nil
 }
@@ -177,6 +203,7 @@ func (m *Manager) AddDependency(unit ID, dependsOn ID, requiredStatus Status) er
 
 	// Recalculate readiness for the unit since it now has a new dependency
 	m.recalculateReadinessUnsafe(unit)
+	m.notifyUnsafe()
 
 	return nil
 }
@@ -208,6 +235,7 @@ func (m *Manager) UpdateStatus(unit ID, newStatus Status) error {
 	for _, dependent := range dependents {
 		m.recalculateReadinessUnsafe(dependent.From)
 	}
+	m.notifyUnsafe()
 
 	return nil
 }

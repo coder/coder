@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
@@ -312,10 +313,14 @@ type agent struct {
 	// secrets are held separately from the manifest so that code paths that
 	// only need manifest data cannot accidentally access or leak secret
 	// values. Callers that need secrets must explicitly load this.
-	secrets                            atomic.Pointer[[]agentsdk.WorkspaceSecret]
-	reportMetadataInterval             time.Duration
-	statsReportInterval                time.Duration
-	scriptRunner                       *agentscripts.Runner
+	secrets                atomic.Pointer[[]agentsdk.WorkspaceSecret]
+	reportMetadataInterval time.Duration
+	statsReportInterval    time.Duration
+	scriptRunner           *agentscripts.Runner
+	// unitManager is the shared dependency graph for startup
+	// coordination. Script order rules (coder_script_order) and
+	// "coder exp sync" units both live in it.
+	unitManager                        *unit.Manager
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
 	sshServer                          *agentssh.Server
@@ -449,6 +454,7 @@ func (a *agent) init() {
 		panic(err)
 	}
 	a.sshServer = sshSrv
+	a.unitManager = unit.NewManager()
 	a.scriptRunner = agentscripts.New(agentscripts.Options{
 		LogDir:      a.logDir,
 		DataDirBase: a.scriptDataDir,
@@ -458,6 +464,8 @@ func (a *agent) init() {
 		GetScriptLogger: func(logSourceID uuid.UUID) agentscripts.ScriptLogger {
 			return a.logSender.GetScriptLogger(logSourceID)
 		},
+		UnitManager: a.unitManager,
+		Clock:       a.clock,
 	})
 	// Register runner metrics. If the prom registry is nil, the metrics
 	// will not report anywhere.
@@ -566,6 +574,7 @@ func (a *agent) initSocketServer() {
 		a.logger.Named("socket"),
 		agentsocket.WithPath(a.socketPath),
 		agentsocket.WithContextManager(a.contextManager),
+		agentsocket.WithUnitManager(a.unitManager),
 	)
 	if err != nil {
 		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))

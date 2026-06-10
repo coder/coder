@@ -1,0 +1,3 @@
+DROP TABLE workspace_agent_script_order;
+
+DROP TYPE workspace_agent_script_order_requires;

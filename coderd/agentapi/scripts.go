@@ -61,6 +61,8 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		status = database.WorkspaceAgentScriptTimingStatusTimedOut
 	case agentproto.Timing_PIPES_LEFT_OPEN:
 		status = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
+	case agentproto.Timing_SKIPPED:
+		status = database.WorkspaceAgentScriptTimingStatusSkipped
 	}
 
 	//nolint:gocritic // We need permissions to write to the DB here and we are in the context of the agent.

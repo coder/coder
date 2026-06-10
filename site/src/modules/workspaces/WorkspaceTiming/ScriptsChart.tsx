@@ -58,8 +58,18 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
 	const theme = useTheme();
 	const legendsByStatus = getLegendsByStatus(theme);
+	// Unknown statuses fall back to a neutral legend instead of crashing
+	// the chart when the backend adds a status before the UI learns it.
+	const getLegend = (status: string): ChartLegend =>
+		legendsByStatus[status] ?? {
+			label: status.replaceAll("_", " "),
+			colors: {
+				fill: theme.roles.inactive.background,
+				stroke: theme.roles.inactive.outline,
+			},
+		};
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
-		(s) => legendsByStatus[s],
+		getLegend,
 	);
 
 	return (
@@ -113,14 +123,23 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legendsByStatus[t.status].colors}
+												colors={getLegend(t.status).colors}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
 											side="bottom"
 											className="border-surface-quaternary text-content-primary"
 										>
-											Script exited with <strong>code {t.exitCode}</strong>
+											{t.status === "skipped" ? (
+												<>
+													Script was <strong>skipped</strong> because a
+													dependency did not succeed
+												</>
+											) : (
+												<>
+													Script exited with <strong>code {t.exitCode}</strong>
+												</>
+											)}
 										</TooltipContent>
 									</Tooltip>
 
@@ -151,11 +170,25 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.error.outline,
 			},
 		},
-		timeout: {
+		timed_out: {
 			label: "timed out",
 			colors: {
 				fill: theme.roles.warning.background,
 				stroke: theme.roles.warning.outline,
+			},
+		},
+		pipes_left_open: {
+			label: "pipes left open",
+			colors: {
+				fill: theme.roles.notice.background,
+				stroke: theme.roles.notice.outline,
+			},
+		},
+		skipped: {
+			label: "skipped",
+			colors: {
+				fill: theme.roles.inactive.background,
+				stroke: theme.roles.inactive.outline,
 			},
 		},
 	};
