@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { expect, within } from "storybook/test";
 import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockFailedProvisionerJob,
@@ -47,7 +48,14 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 export default meta;
 type Story = StoryObj<typeof TemplateVersionEditor>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Back to the template" }),
+		).toBeVisible();
+	},
+};
 
 export const UndefinedLogs: Story = {
 	args: {

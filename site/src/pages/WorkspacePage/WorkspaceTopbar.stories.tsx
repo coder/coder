@@ -57,7 +57,14 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceTopbar>;
 
-export const Example: Story = {};
+export const Example: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Back to workspaces" }),
+		).toBeVisible();
+	},
+};
 
 export const Outdated: Story = {
 	args: {
