@@ -4740,6 +4740,7 @@ type ChatMessage struct {
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
+	ContentText         sql.NullString        `db:"content_text" json:"content_text"`
 }
 
 type ChatModelConfig struct {

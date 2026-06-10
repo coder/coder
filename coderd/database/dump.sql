@@ -715,6 +715,22 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION chat_messages_set_content_text() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.content IS NOT NULL AND jsonb_typeof(NEW.content) = 'array' THEN
+		SELECT string_agg(part->>'text', ' ' ORDER BY ordinality)
+		INTO NEW.content_text
+		FROM jsonb_array_elements(NEW.content) WITH ORDINALITY AS t(part, ordinality)
+		WHERE part->>'type' = 'text';
+	ELSE
+		NEW.content_text := NULL;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1691,7 +1707,8 @@ CREATE TABLE chat_messages (
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
-    api_key_id text
+    api_key_id text,
+    content_text text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -4277,6 +4294,8 @@ CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_i
 
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
 
+CREATE INDEX idx_chat_messages_content_tsv ON chat_messages USING gin (to_tsvector('simple'::regconfig, content_text));
+
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
@@ -4528,6 +4547,8 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
   GROUP BY pj.id, wb.workspace_id;
+
+CREATE TRIGGER chat_messages_content_text BEFORE INSERT OR UPDATE OF content ON chat_messages FOR EACH ROW EXECUTE FUNCTION chat_messages_set_content_text();
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
