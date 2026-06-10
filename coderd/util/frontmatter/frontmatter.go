@@ -1,8 +1,7 @@
 // Package frontmatter parses the YAML frontmatter block at the top of a
 // template README. It is intentionally lightweight (a fence split plus a
-// yaml.Unmarshal) so it can be imported by both the coderd chat tools and the
-// codersdk agent tools without pulling a heavy markdown dependency into the
-// server or agent binary.
+// yaml.Unmarshal) to avoid pulling a heavy markdown dependency into the
+// binaries that import it.
 package frontmatter
 
 import (
@@ -18,9 +17,8 @@ import (
 // frontmatter value surfaced to agents; longer values are truncated.
 const AgentDescriptionMaxRunes = 2048
 
-// Frontmatter is the locked set of recognized README frontmatter keys. Unknown
-// keys are ignored by yaml.Unmarshal, so adding keys here is the only way to
-// recognize new frontmatter.
+// Frontmatter is the locked set of recognized README frontmatter keys. Adding
+// a key here is the only way to recognize new frontmatter.
 type Frontmatter struct {
 	DisplayName      string   `yaml:"display_name"`
 	Description      string   `yaml:"description"`
