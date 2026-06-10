@@ -35,6 +35,7 @@ import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
@@ -157,7 +158,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
-		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length;
+		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.sources.length !==
+			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		sidebarFilters.sources.some(
+			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
+		);
 	const disablePinnedReordering = hasAppliedResultFilters;
 
 	// Local override for pinned order during drag. Applied
@@ -333,6 +339,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
 
@@ -440,6 +447,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"
+					// The default 24px hit-target extends ~18px left of this narrow
+					// scrollbar, onto the row controls (actions menu, timestamp,
+					// indicators). Disable it so those controls stay clickable.
+					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
 						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
@@ -519,6 +530,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															<DndContext
 																sensors={sensors}
 																collisionDetection={closestCenter}
+																modifiers={[
+																	// Restrict the drag to the y-axis only
+																	({ transform }) => ({
+																		...transform,
+																		x: 0,
+																	}),
+																]}
 																onDragEnd={handleDragEnd}
 															>
 																<SortableContext

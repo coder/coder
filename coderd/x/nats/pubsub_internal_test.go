@@ -274,7 +274,7 @@ func Test_localSub_init(t *testing.T) {
 		require.False(t, concurrent.Load(), "listener callback ran concurrently")
 	})
 
-	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {
+	t.Run("SameSubjectSlowListenerDoesNotBlockPeer", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -283,54 +283,52 @@ func Test_localSub_init(t *testing.T) {
 		t.Cleanup(func() { _ = ps.Close() })
 
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		var slowDrops atomic.Int64
-		var slowBlocked atomic.Bool
-		slowCancel, err := ps.SubscribeWithErr("iso_slow", func(_ context.Context, _ []byte, ferr error) {
-			if ferr != nil && errors.Is(ferr, pubsub.ErrDroppedMessages) {
-				slowDrops.Add(1)
-				return
-			}
-			if slowBlocked.CompareAndSwap(false, true) {
-				<-release
-			}
+		defer close(release)
+
+		// The blocking listener wedges on its first delivery and never
+		// returns, so its dispatcher goroutine only ever runs the body once.
+		blocked := make(chan struct{}, 1)
+		slowCancel, err := ps.Subscribe("subject", func(context.Context, []byte) {
+			blocked <- struct{}{}
+			<-release
 		})
 		require.NoError(t, err)
 		defer slowCancel()
 
+		// Wedge the slow listener's dispatcher goroutine before the fast
+		// listener subscribes, so the fast listener only ever sees the pings
+		// published below.
+		require.NoError(t, ps.Publish("subject", []byte("blocking listener")))
+		require.NoError(t, ps.Flush())
+		testutil.RequireReceive(ctx, t, blocked)
+
 		var fastCount atomic.Int64
-		fastCancel, err := ps.Subscribe("iso_fast", func(_ context.Context, _ []byte) {
+		fastCancel, err := ps.Subscribe("subject", func(context.Context, []byte) {
 			fastCount.Add(1)
 		})
 		require.NoError(t, err)
 		defer fastCancel()
-		defer releaseOnce.Do(func() { close(release) })
 
-		total := defaultListenerQueueSize + 256
-		payload := make([]byte, 4*1024)
-		for range total {
-			require.NoError(t, ps.Publish("iso_slow", payload))
-			require.NoError(t, ps.Publish("iso_fast", []byte("ping")))
+		// Both listeners share one NATS subscription. The fast listener has its
+		// own bounded inbox and dispatcher goroutine, so it must receive every
+		// ping even though its same-subject peer is stuck. fastMsgs stays well
+		// under the inbox cap, so no overflow drop is possible and the count is
+		// deterministic.
+		const fastMsgs = 64
+		for range fastMsgs {
+			require.NoError(t, ps.Publish("subject", []byte("ping")))
 		}
 		require.NoError(t, ps.Flush())
-
 		require.Eventually(t, func() bool {
-			return fastCount.Load() >= int64(total)
-		}, testutil.WaitLong, testutil.IntervalFast)
-		require.Zero(t, slowDrops.Load(),
-			"drop callback must wait for the blocked data callback")
-		releaseOnce.Do(func() { close(release) })
-		require.Eventually(t, func() bool {
-			return slowDrops.Load() >= 1
+			return fastCount.Load() == int64(fastMsgs)
 		}, testutil.WaitLong, testutil.IntervalFast,
-			"slow subscriber must receive at least one ErrDroppedMessages signal")
+			"fast listener must keep receiving while same-subject peer is blocked")
 
-		require.GreaterOrEqual(t, fastCount.Load(), int64(total),
-			"fast subscriber must keep receiving despite slow peer on shared subConn")
+		// One coalesced subscription on one subConn; the slow consumer must
+		// not tear it down.
 		require.Len(t, ps.subscribePool, 1)
 		require.False(t, ps.subscribePool[0].IsClosed(), "subConn must not be closed by slow consumer")
 		require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
-		require.Equal(t, 2, ps.Server.NumClients(), "slow consumer must not disconnect subConn")
 	})
 }
 

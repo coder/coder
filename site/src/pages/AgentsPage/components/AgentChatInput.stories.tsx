@@ -842,6 +842,76 @@ export const PlanningIndicator: Story = {
 	},
 };
 
+const narrowPlanningContextUsage: AgentContextUsage = {
+	usedTokens: 100_000,
+	contextLimitTokens: 200_000,
+};
+
+const narrowPlanningModelOptions = [
+	{
+		id: "long-model-name",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5-long-name",
+		displayName: "Claude Sonnet 4.5 Extended Thinking",
+	},
+] as const;
+
+export const PlanningIndicatorNarrow: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+		contextUsage: narrowPlanningContextUsage,
+		selectedModel: narrowPlanningModelOptions[0].id,
+		modelOptions: [...narrowPlanningModelOptions],
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		const contextUsageButton = canvas.getByRole("button", {
+			name: /Context usage/,
+		});
+		const planningBadge = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='planning-badge']",
+		);
+		const isVisible = (element: HTMLElement) => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return (
+				style.display !== "none" &&
+				style.visibility !== "hidden" &&
+				rect.width > 0 &&
+				rect.height > 0
+			);
+		};
+
+		await waitFor(() => {
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const contextUsageRect = contextUsageButton.getBoundingClientRect();
+
+			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+
+			if (planningBadge && isVisible(planningBadge)) {
+				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
+					contextUsageRect.left + 1,
+				);
+				return;
+			}
+
+			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
+		});
+	},
+};
+
 export const DisablePlanModeFromBadge: Story = {
 	args: {
 		planModeEnabled: true,

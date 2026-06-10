@@ -459,6 +459,15 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+	// non-deleted external agents on the latest build of every running workspace
+	// of the given template. "Running" means the latest build has
+	// transition=start and job_status=succeeded (matches the workspace-status
+	// definition used by coderd/database/queries/workspaces.sql).
+	// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+	// "all owners"; any other value restricts results to workspaces owned by
+	// that user.
+	GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)
@@ -494,6 +503,13 @@ type sqlcQuerier interface {
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
+	// Returns the highest group AI budget across the groups the user belongs to,
+	// breaking ties by group name ascending. Implements the "highest" budget policy.
+	// group_members_expanded is a UNION of group_members and organization_members,
+	// so the implicit "Everyone" group (group_id == organization_id) is included.
+	// Returns no rows when the user has no budgeted groups; callers should treat
+	// sql.ErrNoRows as "no group budget".
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID

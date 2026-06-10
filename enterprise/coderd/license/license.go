@@ -566,7 +566,7 @@ func LicensesEntitlements(
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
 			entitlements.Warnings = append(entitlements.Warnings,
-				"The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more.")
+				"The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more.")
 		}
 	}
 

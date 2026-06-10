@@ -109,6 +109,11 @@ func (*Copilot) AuthHeader() string {
 	return "Authorization"
 }
 
+// KeyPool returns nil. Copilot is always BYOK and has no key pool.
+func (*Copilot) KeyPool() *keypool.Pool {
+	return nil
+}
+
 // KeyFailoverConfig returns a config with a nil Pool, which makes
 // the KeyFailoverTransport short-circuit. Copilot is always BYOK.
 func (*Copilot) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {

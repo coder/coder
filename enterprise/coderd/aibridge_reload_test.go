@@ -64,7 +64,7 @@ func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-reload-test")
 
-	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger)
+	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger, nil)
 	require.NoError(t, err)
 
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), nil, tracer)
@@ -97,7 +97,7 @@ type testPoolReloader struct {
 
 func (r *testPoolReloader) Reload(ctx context.Context) error {
 	defer r.metrics.RecordReloadAttempt()
-	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger)
+	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
 	if err != nil {
 		return err
 	}

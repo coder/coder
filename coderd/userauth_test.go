@@ -1770,13 +1770,6 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("OIDCEmailFallbackBlockedByExistingLink", func(t *testing.T) {
 		t.Parallel()
 
-		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithRefresh(func(_ string) error {
-				return xerrors.New("refreshing token should never occur")
-			}),
-			oidctest.WithServing(),
-		)
-
 		for _, tc := range []struct {
 			name         string
 			allowSignups bool
@@ -1788,6 +1781,12 @@ func TestUserOIDC(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
+				fake := oidctest.NewFakeIDP(t,
+					oidctest.WithRefresh(func(_ string) error {
+						return xerrors.New("refreshing token should never occur")
+					}),
+					oidctest.WithServing(),
+				)
 				cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = tc.allowSignups
 				})

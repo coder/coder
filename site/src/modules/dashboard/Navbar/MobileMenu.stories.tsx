@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import type { FC } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import {
@@ -96,7 +95,7 @@ export const Member: Story = {
 
 export const ProxySettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /workspace proxy settings/i,
@@ -107,7 +106,7 @@ export const ProxySettings: Story = {
 
 export const UserSettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /user settings/i,
@@ -124,21 +123,12 @@ function withNavbarMock(Story: FC) {
 	);
 }
 
-function setupUser() {
-	// It seems the dropdown component is disabling pointer events, which is
-	// causing Testing Library to throw an error. As a workaround, we can
-	// disable the pointer events check.
-	return userEvent.setup({
-		pointerEventsCheck: PointerEventsCheckLevel.Never,
-	});
-}
-
 async function openAdminSettings({
 	canvasElement,
 }: {
 	canvasElement: HTMLElement;
 }) {
-	const user = setupUser();
+	const user = userEvent.setup();
 	const body = within(canvasElement.ownerDocument.body);
 	const menuItem = await body.findByRole("menuitem", {
 		name: /admin settings/i,

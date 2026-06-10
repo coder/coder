@@ -106,30 +106,32 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID          `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
-	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
-	OwnerUsername     string             `json:"owner_username,omitempty"`
-	OwnerName         string             `json:"owner_name,omitempty"`
-	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID         `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID         `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID          `json:"last_model_config_id" format:"uuid"`
-	Title             string             `json:"title"`
-	Status            ChatStatus         `json:"status"`
-	PlanMode          ChatPlanMode       `json:"plan_mode,omitempty"`
-	LastError         *ChatError         `json:"last_error,omitempty"`
-	LastTurnSummary   *string            `json:"last_turn_summary"`
-	DiffStatus        *ChatDiffStatus    `json:"diff_status,omitempty"`
-	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
-	Archived          bool               `json:"archived"`
-	PinOrder          int32              `json:"pin_order"`
-	MCPServerIDs      []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
-	Labels            map[string]string  `json:"labels"`
-	Files             []ChatFileMetadata `json:"files,omitempty"`
+	ID                uuid.UUID       `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID       `json:"organization_id" format:"uuid"`
+	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
+	OwnerUsername     string          `json:"owner_username,omitempty"`
+	OwnerName         string          `json:"owner_name,omitempty"`
+	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
+	Title             string          `json:"title"`
+	Status            ChatStatus      `json:"status"`
+	PlanMode          ChatPlanMode    `json:"plan_mode,omitempty"`
+	LastError         *ChatError      `json:"last_error,omitempty"`
+	LastTurnSummary   *string         `json:"last_turn_summary"`
+	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
+	Archived          bool            `json:"archived"`
+	// Shared is true when this chat's root chat has explicit user or group ACL entries.
+	Shared       bool               `json:"shared"`
+	PinOrder     int32              `json:"pin_order"`
+	MCPServerIDs []uuid.UUID        `json:"mcp_server_ids" format:"uuid"`
+	Labels       map[string]string  `json:"labels"`
+	Files        []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
@@ -1229,6 +1231,7 @@ type ChatModelAnthropicProviderOptions struct {
 	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
 	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,xhigh,max"`
+	ThinkingDisplay        *string                            `json:"thinking_display,omitempty" label:"Thinking Display" description:"Controls how Anthropic returns thinking content" enum:"summarized,omitted"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
 	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
@@ -2036,9 +2039,23 @@ type UpdateChatACL struct {
 	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
 }
 
+// ChatListSource controls which chats ListChats returns by ownership.
+type ChatListSource string
+
+const (
+	// ChatListSourceCreatedByMe returns chats owned by the caller.
+	ChatListSourceCreatedByMe ChatListSource = "created_by_me"
+	// ChatListSourceSharedWithMe returns chats shared with the caller.
+	ChatListSourceSharedWithMe ChatListSource = "shared_with_me"
+)
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Query  string
+	// Query supports raw chat search terms. If Query includes a source: term,
+	// Source must be empty.
+	Query string
+	// Source adds a source: term to Query.
+	Source ChatListSource
 	Labels map[string]string
 	Pagination
 }
@@ -2048,10 +2065,17 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	var reqOpts []RequestOption
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
-		if opts.Query != "" {
+		query := opts.Query
+		if opts.Source != "" {
+			if query != "" {
+				query += " "
+			}
+			query += "source:" + string(opts.Source)
+		}
+		if query != "" {
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
-				q.Set("q", opts.Query)
+				q.Set("q", query)
 				r.URL.RawQuery = q.Encode()
 			})
 		}

@@ -1229,14 +1229,16 @@ func TestSearchChats(t *testing.T) {
 			Name:  "Empty",
 			Query: "",
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
 			Name:  "ArchivedTrue",
 			Query: "archived:true",
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: true, Valid: true},
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
@@ -1247,14 +1249,16 @@ func TestSearchChats(t *testing.T) {
 			Name:  "ArchivedTrueUpperCase",
 			Query: "archived:TRUE",
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: true, Valid: true},
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
 			Name:  "ArchivedFalse",
 			Query: "archived:false",
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 			},
 		},
 		{
@@ -1262,6 +1266,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "has_unread:true",
 			Expected: database.GetChatsParams{
 				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				HasUnread: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
@@ -1270,6 +1275,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "has_unread:false",
 			Expected: database.GetChatsParams{
 				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				HasUnread: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
@@ -1283,6 +1289,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:draft",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"draft"},
 			},
 		},
@@ -1291,6 +1298,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:open",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"open"},
 			},
 		},
@@ -1299,6 +1307,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:merged",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"merged"},
 			},
 		},
@@ -1307,6 +1316,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:closed",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"closed"},
 			},
 		},
@@ -1315,6 +1325,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:draft pr_status:merged",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"draft", "merged"},
 			},
 		},
@@ -1323,6 +1334,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:draft,closed",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"draft", "closed"},
 			},
 		},
@@ -1331,6 +1343,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr_status:DRAFT",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"draft"},
 			},
 		},
@@ -1344,7 +1357,52 @@ func TestSearchChats(t *testing.T) {
 			Query: "archived:true pr_status:open",
 			Expected: database.GetChatsParams{
 				Archived:            sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:           true,
 				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
+			Name:  "SourceCreatedByMe",
+			Query: "source:created_by_me",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceSharedWithMe",
+			Query: "source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:                  "SourceAllInvalid",
+			Query:                 "source:all",
+			ExpectedErrorContains: "source",
+		},
+		{
+			Name:                  "SourceInvalid",
+			Query:                 "source:mine",
+			ExpectedErrorContains: "source",
+		},
+		{
+			Name:  "SourceCreatedByMeAndSharedWithMe",
+			Query: "source:created_by_me,shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
+			},
+		},
+		{
+			Name:  "SourceRepeated",
+			Query: "source:created_by_me source:shared_with_me",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
+				SharedOnly: true,
 			},
 		},
 		{
@@ -1371,7 +1429,8 @@ func TestSearchChats(t *testing.T) {
 			Name:  "DiffURL",
 			Query: `diff_url:"https://github.com/coder/coder/pull/123"`,
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				DiffURL: sql.NullString{
 					String: "https://github.com/coder/coder/pull/123",
 					Valid:  true,
@@ -1382,7 +1441,8 @@ func TestSearchChats(t *testing.T) {
 			Name:  "DiffURLPreservesValueCase",
 			Query: `diff_url:"https://github.com/Coder/Coder/pull/123"`,
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				DiffURL: sql.NullString{
 					String: "https://github.com/Coder/Coder/pull/123",
 					Valid:  true,
@@ -1393,7 +1453,8 @@ func TestSearchChats(t *testing.T) {
 			Name:  "DiffURLKeyCaseInsensitive",
 			Query: `Diff_URL:"https://github.com/coder/coder/pull/1"`,
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				DiffURL: sql.NullString{
 					String: "https://github.com/coder/coder/pull/1",
 					Valid:  true,
@@ -1404,7 +1465,8 @@ func TestSearchChats(t *testing.T) {
 			Name:  "DiffURLWithArchived",
 			Query: `archived:true diff_url:"https://gitlab.com/foo/bar/-/merge_requests/9"`,
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: true, Valid: true},
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
 				DiffURL: sql.NullString{
 					String: "https://gitlab.com/foo/bar/-/merge_requests/9",
 					Valid:  true,
@@ -1431,6 +1493,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `title:"hello world"`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
 				TitleQuery: "hello world",
 			},
 		},
@@ -1439,6 +1502,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `title:"my chat" archived:true`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:  true,
 				TitleQuery: "my chat",
 			},
 		},
@@ -1447,6 +1511,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "title:deploy",
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
 				TitleQuery: "deploy",
 			},
 		},
@@ -1455,6 +1520,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `title:deploy diff_url:"https://github.com/coder/coder/pull/456"`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:  true,
 				TitleQuery: "deploy",
 				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
 			},
@@ -1463,8 +1529,9 @@ func TestSearchChats(t *testing.T) {
 			Name:  "PrNumber",
 			Query: "pr:42",
 			Expected: database.GetChatsParams{
-				Archived: sql.NullBool{Bool: false, Valid: true},
-				PrNumber: 42,
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				PrNumber:  42,
 			},
 		},
 		{
@@ -1487,6 +1554,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "repo:coder/coder",
 			Expected: database.GetChatsParams{
 				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
 				RepoQuery: "coder/coder",
 			},
 		},
@@ -1495,6 +1563,7 @@ func TestSearchChats(t *testing.T) {
 			Query: `pr_title:"fix auth bug"`,
 			Expected: database.GetChatsParams{
 				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
 				PrTitleQuery: "fix auth bug",
 			},
 		},
@@ -1503,6 +1572,7 @@ func TestSearchChats(t *testing.T) {
 			Query: "pr:99 repo:coder/coder pr_title:deploy",
 			Expected: database.GetChatsParams{
 				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
 				PrNumber:     99,
 				RepoQuery:    "coder/coder",
 				PrTitleQuery: "deploy",

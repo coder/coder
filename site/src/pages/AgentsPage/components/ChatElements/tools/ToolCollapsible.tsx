@@ -1,14 +1,8 @@
 import { ChevronDownIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useState } from "react";
-import type { AgentDisplayMode } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { TranscriptRow } from "../TranscriptRow";
-import {
-	type AgentDisplayState,
-	isAgentDisplayOpen,
-	resolveAgentDisplayState,
-} from "./displayMode";
 
 type ToolCollapsibleAriaLabel = string | ((expanded: boolean) => string);
 type ToolCollapsibleHeader = ReactNode | ((expanded: boolean) => ReactNode);
@@ -26,26 +20,6 @@ interface ToolCollapsibleProps {
 	className?: string;
 	headerClassName?: string;
 }
-
-interface AgentDisplayModeToolCollapsibleProps
-	extends Omit<ToolCollapsibleProps, "defaultExpanded"> {
-	displayMode: AgentDisplayMode | undefined;
-	autoDisplayState: AgentDisplayState;
-}
-
-export const AgentDisplayModeToolCollapsible: FC<
-	AgentDisplayModeToolCollapsibleProps
-> = ({ displayMode, autoDisplayState, ...props }) => {
-	const displayState = resolveAgentDisplayState(displayMode, autoDisplayState);
-
-	return (
-		<ToolCollapsible
-			key={`${displayMode ?? "auto"}:${autoDisplayState}`}
-			{...props}
-			defaultExpanded={isAgentDisplayOpen(displayState)}
-		/>
-	);
-};
 
 export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	children,

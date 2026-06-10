@@ -14,7 +14,7 @@ const AIBridgeLayout: FC<PropsWithChildren> = () => {
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Bridge Logs</span>
+						<span>AI Gateway Logs</span>
 						<AIBridgeHelpPopover />
 					</div>
 				</PageHeaderTitle>

@@ -66,6 +66,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -144,6 +145,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		isSharedChat: false,
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],
@@ -396,6 +398,49 @@ index abc1234..def5678 100644
  const port = 3000;
 +logger.info("Starting server...");
  start(port);`,
+		});
+	},
+};
+
+export const NarrowWithSidebarPanel: Story = {
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	decorators: [
+		(Story) => (
+			<div
+				data-testid="narrow-agents-layout"
+				style={{
+					display: "flex",
+					height: "100vh",
+					overflow: "hidden",
+					width: 1024,
+				}}
+			>
+				<div style={{ minWidth: 320, width: 320 }} />
+				<div style={{ display: "flex", flex: 1, minWidth: 0 }}>
+					<Story />
+				</div>
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("narrow-agents-layout");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const rightPanel = await canvas.findByTestId("agents-right-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const layoutRect = layout.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const rightPanelRect = rightPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
+			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
 		});
 	},
 };

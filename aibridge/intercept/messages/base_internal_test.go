@@ -9,7 +9,6 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -17,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/utils"
@@ -476,7 +476,7 @@ func TestInjectTools_CacheBreakpoints(t *testing.T) {
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tools":[`+
 				`{"name":"existing_tool","type":"custom","input_schema":{"type":"object","properties":{}},"cache_control":{"type":"ephemeral"}}]}`),
-			mcpProxy: &mockServerProxier{tools: nil},
+			mcpProxy: &testutil.MockServerProxier{Tools: nil},
 			logger:   slog.Make(),
 		}
 
@@ -496,8 +496,8 @@ func TestInjectTools_CacheBreakpoints(t *testing.T) {
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tools":[`+
 				`{"name":"existing_tool","type":"custom","input_schema":{"type":"object","properties":{}},"cache_control":{"type":"ephemeral"}}]}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{ID: "injected_tool", Name: "injected", Description: "Injected tool"},
 				},
 			},
@@ -525,8 +525,8 @@ func TestInjectTools_CacheBreakpoints(t *testing.T) {
 			reqPayload: mustMessagesPayload(t, `{"tools":[`+
 				`{"name":"tool_with_cache_1","type":"custom","input_schema":{"type":"object","properties":{}},"cache_control":{"type":"ephemeral"}},`+
 				`{"name":"tool_with_cache_2","type":"custom","input_schema":{"type":"object","properties":{}}}]}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{ID: "injected_tool", Name: "injected", Description: "Injected tool"},
 				},
 			},
@@ -554,8 +554,8 @@ func TestInjectTools_CacheBreakpoints(t *testing.T) {
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tools":[`+
 				`{"name":"existing_tool_no_cache","type":"custom","input_schema":{"type":"object","properties":{}}}]}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{
 					{ID: "injected_tool", Name: "injected", Description: "Injected tool"},
 				},
 			},
@@ -583,7 +583,7 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tool_choice":{"type":"auto"}}`),
-			mcpProxy:   &mockServerProxier{tools: nil}, // No tools to inject.
+			mcpProxy:   &testutil.MockServerProxier{Tools: nil}, // No tools to inject.
 			logger:     slog.Make(),
 		}
 
@@ -600,8 +600,8 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
 			},
 			logger: slog.Make(),
 		}
@@ -619,8 +619,8 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tool_choice":{"type":"auto"}}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
 			},
 			logger: slog.Make(),
 		}
@@ -638,8 +638,8 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tool_choice":{"type":"any"}}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
 			},
 			logger: slog.Make(),
 		}
@@ -657,8 +657,8 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tool_choice":{"type":"tool","name":"specific_tool"}}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
 			},
 			logger: slog.Make(),
 		}
@@ -676,8 +676,8 @@ func TestInjectTools_ParallelToolCalls(t *testing.T) {
 
 		i := &interceptionBase{
 			reqPayload: mustMessagesPayload(t, `{"tool_choice":{"type":"none"}}`),
-			mcpProxy: &mockServerProxier{
-				tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
+			mcpProxy: &testutil.MockServerProxier{
+				Tools: []*mcp.Tool{{ID: "test_tool", Name: "test", Description: "Test"}},
 			},
 			logger: slog.Make(),
 		}
@@ -936,36 +936,6 @@ func mustMessagesPayload(t *testing.T, requestBody string) RequestPayload {
 	return payload
 }
 
-// mockServerProxier is a test implementation of mcp.ServerProxier.
-type mockServerProxier struct {
-	tools []*mcp.Tool
-}
-
-func (*mockServerProxier) Init(context.Context) error {
-	return nil
-}
-
-func (*mockServerProxier) Shutdown(context.Context) error {
-	return nil
-}
-
-func (m *mockServerProxier) ListTools() []*mcp.Tool {
-	return m.tools
-}
-
-func (m *mockServerProxier) GetTool(id string) *mcp.Tool {
-	for _, t := range m.tools {
-		if t.ID == id {
-			return t
-		}
-	}
-	return nil
-}
-
-func (*mockServerProxier) CallTool(context.Context, string, any) (*mcpgo.CallToolResult, error) {
-	return nil, nil //nolint:nilnil // mock: no-op implementation
-}
-
 func TestFilterBedrockBetaFlags(t *testing.T) {
 	t.Parallel()
 
@@ -1152,7 +1122,7 @@ func TestMarkKeyOnError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			pool, err := keypool.New([]string{"key-0"}, quartz.NewMock(t))
+			pool, err := keypool.New(config.ProviderAnthropic, []string{"key-0"}, quartz.NewMock(t), nil)
 			require.NoError(t, err)
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
