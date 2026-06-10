@@ -104,3 +104,69 @@ export const Accessibility: Story = {
 		).toBeGreaterThanOrEqual(3);
 	},
 };
+
+// Verifies the scrollThumbClassName escape hatch used by the Agents chat list.
+// The sidebar passes `before:hidden` to remove the thumb's expanded 24px
+// hit-target (added in PR #26016) so it stops covering the per-row controls,
+// while leaving the visible thumb unchanged. type="always" guarantees the
+// thumb renders so the pseudo-element is measurable.
+export const ThumbHitAreaOverride: Story = {
+	render: () => (
+		<div className="flex gap-4">
+			<div
+				data-testid="default-area"
+				className="w-48 rounded-md border border-solid border-border-default bg-surface-primary"
+			>
+				<ScrollArea className="h-48" type="always" scrollBarClassName="w-1.5">
+					<OverflowingContent />
+				</ScrollArea>
+			</div>
+			<div
+				data-testid="override-area"
+				className="w-48 rounded-md border border-solid border-border-default bg-surface-primary"
+			>
+				<ScrollArea
+					className="h-48"
+					type="always"
+					scrollBarClassName="w-1.5"
+					scrollThumbClassName="before:hidden"
+				>
+					<OverflowingContent />
+				</ScrollArea>
+			</div>
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const getThumb = (testid: string) => {
+			const area = canvasElement.querySelector(`[data-testid='${testid}']`);
+			return area?.querySelector('[data-orientation="vertical"]')
+				?.firstElementChild as HTMLElement | null | undefined;
+		};
+
+		await waitFor(() => {
+			expect(getThumb("default-area")).toBeTruthy();
+			expect(getThumb("override-area")).toBeTruthy();
+		});
+
+		const defaultThumb = getThumb("default-area");
+		const overrideThumb = getThumb("override-area");
+		if (!defaultThumb || !overrideThumb) {
+			throw new Error("scrollbar thumbs not found");
+		}
+
+		// By default the thumb keeps its expanded 24px hit-target pseudo-element.
+		const defaultBefore = getComputedStyle(defaultThumb, "::before");
+		await expect(defaultBefore.display).not.toBe("none");
+		await expect(Number.parseFloat(defaultBefore.width)).toBeGreaterThanOrEqual(
+			24,
+		);
+
+		// scrollThumbClassName="before:hidden" removes that expanded hit-target...
+		const overrideBefore = getComputedStyle(overrideThumb, "::before");
+		await expect(overrideBefore.display).toBe("none");
+		// ...while the visible thumb itself stays intact and draggable.
+		await expect(overrideThumb.getBoundingClientRect().width).toBeGreaterThan(
+			0,
+		);
+	},
+};
