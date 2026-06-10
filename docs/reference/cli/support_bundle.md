@@ -77,4 +77,4 @@ Collect pprof profiling data from the Coder server and agent. Requires Coder ser
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Select which organization (UUID or name) to capture provisioner info for. Defaults to the current user's organization.
+Select which organization (UUID or name) to capture provisioner info for. Defaults to the workspace's organization, or the user's organization if they belong to exactly one.

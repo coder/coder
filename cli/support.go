@@ -197,10 +197,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 					slog.F("workspace_id", ws.ID),
 				)
 				wsID = ws.ID
-				// If --org was not explicitly provided, infer the org from the workspace.
-				if orgID == uuid.Nil {
-					orgID = ws.OrganizationID
-				}
+				// Infer the org from the workspace; --org flag may override below.
+				orgID = ws.OrganizationID
 				agentName := ""
 				if len(inv.Args) > 1 {
 					agentName = inv.Args[1]
@@ -327,7 +325,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 		{
 			Flag:        "org",
 			Env:         "CODER_ORGANIZATION",
-			Description: "Select which organization (UUID or name) to capture provisioner info for. Defaults to the current user's organization.",
+			Description: "Select which organization (UUID or name) to capture provisioner info for. Defaults to the workspace's organization, or the user's organization if they belong to exactly one.",
 			Value:       serpent.StringOf(&orgFlag),
 		},
 	}

@@ -13,7 +13,8 @@ USAGE:
 OPTIONS:
       --org string, $CODER_ORGANIZATION
           Select which organization (UUID or name) to capture provisioner info
-          for. Defaults to the current user's organization.
+          for. Defaults to the workspace's organization, or the user's
+          organization if they belong to exactly one.
 
   -O, --output-file string, $CODER_SUPPORT_BUNDLE_OUTPUT_FILE
           File path for writing the generated support bundle. Defaults to

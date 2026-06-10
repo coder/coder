@@ -151,7 +151,10 @@ type Deps struct {
 	// CollectPprof toggles server and agent pprof collection.
 	CollectPprof bool
 	// OrganizationID specifies the organization to capture provisioner info for.
-	// When zero, defaults to the user's default org.
+	// When zero, defaults to the workspace's organization. If no workspace is
+	// specified and the user belongs to exactly one organization, that org is
+	// used. If the user belongs to multiple organizations, no org is selected
+	// and a warning is logged.
 	OrganizationID uuid.UUID
 }
 
@@ -1234,15 +1237,23 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 				d.Log.Warn(ctx, "unable to fetch user organizations", slog.Error(err))
 				return nil
 			}
-			if len(orgs) > 0 {
-				// Sort for determinism; pick the first org alphabetically.
-				slices.SortFunc(orgs, func(a, b codersdk.Organization) int {
-					return strings.Compare(a.Name, b.Name)
-				})
+			switch len(orgs) {
+			case 0:
+				// No orgs, nothing to collect.
+			case 1:
 				orgID = orgs[0].ID
-				d.Log.Info(ctx, "auto-detected organization for support bundle",
+				d.Log.Info(ctx, "auto-selected organization for support bundle",
 					slog.F("org_name", orgs[0].Name),
-					slog.F("hint", "use --org to select a different organization"),
+				)
+			default:
+				// Multiple orgs and no explicit selection. List them so
+				// the user knows which to pick, but do not guess.
+				names := make([]string, 0, len(orgs))
+				for _, o := range orgs {
+					names = append(names, o.Name)
+				}
+				d.Log.Warn(ctx, "multiple organizations available; use --org to select one",
+					slog.F("organizations", names),
 				)
 			}
 		}

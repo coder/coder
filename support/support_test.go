@@ -124,6 +124,9 @@ func TestRun(t *testing.T) {
 		assert.Equal(t, pd.Name, bun.Organization.ProvisionerDaemons[0].Name, "expected registered provisioner daemon")
 		// The failed workspace build above should appear as a non-successful job.
 		require.NotEmpty(t, bun.Organization.ProvisionerJobs, "provisioner jobs should not be empty")
+		for _, job := range bun.Organization.ProvisionerJobs {
+			assert.NotEqual(t, codersdk.ProvisionerJobSucceeded, job.Status, "only non-succeeded jobs should be included")
+		}
 
 		// New: deployment health settings should be present
 		assertNotNilNotEmpty(t, bun.Deployment.HealthSettings, "deployment health settings should be present")
@@ -229,6 +232,13 @@ func TestRun(t *testing.T) {
 		assert.Empty(t, bun.Workspace.Workspace, "did not expect workspace to be present")
 		assert.Empty(t, bun.Agent, "did not expect agent to be present")
 		assertNotNilNotEmpty(t, bun.Logs, "bundle logs should be present")
+
+		// Member should still see org info (members can read their own org).
+		assert.NotEqual(t, uuid.Nil, bun.Organization.Organization.ID, "organization ID should be present for member")
+		assert.NotEmpty(t, bun.Organization.Organization.Name, "organization name should be present for member")
+		// Members lack provisioner read permissions; 403 is swallowed, fields are zero-valued.
+		assert.Empty(t, bun.Organization.ProvisionerDaemons, "member should not see provisioner daemons")
+		assert.Empty(t, bun.Organization.ProvisionerJobs, "member should not see provisioner jobs")
 	})
 }
 
