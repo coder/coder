@@ -3,16 +3,16 @@ Description="Coder - external workspace proxy server"
 Documentation=https://coder.com/docs
 Requires=network-online.target
 After=network-online.target
-ConditionFileNotEmpty=|/etc/coder.d/coder-workspace-proxy.env
 ConditionFileNotEmpty=|/etc/coder/coder-workspace-proxy.env
+ConditionFileNotEmpty=|/etc/coder.d/coder-workspace-proxy.env
 StartLimitIntervalSec=60
 StartLimitBurst=3
 
 [Service]
 Type=notify
-# Both env file paths are honored; /etc/coder/coder-workspace-proxy.env takes precedence.
-EnvironmentFile=-/etc/coder.d/coder-workspace-proxy.env
+# Both paths are honored; the legacy /etc/coder.d file wins while it exists so upgrades keep their config.
 EnvironmentFile=-/etc/coder/coder-workspace-proxy.env
+EnvironmentFile=-/etc/coder.d/coder-workspace-proxy.env
 User=coder
 Group=coder
 ProtectSystem=full

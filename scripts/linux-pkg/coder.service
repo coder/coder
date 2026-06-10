@@ -3,16 +3,16 @@ Description="Coder - Self-hosted developer workspaces on your infra"
 Documentation=https://coder.com/docs
 Requires=network-online.target
 After=network-online.target
-ConditionFileNotEmpty=|/etc/coder.d/coder.env
 ConditionFileNotEmpty=|/etc/coder/coder.env
+ConditionFileNotEmpty=|/etc/coder.d/coder.env
 StartLimitIntervalSec=10
 StartLimitBurst=3
 
 [Service]
 Type=notify
-# Both env file paths are honored; /etc/coder/coder.env takes precedence.
-EnvironmentFile=-/etc/coder.d/coder.env
+# Both paths are honored; the legacy /etc/coder.d file wins while it exists so upgrades keep their config.
 EnvironmentFile=-/etc/coder/coder.env
+EnvironmentFile=-/etc/coder.d/coder.env
 User=coder
 Group=coder
 ProtectSystem=full

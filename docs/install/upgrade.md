@@ -18,13 +18,14 @@ merged at runtime, and Coder only reads a single env file, so the suffix was
 misleading.
 
 No files are moved during the upgrade. The packaged systemd units honor both
-locations: an existing `/etc/coder.d/coder.env` keeps working, and
-`/etc/coder/coder.env` takes precedence when both files exist. Fresh installs
-only write `/etc/coder/coder.env`.
+locations: an existing `/etc/coder.d/coder.env` keeps working and takes
+precedence while it exists, so upgraded installations keep their working
+configuration. Fresh installs only write `/etc/coder/coder.env`.
 
 To consolidate an existing installation on the new path, move the file,
 remove the legacy directory, and reload systemd so the updated unit takes
-effect:
+effect. Move the legacy file rather than copying it; it takes precedence
+over `/etc/coder/coder.env` while it is present.
 
 ```shell
 sudo mv /etc/coder.d/coder.env /etc/coder/coder.env
@@ -32,6 +33,12 @@ sudo rmdir /etc/coder.d
 sudo systemctl daemon-reload
 sudo systemctl restart coder
 ```
+
+On rpm upgrades, a locally modified `/etc/coder.d/coder.env` may be renamed
+to `coder.env.rpmsave` when the file leaves the package manifest. If the
+server comes up unconfigured after an rpm upgrade, restore the file with
+`mv /etc/coder.d/coder.env.rpmsave /etc/coder/coder.env` and restart the
+service.
 
 > [!NOTE]
 > On RPM-based systems with custom SELinux policy that explicitly labels
