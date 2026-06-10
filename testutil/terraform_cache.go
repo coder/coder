@@ -4,7 +4,6 @@ package testutil
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -89,9 +88,15 @@ func WriteTFCliConfig(t *testing.T, dir string) string {
 	return cliConfigPath
 }
 
-// runCmd retries each command because the provider cache population commands
-// hit the network and intermittently fail with transient registry/GitHub 5xx
-// errors. Retrying any non-zero exit absorbs those flakes, and is safe because
+const (
+	runCmdMaxAttempts = 5
+	runCmdRetryFloor  = 5 * time.Second
+	runCmdRetryCeil   = 30 * time.Second
+)
+
+// runCmd runs the given command, retrying on any non-zero exit because the
+// provider cache population commands hit the network and intermittently fail
+// with transient registry/GitHub 5xx errors. Retrying is safe because
 // `terraform init` and `terraform providers mirror` are idempotent.
 //
 // The window is wide because registry/GitHub incidents last seconds to
@@ -99,16 +104,10 @@ func WriteTFCliConfig(t *testing.T, dir string) string {
 // from the floor and caps it at the ceil, so attempts start at roughly t=0s,
 // 8s, 21s, 42s, and 72s, plus command runtime. The wait is cheap because this
 // path runs only on a cache miss (see DownloadTFProviders).
-const (
-	runCmdMaxAttempts = 5
-	runCmdRetryFloor  = 5 * time.Second
-	runCmdRetryCeil   = 30 * time.Second
-)
-
 func runCmd(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	var (
 		attempt                int
 		lastErr                error
@@ -116,7 +115,7 @@ func runCmd(t *testing.T, dir string, args ...string) {
 	)
 	for r := retry.New(runCmdRetryFloor, runCmdRetryCeil); attempt < runCmdMaxAttempts && r.Wait(ctx); attempt++ {
 		stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-		cmd := exec.Command(args[0], args[1:]...) //#nosec
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...) //#nosec
 		cmd.Dir = dir
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
@@ -126,11 +125,11 @@ func runCmd(t *testing.T, dir string, args ...string) {
 		}
 		lastErr = err
 		lastStdout, lastStderr = stdout.String(), stderr.String()
-		t.Logf("attempt %d/%d to run %s failed: %s\nstderr: %s",
-			attempt+1, runCmdMaxAttempts, strings.Join(args, " "), err, lastStderr)
+		t.Logf("attempt %d/%d to run %s failed: %s\nstdout: %s\nstderr: %s",
+			attempt+1, runCmdMaxAttempts, strings.Join(args, " "), err, lastStdout, lastStderr)
 	}
 	t.Fatalf("failed to run %s after %d attempts: %s\nstdout: %s\nstderr: %s",
-		strings.Join(args, " "), runCmdMaxAttempts, lastErr, lastStdout, lastStderr)
+		strings.Join(args, " "), attempt, lastErr, lastStdout, lastStderr)
 }
 
 // GetTestTFCacheDir returns a unique cache directory path based on the test name and template files.
