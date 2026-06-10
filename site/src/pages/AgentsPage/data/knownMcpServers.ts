@@ -22,54 +22,10 @@ interface KnownMcpServer {
 
 const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 	{
-		displayName: "Atlassian",
-		slug: "atlassian",
-		iconUrl: "/icon/atlassian.svg",
-		hostPatterns: [
-			/^mcp\.atlassian\.com$/i,
-			/^api\.atlassian\.com$/i,
-			/^([a-z0-9-]+\.)?atlassian\.net$/i,
-		],
-	},
-	{
-		displayName: "Auth0",
-		slug: "auth0",
-		iconUrl: "/icon/auth0.svg",
-		hostPatterns: [/^mcp\.auth0\.com$/i, /^([a-z0-9-]+\.)?auth0\.com$/i],
-	},
-	{
 		displayName: "Bitbucket",
 		slug: "bitbucket",
 		iconUrl: "/icon/bitbucket.svg",
 		hostPatterns: [/^mcp\.bitbucket\.org$/i, /^api\.bitbucket\.org$/i],
-	},
-	{
-		displayName: "Cloudflare",
-		slug: "cloudflare",
-		iconUrl: "/icon/cloudflare.svg",
-		hostPatterns: [
-			/^mcp\.cloudflare\.com$/i,
-			/^([a-z0-9-]+\.)?mcp\.cloudflare\.com$/i,
-		],
-	},
-	{
-		displayName: "Databricks",
-		slug: "databricks",
-		iconUrl: "/icon/databricks.svg",
-		hostPatterns: [
-			/^mcp\.databricks\.com$/i,
-			/^([a-z0-9-]+\.)?databricks\.com$/i,
-		],
-	},
-	{
-		displayName: "Datadog",
-		slug: "datadog",
-		iconUrl: "/icon/datadog.svg",
-		hostPatterns: [
-			/^mcp\.datadoghq\.com$/i,
-			/^mcp\.datadoghq\.eu$/i,
-			/^([a-z0-9-]+\.)?datadoghq\.com$/i,
-		],
 	},
 	{
 		displayName: "Discord",
@@ -82,12 +38,6 @@ const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 		slug: "figma",
 		iconUrl: "/icon/figma-black.svg",
 		hostPatterns: [/^mcp\.figma\.com$/i, /^api\.figma\.com$/i],
-	},
-	{
-		displayName: "Firecrawl",
-		slug: "firecrawl",
-		iconUrl: "/icon/firecrawl.svg",
-		hostPatterns: [/^mcp\.firecrawl\.dev$/i, /^api\.firecrawl\.dev$/i],
 	},
 	{
 		displayName: "GitHub",
@@ -106,28 +56,10 @@ const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 		hostPatterns: [/^mcp\.gitlab\.com$/i, /^gitlab\.com$/i],
 	},
 	{
-		displayName: "Grafana",
-		slug: "grafana",
-		iconUrl: "/icon/grafana-labs.svg",
-		hostPatterns: [/^mcp\.grafana\.com$/i, /^([a-z0-9-]+\.)?grafana\.net$/i],
-	},
-	{
 		displayName: "Linear",
 		slug: "linear",
 		iconUrl: "/icon/linear.svg",
 		hostPatterns: [/^mcp\.linear\.app$/i, /^linear\.app$/i],
-	},
-	{
-		displayName: "MongoDB",
-		slug: "mongodb",
-		iconUrl: "/icon/mongodb.svg",
-		hostPatterns: [/^mcp\.mongodb\.com$/i, /^([a-z0-9-]+\.)?mongodb\.com$/i],
-	},
-	{
-		displayName: "Netlify",
-		slug: "netlify",
-		iconUrl: "/icon/netlify.svg",
-		hostPatterns: [/^mcp\.netlify\.com$/i, /^netlify\.com$/i],
 	},
 	{
 		displayName: "Notion",
@@ -140,37 +72,12 @@ const KNOWN_MCP_SERVERS: readonly KnownMcpServer[] = [
 		],
 	},
 	{
-		displayName: "PagerDuty",
-		slug: "pagerduty",
-		iconUrl: "/icon/pagerduty.svg",
-		hostPatterns: [/^mcp\.pagerduty\.com$/i, /^api\.pagerduty\.com$/i],
-	},
-	{
-		displayName: "Sentry",
-		slug: "sentry",
-		iconUrl: "/icon/sentry.svg",
-		hostPatterns: [
-			/^mcp\.sentry\.dev$/i,
-			/^mcp\.sentry\.io$/i,
-			/^sentry\.io$/i,
-		],
-	},
-	{
 		displayName: "Slack",
 		slug: "slack",
 		iconUrl: "/icon/slack.svg",
 		hostPatterns: [/^mcp\.slack\.com$/i, /^slack\.com$/i],
 	},
-	{
-		displayName: "Snowflake",
-		slug: "snowflake",
-		iconUrl: "/icon/snowflake.svg",
-		hostPatterns: [
-			/^mcp\.snowflake\.com$/i,
-			/^([a-z0-9-]+\.)?snowflakecomputing\.com$/i,
-		],
-	},
-] as const;
+];
 
 /**
  * Look up a known MCP server entry by Server URL.

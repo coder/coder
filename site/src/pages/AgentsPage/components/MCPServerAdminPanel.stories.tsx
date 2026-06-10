@@ -321,20 +321,20 @@ export const CreateServerKnownUrlIconRestoresOnClear: Story = {
 
 		await userEvent.type(
 			await body.findByLabelText(/Server URL/i),
-			"https://mcp.sentry.dev/mcp",
+			"https://mcp.linear.app/sse",
 		);
 
 		// Wait for the URL prefill to set the icon URL.
 		const iconInput = await body.findByLabelText("Icon");
 		await waitFor(() => {
-			expect(iconInput).toHaveValue("/icon/sentry.svg");
+			expect(iconInput).toHaveValue("/icon/linear.svg");
 		});
 
 		// Clear the icon field. The known-server registry should
 		// re-suggest the bundled default immediately.
 		await userEvent.clear(iconInput);
 		await waitFor(() => {
-			expect(iconInput).toHaveValue("/icon/sentry.svg");
+			expect(iconInput).toHaveValue("/icon/linear.svg");
 		});
 	},
 };
