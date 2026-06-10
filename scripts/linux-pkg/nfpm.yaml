@@ -16,7 +16,6 @@ suggests:
 
 scripts:
   preinstall: preinstall.sh
-  postinstall: postinstall.sh
 
 contents:
   - src: coder
