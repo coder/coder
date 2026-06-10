@@ -342,8 +342,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			UpdateAIProvider(gomock.Any(), gomock.Any()).
 			Return(database.AIProvider{}, sql.ErrNoRows)
 
-		// Must not panic or log at error level; ErrNoRows means the provider
-		// was deleted between the list and the update, which is benign.
+		// ErrNoRows is benign: provider was deleted between list and update.
 		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
 	})
 
