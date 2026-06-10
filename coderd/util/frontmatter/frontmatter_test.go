@@ -1,6 +1,7 @@
 package frontmatter_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -13,11 +14,12 @@ func TestParse(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name     string
-		readme   string
-		wantMeta frontmatter.Frontmatter
-		wantBody string
-		wantErr  bool
+		name            string
+		readme          string
+		wantMeta        frontmatter.Frontmatter
+		wantBody        string
+		wantErr         bool
+		wantErrContains string
 	}{
 		{
 			name: "AllKnownKeys",
@@ -73,24 +75,40 @@ func TestParse(t *testing.T) {
 			wantBody: "# Title\n",
 		},
 		{
-			name:    "NoFencesReturnsError",
-			readme:  "# Just a heading\n\nNo frontmatter here.\n",
-			wantErr: true,
+			name:     "FenceTrailingWhitespaceTolerated",
+			readme:   "--- \nagent_description: trailing fence spaces\n---\t\n# Title\n",
+			wantMeta: frontmatter.Frontmatter{AgentDescription: "trailing fence spaces"},
+			wantBody: "# Title\n",
 		},
 		{
-			name:    "OnlyOneFenceReturnsError",
-			readme:  "---\nagent_description: missing closing fence\n# Title\n",
-			wantErr: true,
+			name:     "LeadingBOMTolerated",
+			readme:   "\ufeff---\nagent_description: byte order mark\n---\n# Title\n",
+			wantMeta: frontmatter.Frontmatter{AgentDescription: "byte order mark"},
+			wantBody: "# Title\n",
 		},
 		{
-			name:    "MalformedYAMLReturnsError",
-			readme:  "---\n\tthis: : : not valid yaml\n  - broken\n---\n# Title\n",
-			wantErr: true,
+			name:            "NoFencesReturnsError",
+			readme:          "# Just a heading\n\nNo frontmatter here.\n",
+			wantErr:         true,
+			wantErrContains: "two frontmatter fences",
 		},
 		{
-			name:    "EmptyStringReturnsError",
-			readme:  "",
-			wantErr: true,
+			name:            "OnlyOneFenceReturnsError",
+			readme:          "---\nagent_description: missing closing fence\n# Title\n",
+			wantErr:         true,
+			wantErrContains: "two frontmatter fences",
+		},
+		{
+			name:            "MalformedYAMLReturnsError",
+			readme:          "---\n\tthis: : : not valid yaml\n  - broken\n---\n# Title\n",
+			wantErr:         true,
+			wantErrContains: "as yaml",
+		},
+		{
+			name:            "EmptyStringReturnsError",
+			readme:          "",
+			wantErr:         true,
+			wantErrContains: "readme is empty",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -99,6 +117,7 @@ func TestParse(t *testing.T) {
 			meta, body, err := frontmatter.Parse(tc.readme)
 			if tc.wantErr {
 				require.Error(t, err)
+				require.ErrorContains(t, err, tc.wantErrContains)
 				require.Equal(t, frontmatter.Frontmatter{}, meta)
 				return
 			}
@@ -113,7 +132,7 @@ func TestParseDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
 	// A grab-bag of hostile inputs must never panic.
-	for _, in := range []string{
+	for i, in := range []string{
 		"",
 		"---",
 		"------",
@@ -122,8 +141,11 @@ func TestParseDoesNotPanic(t *testing.T) {
 		"---\n\x00\x00\n---\nbody",
 		strings.Repeat("---\n", 100),
 	} {
-		require.NotPanics(t, func() {
-			_, _, _ = frontmatter.Parse(in)
+		t.Run(fmt.Sprintf("input_%d", i), func(t *testing.T) {
+			t.Parallel()
+			require.NotPanics(t, func() {
+				_, _, _ = frontmatter.Parse(in)
+			})
 		})
 	}
 }

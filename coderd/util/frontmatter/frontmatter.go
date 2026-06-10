@@ -14,8 +14,8 @@ import (
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// AgentDescriptionMaxRunes bounds the agent_description value surfaced to
-// agents. It matches the cap used by the agent template-selection tools.
+// AgentDescriptionMaxRunes is the maximum rune count for the agent_description
+// frontmatter value surfaced to agents; longer values are truncated.
 const AgentDescriptionMaxRunes = 2048
 
 // Frontmatter is the locked set of recognized README frontmatter keys. Unknown
@@ -55,7 +55,6 @@ func Parse(readme string) (Frontmatter, string, error) {
 
 // AgentDescription returns the trimmed, truncated agent_description from a
 // README's frontmatter, or empty string when absent, blank, or unparsable.
-// This is the single entry point used by the agent template-selection tools.
 func AgentDescription(readme string) string {
 	fm, _, err := Parse(readme)
 	if err != nil {
@@ -69,10 +68,12 @@ func AgentDescription(readme string) string {
 // lines are preserved verbatim (indentation intact) so nested YAML parses
 // correctly, and the body is returned verbatim (everything after the closing
 // fence line) to match the example generator's previous output exactly.
-func separate(readme string) (frontmatter string, body string, err error) {
+func separate(readme string) (raw string, body string, err error) {
 	if strings.TrimSpace(readme) == "" {
 		return "", "", xerrors.New("readme is empty")
 	}
+	// Strip a leading UTF-8 BOM so a fence on the first line still matches.
+	readme = strings.TrimPrefix(readme, "\ufeff")
 
 	const fence = "---"
 	var fm strings.Builder
@@ -87,11 +88,12 @@ func separate(readme string) (frontmatter string, body string, err error) {
 			line = readme[i : i+j]
 			next = i + j + 1
 		}
-		// Strip a trailing carriage return so CRLF readmes compare against the
-		// fence and keep frontmatter YAML clean.
+		// Strip a trailing carriage return so CRLF readmes keep frontmatter
+		// YAML clean.
 		trimmed := strings.TrimRight(line, "\r")
-
-		if fenceCount < 2 && trimmed == fence {
+		// Tolerate trailing whitespace (a common editor artifact) when matching
+		// a fence line, e.g. "--- " or "---\t".
+		if fenceCount < 2 && strings.TrimRight(trimmed, " \t") == fence {
 			fenceCount++
 			if fenceCount == 2 {
 				return fm.String(), readme[next:], nil
