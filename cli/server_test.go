@@ -1793,6 +1793,56 @@ func TestServer(t *testing.T) {
 	})
 }
 
+// TestServer_InvalidSSHDeploymentConfig checks that unsafe SSH config flags are
+// rejected at startup, before any database connection, so these invocations
+// fail fast.
+func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		flag    string
+		wantErr string
+	}{
+		{
+			name:    "HostnameSuffixLeadingDot",
+			flag:    "--workspace-hostname-suffix=.coder",
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name:    "HostnameSuffixNewline",
+			flag:    "--workspace-hostname-suffix=coder\nHost *",
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name:    "HostnamePrefixNewline",
+			flag:    "--ssh-hostname-prefix=coder.\nHost *",
+			wantErr: "workspace hostname prefix",
+		},
+		{
+			name:    "SSHOptionUnparseable",
+			flag:    "--ssh-config-options=NoSeparatorOption",
+			wantErr: "parse ssh config options",
+		},
+		{
+			name:    "SSHOptionDisallowedKey",
+			flag:    "--ssh-config-options=ProxyCommand=ssh -W %h:%p bastion",
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			inv, _ := clitest.New(t, "server", tc.flag)
+			err := inv.WithContext(ctx).Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
 //nolint:tparallel,paralleltest // This test sets environment variables.
 func TestServer_Logging_NoParallel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

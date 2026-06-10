@@ -504,12 +504,18 @@ client:
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
   # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
-  # Desktop. By default it is coder, resulting in names like myworkspace.coder.
+  # Desktop. By default it is coder, resulting in names like myworkspace.coder. The
+  # suffix must not start with a dot, and must not contain spaces, newlines, or glob
+  # characters (* and ?).
   # (default: coder, type: string)
   workspaceHostnameSuffix: coder
   # These SSH config options will override the default SSH config options. Provide
-  # options in "key=value" or "key value" format separated by commas.Using this
-  # incorrectly can break SSH to your deployment, use cautiously.
+  # options in "key=value" or "key value" format separated by commas. Using this
+  # incorrectly can break SSH to your deployment, use cautiously. The following
+  # options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump,
+  # LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand,
+  # PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option
+  # values must not contain newline, carriage return, or NUL characters.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
