@@ -256,12 +256,6 @@ func (w *ErrorWaiter) RequireContains(s string) {
 	require.ErrorContains(w.t, w.Wait(), s)
 }
 
-func (w *ErrorWaiter) RequireNotContains(s string) {
-	err := w.Wait()
-	require.Error(w.t, err)
-	require.NotContains(w.t, err.Error(), s)
-}
-
 func (w *ErrorWaiter) RequireIs(want error) {
 	require.ErrorIs(w.t, w.Wait(), want)
 }
