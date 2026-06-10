@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -30,13 +32,13 @@ func TestBackfillBedrockProviderTypeEncryptedSettings(t *testing.T) {
 	cryptDB, err := dbcrypt.New(ctx, rawDB, ciphers...)
 	require.NoError(t, err)
 
-	bedrockSettings := sql.NullString{
-		String: `{"_type":"bedrock","_version":1,"region":"us-east-1"}`,
-		Valid:  true,
-	}
+	rawSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+	})
+	require.NoError(t, err)
 	provider := dbgen.AIProvider(t, cryptDB, database.AIProvider{
 		Type:     database.AiProviderTypeAnthropic,
-		Settings: bedrockSettings,
+		Settings: sql.NullString{String: string(rawSettings), Valid: true},
 	})
 
 	agplcoderd.BackfillBedrockProviderType(ctx, cryptDB, logger)

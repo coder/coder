@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // BackfillBedrockProviderType promotes legacy ai_providers rows stored as
@@ -78,15 +79,16 @@ func BackfillChatModelConfigProviderStrings(ctx context.Context, db database.Sto
 	//nolint:gocritic // Startup-only backfill; no user actor is present.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	result, err := db.BackfillChatModelConfigProvider(sysCtx, database.BackfillChatModelConfigProviderParams{
-		OldProvider: "anthropic",
-		NewProvider: "bedrock",
+		OldProvider: string(codersdk.AIProviderTypeAnthropic),
+		NewProvider: string(codersdk.AIProviderTypeBedrock),
 	})
 	if err != nil {
 		logger.Error(ctx, "backfill chat model config provider strings", slog.Error(err))
 		return
 	}
-	n, _ := result.RowsAffected()
-	if n > 0 {
-		logger.Info(ctx, "backfilled chat model config provider strings", slog.F("count", n))
+	if result != nil {
+		if n, _ := result.RowsAffected(); n > 0 {
+			logger.Info(ctx, "backfilled chat model config provider strings", slog.F("count", n))
+		}
 	}
 }

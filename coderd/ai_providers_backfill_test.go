@@ -52,6 +52,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, legacy.Type, "pre-condition: row must start as anthropic")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
