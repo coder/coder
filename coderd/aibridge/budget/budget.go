@@ -1,7 +1,7 @@
-// Package aibudget resolves the effective AI spend budget for a user. A
+// Package budget resolves the effective AI spend budget for a user. A
 // per-user override always wins; otherwise the deployment budget policy selects
 // a budget from the groups the user belongs to.
-package aibudget
+package budget
 
 import (
 	"context"

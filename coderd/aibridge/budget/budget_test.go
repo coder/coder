@@ -1,4 +1,4 @@
-package aibudget_test
+package budget_test
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/aibridge/aibudget"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -52,13 +52,13 @@ func TestResolveUserAIBudget(t *testing.T) {
 	tests := []struct {
 		name    string
 		policy  codersdk.AIBudgetPolicy
-		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want aibudget.EffectiveBudget, wantOK bool)
+		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want budget.EffectiveBudget, wantOK bool)
 		wantErr string
 	}{
 		{
 			name:   "OverrideWins",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				// A higher group budget that the override must still beat.
@@ -72,47 +72,47 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 1_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, aibudget.EffectiveBudget{GroupID: og.ID, SpendLimitMicros: 1_000_000, Source: aibudget.SourceUserOverride}, true
+				return user.ID, budget.EffectiveBudget{GroupID: og.ID, SpendLimitMicros: 1_000_000, Source: budget.SourceUserOverride}, true
 			},
 		},
 		{
 			name:   "SingleGroupBudget",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				gid := budgetedGroup(t, ctx, db, org.ID, user.ID, "only", 8_000_000)
-				return user.ID, aibudget.EffectiveBudget{GroupID: gid, SpendLimitMicros: 8_000_000, Source: aibudget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: gid, SpendLimitMicros: 8_000_000, Source: budget.SourceGroup}, true
 			},
 		},
 		{
 			name:   "HighestGroupWins",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "low", 5_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "mid", 20_000_000)
 				high := budgetedGroup(t, ctx, db, org.ID, user.ID, "high", 50_000_000)
-				return user.ID, aibudget.EffectiveBudget{GroupID: high, SpendLimitMicros: 50_000_000, Source: aibudget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: high, SpendLimitMicros: 50_000_000, Source: budget.SourceGroup}, true
 			},
 		},
 		{
 			name:   "TieBrokenByName",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				// Equal limits; "alpha" must win over "beta" by name ascending.
 				alpha := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
-				return user.ID, aibudget.EffectiveBudget{GroupID: alpha, SpendLimitMicros: 10_000_000, Source: aibudget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: alpha, SpendLimitMicros: 10_000_000, Source: budget.SourceGroup}, true
 			},
 		},
 		{
 			name:   "TieBrokenByGroupID",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				user := dbgen.User(t, db, database.User{})
 				// Two groups in different orgs share both name and limit.
 				// Group id breaks the tie, so resolution is deterministic.
@@ -124,36 +124,36 @@ func TestResolveUserAIBudget(t *testing.T) {
 				if bytes.Compare(g2[:], g1[:]) < 0 {
 					winner = g2
 				}
-				return user.ID, aibudget.EffectiveBudget{GroupID: winner, SpendLimitMicros: 10_000_000, Source: aibudget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: winner, SpendLimitMicros: 10_000_000, Source: budget.SourceGroup}, true
 			},
 		},
 		{
 			name:   "GroupsButNoneBudgeted",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				g := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "unbudgeted"})
 				dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: g.ID})
-				return user.ID, aibudget.EffectiveBudget{}, false
+				return user.ID, budget.EffectiveBudget{}, false
 			},
 		},
 		{
 			name:   "EveryoneGroupBudget",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				// Membership is via organization_members only (no group_members row),
 				// exercising the org-members half of group_members_expanded.
 				everyoneID := budgetedEveryoneGroup(t, ctx, db, org.ID, user.ID, 7_000_000)
-				return user.ID, aibudget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 7_000_000, Source: aibudget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 7_000_000, Source: budget.SourceGroup}, true
 			},
 		},
 		{
 			name:   "OverrideBeatsEveryoneBudget",
 			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				everyoneID := budgetedEveryoneGroup(t, ctx, db, org.ID, user.ID, 7_000_000)
@@ -165,16 +165,16 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 2_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, aibudget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 2_000_000, Source: aibudget.SourceUserOverride}, true
+				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 2_000_000, Source: budget.SourceUserOverride}, true
 			},
 		},
 		{
 			name:   "UnsupportedPolicy",
 			policy: codersdk.AIBudgetPolicy("unsupported"),
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, aibudget.EffectiveBudget, bool) {
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveBudget, bool) {
 				// No override, so resolution reaches the policy switch and errors.
 				user := dbgen.User(t, db, database.User{})
-				return user.ID, aibudget.EffectiveBudget{}, false
+				return user.ID, budget.EffectiveBudget{}, false
 			},
 			wantErr: "unsupported AI budget policy",
 		},
@@ -188,7 +188,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			userID, want, wantOK := tt.setup(t, ctx, db)
-			got, ok, err := aibudget.ResolveUserAIBudget(ctx, db, userID, tt.policy)
+			got, ok, err := budget.ResolveUserAIBudget(ctx, db, userID, tt.policy)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
