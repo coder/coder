@@ -85,6 +85,41 @@ Use readable, descriptive names rather than slugs or internal codes. A display
 name like "Python Backend (Payments)" is more useful to both humans and the
 agent than `py-be-pay-v3`.
 
+### Add a longer agent description
+
+The short `description` also appears on the dashboard templates page, so it is
+intentionally limited to 128 characters. When that is not enough room to fully
+describe a template for the agent, add an `agent_description` field to the
+template's `README.md` frontmatter.
+
+`agent_description` is read only by the agent, is never shown in the dashboard,
+and can be up to 2048 characters. The agent sees it when it inspects a template
+in detail (the `read_template` and `coder_get_template` tools), so use it to
+give richer routing context than the short description can hold: when to choose
+this template, what it is *not* for, and the specific stack or services it
+provides.
+
+```yaml
+---
+display_name: Kubernetes (Deployment)
+description: Provision Kubernetes Deployments as Coder workspaces
+icon: ../../../site/static/icon/k8s.png
+maintainer_github: coder
+verified: true
+tags: [kubernetes, container]
+agent_description: >-
+  Kubernetes Deployment workspaces for container-native development on an
+  existing cluster. Use when the work should run as a pod with cluster access
+  and configurable CPU, memory, and persistent storage. Not intended for
+  standalone VM or local Docker workflows.
+---
+```
+
+The README frontmatter is stored with the template version when you run
+`coder templates push`, so updating it is part of your normal template
+workflow. The short `description` still drives the initial template listing, so
+keep it accurate and specific as well.
+
 ## Create dedicated agent templates
 
 Rather than reusing your standard interactive developer templates for agent
@@ -283,6 +318,8 @@ Agents:
 
 - Template has a specific, natural-language description that includes
   language, framework, and target project or service.
+- `agent_description` README frontmatter provides longer routing context when
+  the 128-character description is not enough.
 - Display name is readable and descriptive.
 - Network egress is restricted to the control plane and git provider.
 - External service credentials use minimal-scope tokens.

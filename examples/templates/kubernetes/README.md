@@ -5,6 +5,7 @@ icon: ../../../site/static/icon/k8s.png
 maintainer_github: coder
 verified: true
 tags: [kubernetes, container]
+agent_description: Kubernetes Deployment workspaces for container-native development on an existing cluster. Use when the work should run as a pod with cluster access and configurable CPU, memory, and persistent storage. Not intended for standalone VM or local Docker workflows.
 ---
 
 # Remote Development on Kubernetes Pods

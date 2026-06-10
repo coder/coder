@@ -5,6 +5,7 @@ icon: ../../../site/static/icon/gcp.png
 maintainer_github: coder
 verified: true
 tags: [vm, linux, gcp]
+agent_description: Google Compute Engine Linux VM workspaces for development on GCP. Use when the work needs a full virtual machine, access to GCP services, or region-specific placement rather than a container.
 ---
 
 # Remote Development on Google Compute Engine (Linux)

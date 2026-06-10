@@ -135,6 +135,11 @@ Update your template descriptions to include:
 - Which repository or service it is for, if applicable.
 - What type of work it supports (backend, frontend, data pipeline, etc.).
 
+When 128 characters is not enough, add a longer
+[`agent_description`](./platform-controls/template-optimization.md#add-a-longer-agent-description)
+to the template's `README.md` frontmatter. It is read only by the agent and can
+be up to 2048 characters.
+
 **Good examples:**
 
 | Description                                                                                 | Why it works                                 |
