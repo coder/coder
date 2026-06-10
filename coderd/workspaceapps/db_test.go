@@ -908,6 +908,10 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, connLogger.ConnectionLogs(), 0)
 	})
 
+	// Security (PLAT-260): a UUID workspace lookup must reject when
+	// the URL's username segment names a different owner. Otherwise a
+	// same-owner origin can be spoofed for credentialed cross-origin
+	// reads.
 	t.Run("WorkspaceUUIDOwnerMismatch", func(t *testing.T) {
 		t.Parallel()
 

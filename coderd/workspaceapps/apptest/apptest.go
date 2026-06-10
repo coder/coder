@@ -1247,6 +1247,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
+		// Security (PLAT-260): must 404 when the URL username segment
+		// names a different owner than the resolved workspace.
 		t.Run("WorkspaceUUIDOwnerMismatchShould404", func(t *testing.T) {
 			t.Parallel()
 
