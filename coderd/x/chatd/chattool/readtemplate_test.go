@@ -253,7 +253,7 @@ func TestReadTemplate_AgentDescription(t *testing.T) {
 
 	// A template whose active version row is missing must not fail
 	// read_template; the version fetch is best-effort and agent_description is
-	// simply omitted. This guards the CRF-1 fix against regression.
+	// simply omitted.
 	t.Run("MissingVersionOmitsField", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
