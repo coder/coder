@@ -169,6 +169,63 @@ func TestConfigSSH(t *testing.T) {
 	<-copyDone
 }
 
+func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	testCases := []struct {
+		name      string
+		configSSH codersdk.SSHConfigResponse
+		wantErr   string
+	}{
+		{
+			name:      "HostnameSuffix",
+			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:   "workspace hostname suffix",
+		},
+		{
+			name:      "HostnamePrefix",
+			configSSH: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:   "workspace hostname prefix",
+		},
+		{
+			name:      "HostnameSuffixGlob",
+			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "*"},
+			wantErr:   "glob",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			const existingConfig = "Host safe\n\tHostName safe.example.com\n"
+			client := coderdtest.New(t, &coderdtest.Options{
+				ConfigSSH: tc.configSSH,
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			sshConfigPath := sshConfigFileName(t)
+			sshConfigFileCreate(t, sshConfigPath, strings.NewReader(existingConfig))
+
+			inv, root := clitest.New(t,
+				"config-ssh",
+				"--ssh-config-file", sshConfigPath,
+				"--yes",
+			)
+			clitest.SetupConfig(t, client, root)
+
+			err := inv.Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
+		})
+	}
+}
+
 func TestConfigSSH_MissingDirectory(t *testing.T) {
 	t.Parallel()
 
