@@ -4,6 +4,7 @@ import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor"
 import {
 	buildSubagentMaps,
 	getEditableUserMessagePayload,
+	getPendingToolCallIDs,
 	mergeTools,
 	parseMessageContent,
 	parseMessagesWithMergedTools,
@@ -518,6 +519,115 @@ describe("mergeTools", () => {
 		const merged = mergeTools([{ id: "1", name: "bash" }], []);
 		expect(merged).toHaveLength(1);
 		expect(merged[0].status).toBe("completed");
+	});
+
+	it("marks unresolved pending calls as running", () => {
+		const merged = mergeTools([{ id: "1", name: "bash" }], [], {
+			pendingToolCallIDs: new Set(["1"]),
+		});
+		expect(merged).toHaveLength(1);
+		expect(merged[0].status).toBe("running");
+	});
+});
+
+describe("pending durable tool parsing", () => {
+	const msg = (
+		id: number,
+		role: "assistant" | "tool" | "user",
+		parts: ChatMessagePart[],
+	): ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: new Date(2026, 0, id).toISOString(),
+		role,
+		content: parts,
+	});
+
+	const toolCall = (
+		id: string,
+		name = "create_workspace",
+	): ChatMessagePart => ({
+		type: "tool-call",
+		tool_call_id: id,
+		tool_name: name,
+		args: { name: "dev" },
+	});
+
+	const toolResult = (
+		id: string,
+		name = "create_workspace",
+		isError = false,
+	): ChatMessagePart => ({
+		type: "tool-result",
+		tool_call_id: id,
+		tool_name: name,
+		result: { workspace_name: "dev", build_id: "build-1" },
+		is_error: isError,
+	});
+
+	it("marks the latest unresolved assistant tool call as running in an active chat", () => {
+		const messages = [
+			msg(1, "user", [{ type: "text", text: "create a workspace" }]),
+			msg(2, "assistant", [toolCall("call-active")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+		});
+
+		expect(parsed[1]?.parsed.tools[0]?.status).toBe("running");
+	});
+
+	it("keeps unresolved historical tool calls completed in an inactive chat", () => {
+		const messages = [
+			msg(1, "user", [{ type: "text", text: "create a workspace" }]),
+			msg(2, "assistant", [toolCall("call-inactive")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "waiting"),
+		});
+
+		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
+	});
+
+	it("uses completed or error status once a matching result exists", () => {
+		const successMessages = [
+			msg(1, "user", [{ type: "text", text: "create a workspace" }]),
+			msg(2, "assistant", [toolCall("call-success")]),
+			msg(3, "tool", [toolResult("call-success")]),
+		];
+		const errorMessages = [
+			msg(1, "user", [{ type: "text", text: "create a workspace" }]),
+			msg(2, "assistant", [toolCall("call-error")]),
+			msg(3, "tool", [toolResult("call-error", "create_workspace", true)]),
+		];
+
+		const successParsed = parseMessagesWithMergedTools(successMessages, {
+			pendingToolCallIDs: getPendingToolCallIDs(successMessages, "running"),
+		});
+		const errorParsed = parseMessagesWithMergedTools(errorMessages, {
+			pendingToolCallIDs: getPendingToolCallIDs(errorMessages, "running"),
+		});
+
+		expect(successParsed[1]?.parsed.tools[0]?.status).toBe("completed");
+		expect(errorParsed[1]?.parsed.tools[0]?.status).toBe("error");
+	});
+
+	it("does not mark older unresolved rows running in an active chat", () => {
+		const messages = [
+			msg(1, "user", [{ type: "text", text: "first" }]),
+			msg(2, "assistant", [toolCall("call-old", "read_file")]),
+			msg(3, "user", [{ type: "text", text: "second" }]),
+			msg(4, "assistant", [toolCall("call-latest", "create_workspace")]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+		});
+
+		expect(parsed[1]?.parsed.tools[0]?.status).toBe("completed");
+		expect(parsed[3]?.parsed.tools[0]?.status).toBe("running");
 	});
 });
 
