@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatpdf"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -779,24 +778,10 @@ func prepareMessagesForRequest(
 		)
 		return canonical, nil, err
 	}
+	// ValidatePrompt returns an already-classified configuration error, so a
+	// context wrap is enough; chaterror.Classify unwraps to find it.
 	if err = chatpdf.ValidatePrompt(provider, opts.ContextLimitFallback, prompt); err != nil {
-		classified := chaterror.ClassifiedError{
-			Message:   "PDF attachments are not valid for this model. Update the PDFs and retry.",
-			Detail:    err.Error(),
-			Kind:      codersdk.ChatErrorKindConfig,
-			Provider:  chatprovider.NormalizeProvider(provider),
-			Retryable: false,
-		}
-		var validationErr *chatpdf.ValidationError
-		if errors.As(err, &validationErr) {
-			classified.Message = validationErr.UserMessage()
-			classified.Detail = validationErr.Error()
-		}
-		err = chaterror.WithClassification(
-			xerrors.Errorf("validate Anthropic PDF attachments: %w", err),
-			classified,
-		)
-		return canonical, nil, err
+		return canonical, nil, xerrors.Errorf("validate PDF attachments: %w", err)
 	}
 	if shouldApplyAnthropicPromptCaching(opts.Model) {
 		addAnthropicPromptCaching(prompt)

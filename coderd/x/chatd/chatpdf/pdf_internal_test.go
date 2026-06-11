@@ -2,7 +2,6 @@ package chatpdf
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -13,7 +12,9 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestValidatePDFPrompt(t *testing.T) {
@@ -26,11 +27,11 @@ func TestValidatePDFPrompt(t *testing.T) {
 			" ANTHROPIC ", 200_000,
 			promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))),
 		)
-		validationErr := requireValidationError(t, err)
-		require.Contains(t, validationErr.UserMessage(), "bad.pdf")
-		require.Contains(t, validationErr.UserMessage(), "not a valid PDF")
-		require.Contains(t, validationErr.Error(), `provider="anthropic"`)
-		require.Contains(t, validationErr.Error(), "reason=invalid_pdf")
+		classified := requireRejected(t, err)
+		require.Equal(t, fantasyanthropic.Name, classified.Provider)
+		require.Contains(t, classified.Message, "bad.pdf")
+		require.Contains(t, classified.Message, "not a valid PDF")
+		require.Contains(t, err.Error(), "reason=invalid_pdf")
 	})
 
 	t.Run("Rejects encrypted PDFs", func(t *testing.T) {
@@ -38,16 +39,16 @@ func TestValidatePDFPrompt(t *testing.T) {
 
 		data := append(validPDFWithPages(1), []byte("\ntrailer << /Encrypt 5 0 R >>")...)
 		err := ValidatePrompt(fantasyanthropic.Name, 200_000, promptWithPDF(pdfPart("locked.pdf", data)))
-		validationErr := requireValidationError(t, err)
-		require.Contains(t, validationErr.UserMessage(), "locked.pdf")
-		require.Contains(t, validationErr.Error(), "reason=encrypted_pdf")
+		classified := requireRejected(t, err)
+		require.Contains(t, classified.Message, "locked.pdf")
+		require.Contains(t, err.Error(), "reason=encrypted_pdf")
 	})
 
 	t.Run("Applies Bedrock caps and skips uncapped providers", func(t *testing.T) {
 		t.Parallel()
 
 		err := ValidatePrompt(fantasybedrock.Name, 200_000, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
-		require.Contains(t, requireValidationError(t, err).Error(), `provider="bedrock"`)
+		require.Equal(t, fantasybedrock.Name, requireRejected(t, err).Provider)
 
 		err = ValidatePrompt(fantasyopenai.Name, 0, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
 		require.NoError(t, err)
@@ -58,7 +59,7 @@ func TestValidatePDFPrompt(t *testing.T) {
 
 		prompt := promptWithPDF(pdfPart("long.pdf", validPDFWithPages(101)))
 		err := ValidatePrompt(fantasyanthropic.Name, 200_000, prompt)
-		require.Contains(t, requireValidationError(t, err).Error(), "page_cap=100")
+		require.Contains(t, err.Error(), "page_cap=100")
 
 		err = ValidatePrompt(fantasyanthropic.Name, 200_001, prompt)
 		require.NoError(t, err)
@@ -72,52 +73,60 @@ func TestValidatePDFPromptWithCaps(t *testing.T) {
 		t.Parallel()
 
 		part := pdfPart("repeat.pdf", validPDFWithPages(1))
-		err := validatePromptWithCaps(
+		err := validateWithCaps(
 			promptWithPDF(part, part),
-			chatprovider.AnthropicPDFCaps{RequestPayloadBytes: 1 << 20, PageCap: 1},
-			fantasyanthropic.Name,
+			limits{requestPayloadBytes: 1 << 20, pageCap: 1},
 		)
-		validationErr := requireValidationError(t, err)
-		require.Contains(t, validationErr.UserMessage(), "about 2 pages")
-		require.Contains(t, validationErr.Error(), "total_pages=2")
+		classified := requireRejected(t, err)
+		require.Contains(t, classified.Message, "about 2 pages")
+		require.Contains(t, err.Error(), "total_pages=2")
 	})
 
 	t.Run("Rejects aggregate encoded payload over cap", func(t *testing.T) {
 		t.Parallel()
 
 		data := validPDFWithPages(1)
-		err := validatePromptWithCaps(
+		err := validateWithCaps(
 			promptWithPDF(pdfPart("payload.pdf", data)),
-			chatprovider.AnthropicPDFCaps{
-				RequestPayloadBytes: base64.StdEncoding.EncodedLen(len(data)) - 1,
-				PageCap:             100,
+			limits{
+				requestPayloadBytes: base64.StdEncoding.EncodedLen(len(data)) - 1,
+				pageCap:             100,
 			},
-			fantasyanthropic.Name,
 		)
-		validationErr := requireValidationError(t, err)
-		require.Contains(t, validationErr.UserMessage(), "request limit")
-		require.Contains(t, validationErr.Error(), "reason=payload_cap")
+		classified := requireRejected(t, err)
+		require.Contains(t, classified.Message, "request limit")
+		require.Contains(t, err.Error(), "reason=payload_cap")
 	})
 
 	t.Run("Allows PDFs with unknown page count", func(t *testing.T) {
 		t.Parallel()
 
-		err := validatePromptWithCaps(
+		err := validateWithCaps(
 			promptWithPDF(pdfPart("unknown.pdf", []byte("%PDF-1.7\nxref\n0 0"))),
-			chatprovider.AnthropicPDFCaps{RequestPayloadBytes: 1 << 20, PageCap: 1},
-			fantasyanthropic.Name,
+			limits{requestPayloadBytes: 1 << 20, pageCap: 1},
 		)
 		require.NoError(t, err)
 	})
 }
 
-func requireValidationError(t *testing.T, err error) *ValidationError {
+// validateWithCaps exercises the walker with injected caps so aggregation
+// behavior can be tested independently of provider cap derivation.
+func validateWithCaps(prompt []fantasy.Message, caps limits) error {
+	return (&validator{
+		provider:    fantasyanthropic.Name,
+		displayName: chatprovider.ProviderDisplayName(fantasyanthropic.Name),
+		caps:        caps,
+	}).validate(prompt)
+}
+
+func requireRejected(t *testing.T, err error) chaterror.ClassifiedError {
 	t.Helper()
 
 	require.Error(t, err)
-	var validationErr *ValidationError
-	require.True(t, errors.As(err, &validationErr))
-	return validationErr
+	classified := chaterror.Classify(err)
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	return classified
 }
 
 func promptWithPDF(parts ...fantasy.FilePart) []fantasy.Message {

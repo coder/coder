@@ -8,11 +8,11 @@ import (
 var (
 	pdfHeader = []byte("%PDF-")
 
-	pdfEncryptionMarkers = [][]byte{
-		[]byte("/Encrypt"),
-		[]byte("/U ("),
-		[]byte("/O ("),
-	}
+	// pdfEncryptDictMarker points at the trailer's encryption dictionary and
+	// is present in every encrypted PDF. The /U and /O entries only live inside
+	// that dictionary, so scanning for them adds no recall while risking false
+	// positives against incidental content, which would hard-fail a valid PDF.
+	pdfEncryptDictMarker = []byte("/Encrypt")
 
 	pdfPageObjectPattern = regexp.MustCompile(`/Type\s*/Page\b`)
 )
@@ -25,12 +25,7 @@ func IsPDF(data []byte) bool {
 // IsEncryptedPDF reports whether data contains common PDF encryption markers.
 // It is a fast preflight heuristic, not a complete PDF parser.
 func IsEncryptedPDF(data []byte) bool {
-	for _, marker := range pdfEncryptionMarkers {
-		if bytes.Contains(data, marker) {
-			return true
-		}
-	}
-	return false
+	return bytes.Contains(data, pdfEncryptDictMarker)
 }
 
 // ApproxPDFPageCount estimates the number of page objects in data.
