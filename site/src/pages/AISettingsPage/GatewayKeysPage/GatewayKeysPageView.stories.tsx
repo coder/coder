@@ -32,12 +32,35 @@ export const Empty: Story = {
 	args: {
 		keys: [],
 	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [, emptyCta] = await canvas.findAllByRole("button", {
+			name: /create key/i,
+		});
+		await userEvent.click(emptyCta);
+		await expect(args.onCreateKey).toHaveBeenCalledTimes(1);
+	},
 };
 
 export const LoadError: Story = {
 	args: {
 		keys: [],
 		error: mockApiError({ message: "Failed to load AI Gateway keys" }),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.findByText("Failed to load AI Gateway keys"),
+		).resolves.toBeVisible();
+		await expect(
+			canvas.findByText("Failed to fetch AI Gateway keys"),
+		).resolves.toBeVisible();
+		await expect(
+			canvas.queryByText("No AI Gateway keys"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getAllByRole("button", { name: /create key/i }),
+		).toHaveLength(1);
 	},
 };
 

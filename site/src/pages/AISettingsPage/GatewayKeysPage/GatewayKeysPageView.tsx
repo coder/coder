@@ -88,6 +88,8 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 					<TableBody>
 						{isLoading ? (
 							<TableLoader />
+						) : error ? (
+							<TableEmpty message="Failed to fetch AI Gateway keys" />
 						) : keys.length === 0 ? (
 							<TableEmpty
 								message="No AI Gateway keys"

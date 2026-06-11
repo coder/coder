@@ -1,8 +1,10 @@
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
 import type { CreateAIGatewayKeyResponse } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import {
@@ -21,7 +23,14 @@ interface CreateGatewayKeyFormValues {
 }
 
 const validationSchema = Yup.object({
-	name: Yup.string().required("Name is required."),
+	name: Yup.string()
+		.required("Name is required.")
+		.matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+			excludeEmptyString: true,
+			message:
+				"Use lowercase letters and numbers with optional single hyphens between words.",
+		})
+		.max(64, "Name cannot be longer than 64 characters."),
 });
 
 interface CreateGatewayKeyDialogProps {
@@ -63,6 +72,8 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 	};
 
 	const isBusy = form.isSubmitting;
+	const showSubmitError =
+		Boolean(submitError) && !isApiValidationError(submitError);
 
 	return (
 		<Dialog
@@ -76,6 +87,16 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 			<DialogContent
 				className="max-h-[90vh] overflow-y-auto"
 				aria-describedby={undefined}
+				onInteractOutside={(event) => {
+					if (createdKey) {
+						event.preventDefault();
+					}
+				}}
+				onEscapeKeyDown={(event) => {
+					if (createdKey) {
+						event.preventDefault();
+					}
+				}}
 			>
 				<DialogHeader>
 					<DialogTitle>
@@ -101,27 +122,34 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 						</DialogFooter>
 					</div>
 				) : (
-					<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
-						<FormField
-							field={getFieldHelpers("name", {
-								helperText:
-									"Lowercase letters, numbers, and non-consecutive hyphens.",
-							})}
-							label="Name"
-							placeholder="primary-gateway"
-							autoFocus
-							autoComplete="off"
-						/>
-						<DialogFooter>
-							<Button variant="outline" disabled={isBusy} onClick={closeDialog}>
-								Cancel
-							</Button>
-							<Button type="submit" disabled={isBusy || !form.dirty}>
-								<Spinner loading={isBusy} />
-								Create
-							</Button>
-						</DialogFooter>
-					</form>
+					<div className="flex flex-col gap-5">
+						{showSubmitError && <ErrorAlert error={submitError} />}
+						<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
+							<FormField
+								field={getFieldHelpers("name", {
+									helperText:
+										"Lowercase letters and numbers with optional single hyphens between words. Maximum 64 characters.",
+								})}
+								label="Name"
+								placeholder="primary-gateway"
+								autoFocus
+								autoComplete="off"
+							/>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									disabled={isBusy}
+									onClick={closeDialog}
+								>
+									Cancel
+								</Button>
+								<Button type="submit" disabled={isBusy || !form.dirty}>
+									<Spinner loading={isBusy} />
+									Create
+								</Button>
+							</DialogFooter>
+						</form>
+					</div>
 				)}
 			</DialogContent>
 		</Dialog>
