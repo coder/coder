@@ -139,15 +139,20 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 		require.Contains(t, err.Error(), "reason=payload_cap")
 	})
 
-	t.Run("Tolerates typed-nil tool parts", func(t *testing.T) {
+	t.Run("Tolerates typed-nil parts", func(t *testing.T) {
 		t.Parallel()
 
 		// Replayed history hands the walker arbitrary parts, and
-		// fantasy.AsMessagePart dereferences typed-nil pointers, so the
-		// estimate must use the package's nil-safe casts.
+		// fantasy.AsMessagePart and fantasy.AsToolResultOutputType
+		// dereference typed-nil pointers, so the walker must use the
+		// package's nil-safe casts for every part and output type.
 		err := validateWithCaps(promptWithParts(
+			(*fantasy.FilePart)(nil),
+			(*fantasy.TextPart)(nil),
+			(*fantasy.ReasoningPart)(nil),
 			(*fantasy.ToolCallPart)(nil),
 			(*fantasy.ToolResultPart)(nil),
+			fantasy.ToolResultPart{Output: (*fantasy.ToolResultOutputContentText)(nil)},
 		), limits{requestPayloadBytes: 1 << 20, pageCap: 100})
 		require.NoError(t, err)
 	})

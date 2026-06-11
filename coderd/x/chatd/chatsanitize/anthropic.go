@@ -655,7 +655,7 @@ func latestAssistantMessageIndexWithSignedReasoning(messages []fantasy.Message) 
 
 func messageHasAnthropicSignedReasoning(message fantasy.Message) bool {
 	for _, part := range message.Content {
-		reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part)
+		reasoning, ok := safeMessagePart[fantasy.ReasoningPart](part)
 		if !ok {
 			continue
 		}
@@ -1315,26 +1315,39 @@ func invalidateProviderExecutedToolCallPart(part fantasy.MessagePart) fantasy.Me
 	}
 }
 
-func safeMessageToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
-	var zero fantasy.ToolCallPart
+// safeMessagePart casts part to T while tolerating typed-nil pointer parts,
+// which fantasy.AsMessagePart would dereference and panic on. Replayed
+// history can hand the sanitizers arbitrary or legacy-encoded parts, so
+// every message part cast in this package must go through a nil-safe path.
+func safeMessagePart[T fantasy.MessagePart](part fantasy.MessagePart) (T, bool) {
+	var zero T
 	if part == nil {
 		return zero, false
 	}
-	if value, ok := part.(*fantasy.ToolCallPart); ok && value == nil {
+	if value, ok := any(part).(*T); ok && value == nil {
 		return zero, false
 	}
-	type toolCallPart = fantasy.ToolCallPart
-	return fantasy.AsMessagePart[toolCallPart](part)
+	return fantasy.AsMessagePart[T](part)
+}
+
+// safeToolResultOutput is the nil-safe analog of safeMessagePart for tool
+// result outputs, since fantasy.AsToolResultOutputType has the same typed-nil
+// dereference.
+func safeToolResultOutput[T fantasy.ToolResultOutputContent](output fantasy.ToolResultOutputContent) (T, bool) {
+	var zero T
+	if output == nil {
+		return zero, false
+	}
+	if value, ok := any(output).(*T); ok && value == nil {
+		return zero, false
+	}
+	return fantasy.AsToolResultOutputType[T](output)
+}
+
+func safeMessageToolCallPart(part fantasy.MessagePart) (fantasy.ToolCallPart, bool) {
+	return safeMessagePart[fantasy.ToolCallPart](part)
 }
 
 func safeMessageToolResultPart(part fantasy.MessagePart) (fantasy.ToolResultPart, bool) {
-	var zero fantasy.ToolResultPart
-	if part == nil {
-		return zero, false
-	}
-	if value, ok := part.(*fantasy.ToolResultPart); ok && value == nil {
-		return zero, false
-	}
-	type toolResultPart = fantasy.ToolResultPart
-	return fantasy.AsMessagePart[toolResultPart](part)
+	return safeMessagePart[fantasy.ToolResultPart](part)
 }

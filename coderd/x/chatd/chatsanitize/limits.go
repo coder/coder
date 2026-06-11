@@ -20,11 +20,13 @@ const (
 	// for the Messages API.
 	anthropicRequestCapBytes = 32 * 1024 * 1024
 
-	// bedrockRequestCapBytes is the documented body length constraint for
-	// Bedrock's InvokeModel and InvokeModelWithResponseStream operations,
-	// which is lower than Anthropic's Messages API limit and binds first for
-	// Bedrock-hosted Claude requests.
-	bedrockRequestCapBytes = 25_000_000
+	// bedrockRequestCapBytes is Anthropic's documented request size limit for
+	// Bedrock-hosted Claude requests (20 MB), which binds before AWS's
+	// 25,000,000-byte InvokeModel body length cap. MB is read as MiB to match
+	// the Anthropic cap above; if the enforced limit is actually smaller,
+	// requests in the gap fall through to the provider's own rejection
+	// instead of being falsely rejected here.
+	bedrockRequestCapBytes = 20 * 1024 * 1024
 
 	pdfDefaultPageCap       = 100
 	pdfLargeContextPageCap  = 600
@@ -45,8 +47,8 @@ type limits struct {
 // documented cap applies. provider must be the canonical fantasy provider
 // name; like ApplyAnthropicProviderToolGuard, this fails open for
 // unrecognized names. Bedrock shares Anthropic's PDF page caps because
-// fantasy's bedrock provider wraps the anthropic client, but uses a lower
-// request payload cap to match Bedrock's InvokeModel transport limit.
+// fantasy's bedrock provider wraps the anthropic client, but uses Anthropic's
+// lower documented request size limit for Bedrock-hosted requests.
 func limitsFor(provider string, contextLimit int64) (limits, bool) {
 	switch provider {
 	case fantasyanthropic.Name, fantasybedrock.Name:
@@ -104,7 +106,7 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 	for _, msg := range prompt {
 		for _, part := range msg.Content {
 			v.estimatedRequestBytes += estimatePartBytes(part)
-			file, ok := fantasy.AsMessagePart[fantasy.FilePart](part)
+			file, ok := safeMessagePart[fantasy.FilePart](part)
 			if !ok || chatfiles.BaseMediaType(file.MediaType) != pdfMediaType {
 				continue
 			}
@@ -180,29 +182,29 @@ func attachmentLabel(name string) string {
 // request body. Binary data is counted at base64-encoded size. JSON framing
 // overhead is not modeled, so this is a lower bound on the real request size.
 func estimatePartBytes(part fantasy.MessagePart) int {
-	if file, ok := fantasy.AsMessagePart[fantasy.FilePart](part); ok {
+	if file, ok := safeMessagePart[fantasy.FilePart](part); ok {
 		return base64.StdEncoding.EncodedLen(len(file.Data))
 	}
-	if text, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+	if text, ok := safeMessagePart[fantasy.TextPart](part); ok {
 		return len(text.Text)
 	}
-	if reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part); ok {
+	if reasoning, ok := safeMessagePart[fantasy.ReasoningPart](part); ok {
 		return len(reasoning.Text)
 	}
-	if call, ok := safeMessageToolCallPart(part); ok {
+	if call, ok := safeMessagePart[fantasy.ToolCallPart](part); ok {
 		return len(call.ToolName) + len(call.Input)
 	}
-	if result, ok := safeMessageToolResultPart(part); ok {
+	if result, ok := safeMessagePart[fantasy.ToolResultPart](part); ok {
 		return toolResultOutputBytes(result.Output)
 	}
 	return 0
 }
 
 func toolResultOutputBytes(output fantasy.ToolResultOutputContent) int {
-	if text, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](output); ok {
+	if text, ok := safeToolResultOutput[fantasy.ToolResultOutputContentText](output); ok {
 		return len(text.Text)
 	}
-	if media, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentMedia](output); ok {
+	if media, ok := safeToolResultOutput[fantasy.ToolResultOutputContentMedia](output); ok {
 		// Media data is already base64-encoded.
 		return len(media.Data) + len(media.Text)
 	}
