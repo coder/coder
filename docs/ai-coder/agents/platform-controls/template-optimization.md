@@ -93,11 +93,11 @@ room to fully describe a template for the agent, add an `agent_description`
 field to the template's `README.md` frontmatter.
 
 `agent_description` is read only by the agent, is never shown in the dashboard,
-and can be up to 2048 characters. The agent sees it when it inspects a template
-in detail (the `read_template` and `coder_get_template` tools), so use it to
-give richer routing context than the short description can hold: when to choose
-this template, what it is *not* for, and the specific stack or services it
-provides.
+and can be up to 2048 characters. The agent sees it both when listing templates
+and when inspecting one in detail (for example the `list_templates` and
+`read_template` tools), so use it to give richer routing context than the short
+description can hold: when to choose this template, what it is *not* for, and
+the specific stack or services it provides.
 
 ```yaml
 ---
