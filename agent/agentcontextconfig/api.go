@@ -19,11 +19,11 @@ import (
 // Env var names for context configuration. Prefixed with EXP_
 // to indicate these are experimental and may change.
 const (
-	EnvInstructionsDirs = "CODER_AGENT_EXP_INSTRUCTIONS_DIRS"
-	EnvInstructionsFile = "CODER_AGENT_EXP_INSTRUCTIONS_FILE"
-	EnvSkillsDirs       = "CODER_AGENT_EXP_SKILLS_DIRS"
-	EnvSkillMetaFile    = "CODER_AGENT_EXP_SKILL_META_FILE"
-	EnvMCPConfigFiles   = "CODER_AGENT_EXP_MCP_CONFIG_FILES"
+	EnvInstructionsDirs  = "CODER_AGENT_EXP_INSTRUCTIONS_DIRS"
+	EnvInstructionsFiles = "CODER_AGENT_EXP_INSTRUCTIONS_FILES"
+	EnvSkillsDirs        = "CODER_AGENT_EXP_SKILLS_DIRS"
+	EnvSkillMetaFile     = "CODER_AGENT_EXP_SKILL_META_FILE"
+	EnvMCPConfigFiles    = "CODER_AGENT_EXP_MCP_CONFIG_FILES"
 )
 
 const (
@@ -56,31 +56,36 @@ var invisibleRunePattern = regexp.MustCompile(
 // Default values for agent-internal configuration. These are
 // used when the corresponding env vars are unset.
 //
+// DefaultInstructionsFiles is a comma-separated, priority-ordered
+// list of instruction filenames. Per directory, the first existing
+// file wins; files that are empty after sanitization fall through
+// to the next candidate.
+//
 // DefaultSkillsDir is a comma-separated list so home-scoped
 // skills override project-scoped ones with the same name
 // (discoverSkills picks the first occurrence per skill name).
 const (
-	DefaultInstructionsDir  = "~/.coder"
-	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = "~/.coder/skills,.agents/skills"
-	DefaultSkillMetaFile    = "SKILL.md"
-	DefaultMCPConfigFile    = ".mcp.json"
+	DefaultInstructionsDir   = "~/.coder"
+	DefaultInstructionsFiles = "AGENTS.md,AGENT.md,CLAUDE.md"
+	DefaultSkillsDir         = "~/.coder/skills,.agents/skills"
+	DefaultSkillMetaFile     = "SKILL.md"
+	DefaultMCPConfigFile     = ".mcp.json"
 )
 
 // Config holds the agent's context configuration.
 // Defaults are applied by NewAPI, not by the zero value.
 type Config struct {
-	InstructionsDirs string
-	InstructionsFile string
-	SkillsDirs       string
-	SkillMetaFile    string
-	MCPConfigFiles   string
+	InstructionsDirs  string
+	InstructionsFiles string
+	SkillsDirs        string
+	SkillMetaFile     string
+	MCPConfigFiles    string
 }
 
 // applyDefaults fills zero-valued fields with their defaults.
 func (c Config) applyDefaults() Config {
 	c.InstructionsDirs = cmp.Or(c.InstructionsDirs, DefaultInstructionsDir)
-	c.InstructionsFile = cmp.Or(c.InstructionsFile, DefaultInstructionsFile)
+	c.InstructionsFiles = cmp.Or(c.InstructionsFiles, DefaultInstructionsFiles)
 	c.SkillsDirs = cmp.Or(c.SkillsDirs, DefaultSkillsDir)
 	c.SkillMetaFile = cmp.Or(c.SkillMetaFile, DefaultSkillMetaFile)
 	c.MCPConfigFiles = cmp.Or(c.MCPConfigFiles, DefaultMCPConfigFile)
@@ -91,11 +96,11 @@ func (c Config) applyDefaults() Config {
 // variables, falling back to defaults for unset values.
 func ReadEnvConfig() Config {
 	return Config{
-		InstructionsDirs: strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
-		InstructionsFile: strings.TrimSpace(os.Getenv(EnvInstructionsFile)),
-		SkillsDirs:       strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
-		SkillMetaFile:    strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
-		MCPConfigFiles:   strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)),
+		InstructionsDirs:  strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
+		InstructionsFiles: strings.TrimSpace(os.Getenv(EnvInstructionsFiles)),
+		SkillsDirs:        strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
+		SkillMetaFile:     strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
+		MCPConfigFiles:    strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)),
 	}.applyDefaults()
 }
 
@@ -103,7 +108,7 @@ func ReadEnvConfig() Config {
 // used by the context configuration subsystem.
 func envVarKeys() []string {
 	return []string{
-		EnvInstructionsDirs, EnvInstructionsFile,
+		EnvInstructionsDirs, EnvInstructionsFiles,
 		EnvSkillsDirs, EnvSkillMetaFile, EnvMCPConfigFiles,
 	}
 }
@@ -139,11 +144,12 @@ func NewAPI(workingDir func() string, cfg Config) *API {
 func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse, []string) {
 	resolvedInstructionsDirs := ResolvePaths(cfg.InstructionsDirs, workingDir)
 	resolvedSkillsDirs := ResolvePaths(cfg.SkillsDirs, workingDir)
+	instructionsFileNames := parseFileNames(cfg.InstructionsFiles)
 
 	// Read instruction files from each configured directory.
-	parts := readInstructionFiles(resolvedInstructionsDirs, cfg.InstructionsFile)
+	parts := readInstructionFiles(resolvedInstructionsDirs, instructionsFileNames)
 
-	// Also check the working directory for the instruction file,
+	// Also check the working directory for an instruction file,
 	// unless it was already covered by InstructionsDirs.
 	if workingDir != "" {
 		seenDirs := make(map[string]struct{}, len(resolvedInstructionsDirs))
@@ -151,7 +157,7 @@ func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse,
 			seenDirs[d] = struct{}{}
 		}
 		if _, ok := seenDirs[workingDir]; !ok {
-			if entry, found := readInstructionFileFromDir(workingDir, cfg.InstructionsFile); found {
+			if entry, found := readInstructionFileFromDir(workingDir, instructionsFileNames); found {
 				parts = append(parts, entry)
 			}
 		}
@@ -178,7 +184,7 @@ func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse,
 func ContextPartsFromDir(dir string) []codersdk.ChatMessagePart {
 	var parts []codersdk.ChatMessagePart
 
-	if entry, found := readInstructionFileFromDir(dir, DefaultInstructionsFile); found {
+	if entry, found := readInstructionFileFromDir(dir, parseFileNames(DefaultInstructionsFiles)); found {
 		parts = append(parts, entry)
 	}
 
@@ -218,10 +224,27 @@ func (api *API) handleGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, response)
 }
 
+// parseFileNames splits a comma-separated list of instruction
+// filenames, trims whitespace, and drops empty entries. Order is
+// preserved so callers can use the result as a priority list.
+func parseFileNames(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 // readInstructionFiles reads instruction files from each given
 // directory. Missing directories are silently skipped. Duplicate
 // directories are deduplicated.
-func readInstructionFiles(dirs []string, fileName string) []codersdk.ChatMessagePart {
+func readInstructionFiles(dirs []string, fileNames []string) []codersdk.ChatMessagePart {
 	var parts []codersdk.ChatMessagePart
 	seen := make(map[string]struct{}, len(dirs))
 	for _, dir := range dirs {
@@ -229,33 +252,38 @@ func readInstructionFiles(dirs []string, fileName string) []codersdk.ChatMessage
 			continue
 		}
 		seen[dir] = struct{}{}
-		if part, found := readInstructionFileFromDir(dir, fileName); found {
+		if part, found := readInstructionFileFromDir(dir, fileNames); found {
 			parts = append(parts, part)
 		}
 	}
 	return parts
 }
 
-// readInstructionFileFromDir scans a directory for a file matching
-// fileName (case-insensitive) and reads its contents.
-func readInstructionFileFromDir(dir, fileName string) (codersdk.ChatMessagePart, bool) {
+// readInstructionFileFromDir scans a directory for the first file
+// matching one of fileNames (case-insensitive) in priority order
+// and reads its contents. A candidate that is unreadable or empty
+// after sanitization falls through to the next candidate.
+func readInstructionFileFromDir(dir string, fileNames []string) (codersdk.ChatMessagePart, bool) {
 	dirEntries, err := os.ReadDir(dir)
 	if err != nil {
 		return codersdk.ChatMessagePart{}, false
 	}
 
-	for _, e := range dirEntries {
-		if e.IsDir() {
-			continue
-		}
-		if strings.EqualFold(strings.TrimSpace(e.Name()), fileName) {
+	for _, fileName := range fileNames {
+		for _, e := range dirEntries {
+			if e.IsDir() {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(e.Name()), fileName) {
+				continue
+			}
 			filePath := filepath.Join(dir, e.Name())
 			content, truncated, ok := readAndSanitizeFile(filePath, maxInstructionFileBytes)
-			if !ok {
-				return codersdk.ChatMessagePart{}, false
-			}
-			if content == "" {
-				return codersdk.ChatMessagePart{}, false
+			if !ok || content == "" {
+				// Unreadable or empty after sanitization. Stop
+				// scanning this candidate name and fall through
+				// to the next one in priority order.
+				break
 			}
 			return codersdk.ChatMessagePart{
 				Type:                 codersdk.ChatMessagePartTypeContextFile,

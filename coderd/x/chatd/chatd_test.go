@@ -8733,7 +8733,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	require.NoError(t, os.MkdirAll(skillsDir, 0o755))
 
 	t.Setenv(agentcontextconfig.EnvInstructionsDirs, instructionsDir)
-	t.Setenv(agentcontextconfig.EnvInstructionsFile, "AGENTS.md")
+	t.Setenv(agentcontextconfig.EnvInstructionsFiles, "AGENTS.md")
 	t.Setenv(agentcontextconfig.EnvSkillsDirs, skillsDir)
 	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "SKILL.md")
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, filepath.Join(fakeHome, "nonexistent-mcp.json"))

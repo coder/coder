@@ -148,7 +148,7 @@ func setupConfigTestEnv(t *testing.T, overrides map[string]string) string {
 	t.Setenv("HOME", fakeHome)
 	t.Setenv("USERPROFILE", fakeHome)
 	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+	t.Setenv(agentcontextconfig.EnvInstructionsFiles, "")
 	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
 	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
@@ -181,11 +181,11 @@ func TestResolve(t *testing.T) {
 		optSkills := t.TempDir()
 		optMCP := platformAbsPath("opt", "mcp.json")
 		setupConfigTestEnv(t, map[string]string{
-			agentcontextconfig.EnvInstructionsDirs: optInstructions,
-			agentcontextconfig.EnvInstructionsFile: "CUSTOM.md",
-			agentcontextconfig.EnvSkillsDirs:       optSkills,
-			agentcontextconfig.EnvSkillMetaFile:    "META.yaml",
-			agentcontextconfig.EnvMCPConfigFiles:   optMCP,
+			agentcontextconfig.EnvInstructionsDirs:  optInstructions,
+			agentcontextconfig.EnvInstructionsFiles: "CUSTOM.md",
+			agentcontextconfig.EnvSkillsDirs:        optSkills,
+			agentcontextconfig.EnvSkillMetaFile:     "META.yaml",
+			agentcontextconfig.EnvMCPConfigFiles:    optMCP,
 		})
 
 		// Create files matching the custom names so we can
@@ -215,7 +215,7 @@ func TestResolve(t *testing.T) {
 	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
 	t.Run("WhitespaceInFileNames", func(t *testing.T) {
 		fakeHome := setupConfigTestEnv(t, map[string]string{
-			agentcontextconfig.EnvInstructionsFile: "  CLAUDE.md  ",
+			agentcontextconfig.EnvInstructionsFiles: "  CLAUDE.md  ",
 		})
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
 
@@ -248,6 +248,125 @@ func TestResolve(t *testing.T) {
 		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
 		require.Len(t, ctxFiles, 2)
 		require.Equal(t, "from a", ctxFiles[0].ContextFileContent)
+		require.Equal(t, "from b", ctxFiles[1].ContextFileContent)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("AgentsMdWinsOverFallbackNames", func(t *testing.T) {
+		// AGENTS.md, AGENT.md, and CLAUDE.md all exist in the same
+		// directory. AGENTS.md (highest priority in the default list)
+		// must win and the other candidates must be ignored.
+		setupConfigTestEnv(t, nil)
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENTS.md"), []byte("from agents"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENT.md"), []byte("from agent"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte("from claude"), 0o600))
+
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Len(t, ctxFiles, 1)
+		require.Equal(t, filepath.Join(workDir, "AGENTS.md"), ctxFiles[0].ContextFilePath)
+		require.Equal(t, "from agents", ctxFiles[0].ContextFileContent)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("AgentMdWinsOverClaudeMd", func(t *testing.T) {
+		// Only AGENT.md (singular) and CLAUDE.md exist. AGENT.md
+		// is higher priority and must win.
+		setupConfigTestEnv(t, nil)
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENT.md"), []byte("from agent"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte("from claude"), 0o600))
+
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Len(t, ctxFiles, 1)
+		require.Equal(t, filepath.Join(workDir, "AGENT.md"), ctxFiles[0].ContextFilePath)
+		require.Equal(t, "from agent", ctxFiles[0].ContextFileContent)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("FallsBackToClaudeMd", func(t *testing.T) {
+		// Only CLAUDE.md exists. With the default fallback list it
+		// must be picked up.
+		setupConfigTestEnv(t, nil)
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "CLAUDE.md"), []byte("from claude"), 0o600))
+
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Len(t, ctxFiles, 1)
+		require.Equal(t, filepath.Join(workDir, "CLAUDE.md"), ctxFiles[0].ContextFilePath)
+		require.Equal(t, "from claude", ctxFiles[0].ContextFileContent)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("EmptyAgentsMdFallsThroughToClaudeMd", func(t *testing.T) {
+		// AGENTS.md exists but sanitizes to empty (HTML-comment-only
+		// content). Coder treats empty-after-sanitization as not
+		// found, so the search must fall through to CLAUDE.md.
+		setupConfigTestEnv(t, nil)
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(
+			filepath.Join(workDir, "AGENTS.md"),
+			[]byte("<!-- only a comment -->"),
+			0o600,
+		))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(workDir, "CLAUDE.md"),
+			[]byte("from claude"),
+			0o600,
+		))
+
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Len(t, ctxFiles, 1)
+		require.Equal(t, filepath.Join(workDir, "CLAUDE.md"), ctxFiles[0].ContextFilePath)
+		require.Equal(t, "from claude", ctxFiles[0].ContextFileContent)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("CustomEnvVarDisablesDefaultFallback", func(t *testing.T) {
+		// Setting EnvInstructionsFiles to a single name overrides
+		// the default list. AGENTS.md must NOT be picked up when
+		// only CLAUDE.md is configured.
+		setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsFiles: "CLAUDE.md",
+		})
+		workDir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(workDir, "AGENTS.md"), []byte("from agents"), 0o600))
+
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Empty(t, ctxFiles)
+	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate process-wide environment.
+	t.Run("PerDirectoryFallbackIsIndependent", func(t *testing.T) {
+		// One configured directory has AGENTS.md, another has only
+		// CLAUDE.md. Each directory falls back independently and
+		// both files are emitted in configured-directory order.
+		a := t.TempDir()
+		b := t.TempDir()
+		setupConfigTestEnv(t, map[string]string{
+			agentcontextconfig.EnvInstructionsDirs: a + "," + b,
+		})
+		require.NoError(t, os.WriteFile(filepath.Join(a, "AGENTS.md"), []byte("from a"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(b, "CLAUDE.md"), []byte("from b"), 0o600))
+
+		workDir := t.TempDir()
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.ReadEnvConfig())
+
+		ctxFiles := filterParts(cfg.Parts, codersdk.ChatMessagePartTypeContextFile)
+		require.Len(t, ctxFiles, 2)
+		require.Equal(t, filepath.Join(a, "AGENTS.md"), ctxFiles[0].ContextFilePath)
+		require.Equal(t, "from a", ctxFiles[0].ContextFileContent)
+		require.Equal(t, filepath.Join(b, "CLAUDE.md"), ctxFiles[1].ContextFilePath)
 		require.Equal(t, "from b", ctxFiles[1].ContextFileContent)
 	})
 
@@ -358,7 +477,7 @@ func TestResolve(t *testing.T) {
 		t.Setenv("HOME", fakeHome)
 		t.Setenv("USERPROFILE", fakeHome)
 		t.Setenv(agentcontextconfig.EnvInstructionsDirs, fakeHome)
-		t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+		t.Setenv(agentcontextconfig.EnvInstructionsFiles, "")
 		t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 		t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
 
@@ -499,7 +618,7 @@ func TestResolve(t *testing.T) {
 
 func TestNewAPI_LazyDirectory(t *testing.T) {
 	t.Setenv(agentcontextconfig.EnvInstructionsDirs, "")
-	t.Setenv(agentcontextconfig.EnvInstructionsFile, "")
+	t.Setenv(agentcontextconfig.EnvInstructionsFiles, "")
 	t.Setenv(agentcontextconfig.EnvSkillsDirs, "")
 	t.Setenv(agentcontextconfig.EnvSkillMetaFile, "")
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, "")
@@ -526,7 +645,7 @@ func TestClearEnvVars(t *testing.T) {
 	// Set every context config env var.
 	for _, key := range []string{
 		agentcontextconfig.EnvInstructionsDirs,
-		agentcontextconfig.EnvInstructionsFile,
+		agentcontextconfig.EnvInstructionsFiles,
 		agentcontextconfig.EnvSkillsDirs,
 		agentcontextconfig.EnvSkillMetaFile,
 		agentcontextconfig.EnvMCPConfigFiles,
@@ -539,7 +658,7 @@ func TestClearEnvVars(t *testing.T) {
 	// Every env var should be absent.
 	for _, key := range []string{
 		agentcontextconfig.EnvInstructionsDirs,
-		agentcontextconfig.EnvInstructionsFile,
+		agentcontextconfig.EnvInstructionsFiles,
 		agentcontextconfig.EnvSkillsDirs,
 		agentcontextconfig.EnvSkillMetaFile,
 		agentcontextconfig.EnvMCPConfigFiles,
