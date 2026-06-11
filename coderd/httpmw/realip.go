@@ -105,6 +105,35 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	}
 }
 
+// EffectiveHost returns the host Coder should trust for request handling.
+// It uses X-Forwarded-Host only when the immediate peer is a configured
+// trusted proxy. Otherwise it uses the received Host header.
+func EffectiveHost(config *RealIPConfig, r *http.Request) string {
+	if config == nil {
+		config = &RealIPConfig{
+			TrustedOrigins: nil,
+			TrustedHeaders: nil,
+		}
+	}
+
+	// When ExtractRealIP has run, r.RemoteAddr may hold the forwarded
+	// client IP, and we should use the original socket peer for proxy
+	// trust decisions.
+	remoteAddr := r.RemoteAddr
+	state := RealIP(r.Context())
+	if state != nil && state.OriginalRemoteAddr != "" {
+		remoteAddr = state.OriginalRemoteAddr
+	}
+
+	if isContainedIn(config.TrustedOrigins, getRemoteAddress(remoteAddr)) {
+		if host := r.Header.Get(httpapi.XForwardedHostHeader); host != "" {
+			return host
+		}
+	}
+
+	return r.Host
+}
+
 // EnsureXForwardedForHeader ensures that the request has an X-Forwarded-For
 // header. It uses the following logic:
 //
