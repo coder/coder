@@ -1701,6 +1701,13 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 	return q.db.AutoArchiveInactiveChats(ctx, arg)
 }
 
+func (q *querier) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.BackfillChatModelConfigProvider(ctx, arg)
+}
+
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same

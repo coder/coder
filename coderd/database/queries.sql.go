@@ -738,19 +738,21 @@ const updateAIProvider = `-- name: UpdateAIProvider :one
 UPDATE
     ai_providers
 SET
-    display_name = $1::text,
-    enabled = $2::boolean,
-    base_url = $3::text,
-    settings = $4::text,
-    settings_key_id = $5::text,
+    type = $1::ai_provider_type,
+    display_name = $2::text,
+    enabled = $3::boolean,
+    base_url = $4::text,
+    settings = $5::text,
+    settings_key_id = $6::text,
     updated_at = NOW()
 WHERE
-    id = $6::uuid AND deleted = FALSE
+    id = $7::uuid AND deleted = FALSE
 RETURNING
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type UpdateAIProviderParams struct {
+	Type          AIProviderType `db:"type" json:"type"`
 	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
@@ -761,6 +763,7 @@ type UpdateAIProviderParams struct {
 
 func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, updateAIProvider,
+		arg.Type,
 		arg.DisplayName,
 		arg.Enabled,
 		arg.BaseUrl,
@@ -5549,6 +5552,37 @@ func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsig
 		return nil, err
 	}
 	return items, nil
+}
+
+const backfillChatModelConfigProvider = `-- name: BackfillChatModelConfigProvider :execresult
+UPDATE
+    chat_model_configs
+SET
+    provider   = $1::text,
+    updated_at = NOW()
+WHERE
+    provider          = $2::text
+    AND deleted       = FALSE
+    AND ai_provider_id IS NOT NULL
+    AND EXISTS (
+        SELECT 1 FROM ai_providers
+        WHERE  id      = chat_model_configs.ai_provider_id
+          AND  type    = $1::ai_provider_type
+          AND  deleted = FALSE
+    )
+`
+
+type BackfillChatModelConfigProviderParams struct {
+	NewProvider string `db:"new_provider" json:"new_provider"`
+	OldProvider string `db:"old_provider" json:"old_provider"`
+}
+
+// old_provider is matched as text; new_provider is also cast to ai_provider_type
+// for the EXISTS check against ai_providers.type.
+// ai_provider_id IS NOT NULL is defensive; the check constraint already
+// enforces that non-deleted rows always have a provider ID.
+func (q *sqlQuerier) BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, backfillChatModelConfigProvider, arg.NewProvider, arg.OldProvider)
 }
 
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
