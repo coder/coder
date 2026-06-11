@@ -250,6 +250,13 @@ module "dotfiles" {
 }
 ```
 
+Next, save the `main.tf` file,
+and push a new version of your template:
+
+```shell
+coder templates push -d ~/coder-quickstart -y quickstart
+```
+
 Adding this module will show two parameters during workspace creation:
 
 - **Dotfiles Branch**, the branch to use for the dotfiles repository.
@@ -273,6 +280,15 @@ The following block adds support for GitHub external authentication:
 data "coder_external_auth" "github" {
   id = "github"
 }
+```
+
+Don't forget to save your changes and
+push a new version of your template:
+
+push a new version of your template:
+
+```shell
+coder templates push -d ~/coder-quickstart -y quickstart
 ```
 
 While this tutorial uses GitHub,
