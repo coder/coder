@@ -1272,7 +1272,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "404 - Application Not Found")
-			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
+			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
 		})
 
 		t.Run("RedirectsWithSlash", func(t *testing.T) {
