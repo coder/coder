@@ -559,7 +559,7 @@ func getNextTransition(
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
-	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
+	case isEligibleForFailedCleanup(latestBuild, latestJob, templateSchedule, currentTick):
 		// Use task-specific reason for AI task workspaces.
 		if ws.TaskID.Valid {
 			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
@@ -671,14 +671,17 @@ func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.Templa
 	return eligible
 }
 
-// isEligibleForFailedStop returns true if the workspace is eligible to be stopped
-// due to a failed build.
-func isEligibleForFailedStop(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// If the template has specified a failure TLL.
+// isEligibleForFailedCleanup returns true if the workspace is eligible to be
+// stopped due to a failed build. A failed start is cleaned up by stopping it,
+// and a failed stop is retried by issuing another stop. In both cases the
+// remediation is a stop build.
+func isEligibleForFailedCleanup(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// If the template has specified a failure TTL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
 		job.JobStatus == database.ProvisionerJobStatusFailed &&
-		build.Transition == database.WorkspaceTransitionStart &&
+		(build.Transition == database.WorkspaceTransitionStart ||
+			build.Transition == database.WorkspaceTransitionStop) &&
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
 		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
