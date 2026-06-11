@@ -1146,6 +1146,59 @@ func TestEntitlements(t *testing.T) {
 				require.NotContains(t, warning, "over the limit")
 			}
 		})
+
+		t.Run("NotEntitledSuppressed", func(t *testing.T) {
+			t.Parallel()
+
+			const activeSeatCount int64 = 42
+
+			ctrl := gomock.NewController(t)
+			mDB := dbmock.NewMockStore(ctrl)
+
+			// Premium license without the AI Governance addon.
+			licenseOpts := (&coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+				GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
+				ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
+			}).
+				UserLimit(100)
+
+			lic := database.License{
+				ID:  1,
+				JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+				Exp: licenseOpts.ExpiresAt,
+			}
+
+			mDB.EXPECT().
+				GetUnexpiredLicenses(gomock.Any()).
+				Return([]database.License{lic}, nil)
+			mDB.EXPECT().
+				GetActiveUserCount(gomock.Any(), false).
+				Return(int64(1), nil)
+			mDB.EXPECT().
+				GetActiveAISeatCount(gomock.Any()).
+				Return(activeSeatCount, nil)
+			mDB.EXPECT().
+				GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+				Return(int64(0), nil)
+			mDB.EXPECT().
+				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+				Return([]database.Template{}, nil)
+
+			entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
+			require.NoError(t, err)
+			require.True(t, entitlements.HasLicense)
+
+			// The not-entitled case should not produce errors about
+			// AI Governance seat counts.
+			for _, e := range entitlements.Errors {
+				require.NotContains(t, e, "AI Governance seats")
+			}
+			for _, w := range entitlements.Warnings {
+				require.NotContains(t, w, "AI Governance seats")
+			}
+		})
 	})
 }
 
