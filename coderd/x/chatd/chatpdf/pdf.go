@@ -20,8 +20,13 @@ const pdfMediaType = "application/pdf"
 
 const (
 	// pdfRequestCapBytes is Anthropic's documented request payload limit for
-	// PDF input requests.
+	// PDF input requests on the Messages API.
 	pdfRequestCapBytes = 32 * 1024 * 1024
+
+	// bedrockPDFRequestCapBytes is Bedrock's InvokeModel request payload limit,
+	// which is lower than Anthropic's Messages API limit and binds first for
+	// Bedrock-hosted Claude requests.
+	bedrockPDFRequestCapBytes = 20 * 1024 * 1024
 
 	pdfDefaultPageCap       = 100
 	pdfLargeContextPageCap  = 600
@@ -35,10 +40,12 @@ type limits struct {
 }
 
 // limitsFor returns the PDF preflight caps for provider, or (zero, false) when
-// no documented cap applies. Bedrock shares Anthropic's caps because fantasy's
-// bedrock provider wraps the anthropic client.
+// no documented cap applies. Bedrock shares Anthropic's page caps because
+// fantasy's bedrock provider wraps the anthropic client, but uses a lower
+// request payload cap to match Bedrock's InvokeModel transport limit.
 func limitsFor(provider string, contextLimit int64) (limits, bool) {
-	switch chatprovider.NormalizeProvider(provider) {
+	normalized := chatprovider.NormalizeProvider(provider)
+	switch normalized {
 	case fantasyanthropic.Name, fantasybedrock.Name:
 		pageCap := pdfDefaultPageCap
 		// A missing context limit is treated as a 200k-token model so preflight
@@ -46,7 +53,11 @@ func limitsFor(provider string, contextLimit int64) (limits, bool) {
 		if contextLimit > pdfLargeContextMinToken {
 			pageCap = pdfLargeContextPageCap
 		}
-		return limits{requestPayloadBytes: pdfRequestCapBytes, pageCap: pageCap}, true
+		payloadCap := pdfRequestCapBytes
+		if normalized == fantasybedrock.Name {
+			payloadCap = bedrockPDFRequestCapBytes
+		}
+		return limits{requestPayloadBytes: payloadCap, pageCap: pageCap}, true
 	default:
 		return limits{}, false
 	}

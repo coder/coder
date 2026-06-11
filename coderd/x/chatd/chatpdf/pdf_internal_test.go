@@ -66,6 +66,32 @@ func TestValidatePDFPrompt(t *testing.T) {
 	})
 }
 
+func TestLimitsFor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Bedrock uses a lower payload cap than Anthropic", func(t *testing.T) {
+		t.Parallel()
+
+		anthropic, ok := limitsFor(fantasyanthropic.Name, 200_000)
+		require.True(t, ok)
+		require.Equal(t, pdfRequestCapBytes, anthropic.requestPayloadBytes)
+
+		bedrock, ok := limitsFor(fantasybedrock.Name, 200_000)
+		require.True(t, ok)
+		require.Equal(t, bedrockPDFRequestCapBytes, bedrock.requestPayloadBytes)
+
+		require.Less(t, bedrock.requestPayloadBytes, anthropic.requestPayloadBytes)
+		require.Equal(t, anthropic.pageCap, bedrock.pageCap)
+	})
+
+	t.Run("Uncapped providers return false", func(t *testing.T) {
+		t.Parallel()
+
+		_, ok := limitsFor(fantasyopenai.Name, 200_000)
+		require.False(t, ok)
+	})
+}
+
 func TestValidatePDFPromptWithCaps(t *testing.T) {
 	t.Parallel()
 
