@@ -18,6 +18,101 @@
 | `document`   | string | true     |              |                                                                                                                                                  |
 | `signature`  | string | true     |              |                                                                                                                                                  |
 
+## agentsdk.AddChatContextRequest
+
+```json
+{
+  "chat_id": "string",
+  "parts": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-----------|---------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id` | string                                                        | false    |              | Chat ID optionally identifies the chat to add context to. If empty, auto-detection is used (CODER_CHAT_ID env, the only active chat, or the only top-level active chat for this agent). |
+| `parts`   | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              | Parts are the context-file and skill parts to add.                                                                                                                                      |
+
+## agentsdk.AddChatContextResponse
+
+```json
+{
+  "chat_id": "string",
+  "count": 0
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `chat_id` | string  | false    |              |             |
+| `count`   | integer | false    |              |             |
+
 ## agentsdk.AuthenticateResponse
 
 ```json
@@ -49,6 +144,34 @@
 | `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
 | `encoding`   | string | true     |              |                                                                                                                                                  |
 | `signature`  | string | true     |              |                                                                                                                                                  |
+
+## agentsdk.ClearChatContextRequest
+
+```json
+{
+  "chat_id": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                                                 |
+|-----------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat_id` | string | false    |              | Chat ID optionally identifies the chat to clear context from. If empty, auto-detection is used (CODER_CHAT_ID env, the only active chat, or the only top-level active chat for this agent). |
+
+## agentsdk.ClearChatContextResponse
+
+```json
+{
+  "chat_id": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `chat_id` | string | false    |              |             |
 
 ## agentsdk.ExternalAuthResponse
 

@@ -2957,3 +2957,164 @@ Experimental: this endpoint is subject to change.
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Add chat context from a workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/experimental/chat-context \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/workspaceagents/me/experimental/chat-context`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "chat_id": "string",
+  "parts": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                       | Required | Description              |
+|--------|------|----------------------------------------------------------------------------|----------|--------------------------|
+| `body` | body | [agentsdk.AddChatContextRequest](schemas.md#agentsdkaddchatcontextrequest) | true     | Add chat context request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "chat_id": "string",
+  "count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AddChatContextResponse](schemas.md#agentsdkaddchatcontextresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Clear chat context from a workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/me/experimental/chat-context \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/workspaceagents/me/experimental/chat-context`
+
+Experimental: this endpoint is subject to change.
+
+> Body parameter
+
+```json
+{
+  "chat_id": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                           | Required | Description                |
+|--------|------|--------------------------------------------------------------------------------|----------|----------------------------|
+| `body` | body | [agentsdk.ClearChatContextRequest](schemas.md#agentsdkclearchatcontextrequest) | false    | Clear chat context request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "chat_id": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ClearChatContextResponse](schemas.md#agentsdkclearchatcontextresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

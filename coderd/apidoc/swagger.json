@@ -9931,6 +9931,71 @@
 				]
 			}
 		},
+		"/api/v2/workspaceagents/me/experimental/chat-context": {
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Add chat context from a workspace agent",
+				"operationId": "add-chat-context-from-a-workspace-agent",
+				"parameters": [
+					{
+						"description": "Add chat context request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/agentsdk.AddChatContextRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/agentsdk.AddChatContextResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"delete": {
+				"description": "Experimental: this endpoint is subject to change.",
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Clear chat context from a workspace agent",
+				"operationId": "clear-chat-context-from-a-workspace-agent",
+				"parameters": [
+					{
+						"description": "Clear chat context request",
+						"name": "request",
+						"in": "body",
+						"schema": {
+							"$ref": "#/definitions/agentsdk.ClearChatContextRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/agentsdk.ClearChatContextResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/workspaceagents/me/external-auth": {
 			"get": {
 				"produces": ["application/json"],
@@ -12704,6 +12769,33 @@
 				}
 			}
 		},
+		"agentsdk.AddChatContextRequest": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"description": "ChatID optionally identifies the chat to add context to.\nIf empty, auto-detection is used (CODER_CHAT_ID env, the\nonly active chat, or the only top-level active chat for this\nagent).",
+					"type": "string"
+				},
+				"parts": {
+					"description": "Parts are the context-file and skill parts to add.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatMessagePart"
+					}
+				}
+			}
+		},
+		"agentsdk.AddChatContextResponse": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"type": "string"
+				},
+				"count": {
+					"type": "integer"
+				}
+			}
+		},
 		"agentsdk.AuthenticateResponse": {
 			"type": "object",
 			"properties": {
@@ -12724,6 +12816,23 @@
 					"type": "string"
 				},
 				"signature": {
+					"type": "string"
+				}
+			}
+		},
+		"agentsdk.ClearChatContextRequest": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
+					"description": "ChatID optionally identifies the chat to clear context from.\nIf empty, auto-detection is used (CODER_CHAT_ID env, the\nonly active chat, or the only top-level active chat for this\nagent).",
+					"type": "string"
+				}
+			}
+		},
+		"agentsdk.ClearChatContextResponse": {
+			"type": "object",
+			"properties": {
+				"chat_id": {
 					"type": "string"
 				}
 			}

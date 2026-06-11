@@ -2448,7 +2448,18 @@ func readChatContextBody(ctx context.Context, rw http.ResponseWriter, r *http.Re
 	return httpapi.Read(ctx, rw, r, dst)
 }
 
-// @x-apidocgen {"skip": true}
+// Add context to a chat from a workspace agent.
+//
+// @Summary Add chat context from a workspace agent
+// @ID add-chat-context-from-a-workspace-agent
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body agentsdk.AddChatContextRequest true "Add chat context request"
+// @Success 200 {object} agentsdk.AddChatContextResponse
+// @Router /api/v2/workspaceagents/me/experimental/chat-context [post]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -2599,7 +2610,18 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	})
 }
 
-// @x-apidocgen {"skip": true}
+// Clear context from a chat via a workspace agent.
+//
+// @Summary Clear chat context from a workspace agent
+// @ID clear-chat-context-from-a-workspace-agent
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body agentsdk.ClearChatContextRequest false "Clear chat context request"
+// @Success 200 {object} agentsdk.ClearChatContextResponse
+// @Router /api/v2/workspaceagents/me/experimental/chat-context [delete]
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
