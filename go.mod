@@ -99,8 +99,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     name, and warn on unsupported FilePart media types instead of
 //     silently dropping them.
 // 12) coder/fantasy#39, support Anthropic thinking_display natively.
-// See: https://github.com/coder/fantasy/commits/a2a3f2171ec8
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260604204802-a2a3f2171ec8
+// 13) coder/fantasy scott/anthropic-refusal-content-filter, map Anthropic's
+//     "refusal" stop_reason to FinishReasonContentFilter and carry
+//     stop_details (category, explanation) in the finish ProviderMetadata.
+// See: https://github.com/coder/fantasy/commits/805f9dae1e20
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260611184442-805f9dae1e20
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

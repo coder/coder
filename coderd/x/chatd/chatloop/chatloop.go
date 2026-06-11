@@ -54,10 +54,31 @@ var (
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
 
+	// ErrContentFiltered is returned when the model produced no content and
+	// finished with a content-filter reason (e.g. Anthropic's "refusal"
+	// stop reason). It carries a classification so the turn ends as a
+	// user-visible blocked error instead of a silent empty turn.
+	ErrContentFiltered = xerrors.New("model response blocked by content filter")
+
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
 	)
 )
+
+// contentFilterError builds a classified, user-visible error for a turn that
+// produced no content because the provider blocked it. When Anthropic refusal
+// metadata is present, its explanation and category are surfaced.
+func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
+	classified := chaterror.ClassifiedError{
+		Kind:     codersdk.ChatErrorKindContentFilter,
+		Provider: provider,
+	}
+	if refusal := fantasyanthropic.GetRefusalMetadata(metadata); refusal != nil {
+		classified.Message = refusal.Explanation
+		classified.Detail = refusal.Category
+	}
+	return chaterror.WithClassification(ErrContentFiltered, classified)
+}
 
 // PendingToolCall describes a tool call that targets a dynamic
 // tool. These calls are not executed by the chatloop; instead
@@ -579,6 +600,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			if len(result.content) == 0 {
 				lastUsage = result.usage
 				lastProviderMetadata = result.providerMetadata
+				// A content-filter finish with no content is a provider
+				// block (e.g. Anthropic refusal), not a normal stop. End the
+				// turn as a user-visible error instead of silently.
+				if result.finishReason == fantasy.FinishReasonContentFilter {
+					return contentFilterError(provider, result.providerMetadata)
+				}
 				stoppedByModel = true
 				break
 			}

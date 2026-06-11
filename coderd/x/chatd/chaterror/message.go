@@ -64,6 +64,10 @@ func terminalMessage(classified ClassifiedError) string {
 				" Contact your Coder administrator.",
 			displayName,
 		)
+	case codersdk.ChatErrorKindContentFilter:
+		return stringutil.Capitalize(fmt.Sprintf(
+			"%s blocked this response under its content policy.", subject,
+		))
 	default:
 		if !classified.Retryable && classified.StatusCode == 0 {
 			return "The chat request failed unexpectedly."
