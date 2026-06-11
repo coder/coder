@@ -176,8 +176,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			slugHashEnc := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(slugHash[:])
 			computedSlug := strings.ToLower(slugHashEnc[:8]) + "-" + app.Slug
 
+			appID := uuid.New()
 			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
-				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
+				ID:          appID, // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
 				Slug:        computedSlug,
@@ -208,6 +209,12 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				Tooltip: "", // tooltips are not currently supported in subagent workspaces, default to empty string
 			})
 			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					// The upsert's ON CONFLICT guard refused to rebind an
+					// existing workspace-owned app to an agent outside that
+					// workspace, including agents that resolve to no workspace.
+					return xerrors.Errorf("workspace app slug %q with ID %q is already bound to a workspace-owned agent and cannot be rebound to an agent in another workspace or to an agent without a workspace; refusing to rebind to agent ID %q", computedSlug, appID, subAgent.ID)
+				}
 				return xerrors.Errorf("insert workspace app: %w", err)
 			}
 
