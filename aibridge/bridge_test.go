@@ -1,8 +1,12 @@
 package aibridge_test
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,6 +206,77 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 
 			assert.Equal(t, http.StatusOK, resp.Code)
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
+		})
+	}
+}
+
+func TestRequestBodySizeLimit(t *testing.T) {
+	t.Parallel()
+
+	newOpenAI := func(baseURL string) provider.Provider {
+		return aibridge.NewOpenAIProvider(config.OpenAI{Name: "openai", BaseURL: baseURL})
+	}
+	newAnthropic := func(baseURL string) provider.Provider {
+		return aibridge.NewAnthropicProvider(config.Anthropic{Name: "anthropic", BaseURL: baseURL}, nil)
+	}
+	newCopilot := func(baseURL string) provider.Provider {
+		return aibridge.NewCopilotProvider(config.Copilot{Name: "copilot", BaseURL: baseURL})
+	}
+
+	// Each body is a well-formed, schema-valid request for its provider, with
+	// an oversized message content that pushes it past the 32 MiB limit.
+	filler := strings.Repeat("A", 32<<20)
+	chatCompletionsBody := fmt.Appendf(nil, `{"model":"gpt-4","messages":[{"role":"user","content":"%s"}]}`, filler)
+	responsesBody := fmt.Appendf(nil, `{"model":"gpt-4","input":"%s"}`, filler)
+	messagesBody := fmt.Appendf(nil, `{"model":"claude-3-5-sonnet-latest","max_tokens":1024,"messages":[{"role":"user","content":"%s"}]}`, filler)
+
+	tests := []struct {
+		name     string
+		provider func(baseURL string) provider.Provider
+		path     string
+		body     []byte
+	}{
+		{name: "openai_passthrough", provider: newOpenAI, path: "/openai/v1/models", body: chatCompletionsBody},
+		{name: "openai_chat_completions", provider: newOpenAI, path: "/openai/v1/chat/completions", body: chatCompletionsBody},
+		{name: "openai_responses", provider: newOpenAI, path: "/openai/v1/responses", body: responsesBody},
+		{name: "anthropic_passthrough", provider: newAnthropic, path: "/anthropic/v1/models", body: messagesBody},
+		{name: "anthropic_messages", provider: newAnthropic, path: "/anthropic/v1/messages", body: messagesBody},
+		{name: "copilot_passthrough", provider: newCopilot, path: "/copilot/models", body: chatCompletionsBody},
+		{name: "copilot_chat_completions", provider: newCopilot, path: "/copilot/chat/completions", body: chatCompletionsBody},
+		{name: "copilot_responses", provider: newCopilot, path: "/copilot/responses", body: responsesBody},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slogtest.Make(t, nil)
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(upstream.Close)
+
+			prov := tc.provider(upstream.URL)
+			bridge, err := aibridge.NewRequestBridge(
+				t.Context(),
+				[]provider.Provider{prov},
+				nil, nil, logger, nil, bridgeTestTracer,
+			)
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, tc.path, bytes.NewReader(tc.body))
+			// Unknown Content-Length
+			req.ContentLength = -1
+			// Copilot's bridged route checks Authorization before reading the
+			// body, so provide a token to reach the read path.
+			req.Header.Set("Authorization", "Bearer test-key")
+			resp := httptest.NewRecorder()
+			bridge.ServeHTTP(resp, req)
+
+			assert.Equal(t, http.StatusRequestEntityTooLarge, resp.Code)
+			assert.Contains(t, resp.Body.String(), "Request body too large")
 		})
 	}
 }
