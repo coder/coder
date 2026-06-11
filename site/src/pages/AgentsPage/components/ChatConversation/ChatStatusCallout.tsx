@@ -1,40 +1,14 @@
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { Shimmer } from "../ChatElements";
-import { TranscriptRow } from "../ChatElements/TranscriptRow";
-import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
-
-const THINKING_TEXT = "Thinking...";
 
 type RetryOrFailedStatus = Extract<
 	LiveStatusModel,
 	{ phase: "retrying" } | { phase: "failed" }
 >;
 type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
-
-const StatusPlaceholder: FC<{
-	text: string;
-	shimmer?: boolean;
-	showThinkingIcon?: boolean;
-}> = ({ text, shimmer = false, showThinkingIcon = false }) => {
-	return (
-		<TranscriptRow className="gap-2 text-content-secondary">
-			{showThinkingIcon && <ToolIcon name="thinking" isError={false} />}
-			{shimmer ? (
-				<Shimmer as="span" className="text-[13px] leading-6">
-					{text}
-				</Shimmer>
-			) : (
-				<span className="text-[13px] leading-6 text-content-secondary">
-					{text}
-				</span>
-			)}
-		</TranscriptRow>
-	);
-};
 
 /**
  * Syncs with the system clock to produce a live countdown from an
@@ -178,25 +152,12 @@ export const ChatStatusCallout: FC<{
 	switch (status.phase) {
 		case "idle":
 		case "streaming":
-			return null;
 		case "starting":
-			return (
-				<StatusPlaceholder text={THINKING_TEXT} shimmer showThinkingIcon />
-			);
+			return null;
 		case "retrying":
-			return (
-				<>
-					<StatusAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
-				</>
-			);
+			return <StatusAlert status={status} />;
 		case "reconnecting":
-			return (
-				<>
-					<ReconnectingAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
-				</>
-			);
+			return <ReconnectingAlert status={status} />;
 		case "failed":
 			return <StatusAlert status={status} />;
 	}

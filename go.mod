@@ -94,7 +94,11 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     emit a Base64 PDF document block for application/pdf FileParts on the
 //     Anthropic provider so user-uploaded PDFs actually reach Claude/Bedrock
 //     instead of being silently dropped.
-// 11) coder/fantasy#39, support Anthropic thinking_display natively.
+// 11) coder/fantasy#38, forward PDF and text filenames as a sanitized
+//     Anthropic document title so Claude can refer to attachments by
+//     name, and warn on unsupported FilePart media types instead of
+//     silently dropping them.
+// 12) coder/fantasy#39, support Anthropic thinking_display natively.
 // See: https://github.com/coder/fantasy/commits/a2a3f2171ec8
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260604204802-a2a3f2171ec8
 

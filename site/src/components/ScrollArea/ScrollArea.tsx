@@ -10,6 +10,8 @@ interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
 	horizontalScrollBarClassName?: string;
+	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
+	scrollThumbClassName?: string;
 	viewportClassName?: string;
 	viewportTabIndex?: number;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
@@ -20,6 +22,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
 	scrollBarClassName,
 	horizontalScrollBarClassName,
+	scrollThumbClassName,
 	viewportClassName,
 	viewportTabIndex,
 	orientation = "vertical",
@@ -61,6 +64,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 				<ScrollBar
 					orientation="vertical"
 					className={cn("z-10", scrollBarClassName)}
+					thumbClassName={scrollThumbClassName}
 				/>
 			)}
 			{(orientation === "horizontal" || orientation === "both") && (
@@ -72,6 +76,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 							? horizontalScrollBarClassName
 							: (horizontalScrollBarClassName ?? scrollBarClassName),
 					)}
+					thumbClassName={scrollThumbClassName}
 				/>
 			)}
 			<ScrollAreaPrimitive.Corner />
@@ -80,8 +85,12 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 };
 
 export const ScrollBar: React.FC<
-	React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
-> = ({ className, orientation = "vertical", ...props }) => {
+	React.ComponentPropsWithRef<
+		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
+	> & {
+		thumbClassName?: string;
+	}
+> = ({ className, orientation = "vertical", thumbClassName, ...props }) => {
 	return (
 		<ScrollAreaPrimitive.ScrollAreaScrollbar
 			orientation={orientation}
@@ -102,6 +111,7 @@ export const ScrollBar: React.FC<
 					orientation === "vertical"
 						? "before:right-0 before:top-1/2 before:h-full before:min-h-6 before:w-6 before:-translate-y-1/2"
 						: "before:bottom-0 before:left-1/2 before:w-full before:min-w-6 before:h-6 before:-translate-x-1/2",
+					thumbClassName,
 				)}
 			/>
 		</ScrollAreaPrimitive.ScrollAreaScrollbar>

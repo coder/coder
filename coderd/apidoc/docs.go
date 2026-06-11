@@ -22822,6 +22822,7 @@ const docTemplate = `{
                 "ai_provider_key",
                 "ai_gateway_key",
                 "group_ai_budget",
+                "user_ai_budget_override",
                 "chat",
                 "user_secret",
                 "user_skill"
@@ -22858,6 +22859,7 @@ const docTemplate = `{
                 "ResourceTypeAIProviderKey",
                 "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
+                "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill"

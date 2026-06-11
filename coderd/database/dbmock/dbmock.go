@@ -3720,6 +3720,21 @@ func (mr *MockStoreMockRecorder) GetHealthSettings(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHealthSettings", reflect.TypeOf((*MockStore)(nil).GetHealthSettings), ctx)
 }
 
+// GetHighestGroupAIBudgetByUser mocks base method.
+func (m *MockStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHighestGroupAIBudgetByUser", ctx, userID)
+	ret0, _ := ret[0].(database.GetHighestGroupAIBudgetByUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHighestGroupAIBudgetByUser indicates an expected call of GetHighestGroupAIBudgetByUser.
+func (mr *MockStoreMockRecorder) GetHighestGroupAIBudgetByUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHighestGroupAIBudgetByUser", reflect.TypeOf((*MockStore)(nil).GetHighestGroupAIBudgetByUser), ctx, userID)
+}
+
 // GetInboxNotificationByID mocks base method.
 func (m *MockStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	m.ctrl.T.Helper()

@@ -14,7 +14,7 @@ agent_description: >-
 
 # Remote Development on AWS EC2 VMs (Linux)
 
-Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
+Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) with this example template.
 
 ## Prerequisites
 
