@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -72,6 +73,7 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
 }
 
 type Server struct {
@@ -631,10 +633,25 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
+	// Determine whether the user holds the site-wide owner role. This gates
+	// owner-only features (version-targeted policy evaluation). A read failure
+	// here is non-fatal: it defaults the user to non-owner, which only denies
+	// access to the owner-only feature, never grants it.
+	isOwner := false
+	//nolint:gocritic // Reading user roles for the owner-only evaluation gate is a system operation.
+	if roleRow, rerr := s.store.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID); rerr != nil {
+		s.logger.Warn(ctx, "failed to read user roles for owner check", slog.F("user_id", key.UserID), slog.Error(rerr))
+	} else if names, nerr := roleRow.RoleNames(); nerr != nil {
+		s.logger.Warn(ctx, "failed to expand user role names for owner check", slog.F("user_id", key.UserID), slog.Error(nerr))
+	} else {
+		isOwner = slices.Contains(names, rbac.RoleOwner())
+	}
+
 	return &proto.IsAuthorizedResponse{
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
+		IsOwner:  isOwner,
 	}, nil
 }
 

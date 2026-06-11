@@ -1359,9 +1359,9 @@
 
 #### Enumerated Values
 
-| Value(s)              |
-|-----------------------|
-| `pre_auth`, `pre_req` |
+| Value(s)                          |
+|-----------------------------------|
+| `pre_auth`, `pre_req`, `pre_tool` |
 
 ## codersdk.AIGatewayKey
 
@@ -1418,6 +1418,33 @@
   "created_at": "2019-08-24T14:15:22Z",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "latest_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+  "latest_version_number": 0,
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1425,15 +1452,18 @@
 
 ### Properties
 
-| Name                | Type                                                                   | Required | Restrictions | Description |
-|---------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `active_version`    | [codersdk.AIGatewayPipelineVersion](#codersdkaigatewaypipelineversion) | false    |              |             |
-| `active_version_id` | string                                                                 | false    |              |             |
-| `created_at`        | string                                                                 | false    |              |             |
-| `enabled`           | boolean                                                                | false    |              |             |
-| `id`                | string                                                                 | false    |              |             |
-| `provider_id`       | string                                                                 | false    |              |             |
-| `updated_at`        | string                                                                 | false    |              |             |
+| Name                    | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|-------------------------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_version`        | [codersdk.AIGatewayPipelineVersion](#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `active_version_id`     | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `created_at`            | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `enabled`               | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `id`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `latest_version`        | [codersdk.AIGatewayPipelineVersion](#codersdkaigatewaypipelineversion) | false    |              | Latest version is the tip version with its full membership (policies and guardrails). Editing a pipeline must base the new version on the tip, not the active version, so staged changes accumulate as one linear draft lineage; basing an edit on the active version would silently drop members added in an unpromoted draft.                                                                                                          |
+| `latest_version_id`     | string                                                                 | false    |              | Latest version ID / LatestVersionNumber identify the pipeline's tip (most recent) version. Under the explicit two-stage rollout, activating a policy or guardrail mints a new pipeline version on the tip without promoting it, so the tip can be ahead of the active (live) version. When LatestVersionID differs from ActiveVersionID the pipeline has unpromoted changes (drift): the operator can promote the tip to take them live. |
+| `latest_version_number` | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `provider_id`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `updated_at`            | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## codersdk.AIGatewayPipelineGuardrail
 
@@ -4847,18 +4877,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "credential": "string",
-  "description": "string"
+  "description": "string",
+  "promote": true
 }
 ```
 
 ### Properties
 
-| Name          | Type             | Required | Restrictions | Description                                                      |
-|---------------|------------------|----------|--------------|------------------------------------------------------------------|
-| `activate`    | boolean          | false    |              | Activate sets the new version as the guardrail's active version. |
-| `config`      | array of integer | false    |              |                                                                  |
-| `credential`  | string           | false    |              |                                                                  |
-| `description` | string           | false    |              |                                                                  |
+| Name          | Type             | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|---------------|------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activate`    | boolean          | false    |              | Activate sets the new version as the guardrail's active version. Activation propagates to referencing pipelines by minting (not promoting) new pipeline versions on their tip; live posture is unchanged until promotion. Defaults false. |
+| `config`      | array of integer | false    |              |                                                                                                                                                                                                                                           |
+| `credential`  | string           | false    |              |                                                                                                                                                                                                                                           |
+| `description` | string           | false    |              |                                                                                                                                                                                                                                           |
+| `promote`     | boolean          | false    |              | Promote, only meaningful with Activate, additionally activates the minted pipeline versions so the change goes live immediately. Defaults false.                                                                                          |
 
 ## codersdk.CreateAIGatewayKeyRequest
 
@@ -4994,17 +5026,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "activate": true,
   "description": "string",
+  "promote": true,
   "rego": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description                                                   |
-|---------------|---------|----------|--------------|---------------------------------------------------------------|
-| `activate`    | boolean | false    |              | Activate sets the new version as the policy's active version. |
-| `description` | string  | false    |              |                                                               |
-| `rego`        | string  | false    |              |                                                               |
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                    |
+|---------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `activate`    | boolean | false    |              | Activate sets the new version as the policy's active version. Activation propagates to every referencing pipeline by *minting* a new (unpromoted) pipeline version on its tip; live posture is unchanged until each pipeline is explicitly promoted. Defaults false: a bare create mints only. |
+| `description` | string  | false    |              |                                                                                                                                                                                                                                                                                                |
+| `promote`     | boolean | false    |              | Promote, only meaningful with Activate, additionally activates the minted pipeline versions so the change goes live immediately across all referencing pipelines. Defaults false (explicit promotion is the safe default).                                                                     |
+| `rego`        | string  | false    |              |                                                                                                                                                                                                                                                                                                |
 
 ## codersdk.CreateAIProviderRequest
 
@@ -13589,17 +13623,39 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "display_name": "string",
-  "enabled": true
+  "enabled": true,
+  "promote": true
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `active_version_id` | string  | false    |              |             |
-| `display_name`      | string  | false    |              |             |
-| `enabled`           | boolean | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_version_id` | string  | false    |              |                                                                                                                                                                            |
+| `display_name`      | string  | false    |              |                                                                                                                                                                            |
+| `enabled`           | boolean | false    |              |                                                                                                                                                                            |
+| `promote`           | boolean | false    |              | Promote, only meaningful with ActiveVersionID, additionally activates the pipeline versions minted by propagation so the activation goes live immediately. Defaults false. |
+
+## codersdk.UpdateAIGatewayPipelineMemberRequest
+
+```json
+{
+  "enabled": true,
+  "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+  "hook": "pre_auth",
+  "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+}
+```
+
+### Properties
+
+| Name                   | Type                                             | Required | Restrictions | Description |
+|------------------------|--------------------------------------------------|----------|--------------|-------------|
+| `enabled`              | boolean                                          | false    |              |             |
+| `guardrail_version_id` | string                                           | false    |              |             |
+| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook) | false    |              |             |
+| `policy_version_id`    | string                                           | false    |              |             |
 
 ## codersdk.UpdateAIGatewayPipelineRequest
 
@@ -13622,16 +13678,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "display_name": "string"
+  "display_name": "string",
+  "promote": true
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description |
-|---------------------|--------|----------|--------------|-------------|
-| `active_version_id` | string | false    |              |             |
-| `display_name`      | string | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                                                             |
+|---------------------|---------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `active_version_id` | string  | false    |              |                                                                                                                                                                                                                         |
+| `display_name`      | string  | false    |              |                                                                                                                                                                                                                         |
+| `promote`           | boolean | false    |              | Promote, only meaningful with ActiveVersionID, additionally activates the pipeline versions minted by propagation so the activation goes live immediately. Defaults false: activation mints unpromoted pipeline drafts. |
 
 ## codersdk.UpdateAIProviderRequest
 

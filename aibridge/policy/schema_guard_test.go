@@ -83,7 +83,7 @@ func builtEnvelopeShape(t *testing.T) map[string]string {
 	require.NoError(t, err)
 	preReq, err := PreReqEnvelope{Method: "POST", Path: "/v1/messages", Request: []byte(`{}`), Identity: Identity{}}.Build()
 	require.NoError(t, err)
-	preTool, err := PreToolEnvelope{ToolCall: ToolCall{}, Method: "POST", Path: "/v1/messages", Request: []byte(`{}`), Identity: Identity{}}.Build()
+	preTool, err := PreToolEnvelope{PreReqEnvelope: PreReqEnvelope{Method: "POST", Path: "/v1/messages", Request: []byte(`{}`), Identity: Identity{}}, ToolCall: ToolCall{}}.Build()
 	require.NoError(t, err)
 
 	// Subtrees whose contents mirror the provider request body, not the

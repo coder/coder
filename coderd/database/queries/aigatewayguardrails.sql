@@ -98,9 +98,56 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
 )
 RETURNING *;
 
+-- name: UpdateAIGatewayPipelineVersionGuardrailEnabled :exec
+-- Flips a guardrail member's enabled flag in place on a specific pipeline
+-- version. Like the policy variant, enable/disable is a live pause control, not
+-- a composition change, so it mutates the membership row instead of minting a
+-- new pipeline version.
+UPDATE ai_gateway_pipeline_version_guardrails
+SET enabled = @enabled::boolean
+WHERE pipeline_version_id = @pipeline_version_id::uuid
+    AND guardrail_version_id = @guardrail_version_id::uuid
+    AND hook = @hook::ai_gateway_hook;
+
 -- name: GetAIGatewayPipelineVersionGuardrails :many
 SELECT * FROM ai_gateway_pipeline_version_guardrails
 WHERE pipeline_version_id = @pipeline_version_id::uuid;
+
+-- name: GetAIGatewayPipelineVersionGuardrailSnapshot :many
+-- Like GetActiveAIGatewayPipelineGuardrails but resolves a specific (typically
+-- unpromoted) pipeline version instead of the active one, for version-targeted
+-- evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked,
+-- mirroring the policy snapshot variant. credential is decrypted by the dbcrypt
+-- layer.
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.mode,
+    m.fail_mode,
+    m.network_timeout_ms,
+    g.id AS guardrail_id,
+    g.name AS guardrail_name,
+    g.adapter_type,
+    gver.id AS guardrail_version_id,
+    gver.config,
+    gver.credential,
+    gver.credential_key_id
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = @pipeline_version_id::uuid AND pv.pipeline_id = pl.id
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+JOIN ai_gateway_guardrails g ON g.id = gver.guardrail_id
+WHERE pl.deleted = FALSE
+    AND m.enabled = TRUE
+    AND g.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND g.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, g.name;
 
 -- name: GetActiveAIGatewayPipelineGuardrails :many
 -- The runtime snapshot load for guardrails: every guardrail member of every
@@ -148,12 +195,21 @@ JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
 WHERE gver.guardrail_id = @guardrail_id::uuid AND pl.deleted = FALSE;
 
 -- name: GetAIGatewayPipelinesReferencingGuardrail :many
--- Live pipelines whose active version pins any version of the given guardrail.
--- Used to propagate a newly activated guardrail version into the pipelines that
--- use it (assisted upgrade).
+-- Live pipelines whose TIP (latest) version pins any version of the given
+-- guardrail. Used to propagate a newly activated guardrail version into the
+-- pipelines that use it (assisted upgrade). Referencing the tip, not the active
+-- version, means a guardrail added to a pipeline but not yet promoted still
+-- receives the propagated edit, so a guardrail edit always mints a pipeline
+-- version (matching policies).
 SELECT DISTINCT pl.*
 FROM ai_gateway_pipelines pl
-JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_pipeline_versions tip ON tip.pipeline_id = pl.id
+    AND tip.version_number = (
+        SELECT MAX(v.version_number)
+        FROM ai_gateway_pipeline_versions v
+        WHERE v.pipeline_id = pl.id
+    )
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = tip.id
 JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
 WHERE pl.deleted = FALSE AND gver.guardrail_id = @guardrail_id::uuid;
 

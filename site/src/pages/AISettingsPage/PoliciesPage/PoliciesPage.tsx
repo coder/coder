@@ -15,6 +15,7 @@ import {
 	createAIGatewayPolicyVersionMutation,
 	deleteAIGatewayPipelineMutation,
 	deleteAIGatewayPolicyMutation,
+	updateAIGatewayPipelineMemberMutation,
 	updateAIGatewayPipelineMutation,
 	updateAIGatewayPolicyMutation,
 } from "#/api/queries/aiGatewayPolicies";
@@ -63,6 +64,9 @@ const PoliciesPage: React.FC = () => {
 	const updatePipeline = useMutation(
 		updateAIGatewayPipelineMutation(queryClient),
 	);
+	const updatePipelineMember = useMutation(
+		updateAIGatewayPipelineMemberMutation(queryClient),
+	);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.viewAnyAIGatewayPolicy}>
@@ -83,17 +87,17 @@ const PoliciesPage: React.FC = () => {
 					createError={createPolicy.error}
 					onDeletePolicy={deletePolicy.mutate}
 					deletePolicyError={deletePolicy.error}
-					onEditPolicy={(id, rego, onSuccess) =>
+					onEditPolicy={(id, rego, promote, onSuccess) =>
 						createPolicyVersion.mutate(
-							{ id, request: { rego, activate: true } },
+							{ id, request: { rego, activate: true, promote } },
 							{ onSuccess },
 						)
 					}
 					isEditing={createPolicyVersion.isPending}
 					editError={createPolicyVersion.error}
-					onRevertPolicy={(id, versionId, onSuccess) =>
+					onRevertPolicy={(id, versionId, promote, onSuccess) =>
 						updatePolicy.mutate(
-							{ id, request: { active_version_id: versionId } },
+							{ id, request: { active_version_id: versionId, promote } },
 							{ onSuccess },
 						)
 					}
@@ -107,8 +111,12 @@ const PoliciesPage: React.FC = () => {
 					onDeletePipeline={deletePipeline.mutate}
 					deletePipelineError={deletePipeline.error}
 					onEditPipeline={(id, policies, guardrails, onSuccess) =>
+						// Editing a pipeline's membership mints an unpromoted draft
+						// version (activate: false). Promotion is a separate,
+						// deliberate action via onPromotePipeline; nothing goes live
+						// until the operator promotes the staged version.
 						createPipelineVersion.mutate(
-							{ id, request: { policies, guardrails, activate: true } },
+							{ id, request: { policies, guardrails, activate: false } },
 							{ onSuccess },
 						)
 					}
@@ -117,6 +125,17 @@ const PoliciesPage: React.FC = () => {
 					onTogglePipeline={(id, enabled) =>
 						updatePipeline.mutate({ id, request: { enabled } })
 					}
+					onToggleMember={(id, request) =>
+						updatePipelineMember.mutate({ id, request })
+					}
+					onPromotePipeline={(id, versionId, onSuccess) =>
+						updatePipeline.mutate(
+							{ id, request: { active_version_id: versionId } },
+							{ onSuccess },
+						)
+					}
+					isPromoting={updatePipeline.isPending}
+					promoteError={updatePipeline.error}
 				/>
 
 				<GuardrailsSection

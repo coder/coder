@@ -257,7 +257,8 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/guardrails/{id} \
 {
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "display_name": "string",
-  "enabled": true
+  "enabled": true,
+  "promote": true
 }
 ```
 
@@ -330,7 +331,8 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/guardrails/{id}/versions \
     0
   ],
   "credential": "string",
-  "description": "string"
+  "description": "string",
+  "promote": true
 }
 ```
 
@@ -417,6 +419,33 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
     "created_at": "2019-08-24T14:15:22Z",
     "enabled": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "latest_version": {
+      "created_at": "2019-08-24T14:15:22Z",
+      "guardrails": [
+        {
+          "enabled": true,
+          "fail_mode": "fail_open",
+          "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+          "hook": "pre_auth",
+          "mode": "advisory",
+          "network_timeout_ms": 0
+        }
+      ],
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+      "policies": [
+        {
+          "enabled": true,
+          "fail_mode": "fail_open",
+          "hook": "pre_auth",
+          "kind": "classify",
+          "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+        }
+      ],
+      "version_number": 0
+    },
+    "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+    "latest_version_number": 0,
     "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
     "updated_at": "2019-08-24T14:15:22Z"
   }
@@ -433,40 +462,49 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
 
 Status Code **200**
 
-| Name                       | Type                                                                             | Required | Restrictions | Description                                                                                                                               |
-|----------------------------|----------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`             | array                                                                            | false    |              |                                                                                                                                           |
-| `» active_version`         | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                           |
-| `»» created_at`            | string(date-time)                                                                | false    |              |                                                                                                                                           |
-| `»» guardrails`            | array                                                                            | false    |              |                                                                                                                                           |
-| `»»» enabled`              | boolean                                                                          | false    |              |                                                                                                                                           |
-| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
-| `»»» guardrail_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
-| `»»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode)     | false    |              |                                                                                                                                           |
-| `»»» network_timeout_ms`   | integer                                                                          | false    |              |                                                                                                                                           |
-| `»» id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» pipeline_id`           | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» policies`              | array                                                                            | false    |              |                                                                                                                                           |
-| `»»» enabled`              | boolean                                                                          | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
-| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                           |
-| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                           |
-| `»»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)           | false    |              |                                                                                                                                           |
-| `»»» policy_version_id`    | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `»» version_number`        | integer                                                                          | false    |              |                                                                                                                                           |
-| `» active_version_id`      | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» created_at`             | string(date-time)                                                                | false    |              |                                                                                                                                           |
-| `» enabled`                | boolean                                                                          | false    |              |                                                                                                                                           |
-| `» id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» provider_id`            | string(uuid)                                                                     | false    |              |                                                                                                                                           |
-| `» updated_at`             | string(date-time)                                                                | false    |              |                                                                                                                                           |
+| Name                       | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|----------------------------|----------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`             | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» active_version`         | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» created_at`            | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» guardrails`            | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» enabled`              | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» guardrail_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode)     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» network_timeout_ms`   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» pipeline_id`           | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» policies`              | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» enabled`              | boolean                                                                          | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot.                                                                                                                                                                                                                                                                                                |
+| `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» policy_version_id`    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» version_number`        | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» active_version_id`      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» created_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» enabled`                | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» latest_version`         | [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) | false    |              | Latest version is the tip version with its full membership (policies and guardrails). Editing a pipeline must base the new version on the tip, not the active version, so staged changes accumulate as one linear draft lineage; basing an edit on the active version would silently drop members added in an unpromoted draft.                                                                                                          |
+| `»» created_at`            | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» guardrails`            | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» pipeline_id`           | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» policies`              | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `»» version_number`        | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» latest_version_id`      | string(uuid)                                                                     | false    |              | Latest version ID / LatestVersionNumber identify the pipeline's tip (most recent) version. Under the explicit two-stage rollout, activating a policy or guardrail mints a new pipeline version on the tip without promoting it, so the tip can be ahead of the active (live) version. When LatestVersionID differs from ActiveVersionID the pipeline has unpromoted changes (drift): the operator can promote the tip to take them live. |
+| `» latest_version_number`  | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» provider_id`            | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `» updated_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 #### Enumerated Values
 
 | Property    | Value(s)                                   |
 |-------------|--------------------------------------------|
 | `fail_mode` | `fail_closed`, `fail_open`                 |
-| `hook`      | `pre_auth`, `pre_req`                      |
+| `hook`      | `pre_auth`, `pre_req`, `pre_tool`          |
 | `mode`      | `advisory`, `enforcing`                    |
 | `kind`      | `classify`, `decide`, `route`, `transform` |
 
@@ -554,6 +592,33 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
   "created_at": "2019-08-24T14:15:22Z",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "latest_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+  "latest_version_number": 0,
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -621,6 +686,33 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "latest_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+  "latest_version_number": 0,
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -725,6 +817,33 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "enabled": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "latest_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+  "latest_version_number": 0,
   "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -735,6 +854,208 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
 | Status | Meaning                                                 | Description | Schema                                                             |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Enable or disable an AI gateway pipeline member
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id}/members \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/v2/aibridge/pipelines/{id}/members`
+
+> Body parameter
+
+```json
+{
+  "enabled": true,
+  "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+  "hook": "pre_auth",
+  "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                     | Required | Description           |
+|--------|------|----------------------------------------------------------------------------------------------------------|----------|-----------------------|
+| `id`   | path | string(uuid)                                                                                             | true     | Pipeline ID           |
+| `body` | body | [codersdk.UpdateAIGatewayPipelineMemberRequest](schemas.md#codersdkupdateaigatewaypipelinememberrequest) | true     | Update member request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "created_at": "2019-08-24T14:15:22Z",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "latest_version": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  },
+  "latest_version_id": "8562ca50-d99e-4ec5-9529-9c17b0fd462e",
+  "latest_version_number": 0,
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIGatewayPipeline](schemas.md#codersdkaigatewaypipeline) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI gateway pipeline versions
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/aibridge/pipelines/{id}/versions`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+|------|------|--------------|----------|-------------|
+| `id` | path | string(uuid) | true     | Pipeline ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "guardrails": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
+        "hook": "pre_auth",
+        "mode": "advisory",
+        "network_timeout_ms": 0
+      }
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "pipeline_id": "ec036e81-7903-4e4d-bbfa-ac8516341cf0",
+    "policies": [
+      {
+        "enabled": true,
+        "fail_mode": "fail_open",
+        "hook": "pre_auth",
+        "kind": "classify",
+        "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
+      }
+    ],
+    "version_number": 0
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayPipelineVersion](schemas.md#codersdkaigatewaypipelineversion) |
+
+<h3 id="list-ai-gateway-pipeline-versions-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type                                                                         | Required | Restrictions | Description                                                                                                                               |
+|---------------------------|------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                                        | false    |              |                                                                                                                                           |
+| `» created_at`            | string(date-time)                                                            | false    |              |                                                                                                                                           |
+| `» guardrails`            | array                                                                        | false    |              |                                                                                                                                           |
+| `»» enabled`              | boolean                                                                      | false    |              |                                                                                                                                           |
+| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)           | false    |              |                                                                                                                                           |
+| `»» guardrail_version_id` | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                   | false    |              |                                                                                                                                           |
+| `»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode) | false    |              |                                                                                                                                           |
+| `»» network_timeout_ms`   | integer                                                                      | false    |              |                                                                                                                                           |
+| `» id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» pipeline_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» policies`              | array                                                                        | false    |              |                                                                                                                                           |
+| `»» enabled`              | boolean                                                                      | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
+| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)           | false    |              |                                                                                                                                           |
+| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                   | false    |              |                                                                                                                                           |
+| `»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)       | false    |              |                                                                                                                                           |
+| `»» policy_version_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» version_number`        | integer                                                                      | false    |              |                                                                                                                                           |
+
+#### Enumerated Values
+
+| Property    | Value(s)                                   |
+|-------------|--------------------------------------------|
+| `fail_mode` | `fail_closed`, `fail_open`                 |
+| `hook`      | `pre_auth`, `pre_req`, `pre_tool`          |
+| `mode`      | `advisory`, `enforcing`                    |
+| `kind`      | `classify`, `decide`, `route`, `transform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1078,7 +1399,8 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/policies/{id} \
 ```json
 {
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "display_name": "string"
+  "display_name": "string",
+  "promote": true
 }
 ```
 
@@ -1146,6 +1468,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/policies/{id}/versions \
 {
   "activate": true,
   "description": "string",
+  "promote": true,
   "rego": "string"
 }
 ```

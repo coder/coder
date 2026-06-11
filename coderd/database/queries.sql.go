@@ -2949,6 +2949,102 @@ func (q *sqlQuerier) GetAIGatewayPipelineGuardrailDrift(ctx context.Context) ([]
 	return items, nil
 }
 
+const getAIGatewayPipelineVersionGuardrailSnapshot = `-- name: GetAIGatewayPipelineVersionGuardrailSnapshot :many
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.mode,
+    m.fail_mode,
+    m.network_timeout_ms,
+    g.id AS guardrail_id,
+    g.name AS guardrail_name,
+    g.adapter_type,
+    gver.id AS guardrail_version_id,
+    gver.config,
+    gver.credential,
+    gver.credential_key_id
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = $1::uuid AND pv.pipeline_id = pl.id
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
+JOIN ai_gateway_guardrails g ON g.id = gver.guardrail_id
+WHERE pl.deleted = FALSE
+    AND m.enabled = TRUE
+    AND g.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND g.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, g.name
+`
+
+type GetAIGatewayPipelineVersionGuardrailSnapshotRow struct {
+	ProviderID            uuid.UUID              `db:"provider_id" json:"provider_id"`
+	ProviderName          string                 `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID              `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32                  `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook          `db:"hook" json:"hook"`
+	Mode                  AIGatewayGuardrailMode `db:"mode" json:"mode"`
+	FailMode              AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs      int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
+	GuardrailID           uuid.UUID              `db:"guardrail_id" json:"guardrail_id"`
+	GuardrailName         string                 `db:"guardrail_name" json:"guardrail_name"`
+	AdapterType           string                 `db:"adapter_type" json:"adapter_type"`
+	GuardrailVersionID    uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Config                json.RawMessage        `db:"config" json:"config"`
+	Credential            string                 `db:"credential" json:"credential"`
+	CredentialKeyID       sql.NullString         `db:"credential_key_id" json:"credential_key_id"`
+}
+
+// Like GetActiveAIGatewayPipelineGuardrails but resolves a specific (typically
+// unpromoted) pipeline version instead of the active one, for version-targeted
+// evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked,
+// mirroring the policy snapshot variant. credential is decrypted by the dbcrypt
+// layer.
+func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]GetAIGatewayPipelineVersionGuardrailSnapshotRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionGuardrailSnapshot, pipelineVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIGatewayPipelineVersionGuardrailSnapshotRow
+	for rows.Next() {
+		var i GetAIGatewayPipelineVersionGuardrailSnapshotRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.PipelineID,
+			&i.PipelineVersionID,
+			&i.PipelineVersionNumber,
+			&i.Hook,
+			&i.Mode,
+			&i.FailMode,
+			&i.NetworkTimeoutMs,
+			&i.GuardrailID,
+			&i.GuardrailName,
+			&i.AdapterType,
+			&i.GuardrailVersionID,
+			&i.Config,
+			&i.Credential,
+			&i.CredentialKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIGatewayPipelineVersionGuardrails = `-- name: GetAIGatewayPipelineVersionGuardrails :many
 SELECT id, pipeline_version_id, guardrail_version_id, hook, mode, fail_mode, network_timeout_ms, enabled FROM ai_gateway_pipeline_version_guardrails
 WHERE pipeline_version_id = $1::uuid
@@ -2989,14 +3085,23 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, 
 const getAIGatewayPipelinesReferencingGuardrail = `-- name: GetAIGatewayPipelinesReferencingGuardrail :many
 SELECT DISTINCT pl.id, pl.provider_id, pl.active_version_id, pl.enabled, pl.deleted, pl.created_at, pl.updated_at
 FROM ai_gateway_pipelines pl
-JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_pipeline_versions tip ON tip.pipeline_id = pl.id
+    AND tip.version_number = (
+        SELECT MAX(v.version_number)
+        FROM ai_gateway_pipeline_versions v
+        WHERE v.pipeline_id = pl.id
+    )
+JOIN ai_gateway_pipeline_version_guardrails m ON m.pipeline_version_id = tip.id
 JOIN ai_gateway_guardrail_versions gver ON gver.id = m.guardrail_version_id
 WHERE pl.deleted = FALSE AND gver.guardrail_id = $1::uuid
 `
 
-// Live pipelines whose active version pins any version of the given guardrail.
-// Used to propagate a newly activated guardrail version into the pipelines that
-// use it (assisted upgrade).
+// Live pipelines whose TIP (latest) version pins any version of the given
+// guardrail. Used to propagate a newly activated guardrail version into the
+// pipelines that use it (assisted upgrade). Referencing the tip, not the active
+// version, means a guardrail added to a pipeline but not yet promoted still
+// receives the propagated edit, so a guardrail edit always mints a pipeline
+// version (matching policies).
 func (q *sqlQuerier) GetAIGatewayPipelinesReferencingGuardrail(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayPipeline, error) {
 	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelinesReferencingGuardrail, guardrailID)
 	if err != nil {
@@ -3337,6 +3442,35 @@ func (q *sqlQuerier) UpdateAIGatewayGuardrailActiveVersion(ctx context.Context, 
 	return err
 }
 
+const updateAIGatewayPipelineVersionGuardrailEnabled = `-- name: UpdateAIGatewayPipelineVersionGuardrailEnabled :exec
+UPDATE ai_gateway_pipeline_version_guardrails
+SET enabled = $1::boolean
+WHERE pipeline_version_id = $2::uuid
+    AND guardrail_version_id = $3::uuid
+    AND hook = $4::ai_gateway_hook
+`
+
+type UpdateAIGatewayPipelineVersionGuardrailEnabledParams struct {
+	Enabled            bool          `db:"enabled" json:"enabled"`
+	PipelineVersionID  uuid.UUID     `db:"pipeline_version_id" json:"pipeline_version_id"`
+	GuardrailVersionID uuid.UUID     `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Hook               AIGatewayHook `db:"hook" json:"hook"`
+}
+
+// Flips a guardrail member's enabled flag in place on a specific pipeline
+// version. Like the policy variant, enable/disable is a live pause control, not
+// a composition change, so it mutates the membership row instead of minting a
+// new pipeline version.
+func (q *sqlQuerier) UpdateAIGatewayPipelineVersionGuardrailEnabled(ctx context.Context, arg UpdateAIGatewayPipelineVersionGuardrailEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, updateAIGatewayPipelineVersionGuardrailEnabled,
+		arg.Enabled,
+		arg.PipelineVersionID,
+		arg.GuardrailVersionID,
+		arg.Hook,
+	)
+	return err
+}
+
 const countAIGatewayPolicyVersionsInActivePipelines = `-- name: CountAIGatewayPolicyVersionsInActivePipelines :one
 SELECT COUNT(*) FROM ai_gateway_pipeline_version_policies m
 JOIN ai_gateway_pipelines pl ON pl.active_version_id = m.pipeline_version_id
@@ -3473,6 +3607,36 @@ func (q *sqlQuerier) GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]Get
 	return items, nil
 }
 
+const getAIGatewayPipelineVersionIDByProviderAndNumber = `-- name: GetAIGatewayPipelineVersionIDByProviderAndNumber :one
+SELECT pv.id
+FROM ai_gateway_pipeline_versions pv
+JOIN ai_gateway_pipelines pl ON pl.id = pv.pipeline_id
+JOIN ai_providers prov ON prov.id = pl.provider_id
+WHERE prov.name = $1::text
+    AND pv.version_number = $2::integer
+    AND pl.deleted = FALSE
+    AND prov.deleted = FALSE
+`
+
+type GetAIGatewayPipelineVersionIDByProviderAndNumberParams struct {
+	ProviderName  string `db:"provider_name" json:"provider_name"`
+	VersionNumber int32  `db:"version_number" json:"version_number"`
+}
+
+// Resolves a pipeline version's id from the provider name and the logical
+// version number, for the version-targeted evaluation gate (§10.9). The
+// X-Coder-AI-Gateway-Pipeline-Version header carries the human-facing version
+// number, not the internal uuid, so this translates it. Returns no rows when no
+// live pipeline for the provider has that version number, which the gate maps to
+// a 4xx (unknown version). Provider scoping here means a foreign version number
+// can never resolve to another provider's pipeline.
+func (q *sqlQuerier) GetAIGatewayPipelineVersionIDByProviderAndNumber(ctx context.Context, arg GetAIGatewayPipelineVersionIDByProviderAndNumberParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPipelineVersionIDByProviderAndNumber, arg.ProviderName, arg.VersionNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAIGatewayPipelineVersionPolicies = `-- name: GetAIGatewayPipelineVersionPolicies :many
 SELECT id, pipeline_version_id, policy_version_id, hook, kind, fail_mode, enabled FROM ai_gateway_pipeline_version_policies
 WHERE pipeline_version_id = $1::uuid
@@ -3507,6 +3671,122 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pi
 		return nil, err
 	}
 	return items, nil
+}
+
+const getAIGatewayPipelineVersionPolicySnapshot = `-- name: GetAIGatewayPipelineVersionPolicySnapshot :many
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.kind,
+    m.fail_mode,
+    p.id AS policy_id,
+    p.name AS policy_name,
+    pver.id AS policy_version_id,
+    pver.rego,
+    pver.input_schema_version,
+    pver.output_schema_version
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = $1::uuid AND pv.pipeline_id = pl.id
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+JOIN ai_gateway_policies p ON p.id = pver.policy_id
+WHERE pl.deleted = FALSE
+    AND m.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND p.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, m.kind, p.name
+`
+
+type GetAIGatewayPipelineVersionPolicySnapshotRow struct {
+	ProviderID            uuid.UUID           `db:"provider_id" json:"provider_id"`
+	ProviderName          string              `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID           `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID           `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32               `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook       `db:"hook" json:"hook"`
+	Kind                  AIGatewayPolicyKind `db:"kind" json:"kind"`
+	FailMode              AIGatewayFailMode   `db:"fail_mode" json:"fail_mode"`
+	PolicyID              uuid.UUID           `db:"policy_id" json:"policy_id"`
+	PolicyName            string              `db:"policy_name" json:"policy_name"`
+	PolicyVersionID       uuid.UUID           `db:"policy_version_id" json:"policy_version_id"`
+	Rego                  string              `db:"rego" json:"rego"`
+	InputSchemaVersion    int32               `db:"input_schema_version" json:"input_schema_version"`
+	OutputSchemaVersion   int32               `db:"output_schema_version" json:"output_schema_version"`
+}
+
+// Like GetActiveAIGatewayPipelinePolicies but resolves a specific (typically
+// unpromoted) pipeline version instead of the active one, for version-targeted
+// evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked:
+// a staged version is rehearsed against real traffic before it is promoted and
+// the pipeline is enabled. Disabled members and soft-deleted parents are still
+// excluded, matching the active snapshot.
+func (q *sqlQuerier) GetAIGatewayPipelineVersionPolicySnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]GetAIGatewayPipelineVersionPolicySnapshotRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionPolicySnapshot, pipelineVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIGatewayPipelineVersionPolicySnapshotRow
+	for rows.Next() {
+		var i GetAIGatewayPipelineVersionPolicySnapshotRow
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.ProviderName,
+			&i.PipelineID,
+			&i.PipelineVersionID,
+			&i.PipelineVersionNumber,
+			&i.Hook,
+			&i.Kind,
+			&i.FailMode,
+			&i.PolicyID,
+			&i.PolicyName,
+			&i.PolicyVersionID,
+			&i.Rego,
+			&i.InputSchemaVersion,
+			&i.OutputSchemaVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIGatewayPipelineVersionProvider = `-- name: GetAIGatewayPipelineVersionProvider :one
+SELECT prov.name AS provider_name, pv.version_number
+FROM ai_gateway_pipeline_versions pv
+JOIN ai_gateway_pipelines pl ON pl.id = pv.pipeline_id
+JOIN ai_providers prov ON prov.id = pl.provider_id
+WHERE pv.id = $1::uuid
+    AND pl.deleted = FALSE
+    AND prov.deleted = FALSE
+`
+
+type GetAIGatewayPipelineVersionProviderRow struct {
+	ProviderName  string `db:"provider_name" json:"provider_name"`
+	VersionNumber int32  `db:"version_number" json:"version_number"`
+}
+
+// Resolves the provider that owns a pipeline version, for the version-targeted
+// evaluation gate (§10.9). Returns no rows if the version does not exist or its
+// pipeline/provider is soft-deleted, which the gate maps to a 4xx (unknown or
+// foreign version).
+func (q *sqlQuerier) GetAIGatewayPipelineVersionProvider(ctx context.Context, pipelineVersionID uuid.UUID) (GetAIGatewayPipelineVersionProviderRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayPipelineVersionProvider, pipelineVersionID)
+	var i GetAIGatewayPipelineVersionProviderRow
+	err := row.Scan(&i.ProviderName, &i.VersionNumber)
+	return i, err
 }
 
 const getAIGatewayPipelineVersionsByPipelineID = `-- name: GetAIGatewayPipelineVersionsByPipelineID :many
@@ -3591,14 +3871,23 @@ func (q *sqlQuerier) GetAIGatewayPipelines(ctx context.Context, arg GetAIGateway
 const getAIGatewayPipelinesReferencingPolicy = `-- name: GetAIGatewayPipelinesReferencingPolicy :many
 SELECT DISTINCT pl.id, pl.provider_id, pl.active_version_id, pl.enabled, pl.deleted, pl.created_at, pl.updated_at
 FROM ai_gateway_pipelines pl
-JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_pipeline_versions tip ON tip.pipeline_id = pl.id
+    AND tip.version_number = (
+        SELECT MAX(v.version_number)
+        FROM ai_gateway_pipeline_versions v
+        WHERE v.pipeline_id = pl.id
+    )
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = tip.id
 JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
 WHERE pl.deleted = FALSE AND pver.policy_id = $1::uuid
 `
 
-// Live pipelines whose active version pins any version of the given policy.
-// Used to propagate a newly activated policy version into the pipelines that
-// use it (assisted upgrade).
+// Live pipelines whose TIP (latest) version pins any version of the given
+// policy. Used to propagate a newly activated policy version into the pipelines
+// that use it (assisted upgrade). Referencing the tip, not the active version,
+// means a policy added to a pipeline but not yet promoted still receives the
+// propagated edit, so a policy edit always mints a pipeline version on every
+// pipeline whose current composition uses it (matching guardrails).
 func (q *sqlQuerier) GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPipeline, error) {
 	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelinesReferencingPolicy, policyID)
 	if err != nil {
@@ -4135,6 +4424,34 @@ type UpdateAIGatewayPipelineActiveVersionParams struct {
 
 func (q *sqlQuerier) UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg UpdateAIGatewayPipelineActiveVersionParams) error {
 	_, err := q.db.ExecContext(ctx, updateAIGatewayPipelineActiveVersion, arg.ActiveVersionID, arg.ID)
+	return err
+}
+
+const updateAIGatewayPipelineVersionPolicyEnabled = `-- name: UpdateAIGatewayPipelineVersionPolicyEnabled :exec
+UPDATE ai_gateway_pipeline_version_policies
+SET enabled = $1::boolean
+WHERE pipeline_version_id = $2::uuid
+    AND policy_version_id = $3::uuid
+    AND hook = $4::ai_gateway_hook
+`
+
+type UpdateAIGatewayPipelineVersionPolicyEnabledParams struct {
+	Enabled           bool          `db:"enabled" json:"enabled"`
+	PipelineVersionID uuid.UUID     `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PolicyVersionID   uuid.UUID     `db:"policy_version_id" json:"policy_version_id"`
+	Hook              AIGatewayHook `db:"hook" json:"hook"`
+}
+
+// Flips a policy member's enabled flag in place on a specific pipeline version.
+// Enable/disable is a live pause control, not a composition change, so it
+// mutates the membership row directly instead of minting a new pipeline version.
+func (q *sqlQuerier) UpdateAIGatewayPipelineVersionPolicyEnabled(ctx context.Context, arg UpdateAIGatewayPipelineVersionPolicyEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, updateAIGatewayPipelineVersionPolicyEnabled,
+		arg.Enabled,
+		arg.PipelineVersionID,
+		arg.PolicyVersionID,
+		arg.Hook,
+	)
 	return err
 }
 

@@ -142,6 +142,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// in requests to upstream services.
 	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
 		"Username": resp.GetUsername(),
+		"IsOwner":  resp.GetIsOwner(),
 	}))
 
 	id, err := uuid.Parse(resp.GetOwnerId())

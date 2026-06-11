@@ -21,8 +21,8 @@ func TestEnvelope_Builds(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = policy.PreToolEnvelope{
-		ToolCall: policy.ToolCall{Name: "bash"},
-		Request:  []byte(`{}`),
+		PreReqEnvelope: policy.PreReqEnvelope{Request: []byte(`{}`)},
+		ToolCall:       policy.ToolCall{Name: "bash"},
 	}.Build()
 	require.NoError(t, err)
 }

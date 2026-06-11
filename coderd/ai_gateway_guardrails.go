@@ -259,7 +259,7 @@ func (api *API) aiGatewayGuardrailVersionCreate(rw http.ResponseWriter, r *http.
 			}); txErr != nil {
 				return txErr
 			}
-			return propagateGuardrailVersion(ctx, tx, id, ver.ID, auditableUserID(r))
+			return propagateGuardrailVersion(ctx, tx, id, ver.ID, auditableUserID(r), req.Promote)
 		}
 		return nil
 	}, &database.TxOptions{TxIdentifier: "create_ai_gateway_guardrail_version"})
@@ -350,7 +350,7 @@ func (api *API) aiGatewayGuardrailUpdate(rw http.ResponseWriter, r *http.Request
 			}); txErr != nil {
 				return txErr
 			}
-			return propagateGuardrailVersion(ctx, tx, id, *req.ActiveVersionID, auditableUserID(r))
+			return propagateGuardrailVersion(ctx, tx, id, *req.ActiveVersionID, auditableUserID(r), req.Promote)
 		}, &database.TxOptions{TxIdentifier: "activate_ai_gateway_guardrail_version"})
 		if err != nil {
 			if database.IsForeignKeyViolation(err) {
@@ -437,7 +437,7 @@ func (api *API) aiGatewayGuardrailDelete(rw http.ResponseWriter, r *http.Request
 // version of guardrailID to newVersionID, minting a new pipeline version that
 // preserves all other members (policies and other guardrails). Mirrors
 // propagatePolicyVersion.
-func propagateGuardrailVersion(ctx context.Context, tx database.Store, guardrailID, newVersionID uuid.UUID, createdBy uuid.NullUUID) error {
+func propagateGuardrailVersion(ctx context.Context, tx database.Store, guardrailID, newVersionID uuid.UUID, createdBy uuid.NullUUID, promote bool) error {
 	versions, err := tx.GetAIGatewayGuardrailVersionsByGuardrailID(ctx, guardrailID)
 	if err != nil {
 		return err
@@ -461,7 +461,7 @@ func propagateGuardrailVersion(ctx context.Context, tx database.Store, guardrail
 		if !pl.ActiveVersionID.Valid {
 			continue
 		}
-		if err := mintPipelineVersionWithMembers(ctx, tx, pl, createdBy, identityRemap, remapGuardrail); err != nil {
+		if err := mintPipelineVersionWithMembers(ctx, tx, pl, createdBy, identityRemap, remapGuardrail, promote); err != nil {
 			return err
 		}
 	}
@@ -471,27 +471,37 @@ func propagateGuardrailVersion(ctx context.Context, tx database.Store, guardrail
 func identityRemap(id uuid.UUID) uuid.UUID { return id }
 
 // mintPipelineVersionWithMembers creates a new immutable version of pl that
-// copies its active version's policy and guardrail members, remapping each
-// member's pinned version id through the given functions, then activates it.
-// Copying BOTH member kinds is essential: a pipeline version holds policies and
-// guardrails together, so dropping either when propagating one would silently
-// remove the other from what runs.
-func mintPipelineVersionWithMembers(ctx context.Context, tx database.Store, pl database.AIGatewayPipeline, createdBy uuid.NullUUID, remapPolicyVersion, remapGuardrailVersion func(uuid.UUID) uuid.UUID) error {
-	policyMembers, err := tx.GetAIGatewayPipelineVersionPolicies(ctx, pl.ActiveVersionID.UUID)
-	if err != nil {
-		return err
-	}
-	guardrailMembers, err := tx.GetAIGatewayPipelineVersionGuardrails(ctx, pl.ActiveVersionID.UUID)
-	if err != nil {
-		return err
-	}
+// copies the members of pl's TIP (latest) version, remapping each member's
+// pinned version id through the given functions. When promote is true it also
+// activates the minted version; otherwise the version is an unpromoted draft on
+// the pipeline's lineage and live posture is unchanged (explicit two-stage
+// rollout).
+//
+// Members are sourced from the tip, not the active version, so successive
+// edits accumulate as one linear draft lineage and the tip is always the
+// testable "everything staged so far". Copying BOTH member kinds is essential:
+// a pipeline version holds policies and guardrails together, so dropping either
+// when propagating one would silently remove the other from what runs.
+func mintPipelineVersionWithMembers(ctx context.Context, tx database.Store, pl database.AIGatewayPipeline, createdBy uuid.NullUUID, remapPolicyVersion, remapGuardrailVersion func(uuid.UUID) uuid.UUID, promote bool) error {
 	existing, err := tx.GetAIGatewayPipelineVersionsByPipelineID(ctx, pl.ID)
 	if err != nil {
 		return err
 	}
+	// Source members from the tip (latest) version. Fall back to the active
+	// version if, defensively, the pipeline has no version rows.
+	source := pl.ActiveVersionID.UUID
 	next := int32(1)
 	if len(existing) > 0 {
+		source = existing[0].ID
 		next = existing[0].VersionNumber + 1
+	}
+	policyMembers, err := tx.GetAIGatewayPipelineVersionPolicies(ctx, source)
+	if err != nil {
+		return err
+	}
+	guardrailMembers, err := tx.GetAIGatewayPipelineVersionGuardrails(ctx, source)
+	if err != nil {
+		return err
 	}
 	newPV, err := tx.InsertAIGatewayPipelineVersion(ctx, database.InsertAIGatewayPipelineVersionParams{
 		ID:            uuid.New(),
@@ -528,6 +538,9 @@ func mintPipelineVersionWithMembers(ctx context.Context, tx database.Store, pl d
 		}); err != nil {
 			return err
 		}
+	}
+	if !promote {
+		return nil
 	}
 	return tx.UpdateAIGatewayPipelineActiveVersion(ctx, database.UpdateAIGatewayPipelineActiveVersionParams{
 		ID:              pl.ID,

@@ -8,7 +8,10 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import { aiGatewayPolicy } from "#/api/queries/aiGatewayPolicies";
+import {
+	aiGatewayPipelineVersions,
+	aiGatewayPolicy,
+} from "#/api/queries/aiGatewayPolicies";
 import type {
 	AIGatewayGuardrail,
 	AIGatewayGuardrailMode,
@@ -18,15 +21,18 @@ import type {
 	AIGatewayPipelineGuardrailRequest,
 	AIGatewayPipelinePolicy,
 	AIGatewayPipelinePolicyRequest,
+	AIGatewayPipelineVersion,
 	AIGatewayPolicy,
 	AIGatewayPolicyKind,
 	AIProvider,
 	CreateAIGatewayPipelineRequest,
 	CreateAIGatewayPolicyRequest,
+	UpdateAIGatewayPipelineMemberRequest,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -128,19 +134,15 @@ function resolveGuardrailMembers(
 	return out;
 }
 
-// guardrailMembersToRequests maps a pipeline's existing guardrail members back
-// to requests so re-minting a version (e.g. toggling a policy) preserves them.
-function guardrailMembersToRequests(
-	members: readonly AIGatewayPipelineGuardrail[],
-): AIGatewayPipelineGuardrailRequest[] {
-	return members.map((g) => ({
-		guardrail_version_id: g.guardrail_version_id,
-		hook: g.hook,
-		mode: g.mode,
-		fail_mode: g.fail_mode,
-		network_timeout_ms: g.network_timeout_ms,
-		enabled: g.enabled,
-	}));
+// pipelineEditBase returns the version a pipeline edit must build on: the tip
+// (latest) version, falling back to the active version. Minting must base on
+// the tip so staged-but-unpromoted changes accumulate as one linear draft
+// lineage; basing an edit on the active version silently drops members added in
+// an earlier unpromoted draft (e.g. a guardrail).
+function pipelineEditBase(
+	pipeline: AIGatewayPipeline,
+): AIGatewayPipelineVersion | undefined {
+	return pipeline.latest_version ?? pipeline.active_version;
 }
 
 interface GuardrailMemberEditorProps {
@@ -275,6 +277,91 @@ const GuardrailMemberEditor: FC<GuardrailMemberEditorProps> = ({
 	</div>
 );
 
+// PromoteCheckbox toggles whether activating a policy or guardrail version goes
+// live immediately. Unchecked (default) mints unpromoted drafts on each
+// referencing pipeline, which the operator promotes per pipeline; checked
+// promotes everywhere at once.
+const PromoteCheckbox: FC<{
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}> = ({ checked, onChange }) => {
+	const id = useId();
+	return (
+		<div className="flex items-start gap-2 rounded border border-solid border-border p-3">
+			<Checkbox
+				id={id}
+				checked={checked}
+				onCheckedChange={(next) => onChange(next === true)}
+			/>
+			<div className="flex flex-col gap-1">
+				<Label htmlFor={id} className="font-medium">
+					Promote to live immediately
+				</Label>
+				<span className="text-xs text-content-secondary">
+					When unchecked, the change is staged: each referencing pipeline gets a
+					new unpromoted version that you promote separately. When checked, the
+					change goes live on every referencing pipeline at once.
+				</span>
+			</div>
+		</div>
+	);
+};
+
+// PipelineVersionHistory lists a pipeline's immutable versions (newest first)
+// with which is live, and lets the operator promote any non-live version. It is
+// rendered lazily when a pipeline row is expanded.
+const PipelineVersionHistory: FC<{
+	pipeline: AIGatewayPipeline;
+	onPromote: (id: string, versionId: string, onSuccess: () => void) => void;
+	isPromoting: boolean;
+}> = ({ pipeline, onPromote, isPromoting }) => {
+	const versionsQuery = useQuery(aiGatewayPipelineVersions(pipeline.id));
+	const versions = versionsQuery.data ?? [];
+	if (versions.length === 0) {
+		return null;
+	}
+	return (
+		<div className="mt-3 flex flex-col gap-1 border-0 border-t border-solid border-border pt-3">
+			<span className="text-xs font-medium text-content-secondary">
+				Version history
+			</span>
+			{versions.map((version) => {
+				const isLive = version.id === pipeline.active_version_id;
+				return (
+					<div
+						key={version.id}
+						className="flex items-center justify-between gap-2"
+					>
+						<span className="text-sm">
+							<span className="font-medium">v{version.version_number}</span>{" "}
+							<span className="text-content-secondary">
+								{version.policies.length} policies · {version.guardrails.length}{" "}
+								guardrails ·{" "}
+								{new Date(version.created_at).toLocaleString("en-US")}
+							</span>{" "}
+							{isLive && (
+								<Badge size="sm" variant="green">
+									Live
+								</Badge>
+							)}
+						</span>
+						{!isLive && (
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={isPromoting}
+								onClick={() => onPromote(pipeline.id, version.id, () => {})}
+							>
+								Promote
+							</Button>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+};
+
 interface PoliciesPageViewProps {
 	policies: AIGatewayPolicy[];
 	pipelines: AIGatewayPipeline[];
@@ -290,12 +377,18 @@ interface PoliciesPageViewProps {
 	createError: unknown;
 	onDeletePolicy: (id: string) => void;
 	deletePolicyError: unknown;
-	onEditPolicy: (id: string, rego: string, onSuccess: () => void) => void;
+	onEditPolicy: (
+		id: string,
+		rego: string,
+		promote: boolean,
+		onSuccess: () => void,
+	) => void;
 	isEditing: boolean;
 	editError: unknown;
 	onRevertPolicy: (
 		id: string,
 		versionId: string,
+		promote: boolean,
 		onSuccess: () => void,
 	) => void;
 	isReverting: boolean;
@@ -317,6 +410,22 @@ interface PoliciesPageViewProps {
 	isEditingPipeline: boolean;
 	editPipelineError: unknown;
 	onTogglePipeline: (id: string, enabled: boolean) => void;
+	// onToggleMember enables/disables a single member (policy or guardrail) of a
+	// pipeline's live version in place, without minting a new version.
+	onToggleMember: (
+		id: string,
+		request: UpdateAIGatewayPipelineMemberRequest,
+	) => void;
+	// onPromotePipeline takes a minted-but-unpromoted pipeline version live by
+	// activating it. versionId is typically the pipeline's tip
+	// (latest_version_id) when promoting accumulated unpromoted changes.
+	onPromotePipeline: (
+		id: string,
+		versionId: string,
+		onSuccess: () => void,
+	) => void;
+	isPromoting: boolean;
+	promoteError: unknown;
 }
 
 const PoliciesPageView: FC<PoliciesPageViewProps> = ({
@@ -346,6 +455,10 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 	isEditingPipeline,
 	editPipelineError,
 	onTogglePipeline,
+	onToggleMember,
+	onPromotePipeline,
+	isPromoting,
+	promoteError,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [pipelineOpen, setPipelineOpen] = useState(false);
@@ -396,60 +509,32 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 			return next;
 		});
 
-	// Enable/disable a policy within a pipeline by minting a new pipeline version
-	// that flips that tuple's enabled flag in ai_gateway_pipeline_version_policies.
-	// It never touches the policy itself.
+	// Enable/disable a policy within a pipeline. This is a live pause control, not
+	// a composition change, so it flips the membership's enabled flag in place on
+	// the active (live) version and takes effect immediately, without minting a
+	// new pipeline version. It never touches the policy itself.
 	const toggleAttachedPolicy = (
 		pipeline: AIGatewayPipeline,
 		target: AIGatewayPipelinePolicy,
 	) => {
-		const next = (pipeline.active_version?.policies ?? []).map((m) => ({
-			policy_version_id: m.policy_version_id,
-			hook: m.hook,
-			fail_mode: m.fail_mode,
-			enabled:
-				m.policy_version_id === target.policy_version_id &&
-				m.hook === target.hook
-					? !m.enabled
-					: m.enabled,
-		}));
-		// Preserve the pipeline's guardrail members; re-minting a version with
-		// only policies would drop them.
-		onEditPipeline(
-			pipeline.id,
-			next,
-			guardrailMembersToRequests(pipeline.active_version?.guardrails ?? []),
-			() => {},
-		);
+		onToggleMember(pipeline.id, {
+			policy_version_id: target.policy_version_id,
+			hook: target.hook,
+			enabled: !target.enabled,
+		});
 	};
 
-	// Enable/disable a guardrail within a pipeline by re-minting the version
-	// with that member's enabled flag flipped, preserving all other members.
+	// Enable/disable a guardrail within a pipeline, in place on the active
+	// version (no new version), mirroring policy member enable/disable.
 	const toggleAttachedGuardrail = (
 		pipeline: AIGatewayPipeline,
 		target: AIGatewayPipelineGuardrail,
 	) => {
-		const nextGuardrails = (pipeline.active_version?.guardrails ?? []).map(
-			(m) => ({
-				guardrail_version_id: m.guardrail_version_id,
-				hook: m.hook,
-				mode: m.mode,
-				fail_mode: m.fail_mode,
-				network_timeout_ms: m.network_timeout_ms,
-				enabled:
-					m.guardrail_version_id === target.guardrail_version_id &&
-					m.hook === target.hook
-						? !m.enabled
-						: m.enabled,
-			}),
-		);
-		const keepPolicies = (pipeline.active_version?.policies ?? []).map((m) => ({
-			policy_version_id: m.policy_version_id,
-			hook: m.hook,
-			fail_mode: m.fail_mode,
-			enabled: m.enabled,
-		}));
-		onEditPipeline(pipeline.id, keepPolicies, nextGuardrails, () => {});
+		onToggleMember(pipeline.id, {
+			guardrail_version_id: target.guardrail_version_id,
+			hook: target.hook,
+			enabled: !target.enabled,
+		});
 	};
 
 	return (
@@ -561,6 +646,11 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 						<ErrorAlert error={deletePipelineError} />
 					</div>
 				)}
+				{Boolean(promoteError) && (
+					<div className="mb-4">
+						<ErrorAlert error={promoteError} />
+					</div>
+				)}
 
 				<Table aria-label="AI gateway pipelines">
 					<TableHeader>
@@ -578,10 +668,22 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 							<TableEmpty message="No pipelines configured" isCompact />
 						) : (
 							pipelines.map((pipeline) => {
+								// The expanded row shows the live (active) version's
+								// members, with in-place enable/disable. Composition edits
+								// happen in the "Edit policies" dialog, which bases on the
+								// tip; staged changes are surfaced via the badges/promote
+								// control below.
 								const members = pipeline.active_version?.policies ?? [];
 								const pipelineGuardrails =
 									pipeline.active_version?.guardrails ?? [];
 								const isOpen = expandedPipelines.has(pipeline.id);
+								// The tip (latest) version is ahead of the live (active)
+								// version when activating a policy/guardrail minted an
+								// unpromoted draft. Surface it as a promotable workqueue item.
+								const latestVersionId = pipeline.latest_version_id;
+								const hasUnpromotedChanges =
+									latestVersionId !== undefined &&
+									latestVersionId !== pipeline.active_version_id;
 								return (
 									<Fragment key={pipeline.id}>
 										<TableRow>
@@ -605,16 +707,43 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 												</Button>
 											</TableCell>
 											<TableCell>
-												<Badge
-													size="sm"
-													variant={pipeline.enabled ? "green" : "default"}
-												>
-													{pipeline.enabled ? "Enabled" : "Disabled"}
-												</Badge>
+												<div className="flex flex-wrap items-center gap-1">
+													<Badge
+														size="sm"
+														variant={pipeline.enabled ? "green" : "default"}
+													>
+														{pipeline.enabled ? "Enabled" : "Disabled"}
+													</Badge>
+													{hasUnpromotedChanges && (
+														<Badge
+															size="sm"
+															variant="warning"
+															title={`The live version is v${pipeline.active_version?.version_number ?? 0}; the latest staged version is v${pipeline.latest_version_number}. Promote to take the staged changes live.`}
+														>
+															Unpromoted v{pipeline.latest_version_number}
+														</Badge>
+													)}
+												</div>
 											</TableCell>
 											<TableCell>{members.length}</TableCell>
 											<TableCell>
 												<div className="flex justify-end gap-2">
+													{hasUnpromotedChanges && latestVersionId && (
+														<Button
+															variant="default"
+															size="sm"
+															disabled={isPromoting}
+															onClick={() =>
+																onPromotePipeline(
+																	pipeline.id,
+																	latestVersionId,
+																	() => {},
+																)
+															}
+														>
+															Promote v{pipeline.latest_version_number}
+														</Button>
+													)}
 													<Button
 														variant="outline"
 														size="sm"
@@ -751,6 +880,11 @@ const PoliciesPageView: FC<PoliciesPageViewProps> = ({
 															})}
 														</div>
 													)}
+													<PipelineVersionHistory
+														pipeline={pipeline}
+														onPromote={onPromotePipeline}
+														isPromoting={isPromoting}
+													/>
 												</TableCell>
 											</TableRow>
 										)}
@@ -1199,10 +1333,20 @@ function activeVersionLabel(policy: AIGatewayPolicy): string {
 interface EditPolicyDialogProps {
 	policyId: string | null;
 	onClose: () => void;
-	onSave: (id: string, rego: string, onSuccess: () => void) => void;
+	onSave: (
+		id: string,
+		rego: string,
+		promote: boolean,
+		onSuccess: () => void,
+	) => void;
 	isSaving: boolean;
 	error: unknown;
-	onRevert: (id: string, versionId: string, onSuccess: () => void) => void;
+	onRevert: (
+		id: string,
+		versionId: string,
+		promote: boolean,
+		onSuccess: () => void,
+	) => void;
 	isReverting: boolean;
 	revertError: unknown;
 }
@@ -1258,10 +1402,20 @@ const EditPolicyDialog: FC<EditPolicyDialogProps> = ({
 interface EditPolicyFormProps {
 	policy: AIGatewayPolicy;
 	onClose: () => void;
-	onSave: (id: string, rego: string, onSuccess: () => void) => void;
+	onSave: (
+		id: string,
+		rego: string,
+		promote: boolean,
+		onSuccess: () => void,
+	) => void;
 	isSaving: boolean;
 	error: unknown;
-	onRevert: (id: string, versionId: string, onSuccess: () => void) => void;
+	onRevert: (
+		id: string,
+		versionId: string,
+		promote: boolean,
+		onSuccess: () => void,
+	) => void;
 	isReverting: boolean;
 	revertError: unknown;
 }
@@ -1278,10 +1432,14 @@ const EditPolicyForm: FC<EditPolicyFormProps> = ({
 }) => {
 	const [rego, setRego] = useState(() => activeRego(policy));
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
+	// Activating mints an unpromoted draft on each referencing pipeline by
+	// default (the safe two-stage rollout). Opting in promotes immediately, the
+	// urgent-hole-patch path.
+	const [promote, setPromote] = useState(false);
 
 	const submit = (e: FormEvent) => {
 		e.preventDefault();
-		onSave(policy.id, rego, onClose);
+		onSave(policy.id, rego, promote, onClose);
 	};
 
 	// Most recent versions first; the list response orders by version desc.
@@ -1319,6 +1477,8 @@ const EditPolicyForm: FC<EditPolicyFormProps> = ({
 					height={480}
 				/>
 			</div>
+
+			<PromoteCheckbox checked={promote} onChange={setPromote} />
 
 			<DialogFooter>
 				<Button type="button" variant="outline" onClick={onClose}>
@@ -1370,7 +1530,9 @@ const EditPolicyForm: FC<EditPolicyFormProps> = ({
 										variant="outline"
 										size="sm"
 										disabled={isReverting}
-										onClick={() => onRevert(policy.id, version.id, onClose)}
+										onClick={() =>
+											onRevert(policy.id, version.id, promote, onClose)
+										}
 									>
 										Revert to this
 									</Button>
@@ -1427,7 +1589,7 @@ const EditPipelineDialog: FC<EditPipelineDialogProps> = ({
 			<DialogContent className="max-w-3xl">
 				{pipeline && (
 					<EditPipelineForm
-						key={pipeline.active_version_id ?? pipeline.id}
+						key={pipeline.latest_version_id ?? pipeline.id}
 						pipeline={pipeline}
 						policies={policies}
 						guardrails={guardrails}
@@ -1476,6 +1638,9 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 			versionToPolicyId.set(v.id, p.id);
 		}
 	}
+	// Edit the tip (latest) version, not the active one, so unpromoted staged
+	// members (e.g. a guardrail) are preserved when this mints the next version.
+	const editBase = pipelineEditBase(pipeline);
 
 	const nextId = useRef(0);
 	const makeId = () => {
@@ -1484,7 +1649,7 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 	};
 
 	const [members, setMembers] = useState<PipelineMemberDraft[]>(() =>
-		(pipeline.active_version?.policies ?? []).map((m) => ({
+		(editBase?.policies ?? []).map((m) => ({
 			id: makeId(),
 			// Show the parent policy in the picker; existing entries keep their
 			// pinned version until the picker is changed.
@@ -1499,7 +1664,7 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 	const [guardrailMembers, setGuardrailMembers] = useState<
 		GuardrailMemberDraft[]
 	>(() =>
-		(pipeline.active_version?.guardrails ?? []).map((m) => ({
+		(editBase?.guardrails ?? []).map((m) => ({
 			id: `g${makeId()}`,
 			guardrailId: versionToGuardrailId.get(m.guardrail_version_id) ?? "",
 			pinnedVersionId: m.guardrail_version_id,
@@ -1602,7 +1767,8 @@ const EditPipelineForm: FC<EditPipelineFormProps> = ({
 			<DialogHeader>
 				<DialogTitle>Edit pipeline policies</DialogTitle>
 				<DialogDescription>
-					Saving creates a new active pipeline version with this policy set.
+					Saving stages a new pipeline version with this policy set. It does not
+					go live until you promote it.
 				</DialogDescription>
 			</DialogHeader>
 

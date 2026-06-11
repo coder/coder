@@ -673,13 +673,18 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
 - **FR19** Atomic, non-disruptive version swaps via `active_version_id`; retired
   snapshots GC'd in-memory.
 - **FR20** Pause enforcement without deletion: an `enabled` flag on the **pipeline**
-  (whole posture off) and on each **pipeline+policy membership** (a policy off
-  within one pipeline). Policies themselves have no global enabled flag (see §10).
+  (whole posture off) and on each **pipeline+member membership** (a policy or
+  guardrail off within one pipeline). Member enable/disable is an in-place,
+  live-immediate toggle of the membership flag and does **not** mint a new
+  pipeline version (§10.7 D2). Policies themselves have no global enabled flag
+  (see §10).
 - **FR21** Version-targeted evaluation: an owner-only request header
-  (`X-Coder-AI-Gateway-Pipeline-Version`) evaluates a specific, typically
-  unpromoted, pipeline version against real traffic at full fidelity: same
-  engine behavior, different audience. Non-owners receive 403; no header means
-  the active version. See §10.9.
+  (`X-Coder-AI-Gateway-Pipeline-Version`, carrying the **logical version
+  number** shown in the UI, e.g. `3` or the `v3` label, not the internal uuid)
+  evaluates a
+  specific, typically unpromoted, pipeline version against real traffic at full
+  fidelity: same engine behavior, different audience. Non-owners receive 403; no
+  header means the active version. See §10.9.
 - **FR22** *(customer, 2026-06)* **CI-fit validation.** Expose the registration
   validation gate (§10.3: compile + schemas + per-kind smoke tests + pipeline
   structural checks) as a **headless, side-effect-free check** — an API dry-run
@@ -1345,13 +1350,23 @@ defend a case the structural guarantee already covers.
 - **[DECIDED] Execution log records the evaluating versions (D1).** Each execution
   record carries the active `pipeline_version_id` and the member
   `policy_version_id`s, so "what ran" is reconstructable after a swap/rollback.
-- **[DECIDED, as built] `enabled` at pipeline and membership level (D2).** A
-  disabled **pipeline** is skipped entirely (provider runs pass-through). A policy
-  disabled **within a pipeline** (its membership's `enabled = false`) is excluded
-  from that pipeline's snapshot only. There is **no** global policy `enabled` — a
-  policy has no standalone on/off meaning. Disabling a membership mints a new
-  pipeline version (rows are immutable). Pausing is explicit and surfaced by the
-  active-snapshot metric so reduced enforcement is visible.
+- **[DECIDED, revised 2026-06] `enabled` at pipeline and membership level (D2).**
+  A disabled **pipeline** is skipped entirely (provider runs pass-through). A
+  policy or guardrail disabled **within a pipeline** (its membership's
+  `enabled = false`) is excluded from that pipeline's snapshot only. There is
+  **no** global policy `enabled`; a policy has no standalone on/off meaning.
+  **Member enable/disable is a live pause control, not a composition change: it
+  mutates the membership's `enabled` flag in place on the live (active) version
+  and takes effect immediately, without minting a new pipeline version**
+  (`PATCH .../pipelines/{id}/members`). This refines the earlier "disabling a
+  membership mints a new version": composition (which members, pinned versions,
+  hooks, fail modes) stays immutable per version, but the boolean pause flag is
+  mutable in place. Only members of the live version can be paused; a member that
+  exists only in an unpromoted draft must be promoted first. Pausing is surfaced
+  by the active-snapshot metric so reduced enforcement is visible. (Caveat: the
+  owner-only version-targeted resolver caches compiled snapshots by version id,
+  so a header-rehearsed version may show a stale pause flag until the daemon
+  reloads; live enforcement always reflects the latest flag.)
 - **[DECIDED] Drift is a metric (D3).** When a pipeline pins a policy version that
   is not that policy's `active_version_id`, or a policy binds a non-latest schema
   version, expose a drift gauge. Under explicit promotion (§10.9) the gauge's
@@ -1393,7 +1408,20 @@ defend a case the structural guarantee already covers.
   (per-provider) with create/edit-policies/enable/disable/delete, an expandable
   row listing **attached policies** (resolved names) with per-membership
   enable/disable and a jump-to-policy "edit / revert". 409s and delete-in-use
-  errors surface inline.
+  errors surface inline. **Promotion is volitional:** a *composition* edit to a
+  pipeline's membership (add/remove a policy or guardrail, repin a version,
+  change hook/fail mode) **mints an unpromoted draft version** (`activate=false`)
+  and never changes live posture; only the initial create activates v1. When the
+  tip is ahead of the live version the row shows an **"Unpromoted vN" badge** and
+  a prominent top-level **"Promote vN"** button (not buried in the expandable
+  version history), which calls the explicit promote PATCH (`active_version_id`).
+  The "Edit policies" dialog bases on the **tip** so staged members are
+  preserved; the expanded row shows the **live (active)** members, each with an
+  **in-place enable/disable** that does not mint a version (§10.7 D2). Editing a
+  policy **or** a guardrail propagates identically: the referencing query keys on
+  each pipeline's **tip** (not its active version), so an edit to a member that a
+  pipeline uses, even one only present in an unpromoted draft, mints a re-pinned
+  pipeline draft.
 - **Observability (implemented).** `coder_aibridged_policy_pipeline_reloads_total{result}`,
   `..._policy_pipeline_info{provider_name,pipeline_version}` (live version),
   `..._policy_pipeline_drift` (pinned ≠ active count), recomputed each reload;
@@ -1427,17 +1455,25 @@ you promote); only the **audience** is. Any minted-but-unpromoted pipeline
 version is already a complete, immutable, addressable artifact, and a request
 header selects it per request.
 
-- **Selection header:** `X-Coder-AI-Gateway-Pipeline-Version: <version uuid>`
-  on the normal provider route. Deliberately a header, not a route or query
-  param: SDKs join `base_url + "/v1/messages"` and routinely mangle or drop
-  query strings on base URLs; a path prefix needs mux surgery; and the audience
-  is owners by definition, who live in curl/SDKs where `default_headers` is
-  trivial (Anthropic/OpenAI SDKs and Claude Code all support it).
+- **Selection header:** `X-Coder-AI-Gateway-Pipeline-Version: <version number>`
+  on the normal provider route, addressing the version by its **logical version
+  number** (the `vN` shown in the UI and version history; both the bare number
+  `3` and the `v3` label are accepted), not the internal uuid: operators reason
+  in version numbers, and the number is what the
+  propagation report and promote diff surface, so the header that rehearses a
+  staged version should speak the same identifier. The host translates the
+  (provider, number) pair to the immutable version row, provider-scoped so a
+  number that exists only under another provider's pipeline cannot resolve.
+  Deliberately a header, not a route or query param: SDKs join
+  `base_url + "/v1/messages"` and routinely mangle or drop query strings on base
+  URLs; a path prefix needs mux surgery; and the audience is owners by
+  definition, who live in curl/SDKs where `default_headers` is trivial
+  (Anthropic/OpenAI SDKs and Claude Code all support it).
 - **Authorization:** owner-only. Non-owner with the header → **403**, never a
   silent fallthrough to the active version (a typo'd staging test must fail
-  loudly, not quietly exercise production posture). Unknown version, or a
-  version belonging to another provider's pipeline → 4xx, same reasoning. No
-  header → active version, untouched hot path.
+  loudly, not quietly exercise production posture). A non-numeric, unknown, or
+  another provider's version number → 4xx, same reasoning. No header → active
+  version, untouched hot path.
 - **Full fidelity:** the targeted version evaluates exactly as live: real
   guardrail network calls (real credentials), real failure synthesis (§2), real
   BLOCKs (HTTP 400), real masking. Rollback rehearsal falls out for free: the

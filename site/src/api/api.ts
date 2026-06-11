@@ -3268,12 +3268,32 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIGatewayPipelineVersions = async (
+		id: string,
+	): Promise<TypesGen.AIGatewayPipelineVersion[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayPipelineVersion[]>(
+			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}/versions`,
+		);
+		return response.data;
+	};
+
 	updateAIGatewayPipeline = async (
 		id: string,
 		req: TypesGen.UpdateAIGatewayPipelineRequest,
 	): Promise<TypesGen.AIGatewayPipeline> => {
 		const response = await this.axios.patch<TypesGen.AIGatewayPipeline>(
 			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIGatewayPipelineMember = async (
+		id: string,
+		req: TypesGen.UpdateAIGatewayPipelineMemberRequest,
+	): Promise<TypesGen.AIGatewayPipeline> => {
+		const response = await this.axios.patch<TypesGen.AIGatewayPipeline>(
+			`/api/v2/aibridge/pipelines/${encodeURIComponent(id)}/members`,
 			req,
 		);
 		return response.data;

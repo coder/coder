@@ -2,7 +2,6 @@ package policy
 
 import (
 	"context"
-	"errors"
 	"maps"
 	"time"
 
@@ -11,17 +10,19 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// evalTimeout bounds a single policy stage evaluation. A stage that exceeds it
-// fails closed (BLOCK) regardless of the stage's configured fail mode, so a
-// pathological policy cannot hang a request or fail open by timing out.
+// evalTimeout bounds a single policy stage evaluation, so a pathological policy
+// cannot hang a request. A stage that exceeds it is treated as an ordinary
+// stage error and normalized through the stage's fail mode (see stageBlocks):
+// fail-closed times out to BLOCK, fail-open to LOG. There is no special case
+// for timeout; an attacker-induced timeout bypassing a fail-open stage is what
+// fail-open means.
 const evalTimeout = time.Second
 
-// stageBlocks reports whether a stage error should block the request. A timeout
-// always blocks (fail closed); other errors honor the stage's fail mode.
-func stageBlocks(failMode FailMode, err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
+// stageBlocks reports whether a stage error should block the request. Every
+// error class (eval error, timeout, conflict) is normalized the same way:
+// fail-closed blocks, fail-open does not (the caller raises the verdict to LOG
+// and records the error instead).
+func stageBlocks(failMode FailMode, _ error) bool {
 	return failMode == FailClosed
 }
 
@@ -115,16 +116,53 @@ type Result struct {
 	// applied (set/replace) to the outgoing upstream request. Nil when no
 	// transform set headers.
 	Headers map[string]string
+	// Errors holds every stage failure (eval error, timeout, conflict) that did
+	// not block the request, i.e. fail-open errors that were normalized to LOG.
+	// They are surfaced for host logging so a fail-open failure is visible in
+	// the log stream rather than a silent pass-through. A fail-closed error
+	// blocks and is reported via Verdict/BlockedBy instead.
+	Errors []StageError
 }
 
-// Evaluate runs every stage against in and returns the combined Result. On a
-// fail-closed stage error it returns a BLOCK verdict and short-circuits; a
-// fail-open stage error skips that stage.
+// StageError pairs a stage's policy name with the error it returned. It mirrors
+// guardrail.GuardrailError so the host logs both substrates uniformly.
+type StageError struct {
+	Stage string
+	Err   error
+}
+
+// Evaluate runs every stage against in and returns the combined Result. Stage
+// failures are normalized uniformly through each stage's fail mode (the unified
+// stage-result algebra): a fail-closed error blocks and short-circuits; a
+// fail-open error is recorded in Result.Errors and raises the reduced verdict to
+// LOG (never a silent pass-through), then evaluation continues.
 func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 	cur := in
 	res := Result{Verdict: VerdictAllow}
 	var finalBody []byte
 	mutated := false
+
+	// verdicts accumulates across every stage, not just decide: a fail-open
+	// error in any stage appends LOG so the request passes through visibly.
+	verdicts := []Verdict{VerdictAllow}
+	var stageErrs []StageError
+	// failOpen records a non-blocking stage error: it surfaces the error for
+	// host logging and raises the floor verdict to LOG.
+	failOpen := func(name string, err error) {
+		stageErrs = append(stageErrs, StageError{Stage: name, Err: err})
+		verdicts = append(verdicts, VerdictLog)
+	}
+	// blocked builds the terminal BLOCK result for a fail-closed stage error,
+	// carrying the recorded fail-open errors so far for logging.
+	blocked := func(name string, err error) Result {
+		r := blockedBy(name)
+		if err != nil {
+			r.Errors = append(stageErrs, StageError{Stage: name, Err: err})
+		} else {
+			r.Errors = stageErrs
+		}
+		return r
+	}
 
 	// classify: merge annotations into the threaded Input.
 	for _, c := range p.classify {
@@ -133,18 +171,26 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		})
 		if err != nil {
 			if stageBlocks(c.failMode, err) {
-				return blockedBy(c.name), nil
+				return blocked(c.name, err), nil
 			}
+			failOpen(c.name, err)
 			continue
 		}
 		if !ok {
 			continue
 		}
-		cur, err = cur.WithAnnotations(ann)
+		// Namespace each classifier's output under its own stage name so the
+		// host owns the first level of input.annotations: producers cannot
+		// collide on a key, and a downstream decide reads
+		// input.annotations.<classify-name>.<key>. The same classifier at a
+		// later hook replaces its whole namespace (last-write-wins per
+		// namespace), since WithAnnotations merges at the top level.
+		ns := map[string]any{c.name: ann}
+		cur, err = cur.WithAnnotations(ns)
 		if err != nil {
 			return Result{}, err
 		}
-		res.Annotations = mergeAnnotations(res.Annotations, ann)
+		res.Annotations = mergeAnnotations(res.Annotations, ns)
 	}
 
 	// route: override input.request.model so later stages see the new model.
@@ -155,8 +201,9 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		switch {
 		case err != nil:
 			if stageBlocks(p.route.failMode, err) {
-				return blockedBy(p.route.name), nil
+				return blocked(p.route.name, err), nil
 			}
+			failOpen(p.route.name, err)
 		case ok:
 			body, err := cur.Request()
 			if err != nil {
@@ -185,15 +232,15 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 
 	// decide: reduce verdicts, BLOCK short-circuits.
 	var blockingDecide, blockMessage string
-	verdicts := []Verdict{VerdictAllow}
 	for _, d := range p.decide {
 		dec, err := evalStage1(ctx, func(sctx context.Context) (Decision, error) {
 			return d.Evaluate(sctx, cur)
 		})
 		if err != nil {
 			if stageBlocks(d.failMode, err) {
-				return blockedBy(d.name), nil
+				return blocked(d.name, err), nil
 			}
+			failOpen(d.name, err)
 			continue
 		}
 		verdicts = append(verdicts, dec.Verdict)
@@ -203,9 +250,8 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 			break
 		}
 	}
-	res.Verdict = ReduceVerdicts(verdicts...)
-	if res.Verdict.Blocks() {
-		r := blockedBy(blockingDecide)
+	if ReduceVerdicts(verdicts...).Blocks() {
+		r := blocked(blockingDecide, nil)
 		r.Message = blockMessage
 		return r, nil
 	}
@@ -218,8 +264,9 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		})
 		if err != nil {
 			if stageBlocks(t.failMode, err) {
-				return blockedBy(t.name), nil
+				return blocked(t.name, err), nil
 			}
+			failOpen(t.name, err)
 			continue
 		}
 		if !ok {
@@ -238,6 +285,8 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		}
 	}
 
+	res.Verdict = ReduceVerdicts(verdicts...)
+	res.Errors = stageErrs
 	if mutated {
 		res.RequestBody = finalBody
 	}

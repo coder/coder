@@ -387,6 +387,24 @@ export interface AIGatewayPipeline {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly active_version?: AIGatewayPipelineVersion;
+	/**
+	 * LatestVersionID / LatestVersionNumber identify the pipeline's tip (most
+	 * recent) version. Under the explicit two-stage rollout, activating a policy
+	 * or guardrail mints a new pipeline version on the tip without promoting it,
+	 * so the tip can be ahead of the active (live) version. When LatestVersionID
+	 * differs from ActiveVersionID the pipeline has unpromoted changes (drift):
+	 * the operator can promote the tip to take them live.
+	 */
+	readonly latest_version_id?: string;
+	readonly latest_version_number: number;
+	/**
+	 * LatestVersion is the tip version with its full membership (policies and
+	 * guardrails). Editing a pipeline must base the new version on the tip, not
+	 * the active version, so staged changes accumulate as one linear draft
+	 * lineage; basing an edit on the active version would silently drop members
+	 * added in an unpromoted draft.
+	 */
+	readonly latest_version?: AIGatewayPipelineVersion;
 }
 
 // From codersdk/aigatewaypipelines.go
@@ -3493,8 +3511,16 @@ export interface CreateAIGatewayGuardrailVersionRequest {
 	readonly description?: string;
 	/**
 	 * Activate sets the new version as the guardrail's active version.
+	 * Activation propagates to referencing pipelines by minting (not promoting)
+	 * new pipeline versions on their tip; live posture is unchanged until
+	 * promotion. Defaults false.
 	 */
 	readonly activate: boolean;
+	/**
+	 * Promote, only meaningful with Activate, additionally activates the minted
+	 * pipeline versions so the change goes live immediately. Defaults false.
+	 */
+	readonly promote?: boolean;
 }
 
 // From codersdk/aigatewaykeys.go
@@ -3560,9 +3586,19 @@ export interface CreateAIGatewayPolicyVersionRequest {
 	readonly rego: string;
 	readonly description?: string;
 	/**
-	 * Activate sets the new version as the policy's active version.
+	 * Activate sets the new version as the policy's active version. Activation
+	 * propagates to every referencing pipeline by *minting* a new (unpromoted)
+	 * pipeline version on its tip; live posture is unchanged until each pipeline
+	 * is explicitly promoted. Defaults false: a bare create mints only.
 	 */
 	readonly activate: boolean;
+	/**
+	 * Promote, only meaningful with Activate, additionally activates the minted
+	 * pipeline versions so the change goes live immediately across all
+	 * referencing pipelines. Defaults false (explicit promotion is the safe
+	 * default).
+	 */
+	readonly promote?: boolean;
 }
 
 // From codersdk/aiproviders.go
@@ -8835,6 +8871,28 @@ export interface UpdateAIGatewayGuardrailRequest {
 	readonly display_name?: string;
 	readonly enabled?: boolean;
 	readonly active_version_id?: string;
+	/**
+	 * Promote, only meaningful with ActiveVersionID, additionally activates the
+	 * pipeline versions minted by propagation so the activation goes live
+	 * immediately. Defaults false.
+	 */
+	readonly promote?: boolean;
+}
+
+// From codersdk/aigatewaypipelines.go
+/**
+ * UpdateAIGatewayPipelineMemberRequest enables or disables a single member
+ * (policy or guardrail) of a pipeline's live (active) version in place. Unlike a
+ * composition edit, this does not mint a new pipeline version: enable/disable is
+ * a live pause control that takes effect immediately. Exactly one of
+ * PolicyVersionID or GuardrailVersionID must be set, identifying the member
+ * within the active version together with Hook.
+ */
+export interface UpdateAIGatewayPipelineMemberRequest {
+	readonly policy_version_id?: string;
+	readonly guardrail_version_id?: string;
+	readonly hook: AIGatewayHook;
+	readonly enabled: boolean;
 }
 
 // From codersdk/aigatewaypipelines.go
@@ -8854,6 +8912,12 @@ export interface UpdateAIGatewayPipelineRequest {
 export interface UpdateAIGatewayPolicyRequest {
 	readonly display_name?: string;
 	readonly active_version_id?: string;
+	/**
+	 * Promote, only meaningful with ActiveVersionID, additionally activates the
+	 * pipeline versions minted by propagation so the activation goes live
+	 * immediately. Defaults false: activation mints unpromoted pipeline drafts.
+	 */
+	readonly promote?: boolean;
 }
 
 // From codersdk/aiproviders.go

@@ -1,0 +1,410 @@
+# Coder AI Gateway — Policy Engine (Current Design)
+
+A concise statement of the policy engine's design as it stands: what it is and
+why. Where a piece is designed but not yet implemented, it is marked
+*(designed, not built)*. Transitional history and superseded decisions are
+omitted; see `policy-engine-design.md` for the full record.
+
+## 1. What it is
+
+A policy engine inline in the AI Gateway request path. Requests flowing through
+a provider route are subjected to configurable policies that **allow, log,
+block, or transform** them. Policies are safe on untrusted end-user input,
+fast, validatable, testable, and configurable as code (API / Terraform / UI).
+
+## 2. Substrate: Rego via embedded OPA
+
+Policies are written in **Rego**, evaluated by **OPA embedded as a Go library**
+(`rego.PrepareForEval` prepared queries, native topdown interpreter; never the
+OPA server, never Wasm, which is 3-4x slower here).
+
+**Why Rego:** Coder already ships OPA, so the engine, team familiarity, and
+tooling (`opa test`, `opa fmt`, decision logs) are reused with no new
+dependency or language. Rego is expressive (comprehensions, negation,
+multi-rule derivation), supports operator-authored reusable modules, handles
+whole-object transforms cleanly, and is non-Turing-complete and terminating
+with linear-time RE2 regex, so it is safe against untrusted input.
+
+**Accepted trade-offs:** Rego is dynamically typed (a typo'd field is silently
+`undefined` at runtime rather than a compile error) and Rego ≈ OPA (engine
+lock-in). Compensating controls: schema-checked compilation, per-kind smoke
+tests, and Go shape guards (§7, §8).
+
+**Hermeticity is enforced, not assumed.** Policies make no network calls and
+share no state; `http.send` and other network/time built-ins are disabled via
+OPA capabilities, making evaluation pure and deterministic. Policies compose
+only through host-threaded annotations (§5), never by calling each other.
+External signals enter exclusively via guardrails (§6).
+
+## 3. Stage model: two axes, one result type
+
+Every pipeline member is a **stage**, classified on two orthogonal axes:
+
+- **Substrate:** hermetic Rego policy vs networked adapter (guardrail).
+- **Effects:** which of the engine's effects it may produce (verdict, message,
+  annotations, body mutation, route).
+
+A **kind** is a single-effect Rego stage with its own typed output document
+(the per-kind entrypoint rule the host applies). Four kinds exist:
+
+- **decide** → `verdict` (+ optional `message`). Verdicts reduce by
+  `BLOCK > LOG > ALLOW`; BLOCK short-circuits and returns HTTP 400 with the
+  message (or a generic default; a buggy message can never alter the verdict).
+  LOG writes to the log stream and passes through.
+- **transform** → rewritten `body` and/or `headers`. The host applies the
+  change and **re-validates** the mutated body against the provider schema
+  before forwarding; header transport/auth/hop-by-hop stripping prevents
+  credential injection.
+- **classify** → annotations only, threaded downstream by the host.
+- **route** → within-provider model override (cross-provider routing is
+  deferred).
+
+A **guardrail** is a multi-effect networked stage pinned to the head-of-hook
+slot, and it alone yields the multi-field `StageResult`:
+
+```
+StageResult {
+  verdict:     ALLOW | BLOCK         // LOG only via fail-open synthesis
+  message:     string                // surfaced to the user on BLOCK
+  annotations: map[string]any        // unioned under the guardrail's namespace
+  body_patch:  optional              // chained, re-validated after the stage
+}
+```
+
+A guardrail is deliberately *not* a kind: it differs in substrate (network
+adapter, concurrent, its own timeout and secret-bearing config), and its
+multi-effect result is a concession to vendor wire formats (one HTTP response
+carries score + mask + verdict and cannot be un-bundled). Hermetic kinds stay
+single-effect; there is no reason to emulate the bundling in Rego.
+
+*(Designed, not built:)* a **unified stage-result algebra** in which every
+stage, kind and guardrail alike, projects into one shared result type, with a
+stage type defined as an effect mask over it and a single reducer/applier
+handling verdict reduction, short-circuiting, annotation threading, patch
+application, audit, and HTTP mapping for all stages. Today the per-kind
+appliers and the guardrail path implement the same semantics separately.
+
+**Failures are result synthesis, not a parallel error path.** Any stage
+failure (eval error, network error, the global 1s eval timeout, conflict)
+normalizes through the membership's `fail_mode` into an ordinary result:
+`fail_closed → BLOCK` with a generic message; `fail_open → LOG` with the error
+summary (LOG, not ALLOW: a fail-open outage must be visible, not silent). The
+failing stage's identity goes to audit/logs only, never the client message:
+telling an adversary the DLP scanner is down invites retries until it stays
+down. No failure class bypasses `fail_mode`. *(Unified reducer: designed, not
+built; per-path behavior matches it.)*
+
+## 4. Hooks and pipelines
+
+Each **provider** has at most one **pipeline**: a single versioned unit
+spanning the hooks, with each member stage pinned to a hook. The whole
+pipeline is the atomic swap unit (§8). No pipeline = pass-through (matches
+pre-engine behavior; visibility comes from metrics, not a default-deny).
+
+v1 hooks (post-resp and output inspection are deferred):
+
+| Hook | Envelope | Valid kinds |
+|---|---|---|
+| **pre-auth** | raw request, headers, credentials; no identity | classify, decide |
+| **pre-req** | + resolved identity/groups/roles, body, annotations | classify, route, decide, transform |
+| **pre-tool** | + `tool_call` {id, name, arguments, index}, per call | classify, decide |
+
+Pre-req is the richest hook and deliberately drops the raw credential (it is
+resolved into identity by then; re-exposing the secret is needless attack
+surface). The two decision-only hooks reject request-mutating kinds both at
+registration and defensively at load via constrained pipeline constructors, so
+a smuggled route/transform cannot mutate anything.
+
+**Per-hook ordering:** `guardrails → classify → route → decide → transform`.
+
+- **Guardrails run first as a security invariant**, not a scheduling default:
+  a masking guardrail must precede every Rego stage that reads the body,
+  otherwise a classifier could copy unmasked PII into annotations and thence
+  into audit/telemetry. Placement is not operator-choosable.
+- **Classify before everything else** so its annotations are visible to later
+  stages and later hooks. This is how policies compose while staying hermetic.
+- **Decides run sequentially** (ordered by name) and reduce with a BLOCK
+  short-circuit; per-policy attribution after a block is best-effort.
+- **Transform runs last**, validate-after-mutate.
+
+## 5. Envelope and annotations
+
+The host-built envelope is typed and frozen by shape guards (§7):
+
+- `input.request` = `{method, path, body}`; `body` is the provider-native
+  request body, opaque to the shape guard (its shape is the provider's
+  contract, not ours).
+- `input.identity` = `{id, username, groups[], roles[]}`, decoupled from
+  upstream-forwarded actor metadata so it cannot leak to the provider; arrays
+  always materialized, never undefined.
+- `input.headers` = lowercase header → first value (+ `x-remote-addr`).
+- `input.annotations` = threaded classify/guardrail outputs, seeded `{}` at
+  every hook so reads are defined-but-empty.
+
+**Annotation namespacing.** The host owns the first level of the annotations
+map: every producer writes under its own stage name
+(`input.annotations.<stage_name>.<keys>`), with name collisions rejected at
+pipeline-version create. A producer attached at multiple hooks replaces its
+namespace wholesale at the later hook (no deep-merge: merged documents nobody
+authored are unpredictable). Stage **names are immutable at create**
+(`display_name` is the mutable label; a true rename is a fork) because names
+key annotation paths consumed by downstream policies, and a rename would
+silently turn those reads `undefined`, Rego's worst silent-failure mode.
+*(Namespacing enforcement: designed, not built.)*
+
+## 6. Guardrails (networked head-of-hook stage)
+
+Guardrails integrate external safety/DLP vendors (Presidio, Bedrock, Lakera,
+OpenAI moderation, ...). There is no industry-standard guardrail I/O format, so
+they integrate via per-vendor **adapters composed over a base** modelled on
+litellm's Generic Guardrail API (extract texts → POST → block / pass /
+intervene-with-modification); any generic-API-compatible vendor works with
+zero per-vendor code, and materially-better native APIs get first-class
+adapters.
+
+**Two modes per guardrail:**
+
+- **Advisory** — annotate-only. A Rego `decide` policy turns the signal into a
+  verdict (e.g. "block contractors over moderation score X, log admins"). This
+  is also the engine's *only* enrichment mechanism: policies never fetch.
+- **Enforcing** — may BLOCK (HTTP 400, same as a policy block) and/or emit a
+  `body_patch`, and always annotates. The zero-Rego "block/mask on detect"
+  path.
+
+**Execution.** A hook's guardrails run **concurrently** (network-bound, unlike
+CPU-bound Rego). Annotations union under per-guardrail namespaces; verdicts
+reduce with BLOCK short-circuiting; body patches apply as a deterministic
+ordered chain with one re-validate after the guardrail stage (the policy
+transform then re-validates its own mutation: two mutation points, each
+re-validated). Each guardrail carries its own network timeout and `fail_mode`
+(default fail-closed); failures synthesize into ordinary StageResults (§3).
+No retries, no response caching in v1.
+
+**What is scanned:** the **latest user prompt**, selected cross-provider as the
+most recent role-`user` item carrying a text block (trailing system/tool-result
+turns are skipped, since agentic clients append them after the user's prompt).
+Only the latest user turn is scanned; earlier-turn PII in resent history is not
+re-masked.
+
+v1 ships serial **pre-req input guardrails** only (injection detection, PII /
+secret masking, tool gating, moderation→annotations→decide). Output guardrails
+ride the deferred post-resp machinery: a post-call guardrail on a stream *is*
+response buffering, since a flushed chunk cannot be un-sent.
+
+## 7. Pre-tool gating
+
+The **pre-tool** hook is the last control point before a model-requested tool
+call reaches the client, where agentic clients execute it. It fires once per
+assembled client-bound tool call (classify + decide only over
+`input.tool_call.*`; `index` makes "at most N calls per turn" expressible
+without state).
+
+Tool calls are splayed across many SSE events, so the interceptor **holds** a
+client-bound tool block's events from start to completion while text outside
+the block streams through untouched. On ALLOW the held events flush in order;
+on BLOCK they are discarded and the **whole turn terminates** with a
+provider-shaped error naming the tool and policy (per-call suppression would
+require fabricating stop-reason/index consistency, so it is deliberately not
+done). Non-streaming responses gate identically and return HTTP 400 on BLOCK,
+so a client cannot bypass the gate by disabling streaming. Holding engages
+only when a pre-tool pipeline is configured; otherwise streaming is
+byte-for-byte unchanged.
+
+The hold is bounded: per-stage 1s eval timeout (normalized through fail mode),
+a 4 MiB byte cap, a 5 min wall-clock deadline (hardcoded, generous). A cap
+breach honors the gate's **aggregate fail mode**: fail-open only when *every*
+pre-tool member is fail-open. Operators should roll out in LOG before BLOCK,
+since a false positive terminates a live agent turn.
+
+## 8. Validation
+
+Rego's dynamic typing means correctness is enforced at the gate, not by the
+language. Validation is synchronous, in-process Go (no `opa` CLI), runs before
+the write transaction, and only valid rows ever persist:
+
+- **Compile with schemas** (`ast.Compiler.WithSchemas`): catches typos and
+  hook-inappropriate field references against per-hook input schemas.
+- **Kind/output binding:** assert the declared kind's entrypoint rule exists
+  (`verdict`/`model`/`annotations`/`body`), `decide` has a `default verdict`,
+  and the output conforms to the kind's contract on standard smoke inputs.
+  Closes the "wrong-kind / typo'd rule silently no-ops" hole.
+- **Per-kind smoke tests** via OPA's `tester` package.
+- **Pipeline structure in Go:** kind-cardinality per hook, kind-validity by
+  hook, referenced versions exist; the loader re-checks defensively so a
+  direct DB write cannot smuggle an invalid posture into the runtime.
+- **Guardrail config** validates by parsing through the concrete adapter
+  constructor (structural validation by construction, not a schema registry).
+- *(Designed, not built:)* cross-table member-name collision rejection, and
+  best-effort **annotation-flow warnings**: an advisory guardrail nobody reads
+  (a silently dead DLP paying vendor latency for nothing) and a `decide`
+  reading a namespace nobody produces (the typo case Rego fails silent-open
+  on). Warnings, never rejections: dynamic addressing defeats the static walk,
+  and "guardrail today, consuming decide tomorrow" is legitimate staging.
+
+**Backward compatibility is structural, not versioned-at-runtime.** The host
+always builds the *current* envelope shape; the contract is **never remove,
+rename, or retype an input field** (additions only) and **widen, never narrow,
+output contracts**. Old policies therefore always find the paths they read. Go
+shape-guard tests pin the envelope skeleton and each kind's behavioral output
+contract against golden files, and assert any shape change bumps the schema
+version stamp, so a contract change cannot land silently. The stamps
+(`input_schema_version`/`output_schema_version` on each policy version) are
+forensic, read by audits, not the runtime. Accepted residual risk: *adding* a
+field can flip a policy that probed the previously-undefined path; additions
+are rare, reviewed, and caught by LOG-first rollout.
+
+## 9. Persistence and versioning
+
+Postgres, deployment-global (no `organization_id`; the attach target
+`ai_providers` is global). Three first-class versioned entities, all on the
+`templates`/`template_versions` pattern: a parent row with an
+`active_version_id` pointer plus immutable version rows
+(`UNIQUE(parent_id, version_number)`; edits insert, never mutate; composite
+FKs guarantee a parent can only activate its *own* versions):
+
+- **Policies** (`ai_gateway_policies` / `_versions`): reusable library
+  content; versions store **raw Rego text** (prepared queries are not
+  serializable; `aibridged` recompiles on load). `kind` is intrinsic and
+  immutable: a kind is a semantic role, so a kind change is a new policy.
+- **Pipelines** (`ai_gateway_pipelines` / `_versions`): one per provider; the
+  atomic whole-posture swap unit. Membership rows pin exact
+  `policy_version_id`s (composition history is exact; rollback is possible)
+  and carry per-membership `hook`, `fail_mode`, and `enabled`, since one
+  reusable policy can run differently in different pipelines. Per-hook
+  cardinality (one classify/route/transform, many decides) is enforced by
+  partial unique indexes over a denormalized `kind` column.
+- **Guardrails** (`ai_gateway_guardrails` / `_versions`): same pattern but
+  storing adapter config, not Rego. The credential column is the **one
+  dbcrypt-encrypted field** in the system; Rego itself is code, meant to be
+  readable, diffable, and decision-logged, so policies are never encrypted
+  and embedded secrets are documented-unsupported. Guardrails join pipeline
+  versions through a dedicated membership table (no kind column, no
+  cardinality cap; many concurrent guardrails per hook).
+
+Enable/disable exists at exactly two levels: the **pipeline** (whole posture
+off) and the **membership** (one policy/guardrail off within one pipeline,
+which mints a new version since rows are immutable). A policy has no global
+on/off flag because a reusable definition has no standalone on/off meaning.
+Parents soft-delete only; version rows are retained indefinitely (FKs, history,
+and audit depend on them). Deleting a policy is blocked while an active
+pipeline version references it.
+
+**RBAC and audit:** one owner-only `ai_gateway_policy` RBAC resource covers
+everything. Policies, pipelines, and guardrails are audited; the
+`active_version_id` repoint is the most security-relevant action, and pipeline
+audit diffs render the full member posture that went live.
+
+### Rollout: mint, then promote
+
+Changing what runs is explicitly two-stage *(designed, not built; current code
+auto-activates)*:
+
+- **Version creation defaults to `activate=false`**: it mints an immutable
+  version and changes nothing anywhere.
+- **Activating a policy version** re-pins every referencing pipeline by
+  minting a new pipeline version on each pipeline's **tip** (so staged changes
+  accumulate as one linear draft lineage), but does **not** promote. Every
+  activation returns a **propagation report** so "editing didn't change what
+  runs" is loud, not surprising.
+- **Promotion** (repointing `active_version_id`, same path as revert) is the
+  only action that changes live posture. An opt-in `promote: true` collapses
+  mint+promote for urgent hole-patches. The promote-time live-vs-candidate
+  diff is the safety net showing everything that would go live.
+- The drift gauge (pipeline pins ≠ policy's active version) is the
+  "unpromoted changes exist" workqueue indicator.
+
+### Version-targeted evaluation
+
+*(Designed, not built.)* Operators rehearse an unpromoted version against real
+traffic with an owner-only header (`X-Coder-AI-Gateway-Pipeline-Version: 3`),
+addressing the logical version number, provider-scoped. The engine's behavior
+is never forked: no shadow or dry-run mode; what you test is byte-for-byte
+what you promote, including real guardrail calls, real failure synthesis, and
+real blocks. Only the audience differs. Non-owners get 403, never a silent
+fallthrough (a typo'd staging test must fail loudly, not quietly exercise
+production). A header rather than a route/query param because SDKs mangle base
+URLs but trivially support `default_headers`. Rollback rehearsal falls out for
+free by targeting an older version. The same validation gate is also exposed
+as a headless, side-effect-free dry-run for external CI *(designed, not
+built)*: CI checks the artifact pre-merge; the header rehearses it pre-promote.
+
+## 10. Runtime
+
+- **Topology:** `coderd` validates + writes + publishes; `aibridged`
+  subscribes + reloads (mirrors the `ai_providers` reload pattern). Publish is
+  strictly post-commit so a reload cannot race a half-written change;
+  pipeline + memberships + pinned versions load in one consistent read.
+- **Rebuild-all on any change** (compilation is cheap; expected scale is ~3-5
+  pipelines), with a ~5m periodic safety reload to converge after a lost
+  NOTIFY or read-replica lag. On a reload compile error the **last-good
+  snapshot is kept** (alerted via metric; near-impossible given the gate).
+- **Per-provider snapshot:** provider → compiled per-hook pipelines, each
+  holding its Rego stages and guardrail adapters (constructed once at snapshot
+  build, decrypting credentials then, so per-request cost is the network call
+  only). The snapshot query excludes disabled/soft-deleted members, so any of
+  those removes the member from what runs.
+- **Compile-once, eval-many:** prepared queries cached by immutable
+  `policy_version_id`, shared across reloads and across pipelines. Per-request
+  cost is evaluation only: tens of microseconds for indexed decisions. OPA
+  eval is CPU-bound and single-threaded per query, so concurrency is at the
+  goroutine level.
+- **Atomic swap:** repointing `active_version_id` swaps the live snapshot in
+  one step; in-flight requests keep their version; retired snapshots are
+  reclaimed by Go GC. DB rows are never deleted.
+- **Bounds:** 1s per-stage eval timeout (honoring `fail_mode`), OPA eval
+  limits, and a host-side size gate on large bodies.
+
+## 11. API, UI, observability
+
+- **HTTP:** enterprise CRUD at `/api/v2/aibridge/{policies,pipelines,guardrails}`
+  (+ `POST .../{id}/versions`), gated by the AI Governance feature; `codersdk`
+  client and Terraform (via the `coderd` provider) use the same
+  ingest/compile/store path as the UI.
+- **UI:** `/ai/settings/policies`: policy list with a Monaco Rego editor and
+  version-history revert; pipeline list with membership management (policies
+  and guardrails, per-membership mode/fail-mode/enable); guardrail management
+  with write-only credentials. Membership edits mint unpromoted drafts; an
+  "Unpromoted vN" badge and a prominent "Promote vN" button make promotion
+  volitional.
+- **Authoring tiers:** canned registry policies (taxonomy-tagged to OWASP LLM
+  Top 10 / NIST AI RMF) → form builder → raw Rego → LLM-assisted.
+- **Observability:** reload result/duration, per-provider live-version gauge,
+  drift gauge, eval-duration histogram aligned to the 1s timeout, pre-tool
+  verdict/hold metrics, and `pipeline_version` stamped on every decision log
+  line so audits can reconstruct exactly what evaluated a past request.
+  Execution records carry the evaluating `pipeline_version_id` and member
+  `policy_version_id`s plus actor attribution. All-hook verdict/block-rate
+  counters and guardrail metrics are designed, not built.
+
+## 12. Known limitations (accepted)
+
+- **Dynamic typing:** schema-checked compile + smoke tests + shape guards are
+  compensating controls, weaker than compile-time typing; schema discipline is
+  required. Overlapping `verdict` rules with different values are a runtime
+  conflict error (use `else`); `default` rules are mandatory.
+- **No Unicode normalization in matching:** homoglyph/zero-width evasion needs
+  a host normalization pre-pass (not yet designed). RE2 has no
+  lookahead/lookbehind.
+- **No cross-request state:** rate limits, quotas, dedupe are host-side.
+- **Multi-tenant blast radius:** a pathological policy degrades latency for
+  all tenants; timeouts, eval limits, and size gates apply even for trusted
+  authors.
+- **Decide attribution is best-effort** after a BLOCK short-circuit.
+- **The tip is shared mutable staging:** abandoned experiments sit in the
+  lineage; the promote-time diff is the safety net. Acceptable at current
+  scale with owner-only access.
+
+## 13. Deferred (priority order)
+
+1. Guardrail extensions: output guardrails, the `during_call` lane
+   (concurrent-with-dispatch, block-only), caching/retries.
+2. post-resp hook + output inspection (buffered with byte cap, then windowed
+   streaming, classify/decide only; you cannot un-send a flushed chunk).
+3. Operator-authored reusable Rego modules.
+4. Operator-supplied stored tests.
+5. FLAG verdict (`BLOCK > FLAG > LOG > ALLOW`) with a defined sink.
+6. Cross-provider routing.
+7. Annotation value-flow validation (beyond the produced/consumed warnings).
+8. Conditional guardrail invocation (skip the vendor call when not needed).
+9. Traffic mirroring for staged versions (log-only evaluation against live
+   traffic, the gap the evaluation header deliberately does not cover).

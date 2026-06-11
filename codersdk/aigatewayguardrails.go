@@ -81,7 +81,13 @@ type CreateAIGatewayGuardrailVersionRequest struct {
 	Credential  string          `json:"credential,omitempty"`
 	Description string          `json:"description,omitempty"`
 	// Activate sets the new version as the guardrail's active version.
+	// Activation propagates to referencing pipelines by minting (not promoting)
+	// new pipeline versions on their tip; live posture is unchanged until
+	// promotion. Defaults false.
 	Activate bool `json:"activate"`
+	// Promote, only meaningful with Activate, additionally activates the minted
+	// pipeline versions so the change goes live immediately. Defaults false.
+	Promote bool `json:"promote,omitempty"`
 }
 
 func (req CreateAIGatewayGuardrailVersionRequest) Validate() []ValidationError {
@@ -98,6 +104,10 @@ type UpdateAIGatewayGuardrailRequest struct {
 	DisplayName     *string    `json:"display_name,omitempty"`
 	Enabled         *bool      `json:"enabled,omitempty"`
 	ActiveVersionID *uuid.UUID `json:"active_version_id,omitempty" format:"uuid"`
+	// Promote, only meaningful with ActiveVersionID, additionally activates the
+	// pipeline versions minted by propagation so the activation goes live
+	// immediately. Defaults false.
+	Promote bool `json:"promote,omitempty"`
 }
 
 func (req UpdateAIGatewayGuardrailRequest) IsEmpty() bool {

@@ -34,6 +34,36 @@ const (
 	hookPreTool = "pre-tool"
 )
 
+// HeaderAIGatewayPipelineVersion is an owner-only request header naming a
+// specific pipeline version by its logical version number (e.g. "3" or the UI's
+// "v3" label, both accepted) to evaluate against the request instead of the
+// active version. It powers version-targeted evaluation (§10.9): an owner
+// rehearses an unpromoted posture against real traffic before promoting it. A
+// non-owner
+// sending the header is rejected with HTTP 403; a non-numeric, unknown, or
+// foreign version is rejected with HTTP 400. Absent, the active version
+// evaluates (the unchanged hot path). The header is stripped before the request
+// is forwarded upstream so it never reaches the provider.
+const HeaderAIGatewayPipelineVersion = "X-Coder-AI-Gateway-Pipeline-Version"
+
+// ErrPipelineVersionNotFound is returned by a [PipelineResolver] when the
+// requested pipeline version does not exist or does not belong to the request's
+// provider. The host maps it to a client 4xx.
+var ErrPipelineVersionNotFound = xerrors.New("pipeline version not found")
+
+// PipelineResolver resolves the compiled pipeline snapshot for a specific
+// pipeline version. It is implemented by the host (coderd/aibridged), which has
+// database access; the bridge library itself is database-less. Implementations
+// should cache by version id since versions are immutable.
+type PipelineResolver interface {
+	// ResolvePipelineVersion returns the compiled pipelines for the given logical
+	// version number (the X-Coder-AI-Gateway-Pipeline-Version header value),
+	// which must belong to the named provider's pipeline. It returns
+	// [ErrPipelineVersionNotFound] when the version is non-numeric, unknown, or
+	// foreign.
+	ResolvePipelineVersion(ctx context.Context, provider, version string) (ProviderPipelines, error)
+}
+
 // ProviderPipelines holds the compiled per-hook policy pipelines for a single
 // provider. A nil pipeline is a no-op for that hook.
 //
@@ -63,23 +93,35 @@ type ProviderPipelines struct {
 
 // policyHooks holds the compiled pipelines keyed by provider name. A provider
 // with no entry runs no policies (pass-through), matching the design's
-// "absence = pass-through" posture.
+// "absence = pass-through" posture. resolver, when set, supplies the compiled
+// pipelines for an owner-selected pipeline version (§10.9).
 type policyHooks struct {
 	byProvider map[string]ProviderPipelines
+	resolver   PipelineResolver
 }
 
 // RequestBridgeOption configures optional [RequestBridge] behavior.
 type RequestBridgeOption func(*requestBridgeOptions)
 
 type requestBridgeOptions struct {
-	hooks policyHooks
+	byProvider map[string]ProviderPipelines
+	resolver   PipelineResolver
 }
 
 // WithPolicyHooks attaches per-provider policy pipelines keyed by provider name.
 // Providers absent from the map run no policies.
 func WithPolicyHooks(byProvider map[string]ProviderPipelines) RequestBridgeOption {
 	return func(o *requestBridgeOptions) {
-		o.hooks = policyHooks{byProvider: byProvider}
+		o.byProvider = byProvider
+	}
+}
+
+// WithPipelineResolver attaches a resolver used to compile a specific pipeline
+// version on demand for owner-only version-targeted evaluation (§10.9). Absent,
+// the version header is rejected with HTTP 400 (feature unavailable).
+func WithPipelineResolver(r PipelineResolver) RequestBridgeOption {
+	return func(o *requestBridgeOptions) {
+		o.resolver = r
 	}
 }
 
@@ -90,13 +132,9 @@ func WithPolicyHooks(byProvider map[string]ProviderPipelines) RequestBridgeOptio
 //
 // Classification annotations from pre-auth are threaded into the pre-req
 // envelope, so a later policy can read an earlier classifier's output.
-func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload intercept.Payload, actor *aibcontext.Actor, provider string, m *metrics.Metrics, logger slog.Logger) (_ intercept.Payload, annotations, modifications map[string]any, blocked bool) {
+func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload intercept.Payload, actor *aibcontext.Actor, ph ProviderPipelines, provider string, m *metrics.Metrics, logger slog.Logger) (_ intercept.Payload, annotations, modifications map[string]any, blocked bool) {
 	ctx := r.Context()
 	model := payload.Model()
-
-	// Absence = pass-through: a provider with no configured pipelines runs no
-	// policies.
-	ph := h.byProvider[provider]
 
 	if ph.PreAuth != nil {
 		in, err := policy.PreAuthEnvelope{
@@ -197,8 +235,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 // capturing the (post-pre-req) request body, identity, and accumulated
 // annotations. It returns nil when the provider has no pre-tool pipeline, which
 // makes tool gating a no-op for the request.
-func (h policyHooks) toolGate(provider string, headers map[string]any, method, path string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
-	ph := h.byProvider[provider]
+func (h policyHooks) toolGate(ph ProviderPipelines, provider string, headers map[string]any, method, path string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
 	if ph.PreTool == nil {
 		return nil
 	}
@@ -244,17 +281,19 @@ func (g *policyToolGate) ObserveHold(seconds float64) {
 
 func (g *policyToolGate) EvaluateToolCall(ctx context.Context, call intercept.ToolCall) (intercept.ToolGateDecision, error) {
 	in, err := policy.PreToolEnvelope{
+		PreReqEnvelope: policy.PreReqEnvelope{
+			Headers:  g.headers,
+			Method:   g.method,
+			Path:     g.path,
+			Request:  g.body,
+			Identity: g.identity,
+		},
 		ToolCall: policy.ToolCall{
 			ID:        call.ID,
 			Name:      call.Name,
 			Arguments: call.Arguments,
 			Index:     call.Index,
 		},
-		Headers:  g.headers,
-		Method:   g.method,
-		Path:     g.path,
-		Request:  g.body,
-		Identity: g.identity,
 	}.Build()
 	if err != nil {
 		return intercept.ToolGateDecision{}, xerrors.Errorf("build pre-tool input: %w", err)
@@ -309,6 +348,13 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 	}
 	if m != nil {
 		m.PolicyVerdictCount.WithLabelValues(provider, model, hook, string(res.Verdict)).Inc()
+	}
+	// Surface fail-open stage failures (normalized to LOG). The generic client
+	// message hides them, so this is the only place a fail-open eval error or
+	// timeout is visible in the log stream.
+	for _, se := range res.Errors {
+		logger.Warn(ctx, "policy stage failed open",
+			slog.F("policy", se.Stage), slog.Error(se.Err))
 	}
 	if res.Verdict.Blocks() {
 		msg := blockedByPolicyMessage
@@ -380,6 +426,17 @@ func identityFromActor(actor *aibcontext.Actor) policy.Identity {
 	}
 	username, _ := actor.Metadata["Username"].(string)
 	return policy.Identity{ID: actor.ID, Username: username}
+}
+
+// actorIsOwner reports whether the actor holds the site-wide owner role, read
+// from the actor metadata set by the host (coderd/aibridged) from the
+// IsAuthorized RPC. It gates owner-only version-targeted evaluation (§10.9).
+func actorIsOwner(actor *aibcontext.Actor) bool {
+	if actor == nil {
+		return false
+	}
+	owner, _ := actor.Metadata["IsOwner"].(bool)
+	return owner
 }
 
 func mergeAnnotations(dst, src map[string]any) map[string]any {

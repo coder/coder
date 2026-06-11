@@ -158,4 +158,8 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+  // is_owner reports whether the authenticated user holds the site-wide owner
+  // role. It gates owner-only features such as version-targeted policy
+  // evaluation (the X-Coder-AI-Gateway-Pipeline-Version header).
+  bool is_owner = 4;
 }

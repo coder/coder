@@ -7,6 +7,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -266,11 +267,15 @@ const EditGuardrailForm: FC<EditGuardrailFormProps> = ({
 	const activeVersion = guardrail.versions?.find(
 		(v) => v.id === guardrail.active_version_id,
 	);
+	const promoteId = useId();
 	const [config, setConfig] = useState(() =>
 		JSON.stringify(activeVersion?.config ?? {}, null, 2),
 	);
 	const [credential, setCredential] = useState("");
 	const [parseError, setParseError] = useState<string | null>(null);
+	// Activating mints unpromoted drafts on each referencing pipeline by default
+	// (the safe two-stage rollout); opting in promotes everywhere at once.
+	const [promote, setPromote] = useState(false);
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -290,6 +295,7 @@ const EditGuardrailForm: FC<EditGuardrailFormProps> = ({
 				config: parsedConfig,
 				credential: credential || undefined,
 				activate: true,
+				promote,
 			},
 			onClose,
 		);
@@ -337,6 +343,24 @@ const EditGuardrailForm: FC<EditGuardrailFormProps> = ({
 								: "API key (stored encrypted); blank for adapters without a secret"
 						}
 					/>
+				</div>
+				<div className="flex items-start gap-2 rounded border border-solid border-border p-3">
+					<Checkbox
+						id={promoteId}
+						checked={promote}
+						onCheckedChange={(next) => setPromote(next === true)}
+					/>
+					<div className="flex flex-col gap-1">
+						<Label htmlFor={promoteId} className="font-medium">
+							Promote to live immediately
+						</Label>
+						<span className="text-xs text-content-secondary">
+							When unchecked, the change is staged: each referencing pipeline
+							gets a new unpromoted version that you promote separately. When
+							checked, the change goes live on every referencing pipeline at
+							once.
+						</span>
+					</div>
 				</div>
 			</div>
 

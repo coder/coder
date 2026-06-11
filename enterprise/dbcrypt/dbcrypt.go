@@ -1028,6 +1028,19 @@ func (db *dbCrypt) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) ([]
 	return rows, nil
 }
 
+func (db *dbCrypt) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.GetAIGatewayPipelineVersionGuardrailSnapshotRow, error) {
+	rows, err := db.Store.GetAIGatewayPipelineVersionGuardrailSnapshot(ctx, pipelineVersionID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if err := db.decryptField(&rows[i].Credential, rows[i].CredentialKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

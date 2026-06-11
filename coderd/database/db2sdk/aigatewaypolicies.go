@@ -66,6 +66,22 @@ func AIGatewayPipeline(row database.AIGatewayPipeline, activeVersion *database.A
 	return out
 }
 
+// AIGatewayPipelineWithLatest is AIGatewayPipeline plus the pipeline's tip
+// (latest) version with its full membership, used to surface
+// minted-but-unpromoted drift and to base edits on the tip. latest may be nil
+// when the pipeline has no version rows.
+func AIGatewayPipelineWithLatest(row database.AIGatewayPipeline, activeVersion *database.AIGatewayPipelineVersion, activeMembers []database.AIGatewayPipelineVersionPolicy, activeGuardrails []database.AIGatewayPipelineVersionGuardrail, latest *database.AIGatewayPipelineVersion, latestMembers []database.AIGatewayPipelineVersionPolicy, latestGuardrails []database.AIGatewayPipelineVersionGuardrail) codersdk.AIGatewayPipeline {
+	out := AIGatewayPipeline(row, activeVersion, activeMembers, activeGuardrails)
+	if latest != nil {
+		id := latest.ID
+		out.LatestVersionID = &id
+		out.LatestVersionNumber = latest.VersionNumber
+		v := AIGatewayPipelineVersion(*latest, latestMembers, latestGuardrails)
+		out.LatestVersion = &v
+	}
+	return out
+}
+
 // AIGatewayPipelineVersion converts a pipeline version row and its policy and
 // guardrail members.
 func AIGatewayPipelineVersion(row database.AIGatewayPipelineVersion, members []database.AIGatewayPipelineVersionPolicy, guardrails []database.AIGatewayPipelineVersionGuardrail) codersdk.AIGatewayPipelineVersion {

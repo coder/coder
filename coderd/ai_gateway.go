@@ -44,7 +44,9 @@ func (api *API) AIGatewayPipelinesRoutes(r chi.Router) {
 		r.Get("/", api.aiGatewayPipelineGet)
 		r.Patch("/", api.aiGatewayPipelineUpdate)
 		r.Delete("/", api.aiGatewayPipelineDelete)
+		r.Get("/versions", api.aiGatewayPipelineVersionsList)
 		r.Post("/versions", api.aiGatewayPipelineVersionCreate)
+		r.Patch("/members", api.aiGatewayPipelineMemberUpdate)
 	})
 }
 
@@ -289,10 +291,11 @@ func (api *API) aiGatewayPolicyVersionCreate(rw http.ResponseWriter, r *http.Req
 			}); txErr != nil {
 				return txErr
 			}
-			// Assisted upgrade: re-pin every active pipeline that uses this
-			// policy to the new version, minting a new pipeline version so
-			// composition history is preserved.
-			return propagatePolicyVersion(ctx, tx, id, ver.ID, auditableUserID(r))
+			// Activation propagates to every referencing pipeline by minting a
+			// new pipeline version on its tip. It only goes live (activates the
+			// minted version) when the caller opts in with promote; otherwise
+			// the mint is an unpromoted draft.
+			return propagatePolicyVersion(ctx, tx, id, ver.ID, auditableUserID(r), req.Promote)
 		}
 		return nil
 	}, &database.TxOptions{TxIdentifier: "create_ai_gateway_policy_version"})
@@ -371,9 +374,10 @@ func (api *API) aiGatewayPolicyUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ActiveVersionID != nil {
-		// Activating a version (including reverting to an older one) re-pins every
-		// active pipeline that uses this policy to that version, minting a new
-		// pipeline version so composition history is preserved.
+		// Activating a version (including reverting to an older one) propagates
+		// to every referencing pipeline by minting a new pipeline version on its
+		// tip. It goes live only when promote is set; otherwise the mint is an
+		// unpromoted draft and live posture is unchanged.
 		err = api.Database.InTx(func(tx database.Store) error {
 			if txErr := tx.UpdateAIGatewayPolicyActiveVersion(ctx, database.UpdateAIGatewayPolicyActiveVersionParams{
 				ID:              id,
@@ -381,7 +385,7 @@ func (api *API) aiGatewayPolicyUpdate(rw http.ResponseWriter, r *http.Request) {
 			}); txErr != nil {
 				return txErr
 			}
-			return propagatePolicyVersion(ctx, tx, id, *req.ActiveVersionID, auditableUserID(r))
+			return propagatePolicyVersion(ctx, tx, id, *req.ActiveVersionID, auditableUserID(r), req.Promote)
 		}, &database.TxOptions{TxIdentifier: "activate_ai_gateway_policy_version"})
 		if err != nil {
 			// A foreign-key violation means the version does not belong to this
@@ -473,7 +477,7 @@ func (api *API) aiGatewayPolicyDelete(rw http.ResponseWriter, r *http.Request) {
 // immutable pipeline version that copies the current membership, swapping only
 // the entries that belong to this policy, then activates it. This keeps
 // composition history while propagating an activated policy edit to what runs.
-func propagatePolicyVersion(ctx context.Context, tx database.Store, policyID, newVersionID uuid.UUID, createdBy uuid.NullUUID) error {
+func propagatePolicyVersion(ctx context.Context, tx database.Store, policyID, newVersionID uuid.UUID, createdBy uuid.NullUUID, promote bool) error {
 	policyVersions, err := tx.GetAIGatewayPolicyVersionsByPolicyID(ctx, policyID)
 	if err != nil {
 		return err
@@ -497,7 +501,7 @@ func propagatePolicyVersion(ctx context.Context, tx database.Store, policyID, ne
 		if !pl.ActiveVersionID.Valid {
 			continue
 		}
-		if err := mintPipelineVersionWithMembers(ctx, tx, pl, createdBy, remapPolicy, identityRemap); err != nil {
+		if err := mintPipelineVersionWithMembers(ctx, tx, pl, createdBy, remapPolicy, identityRemap, promote); err != nil {
 			return err
 		}
 	}

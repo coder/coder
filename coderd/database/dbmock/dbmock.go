@@ -2007,6 +2007,21 @@ func (mr *MockStoreMockRecorder) GetAIGatewayPipelinePolicyDrift(ctx any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelinePolicyDrift", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelinePolicyDrift), ctx)
 }
 
+// GetAIGatewayPipelineVersionGuardrailSnapshot mocks base method.
+func (m *MockStore) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.GetAIGatewayPipelineVersionGuardrailSnapshotRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayPipelineVersionGuardrailSnapshot", ctx, pipelineVersionID)
+	ret0, _ := ret[0].([]database.GetAIGatewayPipelineVersionGuardrailSnapshotRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayPipelineVersionGuardrailSnapshot indicates an expected call of GetAIGatewayPipelineVersionGuardrailSnapshot.
+func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx, pipelineVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionGuardrailSnapshot", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionGuardrailSnapshot), ctx, pipelineVersionID)
+}
+
 // GetAIGatewayPipelineVersionGuardrails mocks base method.
 func (m *MockStore) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionGuardrail, error) {
 	m.ctrl.T.Helper()
@@ -2022,6 +2037,21 @@ func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionGuardrails(ctx, pipe
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionGuardrails", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionGuardrails), ctx, pipelineVersionID)
 }
 
+// GetAIGatewayPipelineVersionIDByProviderAndNumber mocks base method.
+func (m *MockStore) GetAIGatewayPipelineVersionIDByProviderAndNumber(ctx context.Context, arg database.GetAIGatewayPipelineVersionIDByProviderAndNumberParams) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayPipelineVersionIDByProviderAndNumber", ctx, arg)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayPipelineVersionIDByProviderAndNumber indicates an expected call of GetAIGatewayPipelineVersionIDByProviderAndNumber.
+func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionIDByProviderAndNumber(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionIDByProviderAndNumber", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionIDByProviderAndNumber), ctx, arg)
+}
+
 // GetAIGatewayPipelineVersionPolicies mocks base method.
 func (m *MockStore) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.AIGatewayPipelineVersionPolicy, error) {
 	m.ctrl.T.Helper()
@@ -2035,6 +2065,36 @@ func (m *MockStore) GetAIGatewayPipelineVersionPolicies(ctx context.Context, pip
 func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionPolicies(ctx, pipelineVersionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionPolicies", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionPolicies), ctx, pipelineVersionID)
+}
+
+// GetAIGatewayPipelineVersionPolicySnapshot mocks base method.
+func (m *MockStore) GetAIGatewayPipelineVersionPolicySnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]database.GetAIGatewayPipelineVersionPolicySnapshotRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayPipelineVersionPolicySnapshot", ctx, pipelineVersionID)
+	ret0, _ := ret[0].([]database.GetAIGatewayPipelineVersionPolicySnapshotRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayPipelineVersionPolicySnapshot indicates an expected call of GetAIGatewayPipelineVersionPolicySnapshot.
+func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionPolicySnapshot(ctx, pipelineVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionPolicySnapshot", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionPolicySnapshot), ctx, pipelineVersionID)
+}
+
+// GetAIGatewayPipelineVersionProvider mocks base method.
+func (m *MockStore) GetAIGatewayPipelineVersionProvider(ctx context.Context, pipelineVersionID uuid.UUID) (database.GetAIGatewayPipelineVersionProviderRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayPipelineVersionProvider", ctx, pipelineVersionID)
+	ret0, _ := ret[0].(database.GetAIGatewayPipelineVersionProviderRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayPipelineVersionProvider indicates an expected call of GetAIGatewayPipelineVersionProvider.
+func (mr *MockStoreMockRecorder) GetAIGatewayPipelineVersionProvider(ctx, pipelineVersionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayPipelineVersionProvider", reflect.TypeOf((*MockStore)(nil).GetAIGatewayPipelineVersionProvider), ctx, pipelineVersionID)
 }
 
 // GetAIGatewayPipelineVersionsByPipelineID mocks base method.
@@ -9607,6 +9667,34 @@ func (m *MockStore) UpdateAIGatewayPipelineActiveVersion(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) UpdateAIGatewayPipelineActiveVersion(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayPipelineActiveVersion", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayPipelineActiveVersion), ctx, arg)
+}
+
+// UpdateAIGatewayPipelineVersionGuardrailEnabled mocks base method.
+func (m *MockStore) UpdateAIGatewayPipelineVersionGuardrailEnabled(ctx context.Context, arg database.UpdateAIGatewayPipelineVersionGuardrailEnabledParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIGatewayPipelineVersionGuardrailEnabled", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAIGatewayPipelineVersionGuardrailEnabled indicates an expected call of UpdateAIGatewayPipelineVersionGuardrailEnabled.
+func (mr *MockStoreMockRecorder) UpdateAIGatewayPipelineVersionGuardrailEnabled(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayPipelineVersionGuardrailEnabled", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayPipelineVersionGuardrailEnabled), ctx, arg)
+}
+
+// UpdateAIGatewayPipelineVersionPolicyEnabled mocks base method.
+func (m *MockStore) UpdateAIGatewayPipelineVersionPolicyEnabled(ctx context.Context, arg database.UpdateAIGatewayPipelineVersionPolicyEnabledParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIGatewayPipelineVersionPolicyEnabled", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAIGatewayPipelineVersionPolicyEnabled indicates an expected call of UpdateAIGatewayPipelineVersionPolicyEnabled.
+func (mr *MockStoreMockRecorder) UpdateAIGatewayPipelineVersionPolicyEnabled(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayPipelineVersionPolicyEnabled", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayPipelineVersionPolicyEnabled), ctx, arg)
 }
 
 // UpdateAIGatewayPolicy mocks base method.

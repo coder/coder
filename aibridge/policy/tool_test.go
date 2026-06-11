@@ -11,7 +11,7 @@ import (
 
 func buildToolInput(t *testing.T, call policy.ToolCall, body string, identity policy.Identity) policy.Input {
 	t.Helper()
-	in, err := policy.PreToolEnvelope{ToolCall: call, Request: []byte(body), Identity: identity}.
+	in, err := policy.PreToolEnvelope{PreReqEnvelope: policy.PreReqEnvelope{Request: []byte(body), Identity: identity}, ToolCall: call}.
 		Build()
 	require.NoError(t, err)
 	return in
@@ -99,11 +99,11 @@ func TestBuildToolInput_InvalidArgsErrors(t *testing.T) {
 	t.Parallel()
 
 	_, err := policy.PreToolEnvelope{
+		PreReqEnvelope: policy.PreReqEnvelope{Request: []byte(`{}`)},
 		ToolCall: policy.ToolCall{
 			Name:      "x",
 			Arguments: json.RawMessage(`{not valid json`),
 		},
-		Request: []byte(`{}`),
 	}.Build()
 	require.Error(t, err)
 }

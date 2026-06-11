@@ -19,6 +19,27 @@ type AIGatewayPipeline struct {
 	CreatedAt       time.Time                 `json:"created_at" format:"date-time"`
 	UpdatedAt       time.Time                 `json:"updated_at" format:"date-time"`
 	ActiveVersion   *AIGatewayPipelineVersion `json:"active_version,omitempty"`
+	// LatestVersionID / LatestVersionNumber identify the pipeline's tip (most
+	// recent) version. Under the explicit two-stage rollout, activating a policy
+	// or guardrail mints a new pipeline version on the tip without promoting it,
+	// so the tip can be ahead of the active (live) version. When LatestVersionID
+	// differs from ActiveVersionID the pipeline has unpromoted changes (drift):
+	// the operator can promote the tip to take them live.
+	LatestVersionID     *uuid.UUID `json:"latest_version_id,omitempty" format:"uuid"`
+	LatestVersionNumber int32      `json:"latest_version_number"`
+	// LatestVersion is the tip version with its full membership (policies and
+	// guardrails). Editing a pipeline must base the new version on the tip, not
+	// the active version, so staged changes accumulate as one linear draft
+	// lineage; basing an edit on the active version would silently drop members
+	// added in an unpromoted draft.
+	LatestVersion *AIGatewayPipelineVersion `json:"latest_version,omitempty"`
+}
+
+// HasUnpromotedChanges reports whether the pipeline's tip version is ahead of
+// its active (live) version, i.e. minted-but-unpromoted drift exists.
+func (p AIGatewayPipeline) HasUnpromotedChanges() bool {
+	return p.LatestVersionID != nil &&
+		(p.ActiveVersionID == nil || *p.LatestVersionID != *p.ActiveVersionID)
 }
 
 // AIGatewayPipelineVersion is an immutable composition snapshot.
@@ -117,6 +138,35 @@ func (req UpdateAIGatewayPipelineRequest) IsEmpty() bool {
 	return req.Enabled == nil && req.ActiveVersionID == nil
 }
 
+// UpdateAIGatewayPipelineMemberRequest enables or disables a single member
+// (policy or guardrail) of a pipeline's live (active) version in place. Unlike a
+// composition edit, this does not mint a new pipeline version: enable/disable is
+// a live pause control that takes effect immediately. Exactly one of
+// PolicyVersionID or GuardrailVersionID must be set, identifying the member
+// within the active version together with Hook.
+type UpdateAIGatewayPipelineMemberRequest struct {
+	PolicyVersionID    *uuid.UUID    `json:"policy_version_id,omitempty" format:"uuid"`
+	GuardrailVersionID *uuid.UUID    `json:"guardrail_version_id,omitempty" format:"uuid"`
+	Hook               AIGatewayHook `json:"hook"`
+	Enabled            bool          `json:"enabled"`
+}
+
+func (req UpdateAIGatewayPipelineMemberRequest) Validate() []ValidationError {
+	var v []ValidationError
+	switch {
+	case req.PolicyVersionID == nil && req.GuardrailVersionID == nil:
+		v = append(v, ValidationError{Field: "policy_version_id", Detail: "one of policy_version_id or guardrail_version_id is required"})
+	case req.PolicyVersionID != nil && req.GuardrailVersionID != nil:
+		v = append(v, ValidationError{Field: "policy_version_id", Detail: "only one of policy_version_id or guardrail_version_id may be set"})
+	}
+	switch req.Hook {
+	case AIGatewayHookPreAuth, AIGatewayHookPreReq, AIGatewayHookPreTool:
+	default:
+		v = append(v, ValidationError{Field: "hook", Detail: fmt.Sprintf("unsupported hook %q", req.Hook)})
+	}
+	return v
+}
+
 func validateAIGatewayPipelinePolicies(policies []AIGatewayPipelinePolicyRequest) []ValidationError {
 	var v []ValidationError
 	for i, p := range policies {
@@ -198,6 +248,22 @@ func (c *Client) AIGatewayPipeline(ctx context.Context, id uuid.UUID) (AIGateway
 	return out, json.NewDecoder(res.Body).Decode(&out)
 }
 
+// AIGatewayPipelineVersions lists a pipeline's versions, newest first. Used to
+// surface pipeline version history and to choose a minted-but-unpromoted
+// version to promote.
+func (c *Client) AIGatewayPipelineVersions(ctx context.Context, id uuid.UUID) ([]AIGatewayPipelineVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/aibridge/pipelines/%s/versions", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var out []AIGatewayPipelineVersion
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
 // CreateAIGatewayPipeline creates a pipeline and its first (active) version.
 func (c *Client) CreateAIGatewayPipeline(ctx context.Context, req CreateAIGatewayPipelineRequest) (AIGatewayPipeline, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/aibridge/pipelines", req)
@@ -229,6 +295,21 @@ func (c *Client) CreateAIGatewayPipelineVersion(ctx context.Context, id uuid.UUI
 // UpdateAIGatewayPipeline partially updates a pipeline.
 func (c *Client) UpdateAIGatewayPipeline(ctx context.Context, id uuid.UUID, req UpdateAIGatewayPipelineRequest) (AIGatewayPipeline, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/aibridge/pipelines/%s", id), req)
+	if err != nil {
+		return AIGatewayPipeline{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIGatewayPipeline{}, ReadBodyAsError(res)
+	}
+	var out AIGatewayPipeline
+	return out, json.NewDecoder(res.Body).Decode(&out)
+}
+
+// UpdateAIGatewayPipelineMember enables or disables a single member of a
+// pipeline's active version in place, without minting a new version.
+func (c *Client) UpdateAIGatewayPipelineMember(ctx context.Context, id uuid.UUID, req UpdateAIGatewayPipelineMemberRequest) (AIGatewayPipeline, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/aibridge/pipelines/%s/members", id), req)
 	if err != nil {
 		return AIGatewayPipeline{}, err
 	}

@@ -8,16 +8,15 @@ import type {
 	UpdateAIGatewayGuardrailRequest,
 } from "#/api/typesGenerated";
 
+// Shared prefix for every AI gateway query. Activating a guardrail version
+// mints new pipeline versions, so that mutation invalidates this prefix to
+// refresh guardrails and pipelines (drift) together.
+const aiGatewayKey = ["ai", "gateway"] as const;
 const guardrailsListKey = ["ai", "gateway", "guardrails"] as const;
 
 export const aiGatewayGuardrailsList = () => ({
 	queryKey: guardrailsListKey,
 	queryFn: (): Promise<AIGatewayGuardrail[]> => API.getAIGatewayGuardrails(),
-});
-
-export const aiGatewayGuardrail = (id: string) => ({
-	queryKey: [...guardrailsListKey, id] as const,
-	queryFn: (): Promise<AIGatewayGuardrail> => API.getAIGatewayGuardrail(id),
 });
 
 export const createAIGatewayGuardrailMutation = (queryClient: QueryClient) => ({
@@ -41,7 +40,8 @@ export const createAIGatewayGuardrailVersionMutation = (
 	}): Promise<AIGatewayGuardrailVersion> =>
 		API.createAIGatewayGuardrailVersion(id, request),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: guardrailsListKey });
+		// Activating mints pipeline versions; refresh pipelines + drift too.
+		await queryClient.invalidateQueries({ queryKey: aiGatewayKey });
 	},
 });
 
@@ -54,7 +54,8 @@ export const updateAIGatewayGuardrailMutation = (queryClient: QueryClient) => ({
 		request: UpdateAIGatewayGuardrailRequest;
 	}): Promise<AIGatewayGuardrail> => API.updateAIGatewayGuardrail(id, request),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: guardrailsListKey });
+		// Activating a guardrail version mints pipeline versions; refresh both.
+		await queryClient.invalidateQueries({ queryKey: aiGatewayKey });
 	},
 });
 

@@ -47,6 +47,11 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg 
 		return nil, nil, xerrors.Errorf("create request pool: %w", err)
 	}
 
+	// Owner-only version-targeted evaluation (§10.9) compiles a specific
+	// pipeline version on demand, caching by version id. Versions are immutable
+	// so the cache lives for the daemon's lifetime.
+	pool.SetPipelineResolver(aibridged.NewPipelineVersionResolver(coderAPI.Database, logger.Named("pipeline-resolver")))
+
 	// Subscribe to ai_providers change events so the pool tracks the
 	// database without a restart. The boot-time `providers` snapshot
 	// derives from env config and serves as a fallback if the database

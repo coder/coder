@@ -104,7 +104,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(&options)
 	}
-	hooks := options.hooks
+	hooks := policyHooks{byProvider: options.byProvider, resolver: options.resolver}
 	// Policy pipelines are sourced per-provider from the DB by the caller (see
 	// coderd/aibridged) and passed via WithPolicyHooks. A provider with no
 	// configured pipeline runs no policies (pass-through).
@@ -238,9 +238,46 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		// Resolve which pipeline version evaluates this request. Absence =
+		// pass-through: a provider with no configured pipelines runs no policies.
+		// An owner-only header rehearses a specific version against real traffic
+		// (§10.9); a non-owner sending it is rejected loudly rather than silently
+		// falling through to the active version.
+		ph := hooks.byProvider[p.Name()]
+		if version := strings.TrimSpace(r.Header.Get(HeaderAIGatewayPipelineVersion)); version != "" {
+			// Strip the header so it is never forwarded upstream.
+			r.Header.Del(HeaderAIGatewayPipelineVersion)
+			if !actorIsOwner(actor) {
+				logger.Warn(ctx, "non-owner attempted version-targeted evaluation",
+					slog.F("actor", actor.ID))
+				http.Error(w, "version-targeted evaluation is restricted to owners", http.StatusForbidden)
+				return
+			}
+			if hooks.resolver == nil {
+				http.Error(w, "version-targeted evaluation is unavailable", http.StatusBadRequest)
+				return
+			}
+			resolved, err := hooks.resolver.ResolvePipelineVersion(ctx, p.Name(), version)
+			if err != nil {
+				if xerrors.Is(err, ErrPipelineVersionNotFound) {
+					logger.Warn(ctx, "unknown or foreign pipeline version requested",
+						slog.F("pipeline_version", version))
+					http.Error(w, "unknown pipeline version", http.StatusBadRequest)
+					return
+				}
+				logger.Error(ctx, "resolve pipeline version", slog.Error(err),
+					slog.F("pipeline_version", version))
+				http.Error(w, "failed to resolve pipeline version", http.StatusInternalServerError)
+				return
+			}
+			logger.Debug(ctx, "evaluating version-targeted pipeline",
+				slog.F("pipeline_version", version), slog.F("staged", true))
+			ph = resolved
+		}
+
 		// Run the policy hooks before creating the interceptor: they may block
 		// the request, rewrite the payload, or attach classifications.
-		payload, classifications, modifications, blocked := hooks.apply(w, r, payload, actor, p.Name(), m, logger)
+		payload, classifications, modifications, blocked := hooks.apply(w, r, payload, actor, ph, p.Name(), m, logger)
 		if blocked {
 			return
 		}
@@ -250,7 +287,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// call before releasing it. A nil gate (no pre-tool pipeline) is a
 		// no-op. The gate captures the post-pre-req body and accumulated
 		// classifications.
-		if gate := hooks.toolGate(p.Name(), headerMap(r.Header, remoteIP(r)), r.Method, r.URL.Path, payload.Body(), actor, classifications, m, logger); gate != nil {
+		if gate := hooks.toolGate(ph, p.Name(), headerMap(r.Header, remoteIP(r)), r.Method, r.URL.Path, payload.Body(), actor, classifications, m, logger); gate != nil {
 			ctx = intercept.WithToolGate(ctx, gate)
 			r = r.WithContext(ctx)
 		}

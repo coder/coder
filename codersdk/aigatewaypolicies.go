@@ -96,8 +96,16 @@ func (req CreateAIGatewayPolicyRequest) Validate() []ValidationError {
 type CreateAIGatewayPolicyVersionRequest struct {
 	Rego        string `json:"rego"`
 	Description string `json:"description,omitempty"`
-	// Activate sets the new version as the policy's active version.
+	// Activate sets the new version as the policy's active version. Activation
+	// propagates to every referencing pipeline by *minting* a new (unpromoted)
+	// pipeline version on its tip; live posture is unchanged until each pipeline
+	// is explicitly promoted. Defaults false: a bare create mints only.
 	Activate bool `json:"activate"`
+	// Promote, only meaningful with Activate, additionally activates the minted
+	// pipeline versions so the change goes live immediately across all
+	// referencing pipelines. Defaults false (explicit promotion is the safe
+	// default).
+	Promote bool `json:"promote,omitempty"`
 }
 
 func (req CreateAIGatewayPolicyVersionRequest) Validate() []ValidationError {
@@ -113,6 +121,10 @@ func (req CreateAIGatewayPolicyVersionRequest) Validate() []ValidationError {
 type UpdateAIGatewayPolicyRequest struct {
 	DisplayName     *string    `json:"display_name,omitempty"`
 	ActiveVersionID *uuid.UUID `json:"active_version_id,omitempty" format:"uuid"`
+	// Promote, only meaningful with ActiveVersionID, additionally activates the
+	// pipeline versions minted by propagation so the activation goes live
+	// immediately. Defaults false: activation mints unpromoted pipeline drafts.
+	Promote bool `json:"promote,omitempty"`
 }
 
 func (req UpdateAIGatewayPolicyRequest) IsEmpty() bool {

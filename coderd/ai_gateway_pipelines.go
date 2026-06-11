@@ -21,6 +21,7 @@ import (
 // version.
 type resolvedMember struct {
 	policyVersionID uuid.UUID
+	name            string
 	hook            database.AIGatewayHook
 	kind            database.AIGatewayPolicyKind
 	failMode        database.AIGatewayFailMode
@@ -72,6 +73,7 @@ func resolvePipelinePolicies(ctx context.Context, db database.Store, reqs []code
 		}
 		out = append(out, resolvedMember{
 			policyVersionID: req.PolicyVersionID,
+			name:            pol.Name,
 			hook:            hook,
 			kind:            kind,
 			failMode:        database.AIGatewayFailMode(req.FailMode),
@@ -79,6 +81,26 @@ func resolvePipelinePolicies(ctx context.Context, db database.Store, reqs []code
 		})
 	}
 	return out, nil
+}
+
+// checkMemberNameCollision rejects a pipeline version whose member policy names
+// and guardrail names overlap. Names key the first level of input.annotations
+// (the host-owned namespace), so a policy and a guardrail sharing a name would
+// collide there. Cross-table uniqueness cannot be a DB index, so it is checked
+// here at version-create time.
+func checkMemberNameCollision(members []resolvedMember, guardrails []resolvedGuardrail) *codersdk.Response {
+	names := make(map[string]struct{}, len(members))
+	for _, m := range members {
+		names[m.name] = struct{}{}
+	}
+	for _, g := range guardrails {
+		if _, dup := names[g.name]; dup {
+			return &codersdk.Response{
+				Message: fmt.Sprintf("member name %q is used by both a policy and a guardrail; names must be unique within a pipeline because they namespace annotations", g.name),
+			}
+		}
+	}
+	return nil
 }
 
 func aiGatewayHookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewayPolicyKind) bool {
@@ -116,6 +138,7 @@ func insertPipelineMembers(ctx context.Context, tx database.Store, versionID uui
 // resolvedGuardrail is a request guardrail membership validated for insertion.
 type resolvedGuardrail struct {
 	guardrailVersionID uuid.UUID
+	name               string
 	hook               database.AIGatewayHook
 	mode               database.AIGatewayGuardrailMode
 	failMode           database.AIGatewayFailMode
@@ -130,10 +153,15 @@ type resolvedGuardrail struct {
 func resolvePipelineGuardrails(ctx context.Context, db database.Store, reqs []codersdk.AIGatewayPipelineGuardrailRequest) ([]resolvedGuardrail, *codersdk.Response) {
 	out := make([]resolvedGuardrail, 0, len(reqs))
 	for i, req := range reqs {
-		if _, err := db.GetAIGatewayGuardrailVersionByID(ctx, req.GuardrailVersionID); errors.Is(err, sql.ErrNoRows) {
+		ver, err := db.GetAIGatewayGuardrailVersionByID(ctx, req.GuardrailVersionID)
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &codersdk.Response{Message: fmt.Sprintf("guardrails[%d]: guardrail version not found", i)}
 		} else if err != nil {
 			return nil, &codersdk.Response{Message: "Internal error resolving guardrail version.", Detail: err.Error()}
+		}
+		gr, err := db.GetAIGatewayGuardrailByID(ctx, ver.GuardrailID)
+		if err != nil {
+			return nil, &codersdk.Response{Message: "Internal error resolving guardrail.", Detail: err.Error()}
 		}
 		timeout := int32(2000)
 		if req.NetworkTimeoutMS != nil {
@@ -145,6 +173,7 @@ func resolvePipelineGuardrails(ctx context.Context, db database.Store, reqs []co
 		}
 		out = append(out, resolvedGuardrail{
 			guardrailVersionID: req.GuardrailVersionID,
+			name:               gr.Name,
 			hook:               database.AIGatewayHook(req.Hook),
 			mode:               database.AIGatewayGuardrailMode(req.Mode),
 			failMode:           database.AIGatewayFailMode(req.FailMode),
@@ -174,19 +203,57 @@ func insertPipelineGuardrails(ctx context.Context, tx database.Store, versionID 
 }
 
 func (api *API) loadPipelineSDK(ctx context.Context, row database.AIGatewayPipeline) (codersdk.AIGatewayPipeline, error) {
+	// The tip (latest) version is loaded so the SDK can report minted-but-
+	// unpromoted drift (latest ahead of active) for the two-stage rollout UX.
+	allVersions, err := api.Database.GetAIGatewayPipelineVersionsByPipelineID(ctx, row.ID)
+	if err != nil {
+		return codersdk.AIGatewayPipeline{}, err
+	}
+	var (
+		latest           *database.AIGatewayPipelineVersion
+		latestMembers    []database.AIGatewayPipelineVersionPolicy
+		latestGuardrails []database.AIGatewayPipelineVersionGuardrail
+	)
+	if len(allVersions) > 0 {
+		// Ordered version_number DESC, so the first row is the tip. Its full
+		// membership is loaded so the UI can base edits on the tip (the staged
+		// draft lineage), not the active version. Basing an edit on the active
+		// version would drop members added in an unpromoted draft.
+		latest = &allVersions[0]
+		latestMembers, err = api.Database.GetAIGatewayPipelineVersionPolicies(ctx, latest.ID)
+		if err != nil {
+			return codersdk.AIGatewayPipeline{}, err
+		}
+		latestGuardrails, err = api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, latest.ID)
+		if err != nil {
+			return codersdk.AIGatewayPipeline{}, err
+		}
+	}
+
 	if !row.ActiveVersionID.Valid {
-		return db2sdk.AIGatewayPipeline(row, nil, nil, nil), nil
+		return db2sdk.AIGatewayPipelineWithLatest(row, nil, nil, nil, latest, latestMembers, latestGuardrails), nil
 	}
-	members, err := api.Database.GetAIGatewayPipelineVersionPolicies(ctx, row.ActiveVersionID.UUID)
-	if err != nil {
-		return codersdk.AIGatewayPipeline{}, err
+
+	activeID := row.ActiveVersionID.UUID
+	var (
+		members    []database.AIGatewayPipelineVersionPolicy
+		guardrails []database.AIGatewayPipelineVersionGuardrail
+	)
+	if latest != nil && latest.ID == activeID {
+		// The active version is the tip; reuse the membership already loaded.
+		members, guardrails = latestMembers, latestGuardrails
+	} else {
+		members, err = api.Database.GetAIGatewayPipelineVersionPolicies(ctx, activeID)
+		if err != nil {
+			return codersdk.AIGatewayPipeline{}, err
+		}
+		guardrails, err = api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, activeID)
+		if err != nil {
+			return codersdk.AIGatewayPipeline{}, err
+		}
 	}
-	guardrails, err := api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, row.ActiveVersionID.UUID)
-	if err != nil {
-		return codersdk.AIGatewayPipeline{}, err
-	}
-	ver := database.AIGatewayPipelineVersion{ID: row.ActiveVersionID.UUID, PipelineID: row.ID}
-	return db2sdk.AIGatewayPipeline(row, &ver, members, guardrails), nil
+	ver := database.AIGatewayPipelineVersion{ID: activeID, PipelineID: row.ID}
+	return db2sdk.AIGatewayPipelineWithLatest(row, &ver, members, guardrails, latest, latestMembers, latestGuardrails), nil
 }
 
 // @Summary List AI gateway pipelines
@@ -248,6 +315,49 @@ func (api *API) aiGatewayPipelineGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
+// @Summary List AI gateway pipeline versions
+// @ID list-ai-gateway-pipeline-versions
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Gateway
+// @Param id path string true "Pipeline ID" format(uuid)
+// @Success 200 {array} codersdk.AIGatewayPipelineVersion
+// @Router /api/v2/aibridge/pipelines/{id}/versions [get]
+func (api *API) aiGatewayPipelineVersionsList(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := parseUUIDParam(rw, r, ctx)
+	if !ok {
+		return
+	}
+	if _, err := api.Database.GetAIGatewayPipelineByID(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpInternal(ctx, rw, api, "get AI gateway pipeline", err)
+		return
+	}
+	versions, err := api.Database.GetAIGatewayPipelineVersionsByPipelineID(ctx, id)
+	if err != nil {
+		httpInternal(ctx, rw, api, "list AI gateway pipeline versions", err)
+		return
+	}
+	out := make([]codersdk.AIGatewayPipelineVersion, 0, len(versions))
+	for _, ver := range versions {
+		members, err := api.Database.GetAIGatewayPipelineVersionPolicies(ctx, ver.ID)
+		if err != nil {
+			httpInternal(ctx, rw, api, "load AI gateway pipeline version policies", err)
+			return
+		}
+		guardrails, err := api.Database.GetAIGatewayPipelineVersionGuardrails(ctx, ver.ID)
+		if err != nil {
+			httpInternal(ctx, rw, api, "load AI gateway pipeline version guardrails", err)
+			return
+		}
+		out = append(out, db2sdk.AIGatewayPipelineVersion(ver, members, guardrails))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
 // @Summary Create an AI gateway pipeline
 // @ID create-an-ai-gateway-pipeline
 // @Security CoderSessionToken
@@ -292,6 +402,10 @@ func (api *API) aiGatewayPipelinesCreate(rw http.ResponseWriter, r *http.Request
 	}
 	guardrails, problem := resolvePipelineGuardrails(ctx, api.Database, req.Guardrails)
 	if problem != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
+		return
+	}
+	if problem := checkMemberNameCollision(members, guardrails); problem != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
 		return
 	}
@@ -396,6 +510,10 @@ func (api *API) aiGatewayPipelineVersionCreate(rw http.ResponseWriter, r *http.R
 	}
 	guardrails, problem := resolvePipelineGuardrails(ctx, api.Database, req.Guardrails)
 	if problem != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
+		return
+	}
+	if problem := checkMemberNameCollision(members, guardrails); problem != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *problem)
 		return
 	}
@@ -530,6 +648,81 @@ func (api *API) aiGatewayPipelineUpdate(rw http.ResponseWriter, r *http.Request)
 		row.ActiveVersionID = uuid.NullUUID{UUID: *req.ActiveVersionID, Valid: true}
 	}
 	aReq.New = row
+	api.publishAIGatewayPipelinesChanged(ctx)
+
+	sdk, err := api.loadPipelineSDK(ctx, row)
+	if err != nil {
+		httpInternal(ctx, rw, api, "load AI gateway pipeline", err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, sdk)
+}
+
+// @Summary Enable or disable an AI gateway pipeline member
+// @ID enable-or-disable-an-ai-gateway-pipeline-member
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags AI Gateway
+// @Param id path string true "Pipeline ID" format(uuid)
+// @Param request body codersdk.UpdateAIGatewayPipelineMemberRequest true "Update member request"
+// @Success 200 {object} codersdk.AIGatewayPipeline
+// @Router /api/v2/aibridge/pipelines/{id}/members [patch]
+func (api *API) aiGatewayPipelineMemberUpdate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := parseUUIDParam(rw, r, ctx)
+	if !ok {
+		return
+	}
+	var req codersdk.UpdateAIGatewayPipelineMemberRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if validations := req.Validate(); len(validations) > 0 {
+		httpValidations(ctx, rw, "Invalid pipeline member request.", validations)
+		return
+	}
+
+	row, err := api.Database.GetAIGatewayPipelineByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpInternal(ctx, rw, api, "get AI gateway pipeline", err)
+		return
+	}
+	// Enable/disable applies to the live (active) version so it takes effect
+	// immediately. A member that exists only in an unpromoted draft cannot be
+	// paused live until it is promoted.
+	if !row.ActiveVersionID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Pipeline has no active version to update."})
+		return
+	}
+
+	if req.PolicyVersionID != nil {
+		err = api.Database.UpdateAIGatewayPipelineVersionPolicyEnabled(ctx, database.UpdateAIGatewayPipelineVersionPolicyEnabledParams{
+			PipelineVersionID: row.ActiveVersionID.UUID,
+			PolicyVersionID:   *req.PolicyVersionID,
+			Hook:              database.AIGatewayHook(req.Hook),
+			Enabled:           req.Enabled,
+		})
+	} else {
+		err = api.Database.UpdateAIGatewayPipelineVersionGuardrailEnabled(ctx, database.UpdateAIGatewayPipelineVersionGuardrailEnabledParams{
+			PipelineVersionID:  row.ActiveVersionID.UUID,
+			GuardrailVersionID: *req.GuardrailVersionID,
+			Hook:               database.AIGatewayHook(req.Hook),
+			Enabled:            req.Enabled,
+		})
+	}
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpInternal(ctx, rw, api, "update AI gateway pipeline member", err)
+		return
+	}
 	api.publishAIGatewayPipelinesChanged(ctx)
 
 	sdk, err := api.loadPipelineSDK(ctx, row)

@@ -61,6 +61,10 @@ type CachedBridgePool struct {
 	// policyHooks is the live per-provider policy pipeline snapshot used by new
 	// RequestBridge instances. A provider absent from the map runs no policies.
 	policyHooks atomic.Pointer[map[string]aibridge.ProviderPipelines]
+	// pipelineResolver compiles a specific pipeline version on demand for
+	// owner-only version-targeted evaluation (§10.9). It is stable for the
+	// pool's lifetime (set once at startup); nil disables the feature.
+	pipelineResolver atomic.Pointer[aibridge.PipelineResolver]
 	// providerVersion is bumped whenever the provider OR policy snapshot is
 	// replaced; it is part of the singleflight key so a replacement forces new
 	// bridges to be built.
@@ -166,6 +170,22 @@ func (p *CachedBridgePool) ReplacePolicyHooks(hooks map[string]aibridge.Provider
 	)
 }
 
+// SetPipelineResolver sets the resolver used for owner-only version-targeted
+// evaluation. It is intended to be called once at startup before the pool
+// serves requests. Bridges created after the call pick it up; existing cached
+// bridges are unaffected until they expire.
+func (p *CachedBridgePool) SetPipelineResolver(r aibridge.PipelineResolver) {
+	p.pipelineResolver.Store(&r)
+}
+
+// loadPipelineResolver returns the current resolver, or nil if unset.
+func (p *CachedBridgePool) loadPipelineResolver() aibridge.PipelineResolver {
+	if ptr := p.pipelineResolver.Load(); ptr != nil {
+		return *ptr
+	}
+	return nil
+}
+
 // loadProviders returns the current providers snapshot. The returned
 // slice must not be mutated.
 func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
@@ -261,6 +281,9 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 		opts := []aibridge.RequestBridgeOption{}
 		if hooks := p.loadPolicyHooks(); hooks != nil {
 			opts = append(opts, aibridge.WithPolicyHooks(hooks))
+		}
+		if resolver := p.loadPipelineResolver(); resolver != nil {
+			opts = append(opts, aibridge.WithPipelineResolver(resolver))
 		}
 		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, opts...)
 		if err != nil {

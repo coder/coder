@@ -154,6 +154,16 @@ INSERT INTO ai_gateway_pipeline_version_policies (
 )
 RETURNING *;
 
+-- name: UpdateAIGatewayPipelineVersionPolicyEnabled :exec
+-- Flips a policy member's enabled flag in place on a specific pipeline version.
+-- Enable/disable is a live pause control, not a composition change, so it
+-- mutates the membership row directly instead of minting a new pipeline version.
+UPDATE ai_gateway_pipeline_version_policies
+SET enabled = @enabled::boolean
+WHERE pipeline_version_id = @pipeline_version_id::uuid
+    AND policy_version_id = @policy_version_id::uuid
+    AND hook = @hook::ai_gateway_hook;
+
 -- name: GetAIGatewayPipelineVersionPolicies :many
 SELECT * FROM ai_gateway_pipeline_version_policies
 WHERE pipeline_version_id = @pipeline_version_id::uuid;
@@ -162,6 +172,70 @@ WHERE pipeline_version_id = @pipeline_version_id::uuid;
 SELECT * FROM ai_gateway_pipeline_versions
 WHERE pipeline_id = @pipeline_id::uuid
 ORDER BY version_number DESC;
+
+-- name: GetAIGatewayPipelineVersionIDByProviderAndNumber :one
+-- Resolves a pipeline version's id from the provider name and the logical
+-- version number, for the version-targeted evaluation gate (§10.9). The
+-- X-Coder-AI-Gateway-Pipeline-Version header carries the human-facing version
+-- number, not the internal uuid, so this translates it. Returns no rows when no
+-- live pipeline for the provider has that version number, which the gate maps to
+-- a 4xx (unknown version). Provider scoping here means a foreign version number
+-- can never resolve to another provider's pipeline.
+SELECT pv.id
+FROM ai_gateway_pipeline_versions pv
+JOIN ai_gateway_pipelines pl ON pl.id = pv.pipeline_id
+JOIN ai_providers prov ON prov.id = pl.provider_id
+WHERE prov.name = @provider_name::text
+    AND pv.version_number = @version_number::integer
+    AND pl.deleted = FALSE
+    AND prov.deleted = FALSE;
+
+-- name: GetAIGatewayPipelineVersionProvider :one
+-- Resolves the provider that owns a pipeline version, for the version-targeted
+-- evaluation gate (§10.9). Returns no rows if the version does not exist or its
+-- pipeline/provider is soft-deleted, which the gate maps to a 4xx (unknown or
+-- foreign version).
+SELECT prov.name AS provider_name, pv.version_number
+FROM ai_gateway_pipeline_versions pv
+JOIN ai_gateway_pipelines pl ON pl.id = pv.pipeline_id
+JOIN ai_providers prov ON prov.id = pl.provider_id
+WHERE pv.id = @pipeline_version_id::uuid
+    AND pl.deleted = FALSE
+    AND prov.deleted = FALSE;
+
+-- name: GetAIGatewayPipelineVersionPolicySnapshot :many
+-- Like GetActiveAIGatewayPipelinePolicies but resolves a specific (typically
+-- unpromoted) pipeline version instead of the active one, for version-targeted
+-- evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked:
+-- a staged version is rehearsed against real traffic before it is promoted and
+-- the pipeline is enabled. Disabled members and soft-deleted parents are still
+-- excluded, matching the active snapshot.
+SELECT
+    pl.provider_id,
+    prov.name AS provider_name,
+    pl.id AS pipeline_id,
+    pv.id AS pipeline_version_id,
+    pv.version_number AS pipeline_version_number,
+    m.hook,
+    m.kind,
+    m.fail_mode,
+    p.id AS policy_id,
+    p.name AS policy_name,
+    pver.id AS policy_version_id,
+    pver.rego,
+    pver.input_schema_version,
+    pver.output_schema_version
+FROM ai_gateway_pipelines pl
+JOIN ai_providers prov ON prov.id = pl.provider_id
+JOIN ai_gateway_pipeline_versions pv ON pv.id = @pipeline_version_id::uuid AND pv.pipeline_id = pl.id
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pv.id
+JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
+JOIN ai_gateway_policies p ON p.id = pver.policy_id
+WHERE pl.deleted = FALSE
+    AND m.enabled = TRUE
+    AND prov.deleted = FALSE
+    AND p.deleted = FALSE
+ORDER BY pl.provider_id, m.hook, m.kind, p.name;
 
 -- name: GetActiveAIGatewayPipelinePolicies :many
 -- The runtime snapshot load: every member policy of every live, enabled
@@ -206,12 +280,21 @@ JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
 WHERE pver.policy_id = @policy_id::uuid AND pl.deleted = FALSE;
 
 -- name: GetAIGatewayPipelinesReferencingPolicy :many
--- Live pipelines whose active version pins any version of the given policy.
--- Used to propagate a newly activated policy version into the pipelines that
--- use it (assisted upgrade).
+-- Live pipelines whose TIP (latest) version pins any version of the given
+-- policy. Used to propagate a newly activated policy version into the pipelines
+-- that use it (assisted upgrade). Referencing the tip, not the active version,
+-- means a policy added to a pipeline but not yet promoted still receives the
+-- propagated edit, so a policy edit always mints a pipeline version on every
+-- pipeline whose current composition uses it (matching guardrails).
 SELECT DISTINCT pl.*
 FROM ai_gateway_pipelines pl
-JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = pl.active_version_id
+JOIN ai_gateway_pipeline_versions tip ON tip.pipeline_id = pl.id
+    AND tip.version_number = (
+        SELECT MAX(v.version_number)
+        FROM ai_gateway_pipeline_versions v
+        WHERE v.pipeline_id = pl.id
+    )
+JOIN ai_gateway_pipeline_version_policies m ON m.pipeline_version_id = tip.id
 JOIN ai_gateway_policy_versions pver ON pver.id = m.policy_version_id
 WHERE pl.deleted = FALSE AND pver.policy_id = @policy_id::uuid;
 

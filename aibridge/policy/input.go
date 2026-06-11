@@ -167,12 +167,8 @@ func (e PreReqEnvelope) Build() (Input, error) {
 // pre-req envelope (headers, request, identity, annotations) plus the assembled
 // tool call. Like pre-req it omits credential. Build it once per tool call.
 type PreToolEnvelope struct {
+	PreReqEnvelope
 	ToolCall ToolCall
-	Headers  map[string]any
-	Method   string
-	Path     string
-	Request  []byte // provider-native request body
-	Identity Identity
 }
 
 // Build materializes the pre-tool Input. Invalid tool arguments JSON is an

@@ -1987,7 +1987,90 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/aibridge/pipelines/{id}/members": {
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Enable or disable an AI gateway pipeline member",
+                "operationId": "enable-or-disable-an-ai-gateway-pipeline-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pipeline ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update member request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAIGatewayPipelineMemberRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIGatewayPipeline"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/aibridge/pipelines/{id}/versions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI gateway pipeline versions",
+                "operationId": "list-ai-gateway-pipeline-versions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Pipeline ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayPipelineVersion"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
             "post": {
                 "consumes": [
                     "application/json"
@@ -15900,11 +15983,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "pre_auth",
-                "pre_req"
+                "pre_req",
+                "pre_tool"
             ],
             "x-enum-varnames": [
                 "AIGatewayHookPreAuth",
-                "AIGatewayHookPreReq"
+                "AIGatewayHookPreReq",
+                "AIGatewayHookPreTool"
             ]
         },
         "codersdk.AIGatewayKey": {
@@ -15950,6 +16035,22 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "latest_version": {
+                    "description": "LatestVersion is the tip version with its full membership (policies and\nguardrails). Editing a pipeline must base the new version on the tip, not\nthe active version, so staged changes accumulate as one linear draft\nlineage; basing an edit on the active version would silently drop members\nadded in an unpromoted draft.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIGatewayPipelineVersion"
+                        }
+                    ]
+                },
+                "latest_version_id": {
+                    "description": "LatestVersionID / LatestVersionNumber identify the pipeline's tip (most\nrecent) version. Under the explicit two-stage rollout, activating a policy\nor guardrail mints a new pipeline version on the tip without promoting it,\nso the tip can be ahead of the active (live) version. When LatestVersionID\ndiffers from ActiveVersionID the pipeline has unpromoted changes (drift):\nthe operator can promote the tip to take them live.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "latest_version_number": {
+                    "type": "integer"
                 },
                 "provider_id": {
                     "type": "string",
@@ -18747,7 +18848,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "activate": {
-                    "description": "Activate sets the new version as the guardrail's active version.",
+                    "description": "Activate sets the new version as the guardrail's active version.\nActivation propagates to referencing pipelines by minting (not promoting)\nnew pipeline versions on their tip; live posture is unchanged until\npromotion. Defaults false.",
                     "type": "boolean"
                 },
                 "config": {
@@ -18761,6 +18862,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "promote": {
+                    "description": "Promote, only meaningful with Activate, additionally activates the minted\npipeline versions so the change goes live immediately. Defaults false.",
+                    "type": "boolean"
                 }
             }
         },
@@ -18865,11 +18970,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "activate": {
-                    "description": "Activate sets the new version as the policy's active version.",
+                    "description": "Activate sets the new version as the policy's active version. Activation\npropagates to every referencing pipeline by *minting* a new (unpromoted)\npipeline version on its tip; live posture is unchanged until each pipeline\nis explicitly promoted. Defaults false: a bare create mints only.",
                     "type": "boolean"
                 },
                 "description": {
                     "type": "string"
+                },
+                "promote": {
+                    "description": "Promote, only meaningful with Activate, additionally activates the minted\npipeline versions so the change goes live immediately across all\nreferencing pipelines. Defaults false (explicit promotion is the safe\ndefault).",
+                    "type": "boolean"
                 },
                 "rego": {
                     "type": "string"
@@ -25555,6 +25664,29 @@ const docTemplate = `{
                 },
                 "enabled": {
                     "type": "boolean"
+                },
+                "promote": {
+                    "description": "Promote, only meaningful with ActiveVersionID, additionally activates the\npipeline versions minted by propagation so the activation goes live\nimmediately. Defaults false.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.UpdateAIGatewayPipelineMemberRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "guardrail_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "hook": {
+                    "$ref": "#/definitions/codersdk.AIGatewayHook"
+                },
+                "policy_version_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -25579,6 +25711,10 @@ const docTemplate = `{
                 },
                 "display_name": {
                     "type": "string"
+                },
+                "promote": {
+                    "description": "Promote, only meaningful with ActiveVersionID, additionally activates the\npipeline versions minted by propagation so the activation goes live\nimmediately. Defaults false: activation mints unpromoted pipeline drafts.",
+                    "type": "boolean"
                 }
             }
         },

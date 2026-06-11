@@ -279,17 +279,49 @@ type sqlcQuerier interface {
 	// Membership rows whose pinned policy version is not the policy's current active
 	// version. Surfaced as a drift metric.
 	GetAIGatewayPipelinePolicyDrift(ctx context.Context) ([]GetAIGatewayPipelinePolicyDriftRow, error)
+	// Like GetActiveAIGatewayPipelineGuardrails but resolves a specific (typically
+	// unpromoted) pipeline version instead of the active one, for version-targeted
+	// evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked,
+	// mirroring the policy snapshot variant. credential is decrypted by the dbcrypt
+	// layer.
+	GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]GetAIGatewayPipelineVersionGuardrailSnapshotRow, error)
 	GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionGuardrail, error)
+	// Resolves a pipeline version's id from the provider name and the logical
+	// version number, for the version-targeted evaluation gate (§10.9). The
+	// X-Coder-AI-Gateway-Pipeline-Version header carries the human-facing version
+	// number, not the internal uuid, so this translates it. Returns no rows when no
+	// live pipeline for the provider has that version number, which the gate maps to
+	// a 4xx (unknown version). Provider scoping here means a foreign version number
+	// can never resolve to another provider's pipeline.
+	GetAIGatewayPipelineVersionIDByProviderAndNumber(ctx context.Context, arg GetAIGatewayPipelineVersionIDByProviderAndNumberParams) (uuid.UUID, error)
 	GetAIGatewayPipelineVersionPolicies(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionPolicy, error)
+	// Like GetActiveAIGatewayPipelinePolicies but resolves a specific (typically
+	// unpromoted) pipeline version instead of the active one, for version-targeted
+	// evaluation (§10.9). The pipeline's enabled flag is intentionally NOT checked:
+	// a staged version is rehearsed against real traffic before it is promoted and
+	// the pipeline is enabled. Disabled members and soft-deleted parents are still
+	// excluded, matching the active snapshot.
+	GetAIGatewayPipelineVersionPolicySnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]GetAIGatewayPipelineVersionPolicySnapshotRow, error)
+	// Resolves the provider that owns a pipeline version, for the version-targeted
+	// evaluation gate (§10.9). Returns no rows if the version does not exist or its
+	// pipeline/provider is soft-deleted, which the gate maps to a 4xx (unknown or
+	// foreign version).
+	GetAIGatewayPipelineVersionProvider(ctx context.Context, pipelineVersionID uuid.UUID) (GetAIGatewayPipelineVersionProviderRow, error)
 	GetAIGatewayPipelineVersionsByPipelineID(ctx context.Context, pipelineID uuid.UUID) ([]AIGatewayPipelineVersion, error)
 	GetAIGatewayPipelines(ctx context.Context, arg GetAIGatewayPipelinesParams) ([]AIGatewayPipeline, error)
-	// Live pipelines whose active version pins any version of the given guardrail.
-	// Used to propagate a newly activated guardrail version into the pipelines that
-	// use it (assisted upgrade).
+	// Live pipelines whose TIP (latest) version pins any version of the given
+	// guardrail. Used to propagate a newly activated guardrail version into the
+	// pipelines that use it (assisted upgrade). Referencing the tip, not the active
+	// version, means a guardrail added to a pipeline but not yet promoted still
+	// receives the propagated edit, so a guardrail edit always mints a pipeline
+	// version (matching policies).
 	GetAIGatewayPipelinesReferencingGuardrail(ctx context.Context, guardrailID uuid.UUID) ([]AIGatewayPipeline, error)
-	// Live pipelines whose active version pins any version of the given policy.
-	// Used to propagate a newly activated policy version into the pipelines that
-	// use it (assisted upgrade).
+	// Live pipelines whose TIP (latest) version pins any version of the given
+	// policy. Used to propagate a newly activated policy version into the pipelines
+	// that use it (assisted upgrade). Referencing the tip, not the active version,
+	// means a policy added to a pipeline but not yet promoted still receives the
+	// propagated edit, so a policy edit always mints a pipeline version on every
+	// pipeline whose current composition uses it (matching guardrails).
 	GetAIGatewayPipelinesReferencingPolicy(ctx context.Context, policyID uuid.UUID) ([]AIGatewayPipeline, error)
 	// Returns policy parent rows. Soft-deleted rows are excluded unless
 	// include_deleted is set.
@@ -1243,6 +1275,15 @@ type sqlcQuerier interface {
 	UpdateAIGatewayGuardrailActiveVersion(ctx context.Context, arg UpdateAIGatewayGuardrailActiveVersionParams) error
 	UpdateAIGatewayPipeline(ctx context.Context, arg UpdateAIGatewayPipelineParams) (AIGatewayPipeline, error)
 	UpdateAIGatewayPipelineActiveVersion(ctx context.Context, arg UpdateAIGatewayPipelineActiveVersionParams) error
+	// Flips a guardrail member's enabled flag in place on a specific pipeline
+	// version. Like the policy variant, enable/disable is a live pause control, not
+	// a composition change, so it mutates the membership row instead of minting a
+	// new pipeline version.
+	UpdateAIGatewayPipelineVersionGuardrailEnabled(ctx context.Context, arg UpdateAIGatewayPipelineVersionGuardrailEnabledParams) error
+	// Flips a policy member's enabled flag in place on a specific pipeline version.
+	// Enable/disable is a live pause control, not a composition change, so it
+	// mutates the membership row directly instead of minting a new pipeline version.
+	UpdateAIGatewayPipelineVersionPolicyEnabled(ctx context.Context, arg UpdateAIGatewayPipelineVersionPolicyEnabledParams) error
 	UpdateAIGatewayPolicy(ctx context.Context, arg UpdateAIGatewayPolicyParams) (AIGatewayPolicy, error)
 	UpdateAIGatewayPolicyActiveVersion(ctx context.Context, arg UpdateAIGatewayPolicyActiveVersionParams) error
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)

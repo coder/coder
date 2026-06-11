@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"cdr.dev/slog/v3"
@@ -12,6 +13,20 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
+
+// guardrailMember is a normalized guardrail membership row, shared by the
+// active-snapshot loader and the version-targeted resolver.
+type guardrailMember struct {
+	ProviderName     string
+	Hook             database.AIGatewayHook
+	AdapterType      string
+	GuardrailName    string
+	Config           json.RawMessage
+	Credential       string
+	Mode             database.AIGatewayGuardrailMode
+	FailMode         database.AIGatewayFailMode
+	NetworkTimeoutMs int32
+}
 
 // BuildProviderGuardrails loads the active guardrail snapshot from the database
 // and attaches a compiled guardrail [guardrail.Stage] per (provider, hook) onto
@@ -32,43 +47,66 @@ func BuildProviderGuardrails(ctx context.Context, db database.Store, logger slog
 		return err
 	}
 
+	members := make([]guardrailMember, 0, len(rows))
+	for _, row := range rows {
+		members = append(members, guardrailMember{
+			ProviderName:     row.ProviderName,
+			Hook:             row.Hook,
+			AdapterType:      row.AdapterType,
+			GuardrailName:    row.GuardrailName,
+			Config:           row.Config,
+			Credential:       row.Credential,
+			Mode:             row.Mode,
+			FailMode:         row.FailMode,
+			NetworkTimeoutMs: row.NetworkTimeoutMs,
+		})
+	}
+
+	attachGuardrailStages(ctx, logger, members, hooks)
+	return nil
+}
+
+// attachGuardrailStages compiles a normalized set of guardrail members into
+// per-provider stages and attaches them onto hooks in place. Shared by the
+// active-snapshot loader and the version-targeted resolver.
+func attachGuardrailStages(ctx context.Context, logger slog.Logger, members []guardrailMember, hooks map[string]aibridge.ProviderPipelines) {
 	type hookKey struct {
 		provider string
 		hook     database.AIGatewayHook
 	}
-	members := make(map[hookKey][]guardrail.Member)
+	grouped := make(map[hookKey][]guardrail.Member)
 
-	for _, row := range rows {
-		g, err := adapters.Build(row.AdapterType, row.GuardrailName, row.Config, row.Credential)
+	for _, member := range members {
+		g, err := adapters.Build(member.AdapterType, member.GuardrailName, member.Config, member.Credential)
 		if err != nil {
 			logger.Error(ctx, "skipping guardrail that failed to build",
-				slog.F("provider", row.ProviderName),
-				slog.F("guardrail", row.GuardrailName),
-				slog.F("adapter_type", row.AdapterType),
+				slog.F("provider", member.ProviderName),
+				slog.F("guardrail", member.GuardrailName),
+				slog.F("adapter_type", member.AdapterType),
 				slog.Error(err),
 			)
 			continue
 		}
 
 		mode := guardrail.ModeAdvisory
-		if row.Mode == database.AIGatewayGuardrailModeEnforcing {
+		if member.Mode == database.AIGatewayGuardrailModeEnforcing {
 			mode = guardrail.ModeEnforcing
 		}
 		failMode := guardrail.FailClosed
-		if row.FailMode == database.AIGatewayFailModeFailOpen {
+		if member.FailMode == database.AIGatewayFailModeFailOpen {
 			failMode = guardrail.FailOpen
 		}
 
-		key := hookKey{row.ProviderName, row.Hook}
-		members[key] = append(members[key], guardrail.Member{
+		key := hookKey{member.ProviderName, member.Hook}
+		grouped[key] = append(grouped[key], guardrail.Member{
 			Guardrail: g,
 			Mode:      mode,
 			FailMode:  failMode,
-			Timeout:   time.Duration(row.NetworkTimeoutMs) * time.Millisecond,
+			Timeout:   time.Duration(member.NetworkTimeoutMs) * time.Millisecond,
 		})
 	}
 
-	for key, ms := range members {
+	for key, ms := range grouped {
 		if key.hook != database.AIGatewayHookPreReq {
 			logger.Warn(ctx, "skipping guardrails for unsupported hook",
 				slog.F("provider", key.provider), slog.F("hook", string(key.hook)))
@@ -84,5 +122,4 @@ func BuildProviderGuardrails(ctx context.Context, db database.Store, logger slog
 		pp.PreReqGuardrails = stage
 		hooks[key.provider] = pp
 	}
-	return nil
 }

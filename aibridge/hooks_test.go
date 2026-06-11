@@ -235,7 +235,10 @@ annotations := {"tier": "gold"}
 	require.Len(t, interceptions, 1)
 	classifications, ok := interceptions[0].Metadata["classifications"].(map[string]any)
 	require.True(t, ok, "classifications must be recorded under Metadata")
-	assert.Equal(t, "gold", classifications["tier"])
+	// Classify output is namespaced under the producing policy's name.
+	tier, ok := classifications["tier-classifier"].(map[string]any)
+	require.True(t, ok, "classification must be namespaced under the classifier name")
+	assert.Equal(t, "gold", tier["tier"])
 	// Existing actor metadata is preserved alongside classifications.
 	assert.Equal(t, "platform", interceptions[0].Metadata["team"])
 }

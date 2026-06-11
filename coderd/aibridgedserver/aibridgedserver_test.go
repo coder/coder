@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -173,6 +174,11 @@ func TestAuthorization(t *testing.T) {
 				tc.key = token
 			}
 
+			// The owner-role read happens on the success path and defaults to
+			// non-owner; it is exercised explicitly in TestAuthorization_IsOwner.
+			db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), gomock.Any()).
+				Return(database.GetAuthorizationUserRolesRow{}, nil).AnyTimes()
+
 			// Define any case-specific mocks.
 			if tc.mocksFn != nil {
 				tc.mocksFn(db, apiKey, user)
@@ -191,6 +197,7 @@ func TestAuthorization(t *testing.T) {
 					OwnerId:  user.ID.String(),
 					ApiKeyId: keyID,
 					Username: user.Username,
+					IsOwner:  false,
 				}
 				require.NoError(t, err)
 				require.Equal(t, &expected, resp)
@@ -312,6 +319,11 @@ func TestAuthorization_Delegated(t *testing.T) {
 				Scopes:          []database.APIKeyScope{database.ApiKeyScopeCoderAll},
 			}
 
+			// The owner-role read happens on the success path and defaults to
+			// non-owner; it is exercised explicitly in TestAuthorization_IsOwner.
+			db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), gomock.Any()).
+				Return(database.GetAuthorizationUserRolesRow{}, nil).AnyTimes()
+
 			if tc.mocksFn != nil {
 				tc.mocksFn(db, apiKey, user)
 			}
@@ -336,7 +348,74 @@ func TestAuthorization_Delegated(t *testing.T) {
 				OwnerId:  user.ID.String(),
 				ApiKeyId: keyID,
 				Username: user.Username,
+				IsOwner:  false,
 			}, resp)
+		})
+	}
+}
+
+// IsAuthorized reports IsOwner=true exactly when the authenticated user holds
+// the site-wide owner role, which gates owner-only version-targeted evaluation.
+func TestAuthorization_IsOwner(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		roles         []string
+		expectedOwner bool
+	}{
+		{name: "owner", roles: []string{rbac.RoleOwner().String()}, expectedOwner: true},
+		{name: "member", roles: []string{rbac.RoleMember().String()}, expectedOwner: false},
+		{name: "no roles", roles: []string{}, expectedOwner: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			logger := testutil.Logger(t)
+
+			now := dbtime.Now()
+			user := database.User{
+				ID:         uuid.New(),
+				Email:      "owner@coder.com",
+				Username:   "owner",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+				RBACRoles:  tc.roles,
+				LoginType:  database.LoginTypePassword,
+				Status:     database.UserStatusActive,
+				LastSeenAt: now,
+			}
+			keyID, _ := cryptorand.String(10)
+			keySecret, keySecretHashed, _ := apikey.GenerateSecret(22)
+			token := fmt.Sprintf("%s-%s", keyID, keySecret)
+			apiKey := database.APIKey{
+				ID:              keyID,
+				LifetimeSeconds: 86400,
+				HashedSecret:    keySecretHashed,
+				UserID:          user.ID,
+				LastUsed:        now,
+				ExpiresAt:       now.Add(time.Hour),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				LoginType:       database.LoginTypePassword,
+				Scopes:          []database.APIKeyScope{database.ApiKeyScopeCoderAll},
+			}
+
+			db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).
+				Return(database.GetAuthorizationUserRolesRow{ID: user.ID, Username: user.Username, Roles: tc.roles}, nil)
+
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+			require.NoError(t, err)
+
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: token})
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedOwner, resp.GetIsOwner())
 		})
 	}
 }

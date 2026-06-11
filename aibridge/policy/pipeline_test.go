@@ -1,6 +1,7 @@
 package policy_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -34,7 +35,7 @@ annotations := {"risk": "high"} if object.get(input.request.body, "max_tokens", 
 	// annotations; a BLOCK would short-circuit and is exercised separately.
 	decide := mustDecide(t, `
 default verdict := "ALLOW"
-verdict := "LOG" if input.annotations.risk == "high"
+verdict := "LOG" if input.annotations["test-classify"].risk == "high"
 `)
 
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
@@ -48,7 +49,8 @@ verdict := "LOG" if input.annotations.risk == "high"
 	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":5000}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictLog, res.Verdict)
-	require.Equal(t, "high", res.Annotations["risk"])
+	// Annotations are namespaced under the producing classifier's name.
+	require.Equal(t, "high", res.Annotations["test-classify"].(map[string]any)["risk"])
 
 	// Low max_tokens -> no annotation -> allowed.
 	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":100}`, policy.Identity{}))
@@ -103,7 +105,7 @@ func TestPipeline_FailMode(t *testing.T) {
 		require.Equal(t, policy.VerdictBlock, res.Verdict)
 	})
 
-	t.Run("open_skips", func(t *testing.T) {
+	t.Run("open_logs", func(t *testing.T) {
 		t.Parallel()
 		pipe, err := policy.NewPipeline(policy.PipelineConfig{
 			Decide: []*policy.Decide{mustDecide(t, errModule, policy.WithFailMode(policy.FailOpen))},
@@ -111,7 +113,46 @@ func TestPipeline_FailMode(t *testing.T) {
 		require.NoError(t, err)
 		res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
 		require.NoError(t, err)
-		require.Equal(t, policy.VerdictAllow, res.Verdict)
+		// A fail-open error is normalized to LOG (visible), never a silent
+		// ALLOW, and the underlying error is surfaced for host logging.
+		require.Equal(t, policy.VerdictLog, res.Verdict)
+		require.Len(t, res.Errors, 1)
+		require.Equal(t, "test-decide", res.Errors[0].Stage)
+		require.Error(t, res.Errors[0].Err)
+	})
+}
+
+func TestPipeline_CancellationHonorsFailMode(t *testing.T) {
+	t.Parallel()
+
+	// An evaluation that fails to complete (here, a cancelled context) is
+	// normalized through the stage's fail mode like any other error: there is
+	// no special case that always blocks on timeout/cancellation.
+	t.Run("closed_blocks", func(t *testing.T) {
+		t.Parallel()
+		pipe, err := policy.NewPipeline(policy.PipelineConfig{
+			Decide: []*policy.Decide{mustDecide(t, `default verdict := "ALLOW"`)}, // FailClosed
+		})
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		res, err := pipe.Evaluate(ctx, buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
+		require.NoError(t, err)
+		require.Equal(t, policy.VerdictBlock, res.Verdict)
+	})
+
+	t.Run("open_logs", func(t *testing.T) {
+		t.Parallel()
+		pipe, err := policy.NewPipeline(policy.PipelineConfig{
+			Decide: []*policy.Decide{mustDecide(t, `default verdict := "ALLOW"`, policy.WithFailMode(policy.FailOpen))},
+		})
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		res, err := pipe.Evaluate(ctx, buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
+		require.NoError(t, err)
+		require.Equal(t, policy.VerdictLog, res.Verdict)
+		require.Len(t, res.Errors, 1)
 	})
 }
 
