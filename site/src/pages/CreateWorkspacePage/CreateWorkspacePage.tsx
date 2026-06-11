@@ -15,7 +15,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	templateByName,
 	templateVersion,
-	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "#/api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
@@ -28,6 +27,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useExternalAuth } from "#/hooks/useExternalAuth";
 import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";
@@ -41,7 +41,6 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -459,74 +458,6 @@ const CreateWorkspacePage: FC = () => {
 			)}
 		</>
 	);
-};
-
-const useExternalAuth = (versionId: string | undefined) => {
-	const [pollingState, setPollingState] = useState<
-		Record<string, ExternalAuthPollingState>
-	>({});
-
-	const startPollingExternalAuth = useCallback((providerId: string) => {
-		setPollingState((prev) => ({ ...prev, [providerId]: "polling" }));
-	}, []);
-
-	const isAnyPolling = Object.values(pollingState).some((s) => s === "polling");
-
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
-		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: Boolean(versionId),
-		refetchInterval: isAnyPolling ? 1000 : false,
-	});
-
-	// Stop polling individual providers once they authenticate.
-	useEffect(() => {
-		if (!externalAuth) {
-			return;
-		}
-		setPollingState((prev) => {
-			let changed = false;
-			const next = { ...prev };
-			for (const auth of externalAuth) {
-				if (auth.authenticated && next[auth.id] === "polling") {
-					next[auth.id] = "idle";
-					changed = true;
-				}
-			}
-			return changed ? next : prev;
-		});
-	}, [externalAuth]);
-
-	// Per-provider 60-second timeout.
-	useEffect(() => {
-		const pollingIds = Object.entries(pollingState)
-			.filter(([, s]) => s === "polling")
-			.map(([id]) => id);
-
-		if (pollingIds.length === 0) {
-			return;
-		}
-
-		const timers = pollingIds.map((id) =>
-			setTimeout(() => {
-				setPollingState((prev) =>
-					prev[id] === "polling" ? { ...prev, [id]: "abandoned" } : prev,
-				);
-			}, 60_000),
-		);
-
-		return () => {
-			for (const t of timers) {
-				clearTimeout(t);
-			}
-		};
-	}, [pollingState]);
-
-	return {
-		startPollingExternalAuth,
-		externalAuth,
-		externalAuthPollingState: pollingState,
-		isLoadingExternalAuth,
-	};
 };
 
 const getAutofillParameters = (
