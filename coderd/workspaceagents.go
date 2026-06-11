@@ -1093,6 +1093,11 @@ func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *ht
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, waws.WorkspaceTable) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
