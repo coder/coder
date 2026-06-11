@@ -30,10 +30,8 @@ const (
 	listTemplatesMinActiveDevelopersForRecommendation = 2
 
 	// Affinity ("frecency") parameters: recency-decayed personal usage plus
-	// log-scaled organization popularity. Computed in Go rather than SQL so
-	// the score and its confidence thresholds share float semantics, and
-	// because sqlc type inference is fragile around complex parameterized
-	// expressions.
+	// log-scaled organization popularity. The score is computed in Go so the
+	// ranking policy and its confidence thresholds live in one place.
 	listTemplatesLookbackDays   = 60
 	listTemplatesHalfLife       = 14 * 24 * time.Hour
 	listTemplatesPersonalWeight = 10.0

@@ -669,6 +669,9 @@ func TestListTemplates_DeletedRecentPersonalUsageShowsEvidence(t *testing.T) {
 	require.NotEmpty(t, templates[0]["last_used_by_you"])
 	_, hasActiveCount := templates[0]["your_workspace_count"]
 	require.False(t, hasActiveCount)
+	// Recent deleted usage alone clears the confidence floor.
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
+	require.Equal(t, deletedUsage.ID.String(), result["recommended_template_id"])
 }
 
 func TestListTemplates_AmbiguousTopMatches(t *testing.T) {

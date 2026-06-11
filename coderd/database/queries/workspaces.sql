@@ -501,8 +501,8 @@ GROUP BY templates.id;
 -- GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
 -- one owner: in-window active and recently-deleted workspace counts, the last
 -- in-window usage, and distinct active developers per template. The affinity
--- score is computed in Go (see listtemplates.go) because sqlc type inference
--- is fragile around complex parameterized expressions.
+-- score is computed in Go (see listtemplates.go) so the ranking policy and
+-- its confidence thresholds live in one place.
 WITH org_usage AS (
 	-- Distinct developers with a non-deleted workspace; the prebuilds system
 	-- user is excluded so unclaimed prebuilds do not inflate popularity.

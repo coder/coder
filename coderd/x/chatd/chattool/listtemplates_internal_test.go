@@ -180,6 +180,19 @@ func TestSelectTemplateRecommendation(t *testing.T) {
 		require.Equal(t, NextStepAskUser, next)
 	})
 
+	t.Run("NoQueryConfidentWhenBothClearFloorWithLargeGap", func(t *testing.T) {
+		t.Parallel()
+		top := uuid.New()
+		id, next := selectTemplateRecommendation(
+			[]rankedTemplate{
+				{Template: database.Template{ID: top}, AffinityScore: 2.0, Signals: templateRankingSignals{OrgDevs: 6}},
+				{Template: database.Template{ID: uuid.New()}, AffinityScore: 1.2, Signals: templateRankingSignals{OrgDevs: 2}},
+			}, 2, nil,
+		)
+		require.Equal(t, top, id)
+		require.Equal(t, NextStepUseRecommended, next)
+	})
+
 	t.Run("NoQueryLoadErrorAsksUser", func(t *testing.T) {
 		t.Parallel()
 		id, next := selectTemplateRecommendation(
