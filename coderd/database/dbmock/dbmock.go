@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	sql "database/sql"
 	json "encoding/json"
 	reflect "reflect"
 	time "time"
@@ -191,6 +192,21 @@ func (m *MockStore) AutoArchiveInactiveChats(ctx context.Context, arg database.A
 func (mr *MockStoreMockRecorder) AutoArchiveInactiveChats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoArchiveInactiveChats", reflect.TypeOf((*MockStore)(nil).AutoArchiveInactiveChats), ctx, arg)
+}
+
+// BackfillChatModelConfigProvider mocks base method.
+func (m *MockStore) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackfillChatModelConfigProvider", ctx, arg)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BackfillChatModelConfigProvider indicates an expected call of BackfillChatModelConfigProvider.
+func (mr *MockStoreMockRecorder) BackfillChatModelConfigProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillChatModelConfigProvider", reflect.TypeOf((*MockStore)(nil).BackfillChatModelConfigProvider), ctx, arg)
 }
 
 // BackoffChatDiffStatus mocks base method.
