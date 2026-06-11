@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/usersecretspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -101,12 +100,10 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = secret
 
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:     usersecretspubsub.EventKindCreated,
-		UserID:   secret.UserID,
-		Name:     secret.Name,
-		EnvName:  secret.EnvName,
-		FilePath: secret.FilePath,
+	api.publishUserSecretEvent(ctx, codersdk.UserSecretEvent{
+		Kind:   codersdk.UserSecretEventKindCreated,
+		UserID: secret.UserID,
+		Name:   secret.Name,
 	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
@@ -284,12 +281,10 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:     usersecretspubsub.EventKindUpdated,
-		UserID:   secret.UserID,
-		Name:     secret.Name,
-		EnvName:  secret.EnvName,
-		FilePath: secret.FilePath,
+	api.publishUserSecretEvent(ctx, codersdk.UserSecretEvent{
+		Kind:   codersdk.UserSecretEventKindUpdated,
+		UserID: secret.UserID,
+		Name:   secret.Name,
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecretFromFull(secret))
@@ -335,8 +330,8 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = deleted
 
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:   usersecretspubsub.EventKindDeleted,
+	api.publishUserSecretEvent(ctx, codersdk.UserSecretEvent{
+		Kind:   codersdk.UserSecretEventKindDeleted,
 		UserID: user.ID,
 		Name:   name,
 	})
@@ -469,7 +464,7 @@ func (api *API) watchUserSecrets(rw http.ResponseWriter, r *http.Request) {
 
 	events := make(chan codersdk.UserSecretEvent, 16)
 	subscriptionErrors := make(chan error, 1)
-	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(usersecretspubsub.Channel(user.ID), func(ctx context.Context, msg []byte, err error) {
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(userSecretsChannel(user.ID), func(ctx context.Context, msg []byte, err error) {
 		if err != nil {
 			select {
 			case subscriptionErrors <- err:
@@ -545,8 +540,17 @@ func (api *API) watchUserSecrets(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) publishUserSecretEvent(ctx context.Context, event usersecretspubsub.Event) {
-	if err := usersecretspubsub.Publish(api.Pubsub, event); err != nil {
+// userSecretsChannel is the pubsub channel for a user's secret change events.
+func userSecretsChannel(userID uuid.UUID) string {
+	return "user_secrets:" + userID.String()
+}
+
+func (api *API) publishUserSecretEvent(ctx context.Context, event codersdk.UserSecretEvent) {
+	msg, err := json.Marshal(event)
+	if err == nil {
+		err = api.Pubsub.Publish(userSecretsChannel(event.UserID), msg)
+	}
+	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish user secret event",
 			slog.F("user_id", event.UserID),
 			slog.F("secret_name", event.Name),

@@ -25251,12 +25251,6 @@ const docTemplate = `{
         "codersdk.UserSecretEvent": {
             "type": "object",
             "properties": {
-                "env_name": {
-                    "type": "string"
-                },
-                "file_path": {
-                    "type": "string"
-                },
                 "kind": {
                     "$ref": "#/definitions/codersdk.UserSecretEventKind"
                 },

@@ -9486,8 +9486,6 @@ export interface UserSecretEvent {
 	readonly kind: UserSecretEventKind;
 	readonly user_id: string;
 	readonly name: string;
-	readonly env_name?: string;
-	readonly file_path?: string;
 }
 
 // From codersdk/usersecrets.go

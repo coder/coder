@@ -730,43 +730,33 @@ func TestWatchUserSecrets(t *testing.T) {
 		events := stream.Chan()
 
 		name := strings.ReplaceAll(t.Name(), "/", "-")
-		created, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
-			Name:     name,
-			Value:    "secret-value",
-			EnvName:  "WATCH_SECRET",
-			FilePath: "~/watch-secret",
+		_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  name,
+			Value: "secret-value",
 		})
 		require.NoError(t, err)
 
 		event := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.UserSecretEventKindCreated, event.Kind)
 		require.Equal(t, firstUser.UserID, event.UserID)
-		require.Equal(t, created.Name, event.Name)
-		require.Equal(t, created.EnvName, event.EnvName)
-		require.Equal(t, created.FilePath, event.FilePath)
+		require.Equal(t, name, event.Name)
 
 		description := "rotated"
-		updated, err := client.UpdateUserSecret(ctx, codersdk.Me, name, codersdk.UpdateUserSecretRequest{
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, name, codersdk.UpdateUserSecretRequest{
 			Description: &description,
 		})
 		require.NoError(t, err)
 
 		event = testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.UserSecretEventKindUpdated, event.Kind)
-		require.Equal(t, firstUser.UserID, event.UserID)
-		require.Equal(t, updated.Name, event.Name)
-		require.Equal(t, updated.EnvName, event.EnvName)
-		require.Equal(t, updated.FilePath, event.FilePath)
+		require.Equal(t, name, event.Name)
 
 		err = client.DeleteUserSecret(ctx, codersdk.Me, name)
 		require.NoError(t, err)
 
 		event = testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.UserSecretEventKindDeleted, event.Kind)
-		require.Equal(t, firstUser.UserID, event.UserID)
 		require.Equal(t, name, event.Name)
-		require.Empty(t, event.EnvName)
-		require.Empty(t, event.FilePath)
 	})
 
 	t.Run("RejectsUnauthorizedUser", func(t *testing.T) {

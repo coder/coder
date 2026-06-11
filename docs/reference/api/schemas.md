@@ -14095,8 +14095,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "env_name": "string",
-  "file_path": "string",
   "kind": "created",
   "name": "string",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -14105,13 +14103,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name        | Type                                                         | Required | Restrictions | Description |
-|-------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `env_name`  | string                                                       | false    |              |             |
-| `file_path` | string                                                       | false    |              |             |
-| `kind`      | [codersdk.UserSecretEventKind](#codersdkusersecreteventkind) | false    |              |             |
-| `name`      | string                                                       | false    |              |             |
-| `user_id`   | string                                                       | false    |              |             |
+| Name      | Type                                                         | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------|----------|--------------|-------------|
+| `kind`    | [codersdk.UserSecretEventKind](#codersdkusersecreteventkind) | false    |              |             |
+| `name`    | string                                                       | false    |              |             |
+| `user_id` | string                                                       | false    |              |             |
 
 ## codersdk.UserSecretEventKind
 

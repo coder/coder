@@ -142,8 +142,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/-/watch \
 
 ```json
 {
-  "env_name": "string",
-  "file_path": "string",
   "kind": "created",
   "name": "string",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"

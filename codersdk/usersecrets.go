@@ -29,22 +29,17 @@ type UserSecret struct {
 type UserSecretEventKind string
 
 const (
-	// UserSecretEventKindCreated indicates a user secret was created.
 	UserSecretEventKindCreated UserSecretEventKind = "created"
-	// UserSecretEventKindUpdated indicates a user secret was updated.
 	UserSecretEventKindUpdated UserSecretEventKind = "updated"
-	// UserSecretEventKindDeleted indicates a user secret was deleted.
 	UserSecretEventKindDeleted UserSecretEventKind = "deleted"
 )
 
 // UserSecretEvent is emitted when a user secret is created, updated, or deleted.
 // The secret value is never included.
 type UserSecretEvent struct {
-	Kind     UserSecretEventKind `json:"kind"`
-	UserID   uuid.UUID           `json:"user_id" format:"uuid"`
-	Name     string              `json:"name"`
-	EnvName  string              `json:"env_name,omitempty"`
-	FilePath string              `json:"file_path,omitempty"`
+	Kind   UserSecretEventKind `json:"kind"`
+	UserID uuid.UUID           `json:"user_id" format:"uuid"`
+	Name   string              `json:"name"`
 }
 
 // CreateUserSecretRequest is the payload for creating a new user
