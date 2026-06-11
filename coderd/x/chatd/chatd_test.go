@@ -11609,6 +11609,19 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		finalCallMessages []chattest.OpenAIMessage
 	)
 
+	// Declared before the OpenAI handler so the nested advisor stream can
+	// gate its completion on the live collector below having observed the
+	// streamed deltas.
+	var (
+		livePartsMu       sync.Mutex
+		liveAdvisorDeltas []string
+	)
+	liveDeltasCaptured := func() bool {
+		livePartsMu.Lock()
+		defer livePartsMu.Unlock()
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+	}
+
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
@@ -11633,9 +11646,33 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			advisorMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
 			streamedCallsMu.Unlock()
 			advisorCallSeen.Store(true)
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks(advisorDeltas...)...,
-			)
+			// Stream the deltas, then hold the nested response open until
+			// the live subscriber has captured them. Advisor deltas are
+			// stream-only: they live in the generation attempt's message
+			// part episode, and once the tool result is committed the
+			// subscriber's stream loop targets the next episode and never
+			// replays this one. Without the hold, a slow pubsub sync makes
+			// the subscriber skip the episode entirely and the deltas are
+			// lost, flaking the streaming assertions below.
+			chunks := make(chan chattest.OpenAIChunk)
+			go func() {
+				defer close(chunks)
+				for _, chunk := range chattest.OpenAITextChunks(advisorDeltas...) {
+					chunks <- chunk
+				}
+				deadline := time.NewTimer(testutil.WaitLong)
+				defer deadline.Stop()
+				for !liveDeltasCaptured() {
+					select {
+					case <-deadline.C:
+						// Give up and let the assertions below report the
+						// failure instead of hanging the stream forever.
+						return
+					case <-time.After(testutil.IntervalFast):
+					}
+				}
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
 		default:
 			// Parent turn 2: observe the advisor tool result and close
 			// out with a final text reply.
@@ -11671,11 +11708,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// Advisor deltas are transient; a late subscriber misses them.
 	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
-	var (
-		livePartsMu       sync.Mutex
-		liveAdvisorDeltas []string
-		liveCollectorDone = make(chan struct{})
-	)
+	liveCollectorDone := make(chan struct{})
 	go func() {
 		defer close(liveCollectorDone)
 		for {
@@ -11765,11 +11798,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// advisor deltas during processing. Late subscribers no longer
 	// see committed parts because publishMessage claims them out of
 	// new snapshots, so the assertion must use the live collector.
-	require.Eventually(t, func() bool {
-		livePartsMu.Lock()
-		defer livePartsMu.Unlock()
-		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
-	}, testutil.WaitLong, testutil.IntervalFast,
+	require.Eventually(t, liveDeltasCaptured, testutil.WaitLong, testutil.IntervalFast,
 		"advisor nested text deltas must stream into the parent tool card")
 	cancelLive()
 	<-liveCollectorDone

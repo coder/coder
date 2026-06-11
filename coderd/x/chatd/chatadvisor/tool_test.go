@@ -216,7 +216,7 @@ func TestAdvisorToolMissingPublisherReturnsError(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
 	require.Contains(t, resp.Content, "message-part publisher")
-	require.Contains(t, resp.Content, "chatloop.ExecuteLocalTools")
+	require.Contains(t, resp.Content, "internal tool bug")
 }
 
 func TestAdvisorToolPassesNormalQuestion(t *testing.T) {
