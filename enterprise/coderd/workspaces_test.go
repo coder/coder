@@ -3566,7 +3566,10 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		TemplateID:         tpl.ID,
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Use the test's long context deadline. The default wait in
+	// AwaitTemplateVersionJobCompleted is too short for a real terraform
+	// build, especially on Windows where providers are not cached.
+	coderdtest.AwaitTemplateVersionJobCompletedCtx(ctx, t, templateAdmin, tv.ID)
 
 	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: tv.ID,
@@ -3583,7 +3586,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		require.NoError(t, err, "failed to create workspace")
 		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
 		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+		// As above, a real terraform workspace build can outlast the default
+		// wait in AwaitWorkspaceBuildJobCompleted.
+		coderdtest.AwaitWorkspaceBuildJobCompletedCtx(ctx, t, member, ws.LatestBuild.ID)
 	}
 }
 
